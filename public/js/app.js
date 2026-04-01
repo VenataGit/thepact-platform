@@ -13,6 +13,8 @@ async function checkAuth() {
     const data = await res.json();
     currentUser = data.user;
     document.getElementById('sidebarUserName').textContent = currentUser.name;
+    const initials = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2);
+    document.getElementById('sidebarUserAvatar').textContent = initials;
     if (currentUser.role === 'admin') {
       document.getElementById('adminNavItem').style.display = '';
     }
@@ -191,8 +193,8 @@ function connectWS() {
 
   ws.onopen = () => {
     wsReconnectDelay = 1000;
-    document.getElementById('wsStatus').textContent = '● свързан';
-    document.getElementById('wsStatus').style.color = 'var(--green)';
+    document.getElementById('wsStatusDot').className = 'status-dot online';
+    document.getElementById('wsStatus').textContent = 'на живо';
   };
 
   ws.onmessage = (e) => {
@@ -203,8 +205,8 @@ function connectWS() {
   };
 
   ws.onclose = () => {
-    document.getElementById('wsStatus').textContent = '○ изключен';
-    document.getElementById('wsStatus').style.color = 'var(--text-dim)';
+    document.getElementById('wsStatusDot').className = 'status-dot offline';
+    document.getElementById('wsStatus').textContent = '';
     setTimeout(connectWS, wsReconnectDelay);
     wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
   };

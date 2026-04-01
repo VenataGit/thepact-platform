@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Pact — Platform</title>
+  <meta name="theme-color" content="#09090b">
+  <meta name="color-scheme" content="dark">
+  <title>The Pact</title>
   <link rel="stylesheet" href="/css/base.css">
   <link rel="stylesheet" href="/css/layout.css">
   <link rel="stylesheet" href="/css/board.css">
@@ -12,42 +14,57 @@
   <div class="app-layout">
     <!-- Sidebar -->
     <aside class="sidebar">
-      <div class="sidebar-logo" onclick="switchView('board')">The Pact</div>
+      <div class="sidebar-logo" onclick="switchView('board')">
+        <span class="sidebar-logo-dot"></span>
+        <span class="sidebar-logo-text">The Pact</span>
+      </div>
+
+      <div class="sidebar-section-label">Production</div>
       <nav class="sidebar-nav">
         <button class="nav-item active" data-view="board" onclick="switchView('board')">
-          <span class="icon">📋</span><span>Табло</span>
+          <span class="icon">&#9744;</span><span>Табло</span>
         </button>
         <button class="nav-item" data-view="daily" onclick="switchView('daily')">
-          <span class="icon">📅</span><span>Днес</span>
+          <span class="icon">&#9788;</span><span>Днес</span>
         </button>
         <button class="nav-item" data-view="overdue" onclick="switchView('overdue')">
-          <span class="icon">⚠</span><span>Просрочени</span>
-        </button>
-        <button class="nav-item" data-view="people" onclick="switchView('people')">
-          <span class="icon">👥</span><span>По хора</span>
-        </button>
-        <button class="nav-item" data-view="clients" onclick="switchView('clients')">
-          <span class="icon">🏢</span><span>Клиенти</span>
-        </button>
-        <button class="nav-item" data-view="videos" onclick="switchView('videos')">
-          <span class="icon">🎬</span><span>Видеа</span>
+          <span class="icon">&#9888;</span><span>Просрочени</span>
         </button>
         <button class="nav-item" data-view="calendar" onclick="switchView('calendar')">
-          <span class="icon">📆</span><span>Календар</span>
-        </button>
-        <button class="nav-item" data-view="kp" onclick="switchView('kp')">
-          <span class="icon">⚡</span><span>КП Авто</span>
-        </button>
-        <button class="nav-item" data-view="settings" onclick="switchView('settings')">
-          <span class="icon">⚙</span><span>Настройки</span>
-        </button>
-        <button class="nav-item" data-view="admin" onclick="switchView('admin')" id="adminNavItem" style="display:none">
-          <span class="icon">👑</span><span>Админ</span>
+          <span class="icon">&#128197;</span><span>Календар</span>
         </button>
       </nav>
+
+      <div class="sidebar-section-label">Екип</div>
+      <nav class="sidebar-nav">
+        <button class="nav-item" data-view="people" onclick="switchView('people')">
+          <span class="icon">&#128101;</span><span>По хора</span>
+        </button>
+        <button class="nav-item" data-view="clients" onclick="switchView('clients')">
+          <span class="icon">&#127970;</span><span>Клиенти</span>
+        </button>
+        <button class="nav-item" data-view="videos" onclick="switchView('videos')">
+          <span class="icon">&#127909;</span><span>Видеа</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-section-label">Система</div>
+      <nav class="sidebar-nav">
+        <button class="nav-item" data-view="kp" onclick="switchView('kp')">
+          <span class="icon">&#9889;</span><span>КП Авто</span>
+        </button>
+        <button class="nav-item" data-view="settings" onclick="switchView('settings')">
+          <span class="icon">&#9881;</span><span>Настройки</span>
+        </button>
+        <button class="nav-item" data-view="admin" onclick="switchView('admin')" id="adminNavItem" style="display:none">
+          <span class="icon">&#9733;</span><span>Админ</span>
+        </button>
+      </nav>
+
       <div class="sidebar-footer">
+        <div class="user-avatar" id="sidebarUserAvatar"></div>
         <span class="user-name" id="sidebarUserName"></span>
-        <button class="btn btn-ghost btn-sm" onclick="logout()" title="Изход">🚪</button>
+        <button class="logout-btn" onclick="logout()" title="Изход">&#10005;</button>
       </div>
     </aside>
 
@@ -56,28 +73,29 @@
       <header class="main-header">
         <div class="main-header-title" id="pageTitle">Табло</div>
         <div class="header-actions">
-          <span id="wsStatus" style="font-size:11px;color:var(--text-dim)"></span>
+          <div class="header-stat">
+            <span class="status-dot" id="wsStatusDot"></span>
+            <span id="wsStatus"></span>
+          </div>
         </div>
       </header>
 
       <div class="content-area">
-        <!-- Board View -->
         <div class="view active" id="view-board">
           <div class="board-container" id="boardContainer">
             <div class="empty-state">Зареждане...</div>
           </div>
         </div>
 
-        <!-- Placeholder views -->
-        <div class="view" id="view-daily"><div class="empty-state">Днес — скоро</div></div>
-        <div class="view" id="view-overdue"><div class="empty-state">Просрочени — скоро</div></div>
-        <div class="view" id="view-people"><div class="empty-state">По хора — скоро</div></div>
-        <div class="view" id="view-clients"><div class="empty-state">Клиенти — скоро</div></div>
-        <div class="view" id="view-videos"><div class="empty-state">Видеа — скоро</div></div>
-        <div class="view" id="view-calendar"><div class="empty-state">Календар — скоро</div></div>
-        <div class="view" id="view-kp"><div class="empty-state">КП Автоматизация — скоро</div></div>
-        <div class="view" id="view-settings"><div class="empty-state">Настройки — скоро</div></div>
-        <div class="view" id="view-admin"><div class="empty-state">Админ — скоро</div></div>
+        <div class="view" id="view-daily"><div class="empty-state"><p>Днес</p><p class="hint">Скоро</p></div></div>
+        <div class="view" id="view-overdue"><div class="empty-state"><p>Просрочени</p><p class="hint">Скоро</p></div></div>
+        <div class="view" id="view-people"><div class="empty-state"><p>По хора</p><p class="hint">Скоро</p></div></div>
+        <div class="view" id="view-clients"><div class="empty-state"><p>Клиенти</p><p class="hint">Скоро</p></div></div>
+        <div class="view" id="view-videos"><div class="empty-state"><p>Видеа</p><p class="hint">Скоро</p></div></div>
+        <div class="view" id="view-calendar"><div class="empty-state"><p>Календар</p><p class="hint">Скоро</p></div></div>
+        <div class="view" id="view-kp"><div class="empty-state"><p>КП Автоматизация</p><p class="hint">Скоро</p></div></div>
+        <div class="view" id="view-settings"><div class="empty-state"><p>Настройки</p><p class="hint">Скоро</p></div></div>
+        <div class="view" id="view-admin"><div class="empty-state"><p>Админ панел</p><p class="hint">Скоро</p></div></div>
       </div>
     </main>
   </div>
