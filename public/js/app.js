@@ -3,6 +3,7 @@ let currentView = 'board';
 let currentUser = null;
 let ws = null;
 let wsReconnectDelay = 1000;
+let openBoardId = null; // which board is open in detail view
 
 // ==================== AUTH ====================
 
@@ -52,13 +53,15 @@ function switchView(view) {
   document.getElementById('pageTitle').textContent = VIEW_TITLES[view] || view;
   currentView = view;
 
-  // Load view data
-  if (view === 'board') loadBoard();
+  if (view === 'board') {
+    openBoardId = null;
+    loadBoardGrid();
+  }
 }
 
-// ==================== BOARD ====================
+// ==================== BOARD GRID (HOME) ====================
 
-async function loadBoard() {
+async function loadBoardGrid() {
   try {
     const [boardsRes, cardsRes] = await Promise.all([
       fetch('/api/boards'),
@@ -69,38 +72,123 @@ async function loadBoard() {
 
     const container = document.getElementById('boardContainer');
     if (boards.length === 0) {
-      container.innerHTML = '<div class="empty-state">Няма создадени борда.</div>';
+      container.innerHTML = '<div class="empty-state">Няма създадени борда.</div>';
       return;
     }
 
-    container.innerHTML = boards.map(board => {
+    container.innerHTML = `<div class="boards-grid">${boards.map(board => {
       const boardCards = cards.filter(c => c.board_id === board.id);
+      const visibleCols = board.columns.filter(col => !col.is_done_column);
+      const doneCol = board.columns.find(col => col.is_done_column);
+      const doneCount = doneCol ? boardCards.filter(c => c.column_id === doneCol.id).length : 0;
+
       return `
-        <div class="board-section" data-board-id="${board.id}">
-          <div class="board-title">${escapeHtml(board.title)} <span class="card-count">(${boardCards.length})</span></div>
-          ${board.columns.filter(col => !col.is_done_column).map(col => {
-            const colCards = boardCards.filter(c => c.column_id === col.id);
-            return `
-              <div class="column-group">
-                <div class="column-header">
-                  ${escapeHtml(col.title)} <span class="col-count">${colCards.length}</span>
+        <div class="board-box" onclick="openBoardDetail(${board.id})">
+          <div class="board-box-header">
+            <div class="board-box-title">${escapeHtml(board.title)}</div>
+            <div class="board-box-count">${boardCards.length} карти</div>
+          </div>
+          <div class="board-box-preview">
+            ${visibleCols.map(col => {
+              const colCards = boardCards.filter(c => c.column_id === col.id);
+              const height = Math.max(20, Math.min(100, colCards.length * 18));
+              return `
+                <div class="preview-col" title="${escapeHtml(col.title)} (${colCards.length})">
+                  <div class="preview-bar" style="height:${height}%"></div>
+                  <span class="preview-count">(${colCards.length})</span>
+                  <span class="preview-label">${escapeHtml(col.title)}</span>
                 </div>
-                <div class="column-cards" data-column-id="${col.id}" data-board-id="${board.id}"
-                     ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
-                  ${colCards.map(card => renderCard(card)).join('')}
-                </div>
+              `;
+            }).join('')}
+            ${doneCol ? `
+              <div class="preview-col done" title="Done (${doneCount})">
+                <div class="preview-bar" style="height:${Math.max(20, Math.min(100, doneCount * 10))}%"></div>
+                <span class="preview-count">(${doneCount})</span>
+                <span class="preview-label">DONE</span>
               </div>
-            `;
-          }).join('')}
+            ` : ''}
+          </div>
         </div>
       `;
-    }).join('');
+    }).join('')}</div>`;
 
   } catch (err) {
-    console.error('Board load error:', err);
+    console.error('Board grid load error:', err);
     document.getElementById('boardContainer').innerHTML = '<div class="empty-state">Грешка при зареждане</div>';
   }
 }
+
+// ==================== BOARD DETAIL (KANBAN) ====================
+
+async function openBoardDetail(boardId) {
+  openBoardId = boardId;
+  try {
+    const [boardsRes, cardsRes] = await Promise.all([
+      fetch('/api/boards'),
+      fetch('/api/cards')
+    ]);
+    const boards = await boardsRes.json();
+    const cards = await cardsRes.json();
+
+    const board = boards.find(b => b.id === boardId);
+    if (!board) return;
+
+    const boardCards = cards.filter(c => c.board_id === boardId);
+    const container = document.getElementById('boardContainer');
+
+    document.getElementById('pageTitle').textContent = board.title;
+
+    container.innerHTML = `
+      <div class="board-detail-header">
+        <button class="btn btn-ghost btn-sm" onclick="goBackToGrid()">&#8592; Всички борда</button>
+        <span class="board-detail-count">${boardCards.length} карти</span>
+      </div>
+      <div class="board-kanban">
+        ${board.columns.filter(col => !col.is_done_column).map(col => {
+          const colCards = boardCards.filter(c => c.column_id === col.id);
+          return `
+            <div class="kanban-column">
+              <div class="column-header">
+                ${escapeHtml(col.title)} <span class="col-count">${colCards.length}</span>
+              </div>
+              <div class="column-cards" data-column-id="${col.id}" data-board-id="${boardId}"
+                   ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+                ${colCards.map(card => renderCard(card)).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+        ${(() => {
+          const doneCol = board.columns.find(col => col.is_done_column);
+          if (!doneCol) return '';
+          const doneCards = boardCards.filter(c => c.column_id === doneCol.id);
+          return `
+            <div class="kanban-column done-column">
+              <div class="column-header">
+                DONE <span class="col-count">${doneCards.length}</span>
+              </div>
+              <div class="column-cards" data-column-id="${doneCol.id}" data-board-id="${boardId}"
+                   ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+                ${doneCards.map(card => renderCard(card)).join('')}
+              </div>
+            </div>
+          `;
+        })()}
+      </div>
+    `;
+
+  } catch (err) {
+    console.error('Board detail error:', err);
+  }
+}
+
+function goBackToGrid() {
+  openBoardId = null;
+  document.getElementById('pageTitle').textContent = VIEW_TITLES.board;
+  loadBoardGrid();
+}
+
+// ==================== CARD RENDERING ====================
 
 function renderCard(card) {
   const colorClass = getCardColorClass(card);
@@ -266,7 +354,7 @@ async function handleDrop(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ column_id: columnId, board_id: boardId })
     });
-    if (res.ok) loadBoard();
+    if (res.ok && openBoardId) openBoardDetail(openBoardId);
   } catch (err) {
     console.error('Move error:', err);
   }
@@ -307,9 +395,11 @@ function connectWS() {
 }
 
 function handleWSEvent(event) {
-  // Refresh board on any card mutation
   if (event.type?.startsWith('card:') || event.type?.startsWith('step:')) {
-    if (currentView === 'board') loadBoard();
+    if (currentView === 'board') {
+      if (openBoardId) openBoardDetail(openBoardId);
+      else loadBoardGrid();
+    }
   }
 }
 
@@ -331,6 +421,6 @@ function formatDate(dateStr) {
 (async function init() {
   const ok = await checkAuth();
   if (!ok) return;
-  loadBoard();
+  loadBoardGrid();
   connectWS();
 })();

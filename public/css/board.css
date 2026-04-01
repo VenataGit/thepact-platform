@@ -1,38 +1,128 @@
-/* Kanban Board — Professional Design */
-.board-container {
+/* ==================== BOARDS GRID (HOME) ==================== */
+.boards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.board-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+}
+.board-box:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.board-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.board-box-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+.board-box-count {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+/* Preview columns — vertical bars like Basecamp */
+.board-box-preview {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  padding-top: 8px;
+}
+
+.preview-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.preview-bar {
+  width: 100%;
+  min-height: 14px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  transition: height var(--transition-normal);
+}
+.preview-col.done .preview-bar {
+  background: var(--green-dim);
+  border-color: var(--green);
+}
+.preview-count {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.preview-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  max-height: 80px;
+}
+
+/* ==================== BOARD DETAIL (KANBAN) ==================== */
+.board-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.board-detail-count {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.board-kanban {
   display: flex;
   gap: 20px;
   overflow-x: auto;
   padding-bottom: 16px;
-  min-height: calc(100vh - 160px);
+  min-height: calc(100vh - 200px);
   scroll-behavior: smooth;
 }
 
-.board-section {
+.kanban-column {
   min-width: 260px;
   max-width: 320px;
   flex-shrink: 0;
 }
-.board-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0 4px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.kanban-column.done-column {
+  opacity: 0.6;
 }
-.board-title .card-count {
-  font-weight: 400;
-  color: var(--text-dim);
-  font-size: 11px;
+.kanban-column.done-column:hover {
+  opacity: 0.8;
 }
 
-.column-group {
-  margin-bottom: 20px;
-}
 .column-header {
   font-size: 11px;
   font-weight: 600;
@@ -210,3 +300,4 @@
   color: var(--accent);
   background: var(--accent-dim);
 }
+
