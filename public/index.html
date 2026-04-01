@@ -14,51 +14,51 @@
   <div class="app-layout">
     <!-- Sidebar -->
     <aside class="sidebar">
-      <div class="sidebar-logo" onclick="switchView('board')">
+      <a class="sidebar-logo" href="#/board">
         <span class="sidebar-logo-dot"></span>
         <span class="sidebar-logo-text">The Pact</span>
-      </div>
+      </a>
 
       <div class="sidebar-section-label">Production</div>
       <nav class="sidebar-nav">
-        <button class="nav-item active" data-view="board" onclick="switchView('board')">
+        <a class="nav-item active" data-view="board" href="#/board">
           <span class="icon">&#9744;</span><span>Табло</span>
-        </button>
-        <button class="nav-item" data-view="daily" onclick="switchView('daily')">
+        </a>
+        <a class="nav-item" data-view="daily" href="#/daily">
           <span class="icon">&#9788;</span><span>Днес</span>
-        </button>
-        <button class="nav-item" data-view="overdue" onclick="switchView('overdue')">
+        </a>
+        <a class="nav-item" data-view="overdue" href="#/overdue">
           <span class="icon">&#9888;</span><span>Просрочени</span>
-        </button>
-        <button class="nav-item" data-view="calendar" onclick="switchView('calendar')">
+        </a>
+        <a class="nav-item" data-view="calendar" href="#/calendar">
           <span class="icon">&#128197;</span><span>Календар</span>
-        </button>
+        </a>
       </nav>
 
       <div class="sidebar-section-label">Екип</div>
       <nav class="sidebar-nav">
-        <button class="nav-item" data-view="people" onclick="switchView('people')">
+        <a class="nav-item" data-view="people" href="#/people">
           <span class="icon">&#128101;</span><span>По хора</span>
-        </button>
-        <button class="nav-item" data-view="clients" onclick="switchView('clients')">
+        </a>
+        <a class="nav-item" data-view="clients" href="#/clients">
           <span class="icon">&#127970;</span><span>Клиенти</span>
-        </button>
-        <button class="nav-item" data-view="videos" onclick="switchView('videos')">
+        </a>
+        <a class="nav-item" data-view="videos" href="#/videos">
           <span class="icon">&#127909;</span><span>Видеа</span>
-        </button>
+        </a>
       </nav>
 
       <div class="sidebar-section-label">Система</div>
       <nav class="sidebar-nav">
-        <button class="nav-item" data-view="kp" onclick="switchView('kp')">
+        <a class="nav-item" data-view="kp" href="#/kp">
           <span class="icon">&#9889;</span><span>КП Авто</span>
-        </button>
-        <button class="nav-item" data-view="settings" onclick="switchView('settings')">
+        </a>
+        <a class="nav-item" data-view="settings" href="#/settings">
           <span class="icon">&#9881;</span><span>Настройки</span>
-        </button>
-        <button class="nav-item" data-view="admin" onclick="switchView('admin')" id="adminNavItem" style="display:none">
+        </a>
+        <a class="nav-item" data-view="admin" href="#/admin" id="adminNavItem" style="display:none">
           <span class="icon">&#9733;</span><span>Админ</span>
-        </button>
+        </a>
       </nav>
 
       <div class="sidebar-footer" onclick="openProfile()" style="cursor:pointer" title="Профил">

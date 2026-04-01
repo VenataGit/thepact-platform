@@ -3,7 +3,7 @@ let currentView = 'board';
 let currentUser = null;
 let ws = null;
 let wsReconnectDelay = 1000;
-let openBoardId = null; // which board is open in detail view
+let openBoardId = null;
 
 // ==================== AUTH ====================
 
@@ -32,7 +32,7 @@ async function logout() {
   window.location.href = '/login.html';
 }
 
-// ==================== VIEWS ====================
+// ==================== ROUTER ====================
 
 const VIEW_TITLES = {
   board: 'Табло', daily: 'Днес', overdue: 'Просрочени', people: 'По хора',
@@ -40,7 +40,39 @@ const VIEW_TITLES = {
   kp: 'КП Автоматизация', settings: 'Настройки', admin: 'Админ панел'
 };
 
-function switchView(view) {
+function navigate(hash) {
+  if (location.hash === hash) {
+    // Same hash — force re-route
+    router();
+  } else {
+    location.hash = hash;
+  }
+}
+
+function router() {
+  const hash = location.hash || '#/board';
+  const parts = hash.replace('#/', '').split('/');
+  const view = parts[0] || 'board';
+  const param = parts[1] ? parseInt(parts[1]) : null;
+
+  // Board detail view
+  if (view === 'board' && param) {
+    activateView('board');
+    openBoardId = param;
+    loadBoardDetail(param);
+    return;
+  }
+
+  // Board grid or other views
+  openBoardId = null;
+  activateView(view);
+
+  if (view === 'board') {
+    loadBoardGrid();
+  }
+}
+
+function activateView(view) {
   document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
 
@@ -52,16 +84,14 @@ function switchView(view) {
 
   document.getElementById('pageTitle').textContent = VIEW_TITLES[view] || view;
   currentView = view;
-
-  if (view === 'board') {
-    openBoardId = null;
-    loadBoardGrid();
-  }
 }
+
+window.addEventListener('hashchange', router);
 
 // ==================== BOARD GRID (HOME) ====================
 
 async function loadBoardGrid() {
+  document.getElementById('pageTitle').textContent = VIEW_TITLES.board;
   try {
     const [boardsRes, cardsRes] = await Promise.all([
       fetch('/api/boards'),
@@ -83,7 +113,7 @@ async function loadBoardGrid() {
       const doneCount = doneCol ? boardCards.filter(c => c.column_id === doneCol.id).length : 0;
 
       return `
-        <div class="board-box" onclick="openBoardDetail(${board.id})">
+        <a class="board-box" href="#/board/${board.id}">
           <div class="board-box-header">
             <div class="board-box-title">${escapeHtml(board.title)}</div>
             <div class="board-box-count">${boardCards.length} карти</div>
@@ -108,7 +138,7 @@ async function loadBoardGrid() {
               </div>
             ` : ''}
           </div>
-        </div>
+        </a>
       `;
     }).join('')}</div>`;
 
@@ -120,12 +150,11 @@ async function loadBoardGrid() {
 
 // ==================== BOARD DETAIL (KANBAN) ====================
 
-async function openBoardDetail(boardId) {
-  openBoardId = boardId;
+async function loadBoardDetail(boardId) {
   try {
     const [boardsRes, cardsRes] = await Promise.all([
       fetch('/api/boards'),
-      fetch('/api/cards')
+      fetch(`/api/cards?board_id=${boardId}`)
     ]);
     const boards = await boardsRes.json();
     const cards = await cardsRes.json();
@@ -133,19 +162,17 @@ async function openBoardDetail(boardId) {
     const board = boards.find(b => b.id === boardId);
     if (!board) return;
 
-    const boardCards = cards.filter(c => c.board_id === boardId);
     const container = document.getElementById('boardContainer');
-
     document.getElementById('pageTitle').textContent = board.title;
 
     container.innerHTML = `
       <div class="board-detail-header">
-        <button class="btn btn-ghost btn-sm" onclick="goBackToGrid()">&#8592; Всички борда</button>
-        <span class="board-detail-count">${boardCards.length} карти</span>
+        <a class="btn btn-ghost btn-sm" href="#/board">&#8592; Всички борда</a>
+        <span class="board-detail-count">${cards.length} карти</span>
       </div>
       <div class="board-kanban">
         ${board.columns.filter(col => !col.is_done_column).map(col => {
-          const colCards = boardCards.filter(c => c.column_id === col.id);
+          const colCards = cards.filter(c => c.column_id === col.id);
           return `
             <div class="kanban-column">
               <div class="column-header">
@@ -161,7 +188,7 @@ async function openBoardDetail(boardId) {
         ${(() => {
           const doneCol = board.columns.find(col => col.is_done_column);
           if (!doneCol) return '';
-          const doneCards = boardCards.filter(c => c.column_id === doneCol.id);
+          const doneCards = cards.filter(c => c.column_id === doneCol.id);
           return `
             <div class="kanban-column done-column">
               <div class="column-header">
@@ -180,12 +207,6 @@ async function openBoardDetail(boardId) {
   } catch (err) {
     console.error('Board detail error:', err);
   }
-}
-
-function goBackToGrid() {
-  openBoardId = null;
-  document.getElementById('pageTitle').textContent = VIEW_TITLES.board;
-  loadBoardGrid();
 }
 
 // ==================== CARD RENDERING ====================
@@ -354,7 +375,7 @@ async function handleDrop(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ column_id: columnId, board_id: boardId })
     });
-    if (res.ok && openBoardId) openBoardDetail(openBoardId);
+    if (res.ok && openBoardId) loadBoardDetail(openBoardId);
   } catch (err) {
     console.error('Move error:', err);
   }
@@ -397,7 +418,7 @@ function connectWS() {
 function handleWSEvent(event) {
   if (event.type?.startsWith('card:') || event.type?.startsWith('step:')) {
     if (currentView === 'board') {
-      if (openBoardId) openBoardDetail(openBoardId);
+      if (openBoardId) loadBoardDetail(openBoardId);
       else loadBoardGrid();
     }
   }
@@ -421,6 +442,10 @@ function formatDate(dateStr) {
 (async function init() {
   const ok = await checkAuth();
   if (!ok) return;
-  loadBoardGrid();
+  // Default hash if none
+  if (!location.hash || location.hash === '#' || location.hash === '#/') {
+    location.hash = '#/board';
+  }
+  router();
   connectWS();
 })();
