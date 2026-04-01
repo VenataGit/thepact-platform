@@ -63,6 +63,22 @@ app.get('/api/health', async (req, res) => {
 // Serve uploaded files (avatars, etc.)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
+// Deploy endpoint (no auth needed, uses secret)
+app.post('/deploy', (req, res) => {
+  const secret = req.query.secret || req.body?.secret;
+  if (!config.DEPLOY_SECRET || secret !== config.DEPLOY_SECRET) {
+    return res.status(403).json({ error: 'Invalid secret' });
+  }
+  const { execSync } = require('child_process');
+  try {
+    const gitOut = execSync('git pull origin main --ff-only', { cwd: path.join(__dirname, '..'), timeout: 30000 }).toString();
+    const pm2Out = execSync('pm2 restart thepact-v2', { timeout: 15000 }).toString();
+    res.json({ ok: true, git: gitOut.trim(), pm2: pm2Out.trim() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Routes
 app.use('/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));

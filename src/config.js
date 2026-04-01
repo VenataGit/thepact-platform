@@ -9,5 +9,6 @@ module.exports = {
   JWT_EXPIRES_IN: '7d',
   BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS) || 12,
   BOARD_ORDER: ['Pre-Production', 'Production', 'Post-Production', 'Акаунт Мениджмънт', 'Задачи'],
+  DEPLOY_SECRET: process.env.DEPLOY_SECRET || null,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || null,
 };
