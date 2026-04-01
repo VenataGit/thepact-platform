@@ -1,0 +1,26 @@
+{
+  "name": "thepact-platform",
+  "version": "1.0.0",
+  "description": "ThePact — Internal Video Production Management Platform",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node scripts/migrate.js",
+    "create-admin": "node scripts/create-admin.js",
+    "seed": "node scripts/seed.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "pg": "^8.13.0",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "cookie-parser": "^1.4.6",
+    "helmet": "^8.1.0",
+    "express-rate-limit": "^8.3.1",
+    "ws": "^8.18.0",
+    "node-cron": "^3.0.3",
+    "multer": "^1.4.5-lts.1",
+    "dotenv": "^16.4.5"
+  }
+}

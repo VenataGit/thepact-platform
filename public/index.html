@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Pact — Platform</title>
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/board.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo" onclick="switchView('board')">The Pact</div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="board" onclick="switchView('board')">
+          <span class="icon">📋</span><span>Табло</span>
+        </button>
+        <button class="nav-item" data-view="daily" onclick="switchView('daily')">
+          <span class="icon">📅</span><span>Днес</span>
+        </button>
+        <button class="nav-item" data-view="overdue" onclick="switchView('overdue')">
+          <span class="icon">⚠</span><span>Просрочени</span>
+        </button>
+        <button class="nav-item" data-view="people" onclick="switchView('people')">
+          <span class="icon">👥</span><span>По хора</span>
+        </button>
+        <button class="nav-item" data-view="clients" onclick="switchView('clients')">
+          <span class="icon">🏢</span><span>Клиенти</span>
+        </button>
+        <button class="nav-item" data-view="videos" onclick="switchView('videos')">
+          <span class="icon">🎬</span><span>Видеа</span>
+        </button>
+        <button class="nav-item" data-view="calendar" onclick="switchView('calendar')">
+          <span class="icon">📆</span><span>Календар</span>
+        </button>
+        <button class="nav-item" data-view="kp" onclick="switchView('kp')">
+          <span class="icon">⚡</span><span>КП Авто</span>
+        </button>
+        <button class="nav-item" data-view="settings" onclick="switchView('settings')">
+          <span class="icon">⚙</span><span>Настройки</span>
+        </button>
+        <button class="nav-item" data-view="admin" onclick="switchView('admin')" id="adminNavItem" style="display:none">
+          <span class="icon">👑</span><span>Админ</span>
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="user-name" id="sidebarUserName"></span>
+        <button class="btn btn-ghost btn-sm" onclick="logout()" title="Изход">🚪</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="main-header">
+        <div class="main-header-title" id="pageTitle">Табло</div>
+        <div class="header-actions">
+          <span id="wsStatus" style="font-size:11px;color:var(--text-dim)"></span>
+        </div>
+      </header>
+
+      <div class="content-area">
+        <!-- Board View -->
+        <div class="view active" id="view-board">
+          <div class="board-container" id="boardContainer">
+            <div class="empty-state">Зареждане...</div>
+          </div>
+        </div>
+
+        <!-- Placeholder views -->
+        <div class="view" id="view-daily"><div class="empty-state">Днес — скоро</div></div>
+        <div class="view" id="view-overdue"><div class="empty-state">Просрочени — скоро</div></div>
+        <div class="view" id="view-people"><div class="empty-state">По хора — скоро</div></div>
+        <div class="view" id="view-clients"><div class="empty-state">Клиенти — скоро</div></div>
+        <div class="view" id="view-videos"><div class="empty-state">Видеа — скоро</div></div>
+        <div class="view" id="view-calendar"><div class="empty-state">Календар — скоро</div></div>
+        <div class="view" id="view-kp"><div class="empty-state">КП Автоматизация — скоро</div></div>
+        <div class="view" id="view-settings"><div class="empty-state">Настройки — скоро</div></div>
+        <div class="view" id="view-admin"><div class="empty-state">Админ — скоро</div></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
