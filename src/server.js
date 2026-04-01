@@ -60,8 +60,12 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
+// Serve uploaded files (avatars, etc.)
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
 // Routes
 app.use('/auth', require('./routes/auth'));
+app.use('/api/profile', require('./routes/profile'));
 app.use('/api/boards', require('./routes/boards'));
 app.use('/api/cards', require('./routes/cards'));
 

@@ -136,6 +136,98 @@ function getCardColorClass(card) {
   return 'deadline-ok';
 }
 
+// ==================== PROFILE ====================
+
+async function openProfile() {
+  const modal = document.getElementById('profileModal');
+  modal.style.display = 'flex';
+
+  try {
+    const res = await fetch('/api/profile');
+    const user = await res.json();
+
+    const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2);
+    const avatar = document.getElementById('profileAvatar');
+    if (user.avatar_url) {
+      avatar.innerHTML = `<img src="${user.avatar_url}" style="width:100%;height:100%;object-fit:cover">`;
+    } else {
+      avatar.textContent = initials;
+    }
+
+    document.getElementById('profileName').textContent = user.name;
+    document.getElementById('profileEmail').textContent = user.email;
+    document.getElementById('profileRole').innerHTML = user.role === 'admin'
+      ? '<span class="badge badge-accent">ADMIN</span>'
+      : '<span class="badge" style="background:var(--bg-hover);color:var(--text-dim)">MEMBER</span>';
+    document.getElementById('profileNameInput').value = user.name;
+  } catch {}
+}
+
+function closeProfile() {
+  document.getElementById('profileModal').style.display = 'none';
+}
+
+async function saveProfileName() {
+  const name = document.getElementById('profileNameInput').value.trim();
+  if (!name) return;
+  try {
+    const res = await fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (res.ok) {
+      const user = await res.json();
+      document.getElementById('profileName').textContent = user.name;
+      document.getElementById('sidebarUserName').textContent = user.name;
+      const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2);
+      document.getElementById('sidebarUserAvatar').textContent = initials;
+    }
+  } catch {}
+}
+
+async function uploadAvatar(input) {
+  if (!input.files[0]) return;
+  const form = new FormData();
+  form.append('avatar', input.files[0]);
+  try {
+    const res = await fetch('/api/profile/avatar', { method: 'POST', body: form });
+    if (res.ok) {
+      const user = await res.json();
+      document.getElementById('profileAvatar').innerHTML = `<img src="${user.avatar_url}" style="width:100%;height:100%;object-fit:cover">`;
+      currentUser.avatar_url = user.avatar_url;
+    }
+  } catch {}
+}
+
+async function changePassword() {
+  const msg = document.getElementById('pwdMsg');
+  const curr = document.getElementById('currentPwd').value;
+  const newP = document.getElementById('newPwd').value;
+  if (!curr || !newP) { msg.textContent = 'Попълни и двете полета'; msg.style.color = 'var(--red)'; return; }
+  try {
+    const res = await fetch('/api/profile/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: curr, newPassword: newP })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      msg.textContent = 'Паролата е сменена'; msg.style.color = 'var(--green)';
+      document.getElementById('currentPwd').value = '';
+      document.getElementById('newPwd').value = '';
+    } else {
+      msg.textContent = data.error; msg.style.color = 'var(--red)';
+    }
+  } catch { msg.textContent = 'Грешка'; msg.style.color = 'var(--red)'; }
+}
+
+// Close profile modal on escape or outside click
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeProfile(); });
+document.getElementById('profileModal')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeProfile();
+});
+
 // ==================== DRAG & DROP ====================
 
 let dragCardId = null;
