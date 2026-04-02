@@ -51,27 +51,27 @@ async function populateHey(el) {
     const items = await (await fetch('/api/notifications')).json();
     fetch('/api/notifications/read-all', { method: 'PUT' }); updateHeyBadge();
     el.innerHTML = items.length === 0
-      ? '<div class="nav-dropdown__empty">Nothing new for you.</div>'
-      : `<div class="nav-dropdown__section"><div class="nav-dropdown__title">Notifications</div></div>` +
+      ? '<div class="nav-dropdown__empty">Няма нищо ново за теб.</div>'
+      : `<div class="nav-dropdown__section"><div class="nav-dropdown__title">Известия</div></div>` +
         items.slice(0, 15).map(n => `
           <a class="hey-item ${n.is_read ? '' : 'unread'}" href="${n.reference_type === 'card' ? `#/card/${n.reference_id}` : '#'}" onclick="closeAllDropdowns()">
             <div class="hey-item__body">
-              ${n.type === 'mentioned' ? '<span class="hey-item__type">@mentioned you in:</span>' : n.type === 'assigned' ? '<span class="hey-item__type" style="background:var(--blue)">Assigned:</span>' : ''}
+              ${n.type === 'mentioned' ? '<span class="hey-item__type">@спомена те в:</span>' : n.type === 'assigned' ? '<span class="hey-item__type" style="background:var(--blue)">Възложено:</span>' : ''}
               <div class="hey-item__title">${esc(n.body || n.title)}</div>
               <div class="hey-item__meta">${timeAgo(n.created_at)}</div>
             </div>
           </a>
-        `).join('') + '<a class="hey-item" href="#/notifications" onclick="closeAllDropdowns()"><div class="hey-item__body" style="text-align:center;color:var(--accent)">See all notifications...</div></a>';
-  } catch { el.innerHTML = '<div class="nav-dropdown__empty">Error loading</div>'; }
+        `).join('') + '<a class="hey-item" href="#/notifications" onclick="closeAllDropdowns()"><div class="hey-item__body" style="text-align:center;color:var(--accent)">Виж всички известия...</div></a>';
+  } catch { el.innerHTML = '<div class="nav-dropdown__empty">Грешка</div>'; }
 }
 
 function populateMyStuff(el) {
   el.innerHTML = `
     <div class="nav-dropdown__section">
-      <a class="nav-dropdown__item" href="#/mystuff" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--green-dim);color:var(--green)">✓</div> My Assignments</a>
-      <a class="nav-dropdown__item" href="#/bookmarks" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--accent-dim);color:var(--accent)">⚑</div> My Bookmarks</a>
-      <a class="nav-dropdown__item" href="#/schedule" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--blue-dim);color:var(--blue)">📅</div> My Schedule</a>
-      <a class="nav-dropdown__item" href="#/activity" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">◷</div> My Recent Activity</a>
+      <a class="nav-dropdown__item" href="#/mystuff" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--green-dim);color:var(--green)">✓</div> Моите задачи</a>
+      <a class="nav-dropdown__item" href="#/bookmarks" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--accent-dim);color:var(--accent)">⚑</div> Отметки</a>
+      <a class="nav-dropdown__item" href="#/schedule" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--blue-dim);color:var(--blue)">📅</div> Моят график</a>
+      <a class="nav-dropdown__item" href="#/activity" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">◷</div> Последна активност</a>
     </div>
   `;
 }
@@ -79,11 +79,11 @@ function populateMyStuff(el) {
 function populateFind(el) {
   el.innerHTML = `
     <div class="search-overlay" onclick="event.stopPropagation()">
-      <input type="search" id="globalSearchInput" placeholder="Search for..." autofocus oninput="doGlobalSearch()">
+      <input type="search" id="globalSearchInput" placeholder="Търси..." autofocus oninput="doGlobalSearch()">
       <div class="search-filters">
-        <select id="searchType"><option value="">Search Everything</option><option value="card">Cards</option><option value="comment">Comments</option><option value="message">Messages</option></select>
-        <select id="searchPerson"><option value="">by Anyone</option>${allUsers.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
-        <select id="searchProject"><option value="">Everywhere</option>${allBoards.map(b => `<option value="${b.id}">${esc(b.title)}</option>`).join('')}</select>
+        <select id="searchType"><option value="">Навсякъде</option><option value="card">Карти</option><option value="comment">Коментари</option><option value="message">Съобщения</option></select>
+        <select id="searchPerson"><option value="">от Всеки</option>${allUsers.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
+        <select id="searchProject"><option value="">Във всички проекти</option>${allBoards.map(b => `<option value="${b.id}">${esc(b.title)}</option>`).join('')}</select>
       </div>
       <div class="search-results" id="searchResults"></div>
     </div>
@@ -103,7 +103,7 @@ async function doGlobalSearch() {
     container.innerHTML =
       filteredCards.map(c => `<a class="nav-dropdown__item" href="#/card/${c.id}" onclick="closeAllDropdowns()">${esc(c.title)}<span style="margin-left:auto;font-size:11px;color:var(--text-dim)">${esc(c.board_title)}</span></a>`).join('') +
       users.map(u => `<div class="nav-dropdown__item">${esc(u.name)} <span style="margin-left:auto;font-size:11px;color:var(--text-dim)">${u.role}</span></div>`).join('') +
-      (filteredCards.length === 0 && users.length === 0 ? '<div class="nav-dropdown__empty">No results</div>' : '');
+      (filteredCards.length === 0 && users.length === 0 ? '<div class="nav-dropdown__empty">Няма резултати</div>' : '');
   } catch {}
 }
 
@@ -178,12 +178,12 @@ async function renderHome(el) {
         </div>
 
         <div style="text-align:center;margin-bottom:32px">
-          <a href="#/project/1" style="color:var(--accent);font-size:13px;text-decoration:underline">View all projects in a list</a>
-          <span style="color:var(--text-dim);font-size:13px"> · Press <kbd style="background:var(--bg-hover);padding:2px 6px;border-radius:4px;font-size:11px;border:1px solid var(--border)">Ctrl+J</kbd> anytime to jump</span>
+          <a href="#/project/1" style="color:var(--accent);font-size:13px;text-decoration:underline">Виж всички проекти в списък</a>
+          <span style="color:var(--text-dim);font-size:13px"> · Натисни <kbd style="background:var(--bg-hover);padding:2px 6px;border-radius:4px;font-size:11px;border:1px solid var(--border)">Ctrl+J</kbd> за бързо търсене</span>
         </div>
 
         <div style="text-align:center;margin-bottom:16px">
-          <span class="section-pill">Recent Projects</span>
+          <span class="section-pill">Последни проекти</span>
         </div>
 
         <a href="#/project/1" class="project-card-home">
@@ -197,21 +197,21 @@ async function renderHome(el) {
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:32px">
           <div>
-            <div style="text-align:center;margin-bottom:12px"><span class="section-pill section-pill--blue">Your Schedule</span></div>
+            <div style="text-align:center;margin-bottom:12px"><span class="section-pill section-pill--blue">Твоят график</span></div>
             <div class="home-panel">
               ${renderMiniCalendar()}
               <div style="margin-top:16px;font-size:13px;color:var(--text-dim);display:flex;align-items:center;gap:8px">
                 <span>📅</span>
-                <span>${new Date().toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}</span>
-                <span style="margin-left:4px">Nothing's on the schedule</span>
+                <span>${new Date().toLocaleDateString('bg', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}</span>
+                <span style="margin-left:4px">Нищо планирано за днес</span>
               </div>
             </div>
           </div>
           <div>
-            <div style="text-align:center;margin-bottom:12px"><span class="section-pill section-pill--green">Your Assignments</span></div>
+            <div style="text-align:center;margin-bottom:12px"><span class="section-pill section-pill--green">Твоите задачи</span></div>
             <div class="home-panel" style="min-height:200px;display:flex;align-items:center;justify-content:center">
               ${myCards.length === 0
-                ? '<div style="text-align:center;color:var(--text-dim)"><svg viewBox="0 0 24 24" width="64" height="64" style="opacity:0.2;margin-bottom:8px"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" fill="none" stroke-width="1.5"/></svg><p style="font-size:13px">You don\'t have any assignments right now.<br>To-dos and cards assigned to you will show up here.</p></div>'
+                ? '<div style="text-align:center;color:var(--text-dim)"><svg viewBox="0 0 24 24" width="64" height="64" style="opacity:0.2;margin-bottom:8px"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" fill="none" stroke-width="1.5"/></svg><p style="font-size:13px">Нямаш задачи в момента.<br>Възложените ти карти ще се появят тук.</p></div>'
                 : `<div style="width:100%">${myCards.slice(0,8).map(c => `<a href="#/card/${c.id}" class="assignment-row"><span class="assignment-title">${esc(c.title)}</span><span class="assignment-board">${esc(c.board_title || '')}</span></a>`).join('')}</div>`
               }
             </div>
@@ -219,7 +219,7 @@ async function renderHome(el) {
         </div>
       </div>
     `;
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error loading</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 
 function renderMiniCalendar() {
@@ -228,8 +228,8 @@ function renderMiniCalendar() {
   const firstDay = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
   const today = now.getDate();
-  const monthName = now.toLocaleDateString('en', { month: 'long' });
-  const dayNames = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const monthName = now.toLocaleDateString('bg', { month: 'long' });
+  const dayNames = ['НД','ПН','ВТ','СР','ЧТ','ПТ','СБ'];
 
   let cells = '';
   for (let i = 0; i < firstDay; i++) cells += '<td></td>';
@@ -310,8 +310,8 @@ async function renderProject(el, projectId) {
           <div class="tool-card__body">
             <div class="tool-card__empty-state">
               <div class="tool-card__empty-icon">💬</div>
-              <div class="tool-card__empty-text">Send a private message to one or more people.</div>
-              <div class="tool-card__empty-cta">Start a conversation &rarr;</div>
+              <div class="tool-card__empty-text">Изпрати лично съобщение до един или повече хора.</div>
+              <div class="tool-card__empty-cta">Започни разговор &rarr;</div>
             </div>
           </div>
         </a>
@@ -322,8 +322,8 @@ async function renderProject(el, projectId) {
           <div class="tool-card__body">
             <div class="tool-card__empty-state">
               <div class="tool-card__empty-icon">📢</div>
-              <div class="tool-card__empty-text">Post announcements, pitch ideas, and keep discussions on-topic.</div>
-              <div class="tool-card__empty-cta">Post a message &rarr;</div>
+              <div class="tool-card__empty-text">Публикувай съобщения, споделяй идеи и поддържай дискусии по темата.</div>
+              <div class="tool-card__empty-cta">Публикувай съобщение &rarr;</div>
             </div>
           </div>
         </a>
@@ -334,8 +334,8 @@ async function renderProject(el, projectId) {
           <div class="tool-card__body">
             <div class="tool-card__empty-state">
               <div class="tool-card__empty-icon">📁</div>
-              <div class="tool-card__empty-text">Share and organize docs, spreadsheets, images, and other files.</div>
-              <div class="tool-card__empty-cta">Upload a file &rarr;</div>
+              <div class="tool-card__empty-text">Споделяй и организирай документи, таблици, снимки и други файлове.</div>
+              <div class="tool-card__empty-cta">Качи файл &rarr;</div>
             </div>
           </div>
         </a>
@@ -345,20 +345,20 @@ async function renderProject(el, projectId) {
           <div class="tool-card__body">
             <div class="tool-card__blank">
               <div class="tool-card__icon" style="opacity:0.3">+</div>
-              <div class="tool-card__desc">Add a new tool</div>
+              <div class="tool-card__desc">Добави нов инструмент</div>
             </div>
           </div>
         </div>` : ''}
       </div>
 
       <div style="margin-top:48px;max-width:700px;margin-left:auto;margin-right:auto">
-        <h2 style="text-align:center;font-size:16px;font-weight:700;color:#fff;margin-bottom:20px">Project Activity</h2>
-        <div id="projectActivity" style="color:var(--text-dim);text-align:center;padding:20px">Loading...</div>
+        <h2 style="text-align:center;font-size:16px;font-weight:700;color:#fff;margin-bottom:20px">Активност по проекта</h2>
+        <div id="projectActivity" style="color:var(--text-dim);text-align:center;padding:20px">Зареждане...</div>
       </div>
     `;
     // Load project activity
     loadProjectActivity();
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 
 async function loadProjectActivity() {
@@ -369,12 +369,12 @@ async function loadProjectActivity() {
     const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
     const getAC = (name) => avatarColors[(name||'').length % avatarColors.length];
     container.innerHTML = items.length === 0
-      ? '<div style="color:var(--text-dim)">No activity yet</div>'
+      ? '<div style="color:var(--text-dim)">Няма активност все още</div>'
       : items.map(a => `
           <div class="activity-entry" style="text-align:left">
             <div class="activity-avatar" style="background:${getAC(a.user_name)};width:28px;height:28px;font-size:10px">${initials(a.user_name || '')}</div>
             <div class="activity-body">
-              <div class="activity-text"><strong>${esc(a.user_name || '')}</strong> ${a.action === 'created' ? 'created' : a.action === 'commented' ? 'commented on' : a.action} ${a.target_type === 'card' ? `<a href="#/card/${a.target_id}">${esc(a.target_title || '')}</a>` : esc(a.target_title || '')}</div>
+              <div class="activity-text"><strong>${esc(a.user_name || '')}</strong> ${a.action === 'created' ? 'създаде' : a.action === 'commented' ? 'коментира' : a.action === 'moved' ? 'премести' : a.action === 'completed' ? 'завърши' : a.action === 'checked_off' ? 'отметна стъпка на' : a.action} ${a.target_type === 'card' ? `<a href="#/card/${a.target_id}">${esc(a.target_title || '')}</a>` : esc(a.target_title || '')}</div>
               <div class="activity-meta">${timeAgo(a.created_at)}</div>
             </div>
           </div>
@@ -383,7 +383,7 @@ async function loadProjectActivity() {
 }
 
 async function promptCreateBoard() {
-  const title = prompt('Name of new board:');
+  const title = prompt('Име на нов борд:');
   if (!title?.trim()) return;
   try { await fetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim() }) }); router(); } catch {}
 }
@@ -398,7 +398,7 @@ async function renderBoard(el, boardId) {
     ]);
     allBoards = boards;
     const board = boards.find(b => b.id === boardId);
-    if (!board) { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Board not found</div>'; return; }
+    if (!board) { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Бордът не е намерен</div>'; return; }
 
     setBreadcrumb([
       { label: 'Video Production', href: '#/project/1' },
@@ -417,7 +417,7 @@ async function renderBoard(el, boardId) {
           <h1 style="font-size:20px;font-weight:700;color:#fff;text-align:center;flex:1">${esc(board.title)}</h1>
           <div style="display:flex;gap:8px;align-items:center">
             <div class="board-watching">
-              <span class="board-watching__label">Watching</span>
+              <span class="board-watching__label">Наблюдават</span>
               <div class="board-watching__avatars">
                 ${allUsers.slice(0,6).map((u,i) => {
                   const wc = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308'];
@@ -425,7 +425,7 @@ async function renderBoard(el, boardId) {
                 }).join('')}
               </div>
             </div>
-            ${manage ? `<button class="btn btn-sm" onclick="promptAddColumn(${boardId})">+ Column</button>` : ''}
+            ${manage ? `<button class="btn btn-sm" onclick="promptAddColumn(${boardId})">+ Колона</button>` : ''}
             <button class="btn btn-sm" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>
           </div>
         </div>
@@ -452,34 +452,34 @@ async function renderBoard(el, boardId) {
                 </div>
                 ${holdCards.length > 0 ? `
                   <div class="on-hold-section">
-                    <div class="on-hold-label">ON HOLD (${holdCards.length})</div>
+                    <div class="on-hold-label">ИЗЧАКВАНЕ (${holdCards.length})</div>
                     <div class="column-cards" data-column-id="${col.id}" data-board-id="${boardId}"
                          ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
                       ${holdCards.map(c => renderKanbanCard(c)).join('')}
                     </div>
                   </div>` : ''}
-                ${manage ? `<a class="add-card-btn" href="#/card/0/new?board=${boardId}&column=${col.id}">+ Add a card</a>` : ''}
+                ${manage ? `<a class="add-card-btn" href="#/card/0/new?board=${boardId}&column=${col.id}">+ Добави карта</a>` : ''}
               </div>`;
           }).join('')}
 
           ${doneCol ? `
           <div class="kanban-sidebar">
-            <div class="kanban-sidebar-tab done-tab" onclick="alert('Done column: ${doneCards.length} cards')">
+            <div class="kanban-sidebar-tab done-tab" onclick="alert('Завършени: ${doneCards.length} карти')">
               <span class="sidebar-count">(${doneCards.length})</span>
-              <span class="sidebar-label">DONE</span>
+              <span class="sidebar-label">ГОТОВО</span>
             </div>
           </div>` : ''}
         </div>
       </div>
     `;
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 
 function renderKanbanCard(card) {
   const color = getCardColorClass(card);
   const dueStr = card.due_on ? formatDate(card.due_on) : '';
   const authorName = card.assignees?.[0]?.name?.split(' ')[0] || card.creator_name?.split(' ')[0] || '';
-  const createdDate = card.created_at ? new Date(card.created_at).toLocaleDateString('en', { month: 'short', day: 'numeric' }) : '';
+  const createdDate = card.created_at ? new Date(card.created_at).toLocaleDateString('bg', { month: 'short', day: 'numeric' }) : '';
   const stepsStr = card.steps_total > 0 ? `${card.steps_done}/${card.steps_total}` : '';
 
   return `
@@ -489,7 +489,7 @@ function renderKanbanCard(card) {
       <div class="kanban-card__content">
         <h3 class="kanban-card__title">${esc(card.title)}</h3>
         <div class="kanban-card__meta">
-          <span class="kanban-card__author">By ${esc(authorName)}${createdDate ? ' \u00b7 at ' + createdDate : ''}</span>
+          <span class="kanban-card__author">от ${esc(authorName)}${createdDate ? ' \u00b7 ' + createdDate : ''}</span>
         </div>
         <div class="kanban-card__badges">
           ${dueStr ? `<span class="kanban-card__due">\ud83d\udcc5 ${dueStr}</span>` : ''}
@@ -535,41 +535,41 @@ async function renderCardPage(el, cardId) {
 
           <section class="card-perma__details">
             <div class="card-field">
-              <strong>Column</strong>
+              <strong>Колона</strong>
               <div class="card-field__value">
                 <span class="column-badge">${esc(col?.title || '—')}</span>
                 ${manage ? `<select class="input input-sm" onchange="moveCard(${cardId}, this.value)" style="margin-left:8px;width:auto">
-                  <option value="">Move along to...</option>
+                  <option value="">Премести в...</option>
                   ${(board?.columns || []).filter(c => c.id !== card.column_id).map(c => `<option value="${c.id}">${esc(c.title)}</option>`).join('')}
                 </select>` : ''}
               </div>
             </div>
             <div class="card-field">
-              <strong>Assigned to</strong>
+              <strong>Възложено на</strong>
               <div class="card-field__value">
                 ${card.assignees?.length > 0
                   ? card.assignees.map(a => `<span class="assignee-tag">${esc(a.name)}</span>`).join(' ')
-                  : `<span style="color:var(--text-dim)">Type names to assign...</span>`}
+                  : `<span style="color:var(--text-dim)">Възложи на...</span>`}
                 ${manage ? `<select class="input input-sm" style="margin-left:8px;width:auto" onchange="addAssignee(${cardId}, this.value)">
-                  <option value="">+ Add...</option>
+                  <option value="">+ Добави...</option>
                   ${allUsers.filter(u => !card.assignees?.some(a => a.id === u.id)).map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}
                 </select>` : ''}
               </div>
             </div>
             <div class="card-field">
-              <strong>Due on</strong>
+              <strong>Краен срок</strong>
               <div class="card-field__value">
-                ${manage ? `<input type="date" class="input input-sm" value="${card.due_on || ''}" onchange="updateField(${cardId},'due_on',this.value||null)" style="width:auto">` : `<span>${card.due_on ? formatDate(card.due_on) : '—'}</span>`}
+                ${manage ? `<input type="date" lang="bg" class="input input-sm" value="${card.due_on || ''}" onchange="updateField(${cardId},'due_on',this.value||null)" style="width:auto" title="дд.мм.гггг">` : `<span>${card.due_on ? formatDate(card.due_on) : '—'}</span>`}
               </div>
             </div>
             <div class="card-field card-field--notes">
-              <strong>Notes</strong>
+              <strong>Бележки</strong>
               <div class="card-field__value card-content-area">
                 ${manage ? `
                   <input id="cardNotesInput" type="hidden" value="${esc(card.content || '')}">
-                  <trix-editor input="cardNotesInput" class="trix-dark" placeholder="Add notes..."></trix-editor>
+                  <trix-editor input="cardNotesInput" class="trix-dark" placeholder="Добави бележки..."></trix-editor>
                   <button class="btn btn-sm btn-save-notes" onclick="saveCardNotes(${cardId})">Запази бележки</button>
-                ` : (card.content ? `<div class="rich-content">${card.content}</div>` : '<span style="color:var(--text-dim)">Add notes...</span>')}
+                ` : (card.content ? `<div class="rich-content">${card.content}</div>` : '<span style="color:var(--text-dim)">Добави бележки...</span>')}
               </div>
             </div>
           </section>
@@ -577,7 +577,7 @@ async function renderCardPage(el, cardId) {
           <!-- Steps -->
           <section class="card-perma__steps">
             <div class="steps-header">
-              <span style="font-weight:600;color:var(--text)">Steps</span>
+              <span style="font-weight:600;color:var(--text)">Стъпки</span>
               <span style="color:var(--text-dim);font-size:12px">(${card.steps?.filter(s=>s.completed).length||0}/${card.steps?.length||0})</span>
               ${card.steps?.length ? `<div class="steps-progress"><div class="steps-progress__fill" style="width:${Math.round((card.steps.filter(s=>s.completed).length/card.steps.length)*100)}%"></div></div>` : ''}
             </div>
@@ -591,8 +591,8 @@ async function renderCardPage(el, cardId) {
                 </div>`).join('')}
             </div>
             <div class="add-step-row">
-              <input id="newStepInput" placeholder="Add a step..." onkeydown="if(event.key==='Enter')addStepFromPage(${cardId})">
-              <select id="newStepAssignee" style="width:120px"><option value="">Assign...</option>${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
+              <input id="newStepInput" placeholder="Добави стъпка..." onkeydown="if(event.key==='Enter')addStepFromPage(${cardId})">
+              <select id="newStepAssignee" style="width:120px"><option value="">Възложи...</option>${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
               <input type="date" id="newStepDue" style="width:130px">
               <button class="btn btn-sm" onclick="addStepFromPage(${cardId})">+</button>
             </div>
@@ -613,14 +613,14 @@ async function renderCardPage(el, cardId) {
               </div>`).join('')}
 
             <div class="add-comment-row">
-              <textarea id="newComment" placeholder="Add a comment..." rows="3"></textarea>
-              <button class="btn btn-primary btn-sm" onclick="addComment(${cardId})">Post this comment</button>
+              <textarea id="newComment" placeholder="Добави коментар..." rows="3"></textarea>
+              <button class="btn btn-primary btn-sm" onclick="addComment(${cardId})">Публикувай</button>
             </div>
           </section>
         </article>
       </div>
     `;
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Card not found</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Картата не е намерена</div>'; }
 }
 
 // ==================== CARD CREATE ====================
@@ -633,25 +633,25 @@ async function renderCardCreate(el) {
   setBreadcrumb([
     { label: 'Video Production', href: '#/project/1' },
     { label: board?.title || '—', href: `#/board/${boardId}` },
-    { label: 'New card', href: '#' }
+    { label: 'Нова карта', href: '#' }
   ]);
   el.className = '';
 
   el.innerHTML = `
     <div class="card-page">
-      <div class="page-header" style="text-align:left"><h1 style="font-size:22px">New card</h1></div>
+      <div class="page-header" style="text-align:left"><h1 style="font-size:22px">Нова карта</h1></div>
       <div class="card-create-form">
-        <div class="edit-row"><label>Title *</label><input id="createTitle" placeholder="Card title" autofocus></div>
-        <div class="edit-row"><label>Board</label><select id="createBoard" onchange="updateCreateColumns()">${allBoards.map(b=>`<option value="${b.id}" ${b.id===boardId?'selected':''}>${esc(b.title)}</option>`).join('')}</select></div>
-        <div class="edit-row"><label>Column</label><select id="createColumn">${(board?.columns||[]).filter(c=>!c.is_done_column).map(c=>`<option value="${c.id}" ${c.id===columnId?'selected':''}>${esc(c.title)}</option>`).join('')}</select></div>
-        <div class="edit-row"><label>Notes</label><input id="createContent" type="hidden"><trix-editor input="createContent" class="trix-dark" placeholder="Add notes..."></trix-editor></div>
-        <div class="edit-row"><label>Due on</label><input type="date" id="createDue"></div>
-        <div class="edit-row"><label>Client</label><input id="createClient" placeholder="Client name"></div>
-        <div class="edit-row"><label>Assign to</label><select id="createAssignees" multiple style="min-height:80px">${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
-        <div class="edit-row"><label>Priority</label><select id="createPriority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
+        <div class="edit-row"><label>Заглавие *</label><input id="createTitle" placeholder="Заглавие на картата" autofocus></div>
+        <div class="edit-row"><label>Борд</label><select id="createBoard" onchange="updateCreateColumns()">${allBoards.map(b=>`<option value="${b.id}" ${b.id===boardId?'selected':''}>${esc(b.title)}</option>`).join('')}</select></div>
+        <div class="edit-row"><label>Колона</label><select id="createColumn">${(board?.columns||[]).filter(c=>!c.is_done_column).map(c=>`<option value="${c.id}" ${c.id===columnId?'selected':''}>${esc(c.title)}</option>`).join('')}</select></div>
+        <div class="edit-row"><label>Бележки</label><input id="createContent" type="hidden"><trix-editor input="createContent" class="trix-dark" placeholder="Добави бележки..."></trix-editor></div>
+        <div class="edit-row"><label>Краен срок</label><input type="date" id="createDue" lang="bg" title="дд.мм.гггг"></div>
+        <div class="edit-row"><label>Клиент</label><input id="createClient" placeholder="Име на клиент"></div>
+        <div class="edit-row"><label>Възложи на</label><select id="createAssignees" multiple style="min-height:80px">${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
+        <div class="edit-row"><label>Приоритет</label><select id="createPriority"><option value="normal">Нормален</option><option value="high">Висок</option><option value="urgent">Спешен</option></select></div>
         <div class="edit-actions">
-          <button class="btn btn-primary" onclick="submitCreateCard()">Post this card</button>
-          <button class="btn" onclick="history.back()">Cancel</button>
+          <button class="btn btn-primary" onclick="submitCreateCard()">Създай картата</button>
+          <button class="btn" onclick="history.back()">Отказ</button>
         </div>
       </div>
     </div>`;
@@ -662,7 +662,7 @@ function updateCreateColumns() {
 }
 async function submitCreateCard() {
   const title = document.getElementById('createTitle').value.trim();
-  if (!title) return alert('Title is required');
+  if (!title) return alert('Заглавието е задължително');
   const data = {
     title, board_id: parseInt(document.getElementById('createBoard').value),
     column_id: parseInt(document.getElementById('createColumn').value),
@@ -689,7 +689,7 @@ async function saveCardNotes(cardId) {
   try {
     await fetch(`/api/cards/${cardId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content}) });
     const btn = document.querySelector('.card-field--notes .btn');
-    if (btn) { btn.textContent = '✓ Запазено'; setTimeout(() => btn.textContent = 'Запази бележки', 1500); }
+    if (btn) { btn.textContent = '\u2713 Запазено'; setTimeout(() => btn.textContent = 'Запази бележки', 1500); }
   } catch {}
 }
 async function moveCard(cardId, columnId) {
@@ -735,29 +735,29 @@ async function renderActivity(el) {
       const d = new Date(a.created_at);
       const today = new Date(); today.setHours(0,0,0,0);
       const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
-      const dateKey = d >= today ? 'TODAY' : d >= yesterday ? 'YESTERDAY' : d.toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' });
+      const dateKey = d >= today ? 'ДНЕС' : d >= yesterday ? 'ВЧЕРА' : d.toLocaleDateString('bg', { month: 'long', day: 'numeric', year: 'numeric' });
       if (!grouped[dateKey]) grouped[dateKey] = [];
       grouped[dateKey].push(a);
     });
 
     const actionText = (a) => {
-      if (a.action === 'created') return 'created';
-      if (a.action === 'commented') return 'commented on';
-      if (a.action === 'moved') return 'moved';
-      if (a.action === 'completed') return 'completed';
-      if (a.action === 'checked_off') return 'checked off a step on';
+      if (a.action === 'created') return 'създаде';
+      if (a.action === 'commented') return 'коментира';
+      if (a.action === 'moved') return 'премести';
+      if (a.action === 'completed') return 'завърши';
+      if (a.action === 'checked_off') return 'отметна стъпка на';
       return a.action;
     };
 
     el.innerHTML = `
-      <div class="page-header"><h1>Latest Activity</h1></div>
+      <div class="page-header"><h1>Последна активност</h1></div>
       <div style="display:flex;justify-content:center;gap:8px;margin-bottom:24px">
-        <button class="btn btn-sm" style="background:var(--accent-dim);color:var(--accent);border-color:var(--accent)">Everything</button>
-        <button class="btn btn-sm">Filter by projects</button>
-        <button class="btn btn-sm">Filter by people</button>
+        <button class="btn btn-sm" style="background:var(--accent-dim);color:var(--accent);border-color:var(--accent)">Всичко</button>
+        <button class="btn btn-sm">Филтрирай по проекти</button>
+        <button class="btn btn-sm">Филтрирай по хора</button>
       </div>
       <div style="max-width:700px;margin:0 auto">
-        ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">No activity yet</div>':
+        ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма активност все още</div>':
           Object.entries(grouped).map(([date, entries]) => `
             <div style="margin-bottom:24px">
               <div style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px">${date}</div>
@@ -772,7 +772,7 @@ async function renderActivity(el) {
                 </div>`).join('')}
             </div>`).join('')}
       </div>`;
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 
 // ==================== MY STUFF ====================
@@ -781,12 +781,12 @@ async function renderMyStuff(el) {
   try {
     const cards = await (await fetch(`/api/cards?assignee_id=${currentUser.id}`)).json();
     el.innerHTML = `
-      <div class="page-header"><h1>My Assignments</h1></div>
+      <div class="page-header"><h1>Моите задачи</h1></div>
       <div class="task-list" style="max-width:700px;margin:0 auto">
-        ${cards.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)"><div style="font-size:48px;opacity:0.3;margin-bottom:8px">✓</div>No assignments right now</div>':
+        ${cards.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)"><div style="font-size:48px;opacity:0.3;margin-bottom:8px">✓</div>Нямаш задачи в момента</div>':
           cards.map(c=>`<a class="task-row ${getCardColorClass(c)}" href="#/card/${c.id}"><span class="task-title">${esc(c.title)}</span><span class="task-meta">${c.due_on?`<span class="task-due">${formatDate(c.due_on)}</span>`:''} ${c.board_title?`<span class="task-board">${esc(c.board_title)}</span>`:''}</span></a>`).join('')}
       </div>`;
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 
 // ==================== NOTIFICATIONS ====================
@@ -798,10 +798,10 @@ async function renderNotifications(el) {
     el.innerHTML = `
       <div class="page-header"><h1>Hey!</h1></div>
       <div style="max-width:700px;margin:0 auto">
-        ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">Nothing new for you.</div>':
-          items.map(n=>`<a class="hey-item ${n.is_read?'':'unread'}" href="${n.reference_type==='card'?`#/card/${n.reference_id}`:'#'}"><div class="hey-item__body">${n.type==='mentioned'?'<span class="hey-item__type">@mentioned you in:</span>':n.type==='assigned'?'<span class="hey-item__type" style="background:var(--blue)">Assigned:</span>':''}<div class="hey-item__title">${esc(n.body||n.title)}</div><div class="hey-item__meta">${timeAgo(n.created_at)}</div></div></a>`).join('')}
+        ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма нищо ново за теб.</div>':
+          items.map(n=>`<a class="hey-item ${n.is_read?'':'unread'}" href="${n.reference_type==='card'?`#/card/${n.reference_id}`:'#'}"><div class="hey-item__body">${n.type==='mentioned'?'<span class="hey-item__type">@спомена те в:</span>':n.type==='assigned'?'<span class="hey-item__type" style="background:var(--blue)">Възложено:</span>':''}<div class="hey-item__title">${esc(n.body||n.title)}</div><div class="hey-item__meta">${timeAgo(n.created_at)}</div></div></a>`).join('')}
       </div>`;
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 
 // ==================== CHAT (PINGS) ====================
@@ -813,7 +813,7 @@ async function renderChatList(el) {
     el.innerHTML = `
       <div class="pings-page">
         <div class="pings-search-bar">
-          <input id="pingSearchInput" placeholder="Start a private chat with..." autocomplete="off" oninput="filterPingUsers()" onfocus="document.getElementById('pingSuggestions').style.display='block'">
+          <input id="pingSearchInput" placeholder="Започни личен чат с..." autocomplete="off" oninput="filterPingUsers()" onfocus="document.getElementById('pingSuggestions').style.display='block'">
           <div class="ping-suggestions" id="pingSuggestions" style="display:none">
             ${allUsers.filter(u=>u.id!==currentUser.id).map(u=>`<div class="ping-suggestion" onclick="startDirectChat(${u.id})"><div class="ping-avatar" style="background:${colors[u.id%colors.length]}">${initials(u.name)}</div><span>${esc(u.name)}</span></div>`).join('')}
           </div>
@@ -821,16 +821,16 @@ async function renderChatList(el) {
         <div class="pings-grid">
           ${channels.map(ch=>{
             const others = ch.members?.filter(m=>m.id!==currentUser.id)||[];
-            const name = ch.name||others.map(m=>m.name?.split(' ')[0]).join(', ')||'Chat';
+            const name = ch.name||others.map(m=>m.name?.split(' ')[0]).join(', ')||'Чат';
             const other = others[0];
             const c = colors[(other?.id||0)%colors.length];
             return `<a class="ping-card" href="#/chat/${ch.id}"><div class="ping-avatar" style="background:${c}">${initials(other?.name||name)}</div><div class="ping-name">${esc(name)}</div></a>`;
           }).join('')}
-          ${channels.length===0?'<div class="pings-empty"><p>No active chats</p><p class="hint">Type a name above to start</p></div>':''}
+          ${channels.length===0?'<div class="pings-empty"><p>Няма активни чатове</p><p class="hint">Напиши име горе за да започнеш</p></div>':''}
         </div>
       </div>`;
     document.addEventListener('click', e => { if (!e.target.closest('.pings-search-bar')) { const s=document.getElementById('pingSuggestions'); if(s)s.style.display='none'; } }, { once: true });
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 function filterPingUsers() {
   const q = document.getElementById('pingSearchInput')?.value?.toLowerCase().trim();
@@ -842,18 +842,18 @@ async function startDirectChat(userId) {
   try { const ch = await (await fetch('/api/chat/channels', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'dm',member_ids:[userId]}) })).json(); location.hash=`#/chat/${ch.id}`; } catch {}
 }
 async function renderChatChannel(el, channelId) {
-  setBreadcrumb([{label:'Pings',href:'#/chat'},{label:'Chat',href:`#/chat/${channelId}`}]); el.className='';
+  setBreadcrumb([{label:'Пингове',href:'#/chat'},{label:'Чат',href:`#/chat/${channelId}`}]); el.className='';
   try {
     const [msgs, channels] = await Promise.all([(await fetch(`/api/chat/channels/${channelId}/messages`)).json(), (await fetch('/api/chat/channels')).json()]);
     const ch = channels.find(c=>c.id===channelId);
     const name = ch?.name || ch?.members?.filter(m=>m.id!==currentUser.id).map(m=>m.name).join(', ') || 'Chat';
     el.innerHTML = `
-      <div class="chat-page"><div class="chat-header"><a href="#/chat" class="btn btn-sm">← Back</a><h2>${esc(name)}</h2></div>
+      <div class="chat-page"><div class="chat-header"><a href="#/chat" class="btn btn-sm">\u2190 Назад</a><h2>${esc(name)}</h2></div>
         <div class="chat-messages" id="chatMessages">${msgs.map(m=>`<div class="chat-msg"><div class="chat-msg-avatar" style="background:var(--accent-dim);color:var(--accent)">${initials(m.user_name)}</div><div class="chat-msg-body"><div class="chat-msg-name">${esc(m.user_name)} <span class="hint">${new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'})}</span></div><div class="chat-msg-text">${esc(m.content).replace(/\n/g,'<br>')}</div></div></div>`).join('')}</div>
-        <div class="chat-input-row"><textarea id="chatInput" placeholder="Type a message..." rows="2" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMsg(${channelId})}"></textarea><button class="btn btn-primary" onclick="sendChatMsg(${channelId})">Send</button></div>
+        <div class="chat-input-row"><textarea id="chatInput" placeholder="Напиши съобщение..." rows="2" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMsg(${channelId})}"></textarea><button class="btn btn-primary" onclick="sendChatMsg(${channelId})">Изпрати</button></div>
       </div>`;
     const m=document.getElementById('chatMessages'); if(m)m.scrollTop=m.scrollHeight;
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 async function sendChatMsg(chId) {
   const i=document.getElementById('chatInput'),c=i?.value?.trim(); if(!c)return;
@@ -867,19 +867,19 @@ async function renderMessageBoard(el) {
     const msgs = await (await fetch('/api/messageboard')).json();
     el.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-        <button class="btn btn-primary btn-sm" onclick="createMessage()">+ New message</button>
+        <button class="btn btn-primary btn-sm" onclick="createMessage()">+ Ново съобщение</button>
         <h1 style="font-size:22px;font-weight:800;color:#fff;text-align:center;flex:1">Съобщения</h1>
-        ${canManage()?'<button class="btn btn-sm" onclick="generateDailyReport()">📊 Daily report</button>':'<div></div>'}
+        ${canManage()?'<button class="btn btn-sm" onclick="generateDailyReport()">\ud83d\udcca Дневен отчет</button>':'<div></div>'}
       </div>
       <div style="max-width:700px;margin:0 auto">
-        ${msgs.map(m=>`<div class="message-item ${m.pinned?'pinned':''}"><div class="message-header"><strong>${esc(m.user_name||'System')}</strong><span class="badge">${esc(m.category)}</span>${m.pinned?'<span class="badge badge-accent">📌</span>':''}<span class="hint">${timeAgo(m.created_at)}</span></div><h3>${esc(m.title)}</h3><div class="message-content">${esc(m.content||'').replace(/\n/g,'<br>')}</div></div>`).join('')}
-        ${msgs.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">No messages yet</div>':''}
+        ${msgs.map(m=>`<div class="message-item ${m.pinned?'pinned':''}"><div class="message-header"><strong>${esc(m.user_name||'Система')}</strong><span class="badge">${esc(m.category)}</span>${m.pinned?'<span class="badge badge-accent">📌</span>':''}<span class="hint">${timeAgo(m.created_at)}</span></div><h3>${esc(m.title)}</h3><div class="message-content">${esc(m.content||'').replace(/\n/g,'<br>')}</div></div>`).join('')}
+        ${msgs.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма съобщения все още</div>':''}
       </div>`;
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 async function createMessage() {
-  const t=prompt('Title:'); if(!t?.trim())return;
-  const c=prompt('Content:');
+  const t=prompt('Заглавие:'); if(!t?.trim())return;
+  const c=prompt('Съдържание:');
   try { await fetch('/api/messageboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,content:c})}); router(); } catch {}
 }
 async function generateDailyReport() {
@@ -894,29 +894,29 @@ async function renderVault(el, folderId) {
     const { folders, files } = await (await fetch(url)).json();
     el.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-        <button class="btn btn-primary btn-sm" onclick="createVaultFolder(${folderId||'null'})">+ New...</button>
+        <button class="btn btn-primary btn-sm" onclick="createVaultFolder(${folderId||'null'})">+ Ново...</button>
         <h1 style="font-size:22px;font-weight:800;color:#fff;text-align:center;flex:1">Документи</h1>
-        <label class="btn btn-sm" style="cursor:pointer">📎 Upload<input type="file" style="display:none" onchange="uploadVaultFile(this,${folderId||'null'})"></label>
+        <label class="btn btn-sm" style="cursor:pointer">\ud83d\udcce Качи<input type="file" style="display:none" onchange="uploadVaultFile(this,${folderId||'null'})"></label>
       </div>
-      ${folderId?'<a href="#/vault" class="btn btn-sm" style="margin-bottom:16px;display:inline-flex">← Back</a>':''}
+      ${folderId?'<a href="#/vault" class="btn btn-sm" style="margin-bottom:16px;display:inline-flex">\u2190 Назад</a>':''}
       <div class="vault-grid">
         ${folders.map(f=>`<a class="vault-item folder" href="#/vault/${f.id}"><span class="vault-icon">📁</span><span class="vault-name">${esc(f.name)}</span></a>`).join('')}
         ${files.map(f=>`<div class="vault-item file"><a href="${f.storage_path}" target="_blank" class="vault-icon">${getFileIcon(f.mime_type)}</a><span class="vault-name">${esc(f.original_name)}</span><span class="hint">${formatFileSize(f.size_bytes)}</span></div>`).join('')}
-        ${folders.length===0&&files.length===0?'<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Empty folder</div>':''}
+        ${folders.length===0&&files.length===0?'<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Празна папка</div>':''}
       </div>`;
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error</div>'; }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
-async function createVaultFolder(pid) { const n=prompt('Folder name:'); if(!n?.trim())return; try { await fetch('/api/vault/folders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,parent_id:pid})}); router(); } catch {} }
+async function createVaultFolder(pid) { const n=prompt('Име на папка:'); if(!n?.trim())return; try { await fetch('/api/vault/folders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,parent_id:pid})}); router(); } catch {} }
 async function uploadVaultFile(input,fid) { if(!input.files[0])return; const f=new FormData(); f.append('file',input.files[0]); if(fid)f.append('folder_id',fid); try { await fetch('/api/vault/upload',{method:'POST',body:f}); router(); } catch {} }
 function getFileIcon(m) { if(m?.startsWith('image/'))return'🖼️'; if(m?.startsWith('video/'))return'🎬'; if(m?.includes('pdf'))return'📄'; return'📎'; }
 function formatFileSize(b) { if(!b)return''; if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; return(b/1048576).toFixed(1)+' MB'; }
 
 // ==================== COLUMN/BOARD MGMT ====================
-async function promptAddColumn(bid) { const t=prompt('Column name:'); if(!t?.trim())return; try { await fetch(`/api/boards/${bid}/columns`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards=await(await fetch('/api/boards')).json(); router(); } catch {} }
+async function promptAddColumn(bid) { const t=prompt('Име на колона:'); if(!t?.trim())return; try { await fetch(`/api/boards/${bid}/columns`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards=await(await fetch('/api/boards')).json(); router(); } catch {} }
 function editColumnTitle(bid,cid,el) { const cur=el.textContent; el.contentEditable=true; el.focus(); const save=async()=>{ el.contentEditable=false; const t=el.textContent.trim(); if(t&&t!==cur){ try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})})}catch{} } else el.textContent=cur; }; el.onblur=save; el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();el.blur()}if(e.key==='Escape'){el.textContent=cur;el.blur()}}; }
-function showColMenu(e,bid,cid) { e.stopPropagation(); document.querySelectorAll('.col-context-menu').forEach(m=>m.remove()); const menu=document.createElement('div'); menu.className='col-context-menu'; menu.innerHTML=`<button onclick="promptRenameColumn(${bid},${cid});this.parentElement.remove()">✎ Rename</button><button onclick="deleteColumn(${bid},${cid});this.parentElement.remove()">🗑 Delete</button>`; e.target.closest('.column-header-right').appendChild(menu); setTimeout(()=>document.addEventListener('click',()=>menu.remove(),{once:true}),10); }
-async function promptRenameColumn(bid,cid) { const t=prompt('New name:'); if(!t?.trim())return; try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
-async function deleteColumn(bid,cid) { if(!confirm('Delete column and all its cards?'))return; try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'DELETE'}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
+function showColMenu(e,bid,cid) { e.stopPropagation(); document.querySelectorAll('.col-context-menu').forEach(m=>m.remove()); const menu=document.createElement('div'); menu.className='col-context-menu'; menu.innerHTML=`<button onclick="promptRenameColumn(${bid},${cid});this.parentElement.remove()">\u270e Преименувай</button><button onclick="deleteColumn(${bid},${cid});this.parentElement.remove()">\ud83d\uddd1 Изтрий</button>`; e.target.closest('.column-header-right').appendChild(menu); setTimeout(()=>document.addEventListener('click',()=>menu.remove(),{once:true}),10); }
+async function promptRenameColumn(bid,cid) { const t=prompt('Ново име:'); if(!t?.trim())return; try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
+async function deleteColumn(bid,cid) { if(!confirm('Изтрий колона и всички карти в нея?'))return; try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'DELETE'}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
 function toggleBoardMenu(e,bid,cid) { /* TODO: full board menu */ }
 
 // ==================== DRAG & DROP ====================
@@ -928,11 +928,11 @@ function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
 async function handleDrop(e) { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); if(!dragCardId)return; try{await fetch(`/api/cards/${dragCardId}/move`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({column_id:parseInt(e.currentTarget.dataset.columnId),board_id:parseInt(e.currentTarget.dataset.boardId)})}); router();}catch{} }
 
 // ==================== PROFILE ====================
-async function openProfile() { const m=document.getElementById('profileModal'); m.style.display='flex'; try{ const u=await(await fetch('/api/profile')).json(); const av=document.getElementById('profileAvatar'); if(u.avatar_url)av.innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`; else av.textContent=initials(u.name); document.getElementById('profileName').textContent=u.name; document.getElementById('profileEmail').textContent=u.email; document.getElementById('profileRole').innerHTML=u.role==='admin'?'<span class="badge badge-accent">ADMIN</span>':u.role==='moderator'?'<span class="badge badge-blue">MODERATOR</span>':'<span class="badge">MEMBER</span>'; document.getElementById('profileNameInput').value=u.name; }catch{} }
+async function openProfile() { const m=document.getElementById('profileModal'); m.style.display='flex'; try{ const u=await(await fetch('/api/profile')).json(); const av=document.getElementById('profileAvatar'); if(u.avatar_url)av.innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`; else av.textContent=initials(u.name); document.getElementById('profileName').textContent=u.name; document.getElementById('profileEmail').textContent=u.email; document.getElementById('profileRole').innerHTML=u.role==='admin'?'<span class="badge badge-accent">АДМИН</span>':u.role==='moderator'?'<span class="badge badge-blue">МОДЕРАТОР</span>':'<span class="badge">ЧЛЕН</span>'; document.getElementById('profileNameInput').value=u.name; }catch{} }
 function closeProfile() { document.getElementById('profileModal').style.display='none'; }
 async function saveProfileName() { const n=document.getElementById('profileNameInput').value.trim(); if(!n)return; try{const u=await(await fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})})).json(); document.getElementById('profileName').textContent=u.name; document.getElementById('navAvatar').textContent=initials(u.name);}catch{} }
 async function uploadAvatar(input) { if(!input.files[0])return; const f=new FormData(); f.append('avatar',input.files[0]); try{const u=await(await fetch('/api/profile/avatar',{method:'POST',body:f})).json(); document.getElementById('profileAvatar').innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`;}catch{} }
-async function changePassword() { const msg=document.getElementById('pwdMsg'),c=document.getElementById('currentPwd').value,n=document.getElementById('newPwd').value; if(!c||!n){msg.textContent='Fill both fields';msg.style.color='var(--red)';return;} try{const r=await fetch('/api/profile/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:c,newPassword:n})}); const d=await r.json(); if(r.ok){msg.textContent='Changed';msg.style.color='var(--green)';}else{msg.textContent=d.error;msg.style.color='var(--red)';}}catch{msg.textContent='Error';msg.style.color='var(--red)';} }
+async function changePassword() { const msg=document.getElementById('pwdMsg'),c=document.getElementById('currentPwd').value,n=document.getElementById('newPwd').value; if(!c||!n){msg.textContent='Попълни и двете полета';msg.style.color='var(--red)';return;} try{const r=await fetch('/api/profile/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:c,newPassword:n})}); const d=await r.json(); if(r.ok){msg.textContent='Сменена';msg.style.color='var(--green)';}else{msg.textContent=d.error;msg.style.color='var(--red)';}}catch{msg.textContent='Грешка';msg.style.color='var(--red)';} }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfile()});
 document.getElementById('profileModal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeProfile()});
 
@@ -944,7 +944,7 @@ function handleWSEvent(ev) { const t=ev.type||''; if(t.startsWith('card:')||t.st
 function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(d) { if(!d)return''; const s=d.split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}.${m}.${y}`; }
 function getCardColorClass(c) { if(c.is_on_hold)return'on-hold'; if(c.priority==='urgent')return'priority'; if(!c.due_on)return''; const n=new Date();n.setHours(0,0,0,0); const due=new Date(c.due_on+'T00:00:00'); const diff=Math.ceil((due-n)/86400000); if(diff<0)return'overdue'; if(diff===0)return'deadline-today'; if(diff<=4)return'deadline-soon'; return'deadline-ok'; }
-function timeAgo(d) { const s=Math.floor((Date.now()-new Date(d))/1000); if(s<60)return'just now'; if(s<3600)return Math.floor(s/60)+'m'; if(s<86400)return Math.floor(s/3600)+'h'; return Math.floor(s/86400)+'d ago'; }
+function timeAgo(d) { const s=Math.floor((Date.now()-new Date(d))/1000); if(s<60)return'сега'; if(s<3600)return Math.floor(s/60)+'м'; if(s<86400)return Math.floor(s/3600)+'ч'; return Math.floor(s/86400)+'д назад'; }
 
 // ==================== INIT ====================
 (async function() { if(!await checkAuth())return; if(!location.hash||location.hash==='#'||location.hash==='#/')location.hash='#/home'; router(); connectWS(); })();
