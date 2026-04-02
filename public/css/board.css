@@ -144,7 +144,8 @@
 .column-badge { background: var(--bg-hover); padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; border-left: 3px solid var(--accent); }
 .assignee-tag { background: var(--accent-dim); color: var(--accent); padding: 2px 8px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
 .input-sm { font-size: 12px !important; padding: 4px 8px !important; }
-.card-content-area { padding: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; min-height: 60px; line-height: 1.7; font-size: 13.5px; color: var(--text-secondary); white-space: pre-wrap; }
+.card-content-area { padding: 0; min-height: 60px; line-height: 1.7; font-size: 13.5px; color: var(--text-secondary); white-space: pre-wrap; }
+.card-content-area .rich-content { padding: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; }
 
 /* Steps */
 .card-perma__steps { margin-bottom: 24px; padding: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; }
@@ -171,6 +172,11 @@
 .mention { color: var(--accent); font-weight: 600; }
 .add-comment-row { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
 .add-comment-row textarea { width: 100%; min-height: 60px; resize: vertical; }
+.add-comment-row .btn { align-self: flex-start; }
+
+/* Steps progress bar */
+.steps-progress { height: 4px; background: var(--bg-hover); border-radius: 2px; overflow: hidden; flex: 1; }
+.steps-progress__fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s ease; }
 
 /* Card create form */
 .card-create-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
@@ -246,35 +252,34 @@
 
 /* ==================== TRIX EDITOR (DARK THEME) ==================== */
 trix-editor.trix-dark {
-  background: var(--bg-input, #18181b);
-  color: var(--text, #e4e4e7);
-  border: 1px solid var(--border, #27272a);
-  border-radius: 8px;
+  background: var(--bg, #1a2730);
+  color: var(--text, #e8ecee);
+  border: 1px solid var(--border, #2a3f4d);
+  border-radius: 0 0 8px 8px;
   padding: 12px;
-  min-height: 120px;
+  min-height: 100px;
   font-size: 14px;
   line-height: 1.6;
 }
-trix-editor.trix-dark:focus { border-color: var(--accent, #1cb0f6); outline: none; }
+trix-editor.trix-dark:focus { border-color: var(--accent, #1cb0f6); outline: none; box-shadow: 0 0 0 3px var(--accent-dim); }
 trix-editor.trix-dark a { color: var(--accent, #1cb0f6); }
 
 trix-toolbar {
-  background: var(--bg-card, #1c1c1e);
-  border: 1px solid var(--border, #27272a);
+  background: var(--bg-elevated, #243b48);
+  border: 1px solid var(--border, #2a3f4d);
   border-bottom: none;
   border-radius: 8px 8px 0 0;
   padding: 4px 8px;
 }
-trix-toolbar + trix-editor.trix-dark { border-radius: 0 0 8px 8px; }
 
-trix-toolbar .trix-button-group { border-color: var(--border, #27272a); margin-bottom: 0; }
+trix-toolbar .trix-button-group { border-color: var(--border, #2a3f4d); margin-bottom: 0; border-radius: 4px; }
 trix-toolbar .trix-button {
   background: transparent;
-  color: var(--text-secondary, #a1a1aa);
-  border-color: var(--border, #27272a);
+  color: var(--text-secondary, #8fa3b0);
+  border-color: var(--border, #2a3f4d);
   padding: 4px 8px;
 }
-trix-toolbar .trix-button:hover { background: var(--bg-hover, #27272a); color: #fff; }
+trix-toolbar .trix-button:hover { background: var(--bg-hover, #2a4454); color: #fff; }
 trix-toolbar .trix-button.trix-active { background: var(--accent-dim, rgba(28,176,246,0.12)); color: var(--accent, #1cb0f6); }
 trix-toolbar .trix-button-group:not(:first-child) { margin-left: 4px; }
 

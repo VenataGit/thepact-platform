@@ -576,6 +576,7 @@ async function renderCardPage(el, cardId) {
             <div class="steps-header">
               <span style="font-weight:600;color:var(--text)">Steps</span>
               <span style="color:var(--text-dim);font-size:12px">(${card.steps?.filter(s=>s.completed).length||0}/${card.steps?.length||0})</span>
+              ${card.steps?.length ? `<div class="steps-progress"><div class="steps-progress__fill" style="width:${Math.round((card.steps.filter(s=>s.completed).length/card.steps.length)*100)}%"></div></div>` : ''}
             </div>
             <div class="steps-list">
               ${(card.steps||[]).map(s => `
