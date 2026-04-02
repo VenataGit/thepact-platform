@@ -18,7 +18,7 @@ router.get('/', requireAuth, async (req, res) => {
         u.name as creator_name,
         COALESCE(
           (SELECT json_agg(json_build_object('id', au.id, 'name', au.name, 'avatar_url', au.avatar_url))
-           FROM schedule_attendees sa JOIN users au ON sa.user_id = au.id WHERE sa.event_id = e.id),
+           FROM schedule_event_attendees sa JOIN users au ON sa.user_id = au.id WHERE sa.event_id = e.id),
           '[]'::json
         ) as attendees
       FROM schedule_events e
@@ -29,7 +29,7 @@ router.get('/', requireAuth, async (req, res) => {
     let i = 2;
 
     if (user_id && !isNaN(parseInt(user_id))) {
-      sql += ` AND (e.creator_id = $${i} OR e.id IN (SELECT event_id FROM schedule_attendees WHERE user_id = $${i}))`;
+      sql += ` AND (e.creator_id = $${i} OR e.id IN (SELECT event_id FROM schedule_event_attendees WHERE user_id = $${i}))`;
       params.push(parseInt(user_id));
       i++;
     }
@@ -55,7 +55,7 @@ router.get('/my', requireAuth, async (req, res) => {
       query(
         `SELECT e.*, 'event' as item_type
          FROM schedule_events e
-         WHERE (e.creator_id = $1 OR e.id IN (SELECT event_id FROM schedule_attendees WHERE user_id = $1))
+         WHERE (e.creator_id = $1 OR e.id IN (SELECT event_id FROM schedule_event_attendees WHERE user_id = $1))
            AND e.starts_at >= $2::date AND e.starts_at < $2::date + interval '1 month'
          ORDER BY e.starts_at`,
         [req.user.userId, startDate]
@@ -93,7 +93,7 @@ router.get('/:id', requireAuth, async (req, res) => {
       `SELECT e.*, u.name as creator_name,
         COALESCE(
           (SELECT json_agg(json_build_object('id', au.id, 'name', au.name, 'avatar_url', au.avatar_url))
-           FROM schedule_attendees sa JOIN users au ON sa.user_id = au.id WHERE sa.event_id = e.id),
+           FROM schedule_event_attendees sa JOIN users au ON sa.user_id = au.id WHERE sa.event_id = e.id),
           '[]'::json
         ) as attendees
        FROM schedule_events e
@@ -123,7 +123,7 @@ router.post('/', requireAuth, async (req, res) => {
     // Add attendees
     if (attendee_ids?.length > 0) {
       for (const uid of attendee_ids) {
-        await execute('INSERT INTO schedule_attendees (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [event.id, uid]);
+        await execute('INSERT INTO schedule_event_attendees (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [event.id, uid]);
       }
     }
 
@@ -155,9 +155,9 @@ router.put('/:id', requireAuth, async (req, res) => {
 
     // Update attendees if provided
     if (attendee_ids !== undefined) {
-      await execute('DELETE FROM schedule_attendees WHERE event_id = $1', [event.id]);
+      await execute('DELETE FROM schedule_event_attendees WHERE event_id = $1', [event.id]);
       for (const uid of (attendee_ids || [])) {
-        await execute('INSERT INTO schedule_attendees (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [event.id, uid]);
+        await execute('INSERT INTO schedule_event_attendees (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [event.id, uid]);
       }
     }
 
@@ -174,7 +174,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
     const event = await queryOne('DELETE FROM schedule_events WHERE id = $1 RETURNING *', [req.params.id]);
     if (!event) return res.status(404).json({ error: 'Event not found' });
 
-    await execute('DELETE FROM schedule_attendees WHERE event_id = $1', [req.params.id]);
+    await execute('DELETE FROM schedule_event_attendees WHERE event_id = $1', [req.params.id]);
 
     broadcast({ type: 'schedule:deleted', eventId: parseInt(req.params.id) }, req.user.userId);
     res.json({ ok: true });

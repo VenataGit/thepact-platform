@@ -83,8 +83,8 @@ router.post('/rooms', requireAuth, requireModerator, async (req, res) => {
     if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
 
     const room = await queryOne(
-      'INSERT INTO campfire_rooms (name, description, created_by) VALUES ($1, $2, $3) RETURNING *',
-      [name.trim(), description || null, req.user.userId]
+      'INSERT INTO campfire_rooms (name) VALUES ($1) RETURNING *',
+      [name.trim()]
     );
 
     // Add creator as member

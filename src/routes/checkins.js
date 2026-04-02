@@ -12,7 +12,7 @@ router.get('/questions', requireAuth, async (req, res) => {
         (SELECT COUNT(*) FROM checkin_responses WHERE question_id = q.id) as response_count
        FROM checkin_questions q
        LEFT JOIN users u ON q.created_by = u.id
-       WHERE q.active = TRUE
+       WHERE q.is_active = TRUE
        ORDER BY q.created_at DESC`
     );
     res.json(questions);
@@ -45,7 +45,7 @@ router.get('/my-pending', requireAuth, async (req, res) => {
     const pending = await query(
       `SELECT q.*
        FROM checkin_questions q
-       WHERE q.active = TRUE
+       WHERE q.is_active = TRUE
          AND q.id NOT IN (
            SELECT question_id FROM checkin_responses
            WHERE user_id = $1 AND created_at::date = CURRENT_DATE
@@ -63,13 +63,13 @@ router.get('/my-pending', requireAuth, async (req, res) => {
 // POST /api/checkins/questions — create question (moderator+)
 router.post('/questions', requireAuth, requireModerator, async (req, res) => {
   try {
-    const { title, description, schedule_days } = req.body;
-    if (!title?.trim()) return res.status(400).json({ error: 'Title required' });
+    const { question: questionText, schedule_cron } = req.body;
+    if (!questionText?.trim()) return res.status(400).json({ error: 'Question required' });
 
     const question = await queryOne(
-      `INSERT INTO checkin_questions (title, description, schedule_days, created_by)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [title.trim(), description || null, schedule_days || null, req.user.userId]
+      `INSERT INTO checkin_questions (question, schedule_cron, created_by)
+       VALUES ($1, $2, $3) RETURNING *`,
+      [questionText.trim(), schedule_cron || '0 9 * * 1-5', req.user.userId]
     );
 
     broadcast({ type: 'checkin:question_created', question }, req.user.userId);
@@ -83,16 +83,15 @@ router.post('/questions', requireAuth, requireModerator, async (req, res) => {
 // PUT /api/checkins/questions/:id — update question
 router.put('/questions/:id', requireAuth, requireModerator, async (req, res) => {
   try {
-    const { title, description, schedule_days } = req.body;
+    const { question: questionText, schedule_cron, is_active } = req.body;
 
     const question = await queryOne(
       `UPDATE checkin_questions SET
-        title = COALESCE($1, title),
-        description = COALESCE($2, description),
-        schedule_days = COALESCE($3, schedule_days),
-        updated_at = NOW()
+        question = COALESCE($1, question),
+        schedule_cron = COALESCE($2, schedule_cron),
+        is_active = COALESCE($3, is_active)
        WHERE id = $4 RETURNING *`,
-      [title, description, schedule_days, req.params.id]
+      [questionText, schedule_cron, is_active, req.params.id]
     );
     if (!question) return res.status(404).json({ error: 'Question not found' });
 
@@ -106,7 +105,7 @@ router.put('/questions/:id', requireAuth, requireModerator, async (req, res) => 
 router.delete('/questions/:id', requireAuth, requireModerator, async (req, res) => {
   try {
     const question = await queryOne(
-      'UPDATE checkin_questions SET active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING *',
+      'UPDATE checkin_questions SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING *',
       [req.params.id]
     );
     if (!question) return res.status(404).json({ error: 'Question not found' });
@@ -124,7 +123,7 @@ router.post('/questions/:id/responses', requireAuth, async (req, res) => {
     if (!content?.trim()) return res.status(400).json({ error: 'Content required' });
 
     // Verify question exists and is active
-    const question = await queryOne('SELECT id, title FROM checkin_questions WHERE id = $1 AND active = TRUE', [req.params.id]);
+    const question = await queryOne('SELECT id, question FROM checkin_questions WHERE id = $1 AND is_active = TRUE', [req.params.id]);
     if (!question) return res.status(404).json({ error: 'Question not found or inactive' });
 
     // Check if already answered today

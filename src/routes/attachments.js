@@ -22,11 +22,11 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
 
 // GET /api/cards/:cardId/attachments — list attachments for a card
-router.get('/cards/:cardId/attachments', requireAuth, async (req, res) => {
+router.get('/:cardId/attachments', requireAuth, async (req, res) => {
   try {
     const attachments = await query(
       `SELECT a.*, u.name as uploaded_by_name
-       FROM card_attachments a
+       FROM attachments a
        LEFT JOIN users u ON a.uploaded_by = u.id
        WHERE a.card_id = $1
        ORDER BY a.created_at DESC`,
@@ -40,7 +40,7 @@ router.get('/cards/:cardId/attachments', requireAuth, async (req, res) => {
 });
 
 // POST /api/cards/:cardId/attachments — upload attachment
-router.post('/cards/:cardId/attachments', requireAuth, upload.single('file'), async (req, res) => {
+router.post('/:cardId/attachments', requireAuth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file' });
 
@@ -49,9 +49,9 @@ router.post('/cards/:cardId/attachments', requireAuth, upload.single('file'), as
     if (!card) return res.status(404).json({ error: 'Card not found' });
 
     const attachment = await queryOne(
-      `INSERT INTO card_attachments (card_id, filename, original_name, mime_type, size_bytes, storage_path, uploaded_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [req.params.cardId, req.file.filename, req.file.originalname, req.file.mimetype,
+      `INSERT INTO attachments (card_id, filename, mime_type, size_bytes, storage_path, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [req.params.cardId, req.file.originalname, req.file.mimetype,
        req.file.size, `/uploads/attachments/${req.file.filename}`, req.user.userId]
     );
 
@@ -64,10 +64,10 @@ router.post('/cards/:cardId/attachments', requireAuth, upload.single('file'), as
 });
 
 // DELETE /api/cards/:cardId/attachments/:id — delete attachment
-router.delete('/cards/:cardId/attachments/:id', requireAuth, async (req, res) => {
+router.delete('/:cardId/attachments/:id', requireAuth, async (req, res) => {
   try {
     const attachment = await queryOne(
-      'DELETE FROM card_attachments WHERE id = $1 AND card_id = $2 RETURNING *',
+      'DELETE FROM attachments WHERE id = $1 AND card_id = $2 RETURNING *',
       [req.params.id, req.params.cardId]
     );
     if (!attachment) return res.status(404).json({ error: 'Attachment not found' });

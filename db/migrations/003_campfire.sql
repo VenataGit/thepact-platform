@@ -19,5 +19,13 @@ CREATE TABLE IF NOT EXISTS campfire_messages (
 
 CREATE INDEX IF NOT EXISTS idx_campfire_messages_room ON campfire_messages(room_id, created_at);
 
+-- Campfire room members (optional, for private rooms)
+CREATE TABLE IF NOT EXISTS campfire_members (
+    room_id INTEGER NOT NULL REFERENCES campfire_rooms(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (room_id, user_id)
+);
+
 -- Seed default campfire room
 INSERT INTO campfire_rooms (id, name, project_id) VALUES (1, 'Campfire', 1) ON CONFLICT DO NOTHING;
