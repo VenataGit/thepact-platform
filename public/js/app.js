@@ -191,12 +191,8 @@ async function renderHome(el) {
 
         <div class="projects-home-grid">
           <a href="#/videoproduction" class="project-card-home">
-            <div class="project-card-home__pin" title="Закачен проект">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
-            </div>
             <div class="project-card-home__above">ThePact Tasks</div>
             <div class="project-card-home__title">Video Production</div>
-            <div class="project-card-home__avatars">${teamAvatars}</div>
           </a>
           <a href="#/dashboard" class="project-card-home">
             <div class="project-card-home__above">ThePact Tasks</div>
