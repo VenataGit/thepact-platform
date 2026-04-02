@@ -151,7 +151,7 @@
 .column-badge { background: var(--bg-hover); padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; border-left: 3px solid var(--accent); }
 .assignee-tag { background: var(--accent-dim); color: var(--accent); padding: 2px 8px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
 .input-sm { font-size: 12px !important; padding: 4px 8px !important; }
-.card-content-area { padding: 0; min-height: 0; line-height: 1.7; font-size: 13.5px; color: var(--text-secondary); white-space: pre-wrap; margin-top: 4px; }
+.card-content-area { padding: 0; min-height: 0; line-height: 1.7; font-size: 13.5px; color: var(--text-secondary); white-space: pre-wrap; margin-top: 0; }
 .card-content-area .rich-content { padding: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; }
 .card-content-area .btn { margin-top: 8px; }
 
@@ -265,7 +265,9 @@ trix-editor.trix-dark {
   border: 1px solid var(--border, #2a3f4d);
   border-radius: 0 0 8px 8px;
   padding: 12px;
-  min-height: 100px;
+  min-height: 80px;
+  max-height: 300px;
+  overflow-y: auto;
   font-size: 14px;
   line-height: 1.6;
   width: 100%;
