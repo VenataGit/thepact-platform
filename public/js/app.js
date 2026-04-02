@@ -190,15 +190,6 @@ async function renderHome(el) {
           <h1 style="font-size:36px;letter-spacing:-0.03em">THEPACT™</h1>
         </div>
 
-        <div style="text-align:center;margin-bottom:32px">
-          <a href="#/project/1" style="color:var(--accent);font-size:13px;text-decoration:underline">Виж всички проекти в списък</a>
-          <span style="color:var(--text-dim);font-size:13px"> · Натисни <kbd style="background:var(--bg-hover);padding:2px 6px;border-radius:4px;font-size:11px;border:1px solid var(--border)">Ctrl+J</kbd> за бързо търсене</span>
-        </div>
-
-        <div style="text-align:center;margin-bottom:16px">
-          <span class="section-pill">Последни проекти</span>
-        </div>
-
         <div class="projects-home-grid">
           <a href="#/videoproduction" class="project-card-home">
             <div class="project-card-home__pin" title="Закачен проект">
@@ -215,28 +206,6 @@ async function renderHome(el) {
           </a>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:32px">
-          <div>
-            <div style="text-align:center;margin-bottom:12px"><span class="section-pill section-pill--blue">Твоят график</span></div>
-            <div class="home-panel">
-              ${renderMiniCalendar()}
-              <div style="margin-top:16px;font-size:13px;color:var(--text-dim);display:flex;align-items:center;gap:8px">
-                <span>📅</span>
-                <span>${new Date().toLocaleDateString('bg', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}</span>
-                <span style="margin-left:4px">Нищо планирано за днес</span>
-              </div>
-            </div>
-          </div>
-          <div>
-            <div style="text-align:center;margin-bottom:12px"><span class="section-pill section-pill--green">Твоите задачи</span></div>
-            <div class="home-panel" style="min-height:200px;display:flex;align-items:center;justify-content:center">
-              ${myCards.length === 0
-                ? '<div style="text-align:center;color:var(--text-dim)"><svg viewBox="0 0 24 24" width="64" height="64" style="opacity:0.2;margin-bottom:8px"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" fill="none" stroke-width="1.5"/></svg><p style="font-size:13px">Нямаш задачи в момента.<br>Възложените ти карти ще се появят тук.</p></div>'
-                : `<div style="width:100%">${myCards.slice(0,8).map(c => `<a href="#/card/${c.id}" class="assignment-row"><span class="assignment-title">${esc(c.title)}</span><span class="assignment-board">${esc(c.board_title || '')}</span></a>`).join('')}</div>`
-              }
-            </div>
-          </div>
-        </div>
       </div>
     `;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
