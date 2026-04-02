@@ -642,119 +642,132 @@ async function renderCardPage(el, cardId) {
 
     const manage = canManage();
 
+    const creatorName = card.creator_name || allUsers.find(u => u.id === card.creator_id)?.name || '';
+    const createdAgo = card.created_at ? timeAgo(card.created_at) : '';
+    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+    const getAC = (name) => avatarColors[(name||'').length % avatarColors.length];
+
     el.innerHTML = `
       <div class="card-page">
-        <div class="card-page__toolbar">
+        <div class="bc-card-options">
           <button class="btn btn-sm btn-ghost" onclick="toggleBookmark('card',${cardId},'${esc(card.title)}')" title="Запази в отметки">⚑</button>
           <button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${card.board_id}, ${cardId})">⋯</button>
         </div>
 
-        <article class="card-modal edit-mode">
-          <header class="card-header">
-            <div class="card-icon">🗂️</div>
-            <h1 class="card-perma__title">${esc(card.title)}</h1>
+        <article class="bc-card">
+          <header class="bc-card__header">
+            <span class="bc-card__icon">📋</span>
+            <h1 class="bc-card__title">${esc(card.title)}</h1>
           </header>
 
-          <section class="card-metadata">
-            <div class="meta-row">
-              <span class="meta-label">Колона</span>
-              <div class="meta-value">
-                <span class="column-badge">${esc(col?.title || '—')}</span>
-                ${manage ? `<select class="input input-sm" onchange="moveCard(${cardId}, this.value)" style="margin-left:8px;width:auto">
-                  <option value="">Премести в...</option>
+          <div class="bc-card__fields">
+            <div class="bc-field">
+              <span class="bc-field__label">Column</span>
+              <div class="bc-field__value">
+                <span>${esc(col?.title || '—')}</span>
+                ${manage ? `<select class="bc-select-inline" onchange="moveCard(${cardId}, this.value)">
+                  <option value="">Move along to…</option>
                   ${(board?.columns || []).filter(c => c.id !== card.column_id).map(c => `<option value="${c.id}">${esc(c.title)}</option>`).join('')}
                 </select>` : ''}
               </div>
             </div>
-            <div class="meta-row">
-              <span class="meta-label">Възложено на</span>
-              <div class="meta-value">
+            <div class="bc-field">
+              <span class="bc-field__label">Assigned to</span>
+              <div class="bc-field__value">
                 ${card.assignees?.length > 0
-                  ? card.assignees.map(a => `<span class="assignee-tag">${esc(a.name)}</span>`).join(' ')
-                  : `<span style="color:var(--text-dim)">Няма</span>`}
-                ${manage ? `<select class="input input-sm" style="margin-left:8px;width:auto" onchange="addAssignee(${cardId}, this.value)">
-                  <option value="">+ Добави...</option>
+                  ? card.assignees.map(a => `<span class="bc-assignee">${esc(a.name)}</span>`).join(', ')
+                  : ''}
+                ${manage ? `<select class="bc-select-inline" onchange="addAssignee(${cardId}, this.value)">
+                  <option value="">${card.assignees?.length ? '+ Добави...' : 'Type names to assign…'}</option>
                   ${allUsers.filter(u => !card.assignees?.some(a => a.id === u.id)).map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}
                 </select>` : ''}
               </div>
             </div>
-            <div class="meta-row">
-              <span class="meta-label">Краен срок</span>
-              <div class="meta-value">
+            <div class="bc-field">
+              <span class="bc-field__label">Due on</span>
+              <div class="bc-field__value bc-field__value--vertical">
                 ${manage ? `
-                  <label class="radio-label"><input type="radio" name="due_${cardId}" ${!card.due_on ? 'checked' : ''} onchange="updateField(${cardId},'due_on',null)"> Без краен срок</label>
-                  <label class="radio-label"><input type="radio" name="due_${cardId}" ${card.due_on ? 'checked' : ''}> Конкретна дата</label>
-                  <input type="date" class="input input-sm" value="${card.due_on || ''}" onchange="updateField(${cardId},'due_on',this.value||null);this.closest('.meta-value').querySelector('input[type=radio]:last-of-type').checked=true" style="width:auto;margin-left:4px">
-                ` : `<span>${card.due_on ? formatDate(card.due_on) : 'Без краен срок'}</span>`}
+                  <label class="bc-radio"><input type="radio" name="due_${cardId}" ${!card.due_on ? 'checked' : ''} onchange="updateField(${cardId},'due_on',null)"> No due date</label>
+                  <label class="bc-radio"><input type="radio" name="due_${cardId}" ${card.due_on ? 'checked' : ''}> A specific day
+                    <input type="date" class="bc-date-input" value="${card.due_on || ''}" onchange="updateField(${cardId},'due_on',this.value||null);this.closest('.bc-field__value').querySelector('input[type=radio]:nth-of-type(2)').checked=true">
+                  </label>
+                ` : `<span>${card.due_on ? formatDate(card.due_on) : 'No due date'}</span>`}
               </div>
             </div>
-          </section>
-
-          <section class="card-notes-section">
-            <h4>Бележки</h4>
-            <div class="editor-container">
-              ${manage ? `
-                <input id="cardNotesInput" type="hidden" value="${esc(card.content || '')}">
-                <trix-editor input="cardNotesInput" class="trix-dark" placeholder="Добави бележки..."></trix-editor>
-              ` : (card.content ? `<div class="rich-content" style="padding:15px">${card.content}</div>` : '<div style="padding:15px;color:var(--text-dim)">Няма бележки</div>')}
+            <div class="bc-field">
+              <span class="bc-field__label">Notes</span>
+              <div class="bc-field__value bc-field__value--full">
+                <div class="bc-editor">
+                  ${manage ? `
+                    <input id="cardNotesInput" type="hidden" value="${esc(card.content || '')}">
+                    <trix-editor input="cardNotesInput" class="trix-dark" placeholder="Describe your card here…"></trix-editor>
+                  ` : (card.content ? `<div class="rich-content">${card.content}</div>` : '<div style="color:var(--text-dim);padding:12px">Describe your card here…</div>')}
+                </div>
+              </div>
             </div>
-            ${manage ? `<div class="edit-actions">
-              <button class="btn-save" onclick="saveCardNotes(${cardId})">Запази промените</button>
-              <button class="btn-discard" onclick="router()">Откажи промените</button>
-            </div>` : ''}
-          </section>
-
-          <!-- Steps -->
-          <section class="card-steps-section">
-            <h4>Стъпки</h4>
-            <div class="steps-header-bar">
-              <span style="color:var(--text-dim);font-size:12px">${card.steps?.filter(s=>s.completed).length||0} от ${card.steps?.length||0} завършени</span>
-              ${card.steps?.length ? `<div class="steps-progress"><div class="steps-progress__fill" style="width:${Math.round((card.steps.filter(s=>s.completed).length/card.steps.length)*100)}%"></div></div>` : ''}
+            <div class="bc-field bc-field--light">
+              <span class="bc-field__label">Added by</span>
+              <div class="bc-field__value">
+                <span>${esc(creatorName)}</span>
+                <span class="bc-field__hint">${createdAgo}</span>
+              </div>
             </div>
-            <ul class="checklist">
-              ${(card.steps||[]).map(s => `
-                <li class="checklist-item ${s.completed ? 'completed' : ''}">
-                  <input type="checkbox" ${s.completed?'checked':''} onchange="toggleStep(${cardId},${s.id},this.checked)">
-                  <span class="checklist-title">${esc(s.title)}</span>
-                  ${s.assignee_id ? `<span class="step-assignee">${esc(allUsers.find(u=>u.id===s.assignee_id)?.name||'')}</span>` : ''}
-                  ${s.due_on ? `<span class="step-due">${formatDate(s.due_on)}</span>` : ''}
-                </li>`).join('')}
-              <li class="checklist-item add-new-step">
-                <input id="newStepInput" type="text" placeholder="Добави нова стъпка..." onkeydown="if(event.key==='Enter')addStepFromPage(${cardId})">
-                <select id="newStepAssignee" style="width:110px"><option value="">Възложи...</option>${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
-                <input type="date" id="newStepDue" style="width:120px">
-                <button class="btn btn-sm" onclick="addStepFromPage(${cardId})">+</button>
-              </li>
-            </ul>
-          </section>
+            <div class="bc-field">
+              <span class="bc-field__label"><strong>Steps</strong></span>
+              <div class="bc-field__value bc-field__value--full">
+                ${card.steps?.length ? `
+                  <div class="bc-steps-progress">
+                    <span>${card.steps.filter(s=>s.completed).length} от ${card.steps.length} завършени</span>
+                    <div class="bc-steps-bar"><div class="bc-steps-bar__fill" style="width:${Math.round((card.steps.filter(s=>s.completed).length/card.steps.length)*100)}%"></div></div>
+                  </div>
+                  <ul class="bc-checklist">
+                    ${card.steps.map(s => `
+                      <li class="bc-checklist__item ${s.completed ? 'bc-checklist__item--done' : ''}">
+                        <input type="checkbox" ${s.completed?'checked':''} onchange="toggleStep(${cardId},${s.id},this.checked)">
+                        <span>${esc(s.title)}</span>
+                        ${s.assignee_id ? `<span class="bc-step-meta">${esc(allUsers.find(u=>u.id===s.assignee_id)?.name||'')}</span>` : ''}
+                        ${s.due_on ? `<span class="bc-step-meta">${formatDate(s.due_on)}</span>` : ''}
+                      </li>`).join('')}
+                  </ul>
+                ` : ''}
+                <div class="bc-add-step">
+                  <input id="newStepInput" type="text" placeholder="Add steps to this card" onkeydown="if(event.key==='Enter')addStepFromPage(${cardId})">
+                  <select id="newStepAssignee"><option value="">Възложи...</option>${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
+                  <input type="date" id="newStepDue">
+                  <button class="btn btn-sm" onclick="addStepFromPage(${cardId})">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          ${manage ? `<div class="bc-card__actions">
+            <button class="bc-btn-save" onclick="saveCardNotes(${cardId})">Save changes</button>
+            <button class="bc-btn-discard" onclick="router()">Discard changes</button>
+          </div>` : ''}
 
           <!-- Attachments -->
           <section class="card-attachments" id="cardAttachments"></section>
 
           <!-- Comments -->
-          <section class="card-comments-section">
-            <h4>Коментари</h4>
-            ${comments.map((c, ci) => {
-              const commentColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
-              const cc = commentColors[(c.user_name||'').length % commentColors.length];
-              return `
-              <div class="comment-item">
-                <div class="comment-avatar" style="background:${cc};color:#fff">${initials(c.user_name)}</div>
-                <div class="comment-body">
-                  <div class="comment-header">
-                    <strong>${esc(c.user_name)}</strong>
-                    <span class="hint">${timeAgo(c.created_at)}</span>
-                  </div>
-                  <div class="comment-text">${esc(c.content).replace(/\n/g,'<br>').replace(/@(\w+)/g,'<span class="mention">@$1</span>')}</div>
+          <div class="bc-comments">
+            <div class="bc-comment-add">
+              <div class="bc-comment-avatar" style="background:${getAC(currentUser?.name)}">${initials(currentUser?.name)}</div>
+              <div class="bc-comment-input-wrap">
+                <textarea id="newComment" placeholder="Add a comment here…" rows="2"></textarea>
+                <button class="bc-btn-save" onclick="addComment(${cardId})" style="margin-top:8px">Add this comment</button>
+              </div>
+            </div>
+            ${comments.length ? '<div class="bc-comments-list">' + comments.map(c => {
+              const cc = getAC(c.user_name);
+              return `<div class="bc-comment">
+                <div class="bc-comment-avatar" style="background:${cc}">${initials(c.user_name)}</div>
+                <div class="bc-comment-body">
+                  <div class="bc-comment-meta"><strong>${esc(c.user_name)}</strong> <span>${timeAgo(c.created_at)}</span></div>
+                  <div class="bc-comment-text">${esc(c.content).replace(/\n/g,'<br>')}</div>
                 </div>
               </div>`;
-            }).join('')}
-
-            <div class="add-comment-row">
-              <textarea id="newComment" placeholder="Добави коментар..." rows="3"></textarea>
-              <button class="btn btn-primary btn-sm" onclick="addComment(${cardId})">Публикувай</button>
-            </div>
-          </section>
+            }).join('') + '</div>' : ''}
+          </div>
         </article>
       </div>
     `;
