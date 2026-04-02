@@ -421,121 +421,55 @@ async function renderProject(el, projectId) {
     ]);
     allBoards = boards;
 
-    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
     el.innerHTML = `
-      <div class="page-header">
-        <div class="page-above">ThePact Tasks</div>
-        <h1>Video Production</h1>
-        <div class="avatar-group" style="display:flex;justify-content:center;margin-top:12px">
-          ${allUsers.slice(0, 8).map((u, i) => `<div style="width:32px;height:32px;border-radius:50%;background:${avatarColors[i % avatarColors.length]};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;border:2px solid var(--bg);margin-left:${i > 0 ? '-4px' : '0'};position:relative;z-index:${10-i}">${initials(u.name)}</div>`).join('')}
-        </div>
+      <div class="page-header" style="margin-bottom:16px">
+        <img src="/img/logo-white.svg" alt="The Pact" style="height:40px;margin-bottom:8px">
+        <div style="font-size:13px;color:var(--text-dim)">Video Production</div>
       </div>
 
-      <div class="project-tools">
+      <div class="projects-home-grid" style="grid-template-columns:repeat(3, 1fr);max-width:900px">
         ${boards.map((board, bi) => {
           const bc = cards.filter(c => c.board_id === board.id);
-          const barColors = ['orange','blue','yellow','purple','teal','red'];
-          const colorBar = barColors[bi % barColors.length];
-          const activeCols = board.columns.filter(c => !c.is_done_column);
           const activeCards = bc.filter(c => !c.is_on_hold);
-          return `
-            <a class="tool-card" href="#/board/${board.id}">
-              <div class="tool-card__color-bar tool-card__color-bar--${colorBar}"></div>
-              <div class="tool-card__header">
-                <h2 class="tool-card__title">${esc(board.title)}</h2>
-                <p class="tool-card__desc">${activeCols.length} колони · ${activeCards.length} активни карти</p>
-              </div>
-              <div class="tool-card__body">
-                <div class="board-preview-list">
-                  ${activeCols.map((col, ci) => {
-                    const cc = bc.filter(c => c.column_id === col.id);
-                    return `<span class="board-preview-item">${esc(col.title)} <span class="board-preview-count">(${cc.length})</span></span>`;
-                  }).join('<span class="board-preview-sep">&middot;</span>')}
-                </div>
-              </div>
-            </a>`;
+          return '<a href="#/board/' + board.id + '" class="project-card-home">' +
+            '<div class="project-card-home__above">' + esc(board.title) + '</div>' +
+            '<div class="project-card-home__title" style="font-size:18px;margin-bottom:8px">' + activeCards.length + ' карти</div>' +
+          '</a>';
         }).join('')}
 
-        <a class="tool-card" href="#/campfire/1">
-          <div class="tool-card__color-bar tool-card__color-bar--red"></div>
-          <div class="tool-card__header"><h2 class="tool-card__title">Campfire</h2></div>
-          <div class="tool-card__body">
-            <div class="tool-card__empty-state">
-              <div class="tool-card__empty-icon">🔥</div>
-              <div class="tool-card__empty-text">Групов чат за екипа. Споделяй идеи и дискутирай в реално време.</div>
-              <div class="tool-card__empty-cta">Отвори чата &rarr;</div>
-            </div>
-          </div>
+        <a href="#/campfire/1" class="project-card-home">
+          <div class="project-card-home__above">Campfire</div>
+          <div class="project-card-home__title" style="font-size:18px">🔥 Чат</div>
         </a>
 
-        <a class="tool-card" href="#/schedule">
-          <div class="tool-card__color-bar tool-card__color-bar--green"></div>
-          <div class="tool-card__header"><h2 class="tool-card__title">График</h2></div>
-          <div class="tool-card__body">
-            <div class="tool-card__empty-state">
-              <div class="tool-card__empty-icon">📅</div>
-              <div class="tool-card__empty-text">Планирай срещи, крайни срокове и събития за екипа.</div>
-              <div class="tool-card__empty-cta">Отвори графика &rarr;</div>
-            </div>
-          </div>
+        <a href="#/schedule" class="project-card-home">
+          <div class="project-card-home__above">График</div>
+          <div class="project-card-home__title" style="font-size:18px">📅 Събития</div>
         </a>
 
-        <a class="tool-card" href="#/checkins">
-          <div class="tool-card__color-bar tool-card__color-bar--purple"></div>
-          <div class="tool-card__header"><h2 class="tool-card__title">Check-ins</h2></div>
-          <div class="tool-card__body">
-            <div class="tool-card__empty-state">
-              <div class="tool-card__empty-icon">✋</div>
-              <div class="tool-card__empty-text">Автоматични въпроси към екипа. Какво свърши днес?</div>
-              <div class="tool-card__empty-cta">Настрой въпроси &rarr;</div>
-            </div>
-          </div>
+        <a href="#/checkins" class="project-card-home">
+          <div class="project-card-home__above">Check-ins</div>
+          <div class="project-card-home__title" style="font-size:18px">✋ Въпроси</div>
         </a>
 
-        <a class="tool-card" href="#/chat">
-          <div class="tool-card__color-bar tool-card__color-bar--teal"></div>
-          <div class="tool-card__header"><h2 class="tool-card__title">Pings</h2></div>
-          <div class="tool-card__body">
-            <div class="tool-card__empty-state">
-              <div class="tool-card__empty-icon">💬</div>
-              <div class="tool-card__empty-text">Изпрати лично съобщение до един или повече хора.</div>
-              <div class="tool-card__empty-cta">Започни разговор &rarr;</div>
-            </div>
-          </div>
+        <a href="#/chat" class="project-card-home">
+          <div class="project-card-home__above">Pings</div>
+          <div class="project-card-home__title" style="font-size:18px">💬 Съобщения</div>
         </a>
 
-        <a class="tool-card" href="#/messages">
-          <div class="tool-card__color-bar tool-card__color-bar--blue"></div>
-          <div class="tool-card__header"><h2 class="tool-card__title">Известия</h2></div>
-          <div class="tool-card__body">
-            <div class="tool-card__empty-state">
-              <div class="tool-card__empty-icon">📢</div>
-              <div class="tool-card__empty-text">Публикувай съобщения, споделяй идеи и поддържай дискусии по темата.</div>
-              <div class="tool-card__empty-cta">Публикувай съобщение &rarr;</div>
-            </div>
-          </div>
+        <a href="#/messages" class="project-card-home">
+          <div class="project-card-home__above">Известия</div>
+          <div class="project-card-home__title" style="font-size:18px">📢 Борд</div>
         </a>
 
-        <a class="tool-card" href="#/vault">
-          <div class="tool-card__color-bar tool-card__color-bar--yellow"></div>
-          <div class="tool-card__header"><h2 class="tool-card__title">Документи</h2></div>
-          <div class="tool-card__body">
-            <div class="tool-card__empty-state">
-              <div class="tool-card__empty-icon">📁</div>
-              <div class="tool-card__empty-text">Споделяй и организирай документи, таблици, снимки и други файлове.</div>
-              <div class="tool-card__empty-cta">Качи файл &rarr;</div>
-            </div>
-          </div>
+        <a href="#/vault" class="project-card-home">
+          <div class="project-card-home__above">Документи</div>
+          <div class="project-card-home__title" style="font-size:18px">📁 Файлове</div>
         </a>
 
         ${canManage() ? `
-        <div class="tool-card" style="cursor:pointer;border-style:dashed" onclick="promptCreateBoard()">
-          <div class="tool-card__body">
-            <div class="tool-card__blank">
-              <div class="tool-card__icon" style="opacity:0.3">+</div>
-              <div class="tool-card__desc">Добави нов инструмент</div>
-            </div>
-          </div>
+        <div class="project-card-home" style="cursor:pointer;border-style:dashed;opacity:0.5" onclick="promptCreateBoard()">
+          <div class="project-card-home__title" style="font-size:18px">+ Добави</div>
         </div>` : ''}
       </div>
 
