@@ -187,6 +187,9 @@ async function renderHome(el) {
         </div>
 
         <a href="#/project/1" class="project-card-home">
+          <div class="project-card-home__pin" title="Pinned project">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+          </div>
           <div class="project-card-home__above">ThePact Tasks</div>
           <div class="project-card-home__title">Video Production</div>
           <div class="project-card-home__avatars">${teamAvatars}</div>
@@ -290,13 +293,13 @@ async function renderProject(el, projectId) {
               <div class="tool-card__color-bar tool-card__color-bar--${colorBar}"></div>
               <div class="tool-card__header"><h2 class="tool-card__title">${esc(board.title)}</h2></div>
               <div class="tool-card__body">
-                <div class="board-box-preview" style="height:80px">
+                <div class="board-preview-list">
                   ${board.columns.filter(c => !c.is_done_column).map((col, ci) => {
                     const cc = bc.filter(c => c.column_id === col.id);
-                    const h = Math.max(20, Math.min(100, cc.length * 18));
-                    return `<div class="preview-col" title="${esc(col.title)} (${cc.length})"><div class="preview-bar preview-bar--${ci % 6}" style="height:${h}%"></div><span class="preview-count">(${cc.length})</span><span class="preview-label">${esc(col.title)}</span></div>`;
-                  }).join('')}
+                    return `<span class="board-preview-item">${esc(col.title)} <span class="board-preview-count">(${cc.length})</span></span>`;
+                  }).join('<span class="board-preview-sep">&middot;</span>')}
                 </div>
+                <div class="board-preview-total">${bc.length} карти</div>
               </div>
             </a>`;
         }).join('')}
@@ -305,9 +308,10 @@ async function renderProject(el, projectId) {
           <div class="tool-card__color-bar tool-card__color-bar--teal"></div>
           <div class="tool-card__header"><h2 class="tool-card__title">Pings</h2></div>
           <div class="tool-card__body">
-            <div class="tool-card__blank">
-              <div class="tool-card__icon">💬</div>
-              <div class="tool-card__desc">Send a private message to one or more people.</div>
+            <div class="tool-card__empty-state">
+              <div class="tool-card__empty-icon">💬</div>
+              <div class="tool-card__empty-text">Send a private message to one or more people.</div>
+              <div class="tool-card__empty-cta">Start a conversation &rarr;</div>
             </div>
           </div>
         </a>
@@ -316,9 +320,10 @@ async function renderProject(el, projectId) {
           <div class="tool-card__color-bar tool-card__color-bar--blue"></div>
           <div class="tool-card__header"><h2 class="tool-card__title">Известия</h2></div>
           <div class="tool-card__body">
-            <div class="tool-card__blank">
-              <div class="tool-card__icon">📢</div>
-              <div class="tool-card__desc">Post announcements, pitch ideas, and keep discussions on-topic.</div>
+            <div class="tool-card__empty-state">
+              <div class="tool-card__empty-icon">📢</div>
+              <div class="tool-card__empty-text">Post announcements, pitch ideas, and keep discussions on-topic.</div>
+              <div class="tool-card__empty-cta">Post a message &rarr;</div>
             </div>
           </div>
         </a>
@@ -327,9 +332,10 @@ async function renderProject(el, projectId) {
           <div class="tool-card__color-bar tool-card__color-bar--yellow"></div>
           <div class="tool-card__header"><h2 class="tool-card__title">Документи</h2></div>
           <div class="tool-card__body">
-            <div class="tool-card__blank">
-              <div class="tool-card__icon">📁</div>
-              <div class="tool-card__desc">Share and organize docs, spreadsheets, images, and other files.</div>
+            <div class="tool-card__empty-state">
+              <div class="tool-card__empty-icon">📁</div>
+              <div class="tool-card__empty-text">Share and organize docs, spreadsheets, images, and other files.</div>
+              <div class="tool-card__empty-cta">Upload a file &rarr;</div>
             </div>
           </div>
         </a>
@@ -407,8 +413,8 @@ async function renderBoard(el, boardId) {
     el.innerHTML = `
       <div style="padding:0 16px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-          ${manage ? `<a class="btn btn-primary btn-sm" href="#/card/0/new?board=${boardId}&column=${visibleCols[0]?.id || ''}">+ Add a card</a>` : '<div></div>'}
-          <h1 style="font-size:24px;font-weight:800;color:#fff;text-align:center;flex:1">${esc(board.title)}</h1>
+          <div></div>
+          <h1 style="font-size:20px;font-weight:700;color:#fff;text-align:center;flex:1">${esc(board.title)}</h1>
           <div style="display:flex;gap:8px;align-items:center">
             <div class="board-watching">
               <span class="board-watching__label">Watching</span>
@@ -446,15 +452,12 @@ async function renderBoard(el, boardId) {
                 </div>
                 ${holdCards.length > 0 ? `
                   <div class="on-hold-section">
-                    <div class="on-hold-label">ON HOLD</div>
+                    <div class="on-hold-label">ON HOLD (${holdCards.length})</div>
                     <div class="column-cards" data-column-id="${col.id}" data-board-id="${boardId}"
                          ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
                       ${holdCards.map(c => renderKanbanCard(c)).join('')}
                     </div>
-                  </div>` : `
-                  <div class="on-hold-section on-hold-empty">
-                    <div class="on-hold-label">NOTHING'S ON HOLD</div>
-                  </div>`}
+                  </div>` : ''}
                 ${manage ? `<a class="add-card-btn" href="#/card/0/new?board=${boardId}&column=${col.id}">+ Add a card</a>` : ''}
               </div>`;
           }).join('')}
@@ -565,7 +568,7 @@ async function renderCardPage(el, cardId) {
                 ${manage ? `
                   <input id="cardNotesInput" type="hidden" value="${esc(card.content || '')}">
                   <trix-editor input="cardNotesInput" class="trix-dark" placeholder="Add notes..."></trix-editor>
-                  <button class="btn btn-sm" style="margin-top:8px" onclick="saveCardNotes(${cardId})">💾 Запази бележки</button>
+                  <button class="btn btn-sm btn-save-notes" onclick="saveCardNotes(${cardId})">Запази бележки</button>
                 ` : (card.content ? `<div class="rich-content">${card.content}</div>` : '<span style="color:var(--text-dim)">Add notes...</span>')}
               </div>
             </div>
@@ -686,7 +689,7 @@ async function saveCardNotes(cardId) {
   try {
     await fetch(`/api/cards/${cardId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content}) });
     const btn = document.querySelector('.card-field--notes .btn');
-    if (btn) { btn.textContent = '✓ Запазено'; setTimeout(() => btn.textContent = '💾 Запази бележки', 1500); }
+    if (btn) { btn.textContent = '✓ Запазено'; setTimeout(() => btn.textContent = 'Запази бележки', 1500); }
   } catch {}
 }
 async function moveCard(cardId, columnId) {

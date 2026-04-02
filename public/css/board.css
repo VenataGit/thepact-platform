@@ -37,6 +37,13 @@
 .preview-count { font-size: 9px; color: var(--text-dim); font-weight: 600; }
 .preview-label { font-size: 8px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; writing-mode: vertical-rl; text-orientation: mixed; max-height: 60px; overflow: hidden; text-overflow: ellipsis; }
 
+/* Board preview list (horizontal column names) */
+.board-preview-list { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding-top: 8px; line-height: 1.6; }
+.board-preview-item { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.board-preview-count { color: var(--text-dim); font-size: 11px; }
+.board-preview-sep { color: var(--text-dim); font-size: 11px; margin: 0 3px; opacity: 0.5; }
+.board-preview-total { font-size: 11px; color: var(--text-dim); margin-top: 8px; }
+
 /* Tool card colored headers */
 .tool-card__color-bar { height: 4px; border-radius: 10px 10px 0 0; }
 .tool-card__color-bar--orange { background: linear-gradient(90deg, #f97316, #fb923c); }
@@ -69,7 +76,7 @@
 
 .column-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px 8px; margin-bottom: 4px; position: relative; border-bottom: 1px solid var(--border); }
 .column-title-link { font-size: 13px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: -0.01em; }
-.column-title-link .col-count { font-weight: 400; color: var(--text-dim); font-size: 11px; }
+.column-title-link .col-count { font-weight: 500; color: var(--text-dim); font-size: 11px; background: var(--bg-hover); padding: 1px 6px; border-radius: 9999px; }
 .column-header-right { display: flex; align-items: center; gap: 4px; }
 .col-menu-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 4px; opacity: 0; transition: opacity var(--transition-fast); }
 .kanban-column:hover .col-menu-btn { opacity: 1; }
@@ -85,8 +92,6 @@
 /* ON HOLD section */
 .on-hold-section { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border); }
 .on-hold-label { font-size: 10px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; text-align: center; padding: 6px; }
-.on-hold-empty { opacity: 0.4; }
-.on-hold-empty .on-hold-label { font-size: 9px; }
 
 /* Done/Not Now sidebar */
 .kanban-sidebar { display: flex; flex-direction: column; gap: 0; border-left: 1px solid var(--border); }
@@ -300,3 +305,76 @@ trix-toolbar .trix-button-group--file-tools { display: none; }
 .rich-content pre { background: var(--bg-hover); padding: 12px; border-radius: 8px; overflow-x: auto; }
 .rich-content ul, .rich-content ol { padding-left: 24px; margin: 8px 0; }
 .rich-content img { max-width: 100%; border-radius: 8px; margin: 8px 0; }
+
+/* ==================== EMPTY STATE TOOL CARDS (Basecamp style) ==================== */
+.tool-card__empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8px 4px;
+  gap: 6px;
+  height: 100%;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.tool-card__empty-icon {
+  font-size: 22px;
+  opacity: 0.5;
+}
+.tool-card__empty-text {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.tool-card__empty-cta {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.tool-card:hover .tool-card__empty-cta {
+  opacity: 1;
+}
+
+/* ==================== PROJECT CARD PIN ICON ==================== */
+.project-card-home {
+  position: relative;
+}
+.project-card-home__pin {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+/* ==================== TRIX NOTES TIGHTER SPACING ==================== */
+.card-field--notes strong {
+  margin-bottom: 2px;
+}
+.card-field--notes .card-field__value {
+  margin-top: 0;
+}
+.card-field--notes trix-toolbar {
+  margin-top: 2px;
+}
+.card-field--notes trix-editor {
+  margin-top: 0;
+}
+.btn-save-notes {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  border-color: var(--border);
+  opacity: 0.7;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+.btn-save-notes:hover {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+}
