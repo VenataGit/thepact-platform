@@ -383,3 +383,81 @@ trix-toolbar .trix-button-group--file-tools { display: none; }
   color: var(--accent);
   border-color: var(--accent);
 }
+
+/* ==================== SCHEDULE / CALENDAR ==================== */
+.schedule-calendar { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.schedule-header { display: grid; grid-template-columns: repeat(7, 1fr); background: var(--bg-elevated); border-bottom: 1px solid var(--border); }
+.schedule-header__day { text-align: center; padding: 10px; font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+.schedule-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.schedule-day { min-height: 100px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px 8px; transition: background var(--transition-fast); cursor: default; }
+.schedule-day:nth-child(7n) { border-right: none; }
+.schedule-day:hover { background: var(--bg-hover); }
+.schedule-day--empty { background: var(--bg); opacity: 0.3; }
+.schedule-day--today { background: rgba(28,176,246,0.06); }
+.schedule-day--today .schedule-day__num { background: var(--accent); color: #000; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.schedule-day--has-events { }
+.schedule-day__num { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+.schedule-event { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.schedule-event-more { font-size: 10px; color: var(--text-dim); padding: 2px 6px; }
+
+/* ==================== CHECK-INS ==================== */
+.checkin-question { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 12px; transition: border-color var(--transition-fast); }
+.checkin-question:hover { border-color: var(--border-hover); }
+.checkin-question__text { font-size: 15px; font-weight: 600; color: #fff; line-height: 1.4; }
+.checkin-response-form { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.checkin-response-form textarea { min-height: 60px; resize: vertical; }
+.checkin-list { display: flex; flex-direction: column; gap: 2px; }
+
+/* ==================== ADMIN PANEL ==================== */
+.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.admin-table th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border); }
+.admin-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+.admin-table tr:hover td { background: var(--bg-hover); }
+.admin-tab.active { background: var(--accent-dim) !important; color: var(--accent) !important; border-color: var(--accent) !important; }
+
+/* ==================== DONE SIDEBAR PANEL ==================== */
+.done-sidebar-panel {
+  position: fixed; right: 0; top: 90px; bottom: 0; width: 360px;
+  background: var(--bg-card); border-left: 2px solid var(--green);
+  box-shadow: -4px 0 20px rgba(0,0,0,0.3); z-index: 100;
+  animation: slideInRight 0.2s ease;
+}
+@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+/* ==================== PRESENCE INDICATORS ==================== */
+.presence-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: transparent; }
+.presence-dot.online { background: var(--green); box-shadow: 0 0 4px var(--green); }
+
+/* ==================== ATTACHMENTS ON CARDS ==================== */
+.card-attachments { margin-bottom: 24px; }
+.attachment-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; }
+.attachment-item:hover { border-color: var(--border-hover); }
+.attachment-icon { font-size: 24px; flex-shrink: 0; }
+.attachment-info { flex: 1; min-width: 0; }
+.attachment-name { font-size: 13px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-meta { font-size: 11px; color: var(--text-dim); }
+
+/* ==================== RESPONSIVE (Mobile) ==================== */
+@media (max-width: 768px) {
+  .board-kanban { flex-direction: column; overflow-x: visible; }
+  .kanban-column { min-width: 100%; max-width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 0 8px; }
+  .schedule-day { min-height: 60px; padding: 4px; }
+  .schedule-day__num { font-size: 11px; }
+  .schedule-event { font-size: 9px; }
+  .done-sidebar-panel { width: 100%; }
+  .project-tools { grid-template-columns: 1fr !important; }
+  .card-page { padding: 0 8px; }
+  .admin-table { font-size: 11px; }
+  .admin-table th, .admin-table td { padding: 6px 8px; }
+  .pings-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+  .chat-page { height: calc(100vh - 100px); }
+}
+@media (max-width: 480px) {
+  .nav__link span { display: none; }
+  .nav__logo span { display: none; }
+  #pageContent { padding: 12px 8px; }
+  .page-header h1 { font-size: 22px; }
+  .schedule-grid { grid-template-columns: repeat(7, 1fr); }
+  .schedule-day { min-height: 44px; }
+  .home-panel { padding: 12px; }
+}

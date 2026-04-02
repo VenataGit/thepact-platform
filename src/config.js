@@ -11,4 +11,10 @@ module.exports = {
   BOARD_ORDER: ['Pre-Production', 'Production', 'Post-Production', 'Акаунт Мениджмънт', 'Задачи'],
   DEPLOY_SECRET: process.env.DEPLOY_SECRET || null,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || null,
+  // Email (optional)
+  SMTP_HOST: process.env.SMTP_HOST || null,
+  SMTP_PORT: parseInt(process.env.SMTP_PORT) || 587,
+  SMTP_USER: process.env.SMTP_USER || null,
+  SMTP_PASS: process.env.SMTP_PASS || null,
+  SMTP_FROM: process.env.SMTP_FROM || null,
 };

@@ -1,6 +1,8 @@
 // ThePact Platform — Basecamp Clone (v3)
 let currentUser = null, ws = null, wsReconnectDelay = 1000;
-let allUsers = [], allBoards = [];
+let allUsers = [], allBoards = [], allProjects = [];
+let onlineUsers = new Set();
+let pendingShortcut = null, typingTimeout = null;
 
 // ==================== AUTH ====================
 async function checkAuth() {
@@ -72,7 +74,11 @@ function populateMyStuff(el) {
       <a class="nav-dropdown__item" href="#/bookmarks" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--accent-dim);color:var(--accent)">⚑</div> Отметки</a>
       <a class="nav-dropdown__item" href="#/schedule" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--blue-dim);color:var(--blue)">📅</div> Моят график</a>
       <a class="nav-dropdown__item" href="#/activity" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">◷</div> Последна активност</a>
+      <a class="nav-dropdown__item" href="#/reports" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--red-dim);color:var(--red)">📊</div> Отчети</a>
     </div>
+    ${currentUser?.role === 'admin' ? `<div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
+      <a class="nav-dropdown__item" href="#/admin" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">⚙️</div> Админ панел</a>
+    </div>` : ''}
   `;
 }
 
@@ -136,6 +142,12 @@ function router() {
     case 'notifications': return renderNotifications(el);
     case 'messages': return renderMessageBoard(el);
     case 'vault': return renderVault(el, id);
+    case 'campfire': return renderCampfire(el, id || 1);
+    case 'schedule': return renderSchedule(el);
+    case 'checkins': return renderCheckins(el);
+    case 'admin': return renderAdmin(el);
+    case 'reports': return renderReports(el);
+    case 'bookmarks': return renderBookmarks(el);
     default: return renderHome(el);
   }
 }
@@ -309,6 +321,42 @@ async function renderProject(el, projectId) {
             </a>`;
         }).join('')}
 
+        <a class="tool-card" href="#/campfire/1">
+          <div class="tool-card__color-bar tool-card__color-bar--red"></div>
+          <div class="tool-card__header"><h2 class="tool-card__title">Campfire</h2></div>
+          <div class="tool-card__body">
+            <div class="tool-card__empty-state">
+              <div class="tool-card__empty-icon">🔥</div>
+              <div class="tool-card__empty-text">Групов чат за екипа. Споделяй идеи и дискутирай в реално време.</div>
+              <div class="tool-card__empty-cta">Отвори чата &rarr;</div>
+            </div>
+          </div>
+        </a>
+
+        <a class="tool-card" href="#/schedule">
+          <div class="tool-card__color-bar tool-card__color-bar--green"></div>
+          <div class="tool-card__header"><h2 class="tool-card__title">График</h2></div>
+          <div class="tool-card__body">
+            <div class="tool-card__empty-state">
+              <div class="tool-card__empty-icon">📅</div>
+              <div class="tool-card__empty-text">Планирай срещи, крайни срокове и събития за екипа.</div>
+              <div class="tool-card__empty-cta">Отвори графика &rarr;</div>
+            </div>
+          </div>
+        </a>
+
+        <a class="tool-card" href="#/checkins">
+          <div class="tool-card__color-bar tool-card__color-bar--purple"></div>
+          <div class="tool-card__header"><h2 class="tool-card__title">Check-ins</h2></div>
+          <div class="tool-card__body">
+            <div class="tool-card__empty-state">
+              <div class="tool-card__empty-icon">✋</div>
+              <div class="tool-card__empty-text">Автоматични въпроси към екипа. Какво свърши днес?</div>
+              <div class="tool-card__empty-cta">Настрой въпроси &rarr;</div>
+            </div>
+          </div>
+        </a>
+
         <a class="tool-card" href="#/chat">
           <div class="tool-card__color-bar tool-card__color-bar--teal"></div>
           <div class="tool-card__header"><h2 class="tool-card__title">Pings</h2></div>
@@ -469,7 +517,7 @@ async function renderBoard(el, boardId) {
 
           ${doneCol ? `
           <div class="kanban-sidebar">
-            <div class="kanban-sidebar-tab done-tab" onclick="alert('Завършени: ${doneCards.length} карти')">
+            <div class="kanban-sidebar-tab done-tab" onclick='showDoneCards(${JSON.stringify(doneCards.map(c=>({id:c.id,title:c.title,completed_at:c.completed_at})))}, ${boardId})'>
               <span class="sidebar-count">(${doneCards.length})</span>
               <span class="sidebar-label">ГОТОВО</span>
             </div>
@@ -528,6 +576,7 @@ async function renderCardPage(el, cardId) {
     el.innerHTML = `
       <div class="card-page">
         <div class="card-page__toolbar">
+          <button class="btn btn-sm" onclick="toggleBookmark('card',${cardId},'${esc(card.title)}')" title="Запази в отметки">⚑</button>
           <button class="btn btn-sm" onclick="toggleBoardMenu(event, ${card.board_id}, ${cardId})">⋯</button>
         </div>
 
@@ -603,6 +652,9 @@ async function renderCardPage(el, cardId) {
             </div>
           </section>
 
+          <!-- Attachments -->
+          <section class="card-attachments" id="cardAttachments"></section>
+
           <!-- Comments -->
           <section class="card-perma__comments">
             ${comments.map((c, ci) => {
@@ -629,7 +681,41 @@ async function renderCardPage(el, cardId) {
         </article>
       </div>
     `;
+    // Load attachments async
+    loadCardAttachments(cardId);
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Картата не е намерена</div>'; }
+}
+async function loadCardAttachments(cardId) {
+  try {
+    const files = await (await fetch(`/api/cards/${cardId}/attachments`)).json();
+    const container = document.getElementById('cardAttachments');
+    if (!container) return;
+    container.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-weight:600;color:var(--text)">📎 Файлове (${files.length})</span>
+        ${canManage() ? `<label class="btn btn-sm" style="cursor:pointer">+ Качи файл<input type="file" style="display:none" onchange="uploadCardFile(this,${cardId})"></label>` : ''}
+      </div>
+      ${files.map(f => `
+        <div class="attachment-item">
+          <span class="attachment-icon">${getFileIcon(f.mime_type)}</span>
+          <div class="attachment-info">
+            <a href="${f.storage_path}" target="_blank" class="attachment-name">${esc(f.original_name || f.filename)}</a>
+            <div class="attachment-meta">${formatFileSize(f.size_bytes)} · ${timeAgo(f.created_at)}</div>
+          </div>
+          ${canManage() ? `<button class="btn btn-sm" onclick="deleteAttachment(${cardId},${f.id})" style="color:var(--red)">✕</button>` : ''}
+        </div>
+      `).join('')}
+    `;
+  } catch {}
+}
+async function uploadCardFile(input, cardId) {
+  if (!input.files[0]) return;
+  const f = new FormData(); f.append('file', input.files[0]);
+  try { await fetch(`/api/cards/${cardId}/attachments`, {method:'POST',body:f}); loadCardAttachments(cardId); } catch {}
+}
+async function deleteAttachment(cardId, attachId) {
+  if (!confirm('Изтрий файла?')) return;
+  try { await fetch(`/api/cards/${cardId}/attachments/${attachId}`, {method:'DELETE'}); loadCardAttachments(cardId); } catch {}
 }
 
 // ==================== CARD CREATE ====================
@@ -921,6 +1007,359 @@ async function uploadVaultFile(input,fid) { if(!input.files[0])return; const f=n
 function getFileIcon(m) { if(m?.startsWith('image/'))return'🖼️'; if(m?.startsWith('video/'))return'🎬'; if(m?.includes('pdf'))return'📄'; return'📎'; }
 function formatFileSize(b) { if(!b)return''; if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; return(b/1048576).toFixed(1)+' MB'; }
 
+// ==================== CAMPFIRE (Group Chat) ====================
+async function renderCampfire(el, roomId) {
+  setBreadcrumb([{label:'Video Production',href:'#/project/1'},{label:'Campfire',href:`#/campfire/${roomId}`}]);
+  el.className = '';
+  try {
+    const msgs = await (await fetch(`/api/campfire/rooms/${roomId}/messages?limit=100`)).json();
+    const campColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+    el.innerHTML = `
+      <div class="chat-page">
+        <div class="chat-header">
+          <span style="font-size:24px">🔥</span>
+          <h2>Campfire</h2>
+          <span style="color:var(--text-dim);font-size:12px;margin-left:auto">${onlineUsers.size} онлайн</span>
+        </div>
+        <div class="chat-messages" id="campfireMessages">
+          ${msgs.length === 0 ? '<div style="text-align:center;color:var(--text-dim);padding:40px">🔥 Добре дошли в Campfire!<br>Тук целият екип може да говори.</div>' : ''}
+          ${msgs.map(m => {
+            const mc = campColors[(m.user_name||'').length % campColors.length];
+            return `<div class="chat-msg">
+              <div class="chat-msg-avatar" style="background:${mc};color:#fff">${initials(m.user_name)}</div>
+              <div class="chat-msg-body">
+                <div class="chat-msg-name">${esc(m.user_name)} <span class="hint">${new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'})}</span></div>
+                <div class="chat-msg-text">${esc(m.content).replace(/\n/g,'<br>')}</div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div id="campfireTyping" style="font-size:11px;color:var(--text-dim);padding:0 4px;min-height:18px"></div>
+        <div class="chat-input-row">
+          <textarea id="campfireInput" placeholder="Напиши на екипа..." rows="2"
+            oninput="sendTypingIndicator('campfire',${roomId})"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCampfireMsg(${roomId})}"></textarea>
+          <button class="btn btn-primary" onclick="sendCampfireMsg(${roomId})">Изпрати</button>
+        </div>
+      </div>`;
+    const m = document.getElementById('campfireMessages'); if(m) m.scrollTop = m.scrollHeight;
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане</div>'; }
+}
+async function sendCampfireMsg(roomId) {
+  const i = document.getElementById('campfireInput'), c = i?.value?.trim(); if(!c) return;
+  try { await fetch(`/api/campfire/rooms/${roomId}/messages`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})}); i.value=''; router(); } catch {}
+}
+function sendTypingIndicator(type, id) {
+  if (!ws || ws.readyState !== 1) return;
+  clearTimeout(typingTimeout);
+  const key = type === 'campfire' ? 'roomId' : 'channelId';
+  ws.send(JSON.stringify({type:'typing:start', [key]: id}));
+  typingTimeout = setTimeout(() => {
+    if (ws?.readyState === 1) ws.send(JSON.stringify({type:'typing:stop', [key]: id}));
+  }, 2000);
+}
+
+// ==================== SCHEDULE / CALENDAR ====================
+async function renderSchedule(el) {
+  setBreadcrumb([{label:'Video Production',href:'#/project/1'},{label:'График',href:'#/schedule'}]);
+  el.className = '';
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  const now = new Date();
+  const year = parseInt(params.get('y')) || now.getFullYear();
+  const month = parseInt(params.get('m')) || now.getMonth();
+  const monthStr = `${year}-${String(month+1).padStart(2,'0')}`;
+
+  try {
+    const events = await (await fetch(`/api/schedule?month=${monthStr}`)).json();
+    const monthName = new Date(year, month).toLocaleDateString('bg', {month:'long', year:'numeric'});
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = now.getDate();
+    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+    const dayNames = ['НД','ПН','ВТ','СР','ЧТ','ПТ','СБ'];
+
+    const prevM = month === 0 ? 11 : month - 1;
+    const prevY = month === 0 ? year - 1 : year;
+    const nextM = month === 11 ? 0 : month + 1;
+    const nextY = month === 11 ? year + 1 : year;
+
+    // Build day cells
+    let cells = '';
+    for (let i = 0; i < firstDay; i++) cells += '<div class="schedule-day schedule-day--empty"></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const dayEvents = events.filter(e => e.starts_at?.startsWith(dateStr));
+      const isToday = isCurrentMonth && d === today;
+      cells += `<div class="schedule-day ${isToday ? 'schedule-day--today' : ''} ${dayEvents.length ? 'schedule-day--has-events' : ''}">
+        <div class="schedule-day__num">${d}</div>
+        ${dayEvents.slice(0,3).map(e => `<div class="schedule-event" style="background:${e.color || 'var(--accent-dim)'}; color:${e.color ? '#fff' : 'var(--accent)'}" title="${esc(e.title)}">${esc(e.title)}</div>`).join('')}
+        ${dayEvents.length > 3 ? `<div class="schedule-event-more">+${dayEvents.length - 3} още</div>` : ''}
+      </div>`;
+    }
+
+    el.innerHTML = `
+      <div style="max-width:900px;margin:0 auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+          <button class="btn btn-sm" onclick="location.hash='#/schedule?y=${prevY}&m=${prevM}'">&larr; Предишен</button>
+          <h1 style="font-size:22px;font-weight:800;color:#fff;text-transform:capitalize">${monthName}</h1>
+          <div style="display:flex;gap:8px">
+            ${canManage() ? '<button class="btn btn-primary btn-sm" onclick="createScheduleEvent()">+ Събитие</button>' : ''}
+            <button class="btn btn-sm" onclick="location.hash='#/schedule?y=${nextY}&m=${nextM}'">Следващ &rarr;</button>
+          </div>
+        </div>
+        <div class="schedule-calendar">
+          <div class="schedule-header">${dayNames.map(d => `<div class="schedule-header__day">${d}</div>`).join('')}</div>
+          <div class="schedule-grid">${cells}</div>
+        </div>
+      </div>`;
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
+}
+async function createScheduleEvent() {
+  const title = prompt('Заглавие на събитието:'); if(!title?.trim()) return;
+  const dateStr = prompt('Дата (YYYY-MM-DD):', new Date().toISOString().split('T')[0]); if(!dateStr) return;
+  try { await fetch('/api/schedule', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:title.trim(),starts_at:dateStr+'T09:00:00',all_day:true})}); router(); } catch {}
+}
+
+// ==================== AUTOMATIC CHECK-INS ====================
+async function renderCheckins(el) {
+  setBreadcrumb([{label:'Video Production',href:'#/project/1'},{label:'Check-ins',href:'#/checkins'}]);
+  el.className = '';
+  try {
+    const [questions, pending] = await Promise.all([
+      (await fetch('/api/checkins/questions')).json(),
+      (await fetch('/api/checkins/my-pending')).json()
+    ]);
+
+    el.innerHTML = `
+      <div style="max-width:700px;margin:0 auto">
+        <div class="page-header">
+          <h1>✋ Check-ins</h1>
+          <p class="page-subtitle">Автоматични въпроси към екипа</p>
+        </div>
+
+        ${pending.length > 0 ? `
+          <div style="margin-bottom:32px">
+            <h2 style="font-size:16px;font-weight:700;color:var(--yellow);margin-bottom:16px">📝 Чакат твоя отговор</h2>
+            ${pending.map(q => `
+              <div class="checkin-question">
+                <div class="checkin-question__text">${esc(q.question)}</div>
+                <div class="checkin-response-form">
+                  <textarea id="checkinResponse${q.id}" placeholder="Твоят отговор..." rows="3"></textarea>
+                  <button class="btn btn-primary btn-sm" onclick="submitCheckinResponse(${q.id})">Изпрати</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : '<div style="text-align:center;padding:20px;color:var(--green);margin-bottom:24px">✅ Нямаш чакащи check-ins!</div>'}
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2 style="font-size:16px;font-weight:700;color:#fff">Всички въпроси</h2>
+          ${canManage() ? '<button class="btn btn-primary btn-sm" onclick="createCheckinQuestion()">+ Нов въпрос</button>' : ''}
+        </div>
+        <div class="checkin-list">
+          ${questions.length === 0 ? '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма конфигурирани check-in въпроси.</div>' :
+            questions.map(q => `
+              <div class="checkin-question" onclick="viewCheckinResponses(${q.id})" style="cursor:pointer">
+                <div class="checkin-question__text">${esc(q.question)}</div>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Cron: ${esc(q.schedule_cron)} · ${q.is_active ? '<span style="color:var(--green)">Активен</span>' : '<span style="color:var(--red)">Неактивен</span>'}</div>
+              </div>
+            `).join('')}
+        </div>
+      </div>`;
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
+}
+async function submitCheckinResponse(questionId) {
+  const c = document.getElementById(`checkinResponse${questionId}`)?.value?.trim(); if(!c) return;
+  try { await fetch(`/api/checkins/questions/${questionId}/responses`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})}); router(); } catch {}
+}
+async function createCheckinQuestion() {
+  const q = prompt('Въпрос (напр. "Какво свърши днес?"):'); if(!q?.trim()) return;
+  const cron = prompt('Cron израз (по подразбиране: всеки делничен ден в 9:00):', '0 9 * * 1-5');
+  try { await fetch('/api/checkins/questions', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q.trim(),schedule_cron:cron||'0 9 * * 1-5'})}); router(); } catch {}
+}
+async function viewCheckinResponses(questionId) {
+  try {
+    const responses = await (await fetch(`/api/checkins/questions/${questionId}/responses`)).json();
+    const campColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308'];
+    alert(responses.length === 0 ? 'Няма отговори все още.' :
+      responses.map(r => `${r.user_name}: ${r.content}`).join('\n\n'));
+  } catch {}
+}
+
+// ==================== ADMIN PANEL ====================
+async function renderAdmin(el) {
+  if (currentUser?.role !== 'admin') { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">Нямаш достъп до тази страница.</div>'; return; }
+  setBreadcrumb(null); el.className = '';
+  try {
+    const users = await (await fetch('/api/users')).json();
+    el.innerHTML = `
+      <div style="max-width:900px;margin:0 auto">
+        <div class="page-header">
+          <h1>⚙️ Админ панел</h1>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:24px">
+          <button class="btn btn-sm admin-tab active" onclick="showAdminTab('users',this)">👤 Потребители</button>
+          <button class="btn btn-sm admin-tab" onclick="showAdminTab('boards',this)">📋 Бордове</button>
+          <button class="btn btn-sm admin-tab" onclick="showAdminTab('settings',this)">⚙️ Настройки</button>
+        </div>
+
+        <div id="adminContent">
+          <div id="adminUsers">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+              <h2 style="font-size:16px;font-weight:700;color:#fff">Потребители (${users.length})</h2>
+              <button class="btn btn-primary btn-sm" onclick="createNewUser()">+ Нов потребител</button>
+            </div>
+            <table class="admin-table">
+              <thead><tr><th>Име</th><th>Email</th><th>Роля</th><th>Статус</th><th>Действия</th></tr></thead>
+              <tbody>
+                ${users.map(u => `<tr>
+                  <td><strong>${esc(u.name)}</strong></td>
+                  <td style="color:var(--text-dim)">${esc(u.email)}</td>
+                  <td><select class="input-sm" onchange="changeUserRole(${u.id},this.value)" style="padding:2px 6px;font-size:11px">
+                    <option value="member" ${u.role==='member'?'selected':''}>Член</option>
+                    <option value="moderator" ${u.role==='moderator'?'selected':''}>Модератор</option>
+                    <option value="admin" ${u.role==='admin'?'selected':''}>Админ</option>
+                  </select></td>
+                  <td>${u.is_active ? '<span style="color:var(--green)">●</span> Активен' : '<span style="color:var(--red)">●</span> Неактивен'}</td>
+                  <td><button class="btn btn-sm" onclick="toggleUserActive(${u.id},${!u.is_active})">${u.is_active ? 'Деактивирай' : 'Активирай'}</button></td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+          <div id="adminBoards" style="display:none">
+            <h2 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:16px">Бордове</h2>
+            <div class="task-list">
+              ${allBoards.map(b => `<div class="task-row"><span class="task-title">${esc(b.title)}</span><span class="task-meta">${b.columns?.length || 0} колони</span></div>`).join('')}
+            </div>
+          </div>
+          <div id="adminSettings" style="display:none">
+            <h2 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:16px">Настройки</h2>
+            <div style="color:var(--text-dim);text-align:center;padding:40px">Настройките ще бъдат добавени скоро.</div>
+          </div>
+        </div>
+      </div>`;
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
+}
+function showAdminTab(tab, btn) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  btn?.classList.add('active');
+  ['Users','Boards','Settings'].forEach(t => {
+    const el = document.getElementById('admin'+t);
+    if (el) el.style.display = t.toLowerCase() === tab ? 'block' : 'none';
+  });
+}
+async function createNewUser() {
+  const name = prompt('Име:'); if(!name?.trim()) return;
+  const email = prompt('Email:'); if(!email?.trim()) return;
+  const password = prompt('Парола:'); if(!password?.trim()) return;
+  try { await fetch('/api/users', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),email:email.trim(),password})}); router(); } catch {}
+}
+async function changeUserRole(userId, role) {
+  try { await fetch(`/api/users/${userId}/role`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})}); } catch {}
+}
+async function toggleUserActive(userId, active) {
+  try { await fetch(`/api/users/${userId}/active`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:active})}); router(); } catch {}
+}
+
+// ==================== REPORTS ====================
+async function renderReports(el) {
+  setBreadcrumb(null); el.className = '';
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  const tab = params.get('tab') || 'overdue';
+
+  try {
+    let data;
+    if (tab === 'overdue') data = await (await fetch('/api/reports/overdue')).json();
+    else if (tab === 'upcoming') data = await (await fetch('/api/reports/upcoming?days=7')).json();
+    else if (tab === 'assignments') data = await (await fetch('/api/reports/assignments')).json();
+    else data = await (await fetch('/api/reports/unassigned')).json();
+
+    el.innerHTML = `
+      <div style="max-width:800px;margin:0 auto">
+        <div class="page-header"><h1>📊 Отчети</h1></div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:24px">
+          <a href="#/reports?tab=overdue" class="btn btn-sm ${tab==='overdue'?'btn-primary':''}">🔴 Просрочени</a>
+          <a href="#/reports?tab=upcoming" class="btn btn-sm ${tab==='upcoming'?'btn-primary':''}">🟡 Предстоящи</a>
+          <a href="#/reports?tab=assignments" class="btn btn-sm ${tab==='assignments'?'btn-primary':''}">👤 По хора</a>
+          <a href="#/reports?tab=unassigned" class="btn btn-sm ${tab==='unassigned'?'btn-primary':''}">❓ Невъзложени</a>
+        </div>
+        <div class="task-list">
+          ${data.length === 0 ? '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма резултати</div>' :
+            data.map(c => `
+              <a class="task-row ${c.due_on && new Date(c.due_on) < new Date() ? 'overdue' : ''}" href="#/card/${c.id}">
+                <span class="task-title">${esc(c.title)}</span>
+                <span class="task-meta">
+                  ${c.due_on ? `<span class="task-due">${formatDate(c.due_on)}</span>` : ''}
+                  ${c.board_title ? `<span class="task-board">${esc(c.board_title)}</span>` : ''}
+                  ${c.assignee_name ? `<span style="color:var(--accent)">${esc(c.assignee_name)}</span>` : ''}
+                </span>
+              </a>`).join('')}
+        </div>
+      </div>`;
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
+}
+
+// ==================== BOOKMARKS ====================
+async function renderBookmarks(el) {
+  setBreadcrumb(null); el.className = '';
+  try {
+    const bookmarks = await (await fetch('/api/bookmarks')).json();
+    el.innerHTML = `
+      <div style="max-width:700px;margin:0 auto">
+        <div class="page-header"><h1>⚑ Отметки</h1></div>
+        <div class="task-list">
+          ${bookmarks.length === 0 ? '<div style="text-align:center;padding:40px;color:var(--text-dim)"><div style="font-size:48px;opacity:0.3;margin-bottom:8px">⚑</div>Нямаш запазени отметки.<br>Натисни ⚑ на карта за да я добавиш тук.</div>' :
+            bookmarks.map(b => `
+              <div class="task-row" style="justify-content:space-between">
+                <a href="${b.target_type === 'card' ? `#/card/${b.target_id}` : '#'}" class="task-title" style="text-decoration:none;color:var(--text)">${esc(b.title || 'Без заглавие')}</a>
+                <div class="task-meta">
+                  <span class="task-board">${esc(b.target_type)}</span>
+                  <button class="btn btn-sm" onclick="removeBookmark(${b.id})" style="color:var(--red)">✕</button>
+                </div>
+              </div>`).join('')}
+        </div>
+      </div>`;
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
+}
+async function toggleBookmark(type, id, title) {
+  try {
+    const bookmarks = await (await fetch('/api/bookmarks')).json();
+    const existing = bookmarks.find(b => b.target_type === type && b.target_id === id);
+    if (existing) {
+      await fetch(`/api/bookmarks/${existing.id}`, {method:'DELETE'});
+    } else {
+      await fetch('/api/bookmarks', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:type,target_id:id,title})});
+    }
+    router();
+  } catch {}
+}
+async function removeBookmark(id) {
+  try { await fetch(`/api/bookmarks/${id}`, {method:'DELETE'}); router(); } catch {}
+}
+
+// ==================== DONE SIDEBAR (Expanded) ====================
+function showDoneCards(doneCards, boardId) {
+  const existing = document.getElementById('doneSidebarPanel');
+  if (existing) { existing.remove(); return; }
+  const panel = document.createElement('div');
+  panel.id = 'doneSidebarPanel';
+  panel.className = 'done-sidebar-panel';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <h3 style="font-size:14px;font-weight:700;color:var(--green)">✓ Завършени карти (${doneCards.length})</h3>
+      <button class="btn btn-sm" onclick="document.getElementById('doneSidebarPanel').remove()">✕</button>
+    </div>
+    <div style="padding:8px;overflow-y:auto;max-height:calc(100vh - 250px)">
+      ${doneCards.map(c => `<a class="kanban-card" href="#/card/${c.id}" style="opacity:0.7;border-left:3px solid var(--green)">
+        <div class="kanban-card__content"><h3 class="kanban-card__title">${esc(c.title)}</h3>
+        <div class="kanban-card__meta">${c.completed_at ? 'Завършена ' + formatDate(c.completed_at) : ''}</div></div>
+      </a>`).join('')}
+      ${doneCards.length === 0 ? '<div style="text-align:center;padding:20px;color:var(--text-dim)">Няма завършени карти</div>' : ''}
+    </div>`;
+  document.querySelector('.board-kanban')?.appendChild(panel);
+}
+
 // ==================== COLUMN/BOARD MGMT ====================
 async function promptAddColumn(bid) { const t=prompt('Име на колона:'); if(!t?.trim())return; try { await fetch(`/api/boards/${bid}/columns`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards=await(await fetch('/api/boards')).json(); router(); } catch {} }
 function editColumnTitle(bid,cid,el) { const cur=el.textContent; el.contentEditable=true; el.focus(); const save=async()=>{ el.contentEditable=false; const t=el.textContent.trim(); if(t&&t!==cur){ try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})})}catch{} } else el.textContent=cur; }; el.onblur=save; el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();el.blur()}if(e.key==='Escape'){el.textContent=cur;el.blur()}}; }
@@ -948,7 +1387,37 @@ document.getElementById('profileModal')?.addEventListener('click',e=>{if(e.targe
 
 // ==================== WEBSOCKET ====================
 function connectWS() { const p=location.protocol==='https:'?'wss':'ws'; ws=new WebSocket(`${p}://${location.host}/ws`); ws.onopen=()=>{wsReconnectDelay=1000;document.getElementById('wsStatusDot').className='status-dot online';document.getElementById('wsStatus').textContent='live'}; ws.onmessage=e=>{try{handleWSEvent(JSON.parse(e.data))}catch{}}; ws.onclose=()=>{document.getElementById('wsStatusDot').className='status-dot offline';document.getElementById('wsStatus').textContent='';setTimeout(connectWS,wsReconnectDelay);wsReconnectDelay=Math.min(wsReconnectDelay*2,30000)}; ws.onerror=()=>ws.close(); }
-function handleWSEvent(ev) { const t=ev.type||''; if(t.startsWith('card:')||t.startsWith('board:')||t.startsWith('column:')||t.startsWith('step:')||t.startsWith('comment:'))router(); if(t==='chat:message'&&location.hash.startsWith(`#/chat/${ev.channelId}`))router(); updateHeyBadge(); }
+function handleWSEvent(ev) {
+  const t = ev.type || '';
+  // Core data events — re-render current page
+  if (t.startsWith('card:') || t.startsWith('board:') || t.startsWith('column:') || t.startsWith('step:') || t.startsWith('comment:')) router();
+  if (t === 'chat:message' && location.hash.startsWith(`#/chat/${ev.channelId}`)) router();
+  if (t === 'campfire:message' && location.hash.startsWith('#/campfire/')) router();
+  if (t === 'checkin:reminder') router();
+  // Presence
+  if (t === 'presence:online') { onlineUsers.add(ev.userId); updatePresenceDots(); }
+  if (t === 'presence:offline') { onlineUsers.delete(ev.userId); updatePresenceDots(); }
+  // Typing indicators
+  if (t === 'typing:start') showTypingIndicator(ev);
+  if (t === 'typing:stop') hideTypingIndicator(ev);
+  updateHeyBadge();
+}
+function updatePresenceDots() {
+  document.querySelectorAll('[data-user-id]').forEach(el => {
+    const dot = el.querySelector('.presence-dot');
+    if (dot) dot.className = `presence-dot ${onlineUsers.has(parseInt(el.dataset.userId)) ? 'online' : ''}`;
+  });
+}
+function showTypingIndicator(ev) {
+  const el = document.getElementById('campfireTyping') || document.getElementById('chatTyping');
+  if (el) el.textContent = `${ev.userName || 'Някой'} пише...`;
+  clearTimeout(window._typingClearTimeout);
+  window._typingClearTimeout = setTimeout(() => { if (el) el.textContent = ''; }, 3000);
+}
+function hideTypingIndicator(ev) {
+  const el = document.getElementById('campfireTyping') || document.getElementById('chatTyping');
+  if (el) el.textContent = '';
+}
 
 // ==================== UTILS ====================
 function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -956,5 +1425,101 @@ function formatDate(d) { if(!d)return''; const s=d.split('T')[0]; const[y,m,dd]=
 function getCardColorClass(c) { if(c.is_on_hold)return'on-hold'; if(c.priority==='urgent')return'priority'; if(!c.due_on)return''; const n=new Date();n.setHours(0,0,0,0); const due=new Date(c.due_on+'T00:00:00'); const diff=Math.ceil((due-n)/86400000); if(diff<0)return'overdue'; if(diff===0)return'deadline-today'; if(diff<=4)return'deadline-soon'; return'deadline-ok'; }
 function timeAgo(d) { const s=Math.floor((Date.now()-new Date(d))/1000); if(s<60)return'сега'; if(s<3600)return Math.floor(s/60)+'м'; if(s<86400)return Math.floor(s/3600)+'ч'; return Math.floor(s/86400)+'д назад'; }
 
+// ==================== KEYBOARD SHORTCUTS ====================
+document.addEventListener('keydown', (e) => {
+  // Don't trigger shortcuts when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+
+  // Ctrl/Cmd + J/K — open search
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'j' || e.key === 'k')) {
+    e.preventDefault();
+    toggleDropdown('findDropdown', document.querySelector('[data-nav="find"]'));
+    return;
+  }
+
+  // ? — show shortcuts help
+  if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    showShortcutsHelp();
+    return;
+  }
+
+  // N — new card (only on board view)
+  if (e.key === 'n' && location.hash.startsWith('#/board/')) {
+    e.preventDefault();
+    const boardId = parseInt(location.hash.split('/')[2]);
+    const col = allBoards.find(b=>b.id===boardId)?.columns?.find(c=>!c.is_done_column);
+    if (col) location.hash = `#/card/0/new?board=${boardId}&column=${col.id}`;
+    return;
+  }
+
+  // G+key combos — navigate
+  if (pendingShortcut === 'g') {
+    pendingShortcut = null;
+    e.preventDefault();
+    if (e.key === 'h') location.hash = '#/home';
+    else if (e.key === 'a') location.hash = '#/activity';
+    else if (e.key === 'p') location.hash = '#/chat';
+    else if (e.key === 'c') location.hash = '#/campfire/1';
+    else if (e.key === 's') location.hash = '#/schedule';
+    else if (e.key === 'r') location.hash = '#/reports';
+    return;
+  }
+  if (e.key === 'g') { pendingShortcut = 'g'; setTimeout(() => { pendingShortcut = null; }, 1000); return; }
+
+  // Escape — close modals/dropdowns
+  if (e.key === 'Escape') {
+    closeAllDropdowns();
+    document.getElementById('doneSidebarPanel')?.remove();
+    closeProfile();
+  }
+});
+
+function showShortcutsHelp() {
+  const existing = document.getElementById('shortcutsModal');
+  if (existing) { existing.remove(); return; }
+  const modal = document.createElement('div');
+  modal.id = 'shortcutsModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:480px;width:90%">
+      <h2 style="font-size:18px;font-weight:800;color:#fff;margin-bottom:16px">⌨️ Клавишни комбинации</h2>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px">
+        <kbd style="background:var(--bg-hover);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border)">Ctrl+J</kbd><span style="color:var(--text-secondary)">Бързо търсене</span>
+        <kbd style="background:var(--bg-hover);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border)">?</kbd><span style="color:var(--text-secondary)">Тази помощ</span>
+        <kbd style="background:var(--bg-hover);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border)">N</kbd><span style="color:var(--text-secondary)">Нова карта (в борд)</span>
+        <kbd style="background:var(--bg-hover);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border)">G → H</kbd><span style="color:var(--text-secondary)">Начало</span>
+        <kbd style="background:var(--bg-hover);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border)">G → A</kbd><span style="color:var(--text-secondary)">Активност</span>
+        <kbd style="background:var(--bg-hover);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border)">G → P</kbd><span style="color:var(--text-secondary)">Пингове</span>
+        <kbd style="background:var(--bg-hover);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border)">G → C</kbd><span style="color:var(--text-secondary)">Campfire</span>
+        <kbd style="background:var(--bg-hover);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border)">G → S</kbd><span style="color:var(--text-secondary)">График</span>
+        <kbd style="background:var(--bg-hover);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border)">G → R</kbd><span style="color:var(--text-secondary)">Отчети</span>
+        <kbd style="background:var(--bg-hover);padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid var(--border)">Esc</kbd><span style="color:var(--text-secondary)">Затвори</span>
+      </div>
+      <button class="btn btn-sm" style="margin-top:16px" onclick="this.closest('#shortcutsModal').remove()">Затвори</button>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+// ==================== BOOKMARK ON CARD PAGE ====================
+function addBookmarkToCardPage(cardId, cardTitle) {
+  const toolbar = document.querySelector('.card-page__toolbar');
+  if (!toolbar) return;
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-sm';
+  btn.style.marginRight = '8px';
+  btn.textContent = '⚑ Запази';
+  btn.onclick = () => toggleBookmark('card', cardId, cardTitle);
+  toolbar.prepend(btn);
+}
+
 // ==================== INIT ====================
-(async function() { if(!await checkAuth())return; if(!location.hash||location.hash==='#'||location.hash==='#/')location.hash='#/home'; router(); connectWS(); })();
+(async function() {
+  if (!await checkAuth()) return;
+  if (!location.hash || location.hash === '#' || location.hash === '#/') location.hash = '#/home';
+  router();
+  connectWS();
+  // Fetch online users
+  try { const ids = await (await fetch('/api/users/online')).json(); ids.forEach(id => onlineUsers.add(id)); } catch {}
+})();

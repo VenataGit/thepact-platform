@@ -79,19 +79,32 @@ app.post('/deploy', (req, res) => {
   }
 });
 
-// Routes
+// Routes — Core
 app.use('/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/boards', require('./routes/boards'));
 app.use('/api/cards', require('./routes/cards'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/cards', require('./routes/comments'));
+app.use('/api/cards', require('./routes/attachments'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/activity', require('./routes/activity'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/messageboard', require('./routes/messageboard'));
 app.use('/api/vault', require('./routes/vault'));
+// Routes — Phase 2+
+app.use('/api/campfire', require('./routes/campfire'));
+app.use('/api/schedule', require('./routes/schedule'));
+app.use('/api/checkins', require('./routes/checkins'));
+app.use('/api/reports', require('./routes/reports'));
+app.use('/api/bookmarks', require('./routes/bookmarks'));
+app.use('/api/projects', require('./routes/projects'));
+// Online users endpoint
+app.get('/api/users/online', require('./middleware/auth').requireAuth, (req, res) => {
+  const { getOnlineUserIds } = require('./ws/broadcast');
+  res.json(getOnlineUserIds());
+});
 
 // Serve login page if not authenticated (check for JWT cookie)
 app.get('/', (req, res) => {
@@ -129,3 +142,11 @@ server.listen(config.PORT, () => {
 
 // WebSocket
 setupWebSocket(server);
+
+// Init services (non-blocking, safe to fail if tables don't exist yet)
+const { initCheckInScheduler } = require('./services/checkin-scheduler');
+const { initEmail } = require('./services/email');
+setTimeout(() => {
+  initCheckInScheduler();
+  initEmail();
+}, 2000);
