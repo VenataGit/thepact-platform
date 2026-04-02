@@ -288,18 +288,22 @@ async function renderProject(el, projectId) {
           const bc = cards.filter(c => c.board_id === board.id);
           const barColors = ['orange','blue','yellow','purple','teal','red'];
           const colorBar = barColors[bi % barColors.length];
+          const activeCols = board.columns.filter(c => !c.is_done_column);
+          const activeCards = bc.filter(c => !c.is_on_hold);
           return `
             <a class="tool-card" href="#/board/${board.id}">
               <div class="tool-card__color-bar tool-card__color-bar--${colorBar}"></div>
-              <div class="tool-card__header"><h2 class="tool-card__title">${esc(board.title)}</h2></div>
+              <div class="tool-card__header">
+                <h2 class="tool-card__title">${esc(board.title)}</h2>
+                <p class="tool-card__desc">${activeCols.length} колони · ${activeCards.length} активни карти</p>
+              </div>
               <div class="tool-card__body">
                 <div class="board-preview-list">
-                  ${board.columns.filter(c => !c.is_done_column).map((col, ci) => {
+                  ${activeCols.map((col, ci) => {
                     const cc = bc.filter(c => c.column_id === col.id);
                     return `<span class="board-preview-item">${esc(col.title)} <span class="board-preview-count">(${cc.length})</span></span>`;
                   }).join('<span class="board-preview-sep">&middot;</span>')}
                 </div>
-                <div class="board-preview-total">${bc.length} карти</div>
               </div>
             </a>`;
         }).join('')}
@@ -412,9 +416,9 @@ async function renderBoard(el, boardId) {
 
     el.innerHTML = `
       <div style="padding:0 16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)">
           <div></div>
-          <h1 style="font-size:20px;font-weight:700;color:#fff;text-align:center;flex:1">${esc(board.title)}</h1>
+          <h1 style="font-size:22px;font-weight:800;color:#fff;text-align:center;flex:1;letter-spacing:-0.02em">${esc(board.title)}</h1>
           <div style="display:flex;gap:8px;align-items:center">
             <div class="board-watching">
               <span class="board-watching__label">Наблюдават</span>
