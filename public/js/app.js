@@ -186,9 +186,7 @@ async function renderHome(el) {
     el.innerHTML = `
       <div style="max-width:600px;margin:0 auto">
         <div class="page-header" style="margin-bottom:16px">
-          <img src="/img/logo.png" alt="" onerror="this.style.display='none'" style="height:40px;margin-bottom:12px">
-          <div style="font-size:13px;color:var(--text-dim);margin-bottom:4px">ThePact Tasks</div>
-          <h1 style="font-size:36px;letter-spacing:-0.03em">THEPACT™</h1>
+          <img src="/img/logo-white.svg" alt="The Pact" style="height:48px;margin-bottom:12px">
         </div>
 
         <div class="projects-home-grid">
