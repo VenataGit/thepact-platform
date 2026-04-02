@@ -274,12 +274,13 @@ async function renderProject(el, projectId) {
     ]);
     allBoards = boards;
 
+    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
     el.innerHTML = `
       <div class="page-header">
         <div class="page-above">ThePact Tasks</div>
         <h1>Video Production</h1>
-        <div class="avatar-group" style="display:flex;justify-content:center;gap:4px;margin-top:12px">
-          ${allUsers.slice(0, 8).map(u => `<div style="width:28px;height:28px;border-radius:50%;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--accent);border:1px solid var(--border)">${initials(u.name)}</div>`).join('')}
+        <div class="avatar-group" style="display:flex;justify-content:center;margin-top:12px">
+          ${allUsers.slice(0, 8).map((u, i) => `<div style="width:32px;height:32px;border-radius:50%;background:${avatarColors[i % avatarColors.length]};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;border:2px solid var(--bg);margin-left:${i > 0 ? '-4px' : '0'};position:relative;z-index:${10-i}">${initials(u.name)}</div>`).join('')}
         </div>
       </div>
 
@@ -604,9 +605,12 @@ async function renderCardPage(el, cardId) {
 
           <!-- Comments -->
           <section class="card-perma__comments">
-            ${comments.map(c => `
+            ${comments.map((c, ci) => {
+              const commentColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+              const cc = commentColors[(c.user_name||'').length % commentColors.length];
+              return `
               <div class="comment-item">
-                <div class="comment-avatar" style="background:var(--accent-dim);color:var(--accent)">${initials(c.user_name)}</div>
+                <div class="comment-avatar" style="background:${cc};color:#fff">${initials(c.user_name)}</div>
                 <div class="comment-body">
                   <div class="comment-header">
                     <strong>${esc(c.user_name)}</strong>
@@ -614,7 +618,8 @@ async function renderCardPage(el, cardId) {
                   </div>
                   <div class="comment-text">${esc(c.content).replace(/\n/g,'<br>').replace(/@(\w+)/g,'<span class="mention">@$1</span>')}</div>
                 </div>
-              </div>`).join('')}
+              </div>`;
+            }).join('')}
 
             <div class="add-comment-row">
               <textarea id="newComment" placeholder="Добави коментар..." rows="3"></textarea>
@@ -851,9 +856,10 @@ async function renderChatChannel(el, channelId) {
     const [msgs, channels] = await Promise.all([(await fetch(`/api/chat/channels/${channelId}/messages`)).json(), (await fetch('/api/chat/channels')).json()]);
     const ch = channels.find(c=>c.id===channelId);
     const name = ch?.name || ch?.members?.filter(m=>m.id!==currentUser.id).map(m=>m.name).join(', ') || 'Chat';
+    const chatColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
     el.innerHTML = `
       <div class="chat-page"><div class="chat-header"><a href="#/chat" class="btn btn-sm">\u2190 Назад</a><h2>${esc(name)}</h2></div>
-        <div class="chat-messages" id="chatMessages">${msgs.map(m=>`<div class="chat-msg"><div class="chat-msg-avatar" style="background:var(--accent-dim);color:var(--accent)">${initials(m.user_name)}</div><div class="chat-msg-body"><div class="chat-msg-name">${esc(m.user_name)} <span class="hint">${new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'})}</span></div><div class="chat-msg-text">${esc(m.content).replace(/\n/g,'<br>')}</div></div></div>`).join('')}</div>
+        <div class="chat-messages" id="chatMessages">${msgs.map(m=>{const mc=chatColors[(m.user_name||'').length%chatColors.length];return`<div class="chat-msg"><div class="chat-msg-avatar" style="background:${mc};color:#fff">${initials(m.user_name)}</div><div class="chat-msg-body"><div class="chat-msg-name">${esc(m.user_name)} <span class="hint">${new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'})}</span></div><div class="chat-msg-text">${esc(m.content).replace(/\n/g,'<br>')}</div></div></div>`;}).join('')}</div>
         <div class="chat-input-row"><textarea id="chatInput" placeholder="Напиши съобщение..." rows="2" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMsg(${channelId})}"></textarea><button class="btn btn-primary" onclick="sendChatMsg(${channelId})">Изпрати</button></div>
       </div>`;
     const m=document.getElementById('chatMessages'); if(m)m.scrollTop=m.scrollHeight;
