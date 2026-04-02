@@ -37,13 +37,38 @@
 .preview-count { font-size: 9px; color: var(--text-dim); font-weight: 600; }
 .preview-label { font-size: 8px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; writing-mode: vertical-rl; text-orientation: mixed; max-height: 60px; overflow: hidden; text-overflow: ellipsis; }
 
+/* Tool card colored headers */
+.tool-card__color-bar { height: 4px; border-radius: 10px 10px 0 0; }
+.tool-card__color-bar--orange { background: linear-gradient(90deg, #f97316, #fb923c); }
+.tool-card__color-bar--blue { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.tool-card__color-bar--teal { background: linear-gradient(90deg, #14b8a6, #2dd4bf); }
+.tool-card__color-bar--yellow { background: linear-gradient(90deg, #eab308, #facc15); }
+.tool-card__color-bar--green { background: linear-gradient(90deg, #22c55e, #4ade80); }
+.tool-card__color-bar--purple { background: linear-gradient(90deg, #a855f7, #c084fc); }
+.tool-card__color-bar--red { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+/* Colored preview bars per column position */
+.preview-bar--0 { background: rgba(249,115,22,0.15); border-color: #f97316; }
+.preview-bar--1 { background: rgba(59,130,246,0.15); border-color: #3b82f6; }
+.preview-bar--2 { background: rgba(234,179,8,0.15); border-color: #eab308; }
+.preview-bar--3 { background: rgba(168,85,247,0.15); border-color: #a855f7; }
+.preview-bar--4 { background: rgba(20,184,166,0.15); border-color: #14b8a6; }
+.preview-bar--5 { background: rgba(236,72,153,0.15); border-color: #ec4899; }
+
+/* Board watching section */
+.board-watching { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); }
+.board-watching__label { font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.board-watching__avatars { display: flex; }
+.board-watching__avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; border: 2px solid var(--bg); margin-left: -4px; }
+.board-watching__avatar:first-child { margin-left: 0; }
+
 /* ==================== KANBAN BOARD ==================== */
 .board-kanban { display: flex; gap: 0; overflow-x: auto; min-height: calc(100vh - 200px); }
 .kanban-column { flex: 1; min-width: 260px; max-width: 400px; border-right: 1px solid var(--border); padding: 0 12px; display: flex; flex-direction: column; }
 .kanban-column:last-of-type { border-right: none; }
 
-.column-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px; margin-bottom: 4px; position: relative; }
-.column-title-link { font-size: 12px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.column-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px 8px; margin-bottom: 4px; position: relative; border-bottom: 1px solid var(--border); }
+.column-title-link { font-size: 13px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: -0.01em; }
 .column-title-link .col-count { font-weight: 400; color: var(--text-dim); font-size: 11px; }
 .column-header-right { display: flex; align-items: center; gap: 4px; }
 .col-menu-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 4px; opacity: 0; transition: opacity var(--transition-fast); }
@@ -116,7 +141,7 @@
 .card-field__value { flex: 1; font-size: 13px; color: var(--text); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .card-field--notes { flex-direction: column; }
 .card-field--notes .card-field__value { width: 100%; }
-.column-badge { background: var(--bg-hover); padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.column-badge { background: var(--bg-hover); padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; border-left: 3px solid var(--accent); }
 .assignee-tag { background: var(--accent-dim); color: var(--accent); padding: 2px 8px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
 .input-sm { font-size: 12px !important; padding: 4px 8px !important; }
 .card-content-area { padding: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; min-height: 60px; line-height: 1.7; font-size: 13.5px; color: var(--text-secondary); white-space: pre-wrap; }

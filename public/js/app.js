@@ -281,24 +281,39 @@ async function renderProject(el, projectId) {
       </div>
 
       <div class="project-tools">
-        ${boards.map(board => {
+        ${boards.map((board, bi) => {
           const bc = cards.filter(c => c.board_id === board.id);
+          const barColors = ['orange','blue','yellow','purple','teal','red'];
+          const colorBar = barColors[bi % barColors.length];
           return `
             <a class="tool-card" href="#/board/${board.id}">
+              <div class="tool-card__color-bar tool-card__color-bar--${colorBar}"></div>
               <div class="tool-card__header"><h2 class="tool-card__title">${esc(board.title)}</h2></div>
               <div class="tool-card__body">
                 <div class="board-box-preview" style="height:80px">
-                  ${board.columns.filter(c => !c.is_done_column).map(col => {
+                  ${board.columns.filter(c => !c.is_done_column).map((col, ci) => {
                     const cc = bc.filter(c => c.column_id === col.id);
                     const h = Math.max(20, Math.min(100, cc.length * 18));
-                    return `<div class="preview-col" title="${esc(col.title)} (${cc.length})"><div class="preview-bar" style="height:${h}%"></div><span class="preview-count">(${cc.length})</span><span class="preview-label">${esc(col.title)}</span></div>`;
+                    return `<div class="preview-col" title="${esc(col.title)} (${cc.length})"><div class="preview-bar preview-bar--${ci % 6}" style="height:${h}%"></div><span class="preview-count">(${cc.length})</span><span class="preview-label">${esc(col.title)}</span></div>`;
                   }).join('')}
                 </div>
               </div>
             </a>`;
         }).join('')}
 
+        <a class="tool-card" href="#/chat">
+          <div class="tool-card__color-bar tool-card__color-bar--teal"></div>
+          <div class="tool-card__header"><h2 class="tool-card__title">Pings</h2></div>
+          <div class="tool-card__body">
+            <div class="tool-card__blank">
+              <div class="tool-card__icon">💬</div>
+              <div class="tool-card__desc">Send a private message to one or more people.</div>
+            </div>
+          </div>
+        </a>
+
         <a class="tool-card" href="#/messages">
+          <div class="tool-card__color-bar tool-card__color-bar--blue"></div>
           <div class="tool-card__header"><h2 class="tool-card__title">Известия</h2></div>
           <div class="tool-card__body">
             <div class="tool-card__blank">
@@ -309,6 +324,7 @@ async function renderProject(el, projectId) {
         </a>
 
         <a class="tool-card" href="#/vault">
+          <div class="tool-card__color-bar tool-card__color-bar--yellow"></div>
           <div class="tool-card__header"><h2 class="tool-card__title">Документи</h2></div>
           <div class="tool-card__body">
             <div class="tool-card__blank">
@@ -344,14 +360,16 @@ async function loadProjectActivity() {
     const items = await (await fetch('/api/activity?limit=20')).json();
     const container = document.getElementById('projectActivity');
     if (!container) return;
+    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+    const getAC = (name) => avatarColors[(name||'').length % avatarColors.length];
     container.innerHTML = items.length === 0
       ? '<div style="color:var(--text-dim)">No activity yet</div>'
       : items.map(a => `
-          <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);text-align:left">
-            <div style="width:28px;height:28px;border-radius:50%;background:var(--bg-hover);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--accent);flex-shrink:0">${initials(a.user_name || '')}</div>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:13px"><strong>${esc(a.user_name || '')}</strong> ${a.action === 'created' ? 'created' : a.action === 'commented' ? 'commented on' : a.action} ${a.target_type === 'card' ? `<a href="#/card/${a.target_id}" style="color:var(--accent)">${esc(a.target_title || '')}</a>` : esc(a.target_title || '')}</div>
-              <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${timeAgo(a.created_at)}</div>
+          <div class="activity-entry" style="text-align:left">
+            <div class="activity-avatar" style="background:${getAC(a.user_name)};width:28px;height:28px;font-size:10px">${initials(a.user_name || '')}</div>
+            <div class="activity-body">
+              <div class="activity-text"><strong>${esc(a.user_name || '')}</strong> ${a.action === 'created' ? 'created' : a.action === 'commented' ? 'commented on' : a.action} ${a.target_type === 'card' ? `<a href="#/card/${a.target_id}">${esc(a.target_title || '')}</a>` : esc(a.target_title || '')}</div>
+              <div class="activity-meta">${timeAgo(a.created_at)}</div>
             </div>
           </div>
         `).join('');
@@ -391,7 +409,16 @@ async function renderBoard(el, boardId) {
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           ${manage ? `<a class="btn btn-primary btn-sm" href="#/card/0/new?board=${boardId}&column=${visibleCols[0]?.id || ''}">+ Add a card</a>` : '<div></div>'}
           <h1 style="font-size:24px;font-weight:800;color:#fff;text-align:center;flex:1">${esc(board.title)}</h1>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="board-watching">
+              <span class="board-watching__label">Watching</span>
+              <div class="board-watching__avatars">
+                ${allUsers.slice(0,6).map((u,i) => {
+                  const wc = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308'];
+                  return `<div class="board-watching__avatar" style="background:${wc[i%wc.length]}">${initials(u.name)}</div>`;
+                }).join('')}
+              </div>
+            </div>
             ${manage ? `<button class="btn btn-sm" onclick="promptAddColumn(${boardId})">+ Column</button>` : ''}
             <button class="btn btn-sm" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>
           </div>
