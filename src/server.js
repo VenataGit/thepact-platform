@@ -85,6 +85,13 @@ app.use('/api/profile', require('./routes/profile'));
 app.use('/api/boards', require('./routes/boards'));
 app.use('/api/cards', require('./routes/cards'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/cards', require('./routes/comments'));
+app.use('/api/chat', require('./routes/chat'));
+app.use('/api/activity', require('./routes/activity'));
+app.use('/api/search', require('./routes/search'));
+app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/messageboard', require('./routes/messageboard'));
+app.use('/api/vault', require('./routes/vault'));
 
 // Serve login page if not authenticated (check for JWT cookie)
 app.get('/', (req, res) => {

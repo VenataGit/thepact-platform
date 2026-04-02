@@ -91,6 +91,26 @@ router.post('/', requireAuth, async (req, res) => {
       [card.id, 'created', board_id, column_id, req.user.userId]
     );
 
+    // Activity log
+    await execute(
+      `INSERT INTO activity_log (user_id, user_name, action, target_type, target_id, target_title)
+       VALUES ($1, $2, 'created', 'card', $3, $4)`,
+      [req.user.userId, req.user.name, card.id, card.title]
+    );
+
+    // Notify assignees
+    if (assignee_ids?.length > 0) {
+      for (const uid of assignee_ids) {
+        if (uid !== req.user.userId) {
+          await execute(
+            `INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id)
+             VALUES ($1, 'assigned', $2, $3, 'card', $4)`,
+            [uid, `${req.user.name} те назначи на задача`, card.title, card.id]
+          );
+        }
+      }
+    }
+
     broadcast({ type: 'card:created', card }, req.user.userId);
     res.status(201).json(card);
   } catch (err) {
