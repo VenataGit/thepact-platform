@@ -133,6 +133,7 @@ function router() {
     case 'home': return renderHome(el);
     case 'project': return renderProject(el, id);
     case 'videoproduction': return renderProject(el, 1);
+    case 'dashboard': return renderDashboard(el);
     case 'board': return id ? renderBoard(el, id) : renderHome(el);
     case 'card':
       if (sub === 'new') return renderCardCreate(el);
@@ -199,10 +200,9 @@ async function renderHome(el) {
             <div class="project-card-home__title">Video Production</div>
             <div class="project-card-home__avatars">${teamAvatars}</div>
           </a>
-          <a href="https://thepact.pro/dashboard.html" class="project-card-home" target="_blank">
-            <div class="project-card-home__above">ThePact Табло</div>
-            <div class="project-card-home__title">Продукционно табло</div>
-            <div class="project-card-home__desc" style="margin-top:12px;opacity:0.6">Канбан борд с всички видеа · Basecamp sync</div>
+          <a href="#/dashboard" class="project-card-home">
+            <div class="project-card-home__above">ThePact Tasks</div>
+            <div class="project-card-home__title">Dashboard</div>
           </a>
         </div>
 
@@ -235,6 +235,170 @@ function renderMiniCalendar() {
       <tr>${cells}</tr>
     </table>
   `;
+}
+
+// ==================== DASHBOARD (PRODUCTION BOARD) ====================
+let expandedDashCol = null;
+let collapsedSubCols = JSON.parse(localStorage.getItem('thepact-collapsed-subcols') || '{}');
+
+async function renderDashboard(el) {
+  setBreadcrumb([{ label: 'Home', href: '#/home' }, { label: 'Dashboard', href: '#/dashboard' }]);
+  el.className = 'full-width';
+  try {
+    const [boards, cards] = await Promise.all([
+      (await fetch('/api/boards')).json(),
+      (await fetch('/api/cards')).json()
+    ]);
+    allBoards = boards;
+
+    const stageColors = {
+      0: 'var(--blue)',
+      1: 'var(--orange)',
+      2: '#a78bfa',
+      3: 'var(--green)'
+    };
+
+    // Quick stats
+    const totalActive = cards.filter(c => !c.completed_at && !c.archived_at).length;
+    const totalOnHold = cards.filter(c => c.is_on_hold).length;
+    const totalOverdue = cards.filter(c => c.due_on && !c.is_on_hold && !c.completed_at && new Date(c.due_on) < new Date()).length;
+
+    el.innerHTML = '<div class="dash-wrap">' +
+      '<div class="dash-stats-bar">' +
+        '<div class="dash-stat"><span class="dash-stat__num">' + totalActive + '</span><span class="dash-stat__label">Активни</span></div>' +
+        '<div class="dash-stat dash-stat--warn"><span class="dash-stat__num">' + totalOverdue + '</span><span class="dash-stat__label">Просрочени</span></div>' +
+        '<div class="dash-stat"><span class="dash-stat__num">' + totalOnHold + '</span><span class="dash-stat__label">Изчакване</span></div>' +
+        '<div class="dash-stat"><span class="dash-stat__num">' + boards.length + '</span><span class="dash-stat__label">Борда</span></div>' +
+      '</div>' +
+      '<div class="dash-board" id="dashBoard"></div>' +
+    '</div>';
+
+    renderDashboardBoard(boards, cards, stageColors);
+  } catch (err) {
+    console.error('Dashboard error:', err);
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане</div>';
+  }
+}
+
+function renderDashboardBoard(boards, cards, stageColors) {
+  const container = document.getElementById('dashBoard');
+  if (!container) return;
+
+  container.innerHTML = boards.map(function(board, bi) {
+    var boardCards = cards.filter(function(c) { return c.board_id === board.id && !c.completed_at && !c.archived_at; });
+    var totalCards = boardCards.length;
+    var isExpanded = expandedDashCol === board.id;
+    var isCollapsed = expandedDashCol && expandedDashCol !== board.id;
+    var colClass = isExpanded ? 'dash-col expanded' : isCollapsed ? 'dash-col collapsed' : 'dash-col';
+    var stageColor = stageColors[bi] || 'var(--accent)';
+    var visibleCols = (board.columns || []).filter(function(c) { return !c.is_done_column; });
+    var doneCol = (board.columns || []).find(function(c) { return c.is_done_column; });
+    var doneCount = doneCol ? boardCards.filter(function(c) { return c.column_id === doneCol.id; }).length : 0;
+
+    var subColsHtml = '';
+    if (!isCollapsed) {
+      subColsHtml = visibleCols.map(function(col) {
+        var colCards = boardCards.filter(function(c) { return c.column_id === col.id; });
+        var regularCards = colCards.filter(function(c) { return !c.is_on_hold; });
+        var holdCards = colCards.filter(function(c) { return c.is_on_hold; });
+        var subKey = board.id + '::' + col.id;
+        var isSubCollapsed = !!collapsedSubCols[subKey];
+
+        if (isSubCollapsed) {
+          return '<div class="dash-subcol subcol-collapsed" onclick="toggleDashSubCol(' + board.id + ',' + col.id + ')">' +
+            '<div class="dash-subcol-header">' +
+              '<span>' + esc(col.title) + '</span>' +
+              '<span class="dash-subcol-count">' + colCards.length + '</span>' +
+            '</div>' +
+          '</div>';
+        }
+
+        var cardsHtml = regularCards.map(function(c) { return renderDashCard(c); }).join('');
+
+        var holdHtml = '';
+        if (holdCards.length > 0) {
+          holdHtml = '<div class="dash-on-hold-sep"><span>\u23f8 On Hold (' + holdCards.length + ')</span></div>' +
+            holdCards.map(function(c) { return renderDashCard(c); }).join('');
+        }
+
+        return '<div class="dash-subcol">' +
+          '<div class="dash-subcol-header" onclick="event.stopPropagation();toggleDashSubCol(' + board.id + ',' + col.id + ')" style="cursor:pointer">' +
+            '<span>' + esc(col.title) + '</span>' +
+            '<span class="dash-subcol-count">' + colCards.length + '</span>' +
+          '</div>' +
+          '<div class="dash-subcol-cards">' + cardsHtml + holdHtml + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    return '<div class="' + colClass + '" style="border-top-color:' + stageColor + '">' +
+      '<div class="dash-col-header" onclick="toggleDashCol(' + board.id + ')">' +
+        '<span class="dash-col-title">' + esc(board.title) + '</span>' +
+        '<span class="dash-col-count">' + totalCards + '</span>' +
+      '</div>' +
+      '<div class="dash-col-body">' + subColsHtml + '</div>' +
+      (doneCol && !isCollapsed ? '<div class="dash-done-footer" onclick="toggleDashDone(' + board.id + ',' + doneCol.id + ')">\u2705 Готово (' + doneCount + ')</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+function renderDashCard(card) {
+  var colorClass = getDashCardColor(card);
+  var dueStr = card.due_on ? formatDate(card.due_on) : '';
+  var assignee = card.assignees && card.assignees[0] ? card.assignees[0].name.split(' ')[0] : '';
+  var stepsStr = card.steps_total > 0 ? card.steps_done + '/' + card.steps_total : '';
+  var holdClass = card.is_on_hold ? ' dash-card--hold' : '';
+
+  return '<a class="dash-card ' + colorClass + holdClass + '" href="#/card/' + card.id + '">' +
+    '<div class="dash-card__title">' + (card.is_on_hold ? '\u23f8 ' : '') + esc(card.title) + '</div>' +
+    '<div class="dash-card__footer">' +
+      (dueStr ? '<span class="dash-card__date">\ud83d\udcc5 ' + dueStr + '</span>' : '<span></span>') +
+      '<div class="dash-card__right">' +
+        (stepsStr ? '<span class="dash-card__steps">\u2713 ' + stepsStr + '</span>' : '') +
+        (assignee ? '<span class="dash-card__assignee">' + esc(assignee) + '</span>' : '') +
+      '</div>' +
+    '</div>' +
+  '</a>';
+}
+
+function getDashCardColor(card) {
+  if (card.is_on_hold) return 'dash-card--on-hold';
+  if (card.priority === 'urgent') return 'dash-card--priority';
+  if (!card.due_on) return '';
+  var now = new Date(); now.setHours(0,0,0,0);
+  var due = new Date(card.due_on); due.setHours(0,0,0,0);
+  var diff = Math.ceil((due - now) / 86400000);
+  if (diff < 0) return 'dash-card--overdue';
+  if (diff === 0) return 'dash-card--today';
+  if (diff <= 3) return 'dash-card--soon';
+  return 'dash-card--ok';
+}
+
+function toggleDashCol(boardId) {
+  expandedDashCol = expandedDashCol === boardId ? null : boardId;
+  // Re-render
+  var stageColors = { 0: 'var(--blue)', 1: 'var(--orange)', 2: '#a78bfa', 3: 'var(--green)' };
+  Promise.all([
+    fetch('/api/boards').then(function(r) { return r.json(); }),
+    fetch('/api/cards').then(function(r) { return r.json(); })
+  ]).then(function(res) { renderDashboardBoard(res[0], res[1], stageColors); });
+}
+
+function toggleDashSubCol(boardId, colId) {
+  var key = boardId + '::' + colId;
+  collapsedSubCols[key] = !collapsedSubCols[key];
+  if (!collapsedSubCols[key]) delete collapsedSubCols[key];
+  localStorage.setItem('thepact-collapsed-subcols', JSON.stringify(collapsedSubCols));
+  var stageColors = { 0: 'var(--blue)', 1: 'var(--orange)', 2: '#a78bfa', 3: 'var(--green)' };
+  Promise.all([
+    fetch('/api/boards').then(function(r) { return r.json(); }),
+    fetch('/api/cards').then(function(r) { return r.json(); })
+  ]).then(function(res) { renderDashboardBoard(res[0], res[1], stageColors); });
+}
+
+function toggleDashDone(boardId, doneColId) {
+  // Could show done cards in a popup, for now just navigate to the board
+  location.hash = '#/board/' + boardId;
 }
 
 function renderBoardPreview(board, cards) {
