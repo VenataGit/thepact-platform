@@ -132,6 +132,7 @@ function router() {
   switch (page) {
     case 'home': return renderHome(el);
     case 'project': return renderProject(el, id);
+    case 'videoproduction': return renderProject(el, 1);
     case 'board': return id ? renderBoard(el, id) : renderHome(el);
     case 'card':
       if (sub === 'new') return renderCardCreate(el);
@@ -199,7 +200,7 @@ async function renderHome(el) {
         </div>
 
         <div class="projects-home-grid">
-          <a href="#/project/1" class="project-card-home">
+          <a href="#/videoproduction" class="project-card-home">
             <div class="project-card-home__pin" title="Закачен проект">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
             </div>
