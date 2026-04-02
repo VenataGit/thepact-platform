@@ -5,13 +5,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg: #1a2730;
-  --bg-card: #1e2f3a;
-  --bg-elevated: #243b48;
-  --bg-hover: #2a4454;
-  --bg-active: #305060;
-  --border: #2a3f4d;
-  --border-hover: #3a5565;
+  --bg: #111a1e;
+  --bg-card: #182630;
+  --bg-elevated: #1e3040;
+  --bg-hover: #243848;
+  --bg-active: #2c4858;
+  --border: #1e3040;
+  --border-hover: #2c4858;
   --text: #e8ecee;
   --text-secondary: #8fa3b0;
   --text-dim: #566d7a;
@@ -27,6 +27,10 @@
   --orange: #f97316;
   --blue: #3b82f6;
   --blue-dim: rgba(59, 130, 246, 0.12);
+  --card-green: #4a6d5d;
+  --card-gold: #8c734b;
+  --card-red: #8c4b4b;
+  --card-teal: #3d6b6b;
   --sidebar-width: 240px;
   --radius: 8px;
   --radius-lg: 12px;
@@ -84,12 +88,12 @@ a:hover { color: var(--accent-hover); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .btn-primary {
-  background: var(--accent);
+  background: #46a374;
   color: #fff;
-  border-color: var(--accent);
+  border-color: #46a374;
   font-weight: 600;
 }
-.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-primary:hover { background: #3d9168; border-color: #3d9168; }
 
 .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
 .btn-ghost { background: transparent; border-color: transparent; }

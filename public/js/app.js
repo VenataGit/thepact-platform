@@ -198,14 +198,20 @@ async function renderHome(el) {
           <span class="section-pill">Последни проекти</span>
         </div>
 
-        <a href="#/project/1" class="project-card-home">
-          <div class="project-card-home__pin" title="Закачен проект">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
-          </div>
-          <div class="project-card-home__above">ThePact Tasks</div>
-          <div class="project-card-home__title">Video Production</div>
-          <div class="project-card-home__avatars">${teamAvatars}</div>
-        </a>
+        <div class="projects-home-grid">
+          <a href="#/project/1" class="project-card-home project-card-home--pinned" style="background:var(--card-green)">
+            <div class="project-card-home__pin" title="Закачен проект">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+            </div>
+            <div class="project-card-home__title">Video Production</div>
+            <div class="project-card-home__avatars">${teamAvatars}</div>
+          </a>
+          ${boards.map((b, i) => {
+            const cardColors = ['var(--card-teal)', 'var(--card-gold)', 'var(--card-red)', 'var(--card-green)'];
+            const boardCards = cards.filter(c => c.board_id === b.id);
+            return '<a href="#/board/' + b.id + '" class="project-card-home" style="background:' + cardColors[i % cardColors.length] + '"><div class="project-card-home__title">' + esc(b.title) + '</div><div class="project-card-home__desc">' + boardCards.length + ' карти</div></a>';
+          }).join('')}
+        </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:32px">
           <div>
