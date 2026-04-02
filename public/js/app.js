@@ -1042,7 +1042,7 @@ function handleWSEvent(event) {
 // ==================== UTILS ====================
 
 function esc(str) { if (!str) return ''; return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function formatDate(d) { if (!d) return ''; const [y, m, dd] = d.split('-'); return `${dd}.${m}`; }
+function formatDate(d) { if (!d) return ''; const s = d.split('T')[0]; const [y, m, dd] = s.split('-'); return `${dd}.${m}.${y}`; }
 function getCardColorClass(card) {
   if (card.is_on_hold) return 'on-hold'; if (card.priority === 'urgent') return 'priority';
   if (!card.due_on) return ''; const now = new Date(); now.setHours(0,0,0,0); const due = new Date(card.due_on + 'T00:00:00'); const diff = Math.ceil((due - now) / 86400000);
