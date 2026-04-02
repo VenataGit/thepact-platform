@@ -716,25 +716,107 @@ async function renderChatList(el) {
   try {
     const res = await fetch('/api/chat/channels');
     const channels = await res.json();
+
+    // Build avatar color map
+    const colors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899','#84cc16','#f97316'];
+
     el.innerHTML = `
-      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
-        <div><h1>💬 Чат</h1><p class="page-subtitle">Лични съобщения и групи</p></div>
-        <button class="btn btn-primary btn-sm" onclick="createChatChannel()">+ Нов чат</button>
-      </div>
-      <div class="chat-channel-list">
-        ${channels.length === 0 ? '<div class="empty-state">Няма чатове</div>' :
-          channels.map(ch => {
-            const memberNames = ch.members?.map(m => m.name?.split(' ')[0]).join(', ') || '';
+      <div class="pings-page">
+        <div class="pings-search-bar">
+          <input id="pingSearchInput" placeholder="Започни нов чат с..." autocomplete="off"
+                 oninput="filterPingUsers()" onfocus="document.getElementById('pingSuggestions').style.display='block'">
+          <div class="ping-suggestions" id="pingSuggestions" style="display:none">
+            ${allUsers.filter(u => u.id !== currentUser.userId).map(u => {
+              const initials = u.name.split(' ').map(n => n[0]).join('').substring(0, 2);
+              const color = colors[u.id % colors.length];
+              return `<div class="ping-suggestion" data-uid="${u.id}" onclick="startDirectChat(${u.id})">
+                <div class="ping-avatar" style="background:${color}">${initials}</div>
+                <span>${esc(u.name)}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="pings-grid">
+          ${channels.map(ch => {
+            const isGroup = ch.type === 'group';
+            const otherMembers = ch.members?.filter(m => m.id !== currentUser.userId) || [];
+            const displayName = ch.name || otherMembers.map(m => m.name?.split(' ')[0]).join(', ') || 'Чат';
+            const memberCount = ch.members?.length || 0;
+
+            // Avatar(s)
+            let avatarHtml;
+            if (isGroup && !ch.name) {
+              // Show stacked avatars for unnamed groups
+              const shown = otherMembers.slice(0, 2);
+              avatarHtml = `<div class="ping-avatar-stack">${shown.map((m, i) => {
+                const ini = m.name?.split(' ').map(n => n[0]).join('').substring(0, 2) || '?';
+                const c = colors[m.id % colors.length];
+                return `<div class="ping-avatar stacked" style="background:${c};z-index:${2-i}">${ini}</div>`;
+              }).join('')}</div>`;
+            } else if (isGroup) {
+              // Named group — show group icon
+              avatarHtml = `<div class="ping-avatar group-avatar">👥</div>`;
+            } else {
+              // DM — show single avatar
+              const other = otherMembers[0];
+              const ini = other?.name?.split(' ').map(n => n[0]).join('').substring(0, 2) || '?';
+              const c = colors[(other?.id || 0) % colors.length];
+              avatarHtml = `<div class="ping-avatar" style="background:${c}">${ini}</div>`;
+            }
+
             return `
-              <a class="chat-channel-item" href="#/chat/${ch.id}">
-                <div class="chat-channel-name">${esc(ch.name || memberNames)}</div>
-                <div class="chat-channel-preview">${esc(ch.last_message?.substring(0, 60) || 'Няма съобщения')}</div>
-                ${ch.last_message_at ? `<div class="hint">${timeAgo(ch.last_message_at)}</div>` : ''}
+              <a class="ping-card" href="#/chat/${ch.id}">
+                ${avatarHtml}
+                <div class="ping-name">${esc(displayName)}</div>
+                ${isGroup && memberCount > 1 ? `<div class="ping-count">${memberCount} people</div>` : ''}
               </a>`;
           }).join('')}
+
+          ${channels.length === 0 ? `
+            <div class="pings-empty">
+              <p>Няма активни чатове</p>
+              <p class="hint">Напиши име в полето горе за да започнеш</p>
+            </div>
+          ` : ''}
+        </div>
       </div>
     `;
+
+    // Close suggestions on outside click
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.pings-search-bar')) {
+        const s = document.getElementById('pingSuggestions');
+        if (s) s.style.display = 'none';
+      }
+    }, { once: true });
+
   } catch { el.innerHTML = '<div class="empty-state">Грешка</div>'; }
+}
+
+function filterPingUsers() {
+  const q = document.getElementById('pingSearchInput')?.value?.toLowerCase().trim();
+  const suggestions = document.getElementById('pingSuggestions');
+  if (!suggestions) return;
+  suggestions.style.display = 'block';
+  suggestions.querySelectorAll('.ping-suggestion').forEach(el => {
+    const name = el.querySelector('span')?.textContent?.toLowerCase() || '';
+    el.style.display = (!q || name.includes(q)) ? 'flex' : 'none';
+  });
+}
+
+async function startDirectChat(userId) {
+  try {
+    const res = await fetch('/api/chat/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'dm', member_ids: [userId] })
+    });
+    if (res.ok) {
+      const ch = await res.json();
+      location.hash = `#/chat/${ch.id}`;
+    }
+  } catch {}
 }
 
 async function renderChatChannel(el, channelId) {
@@ -789,13 +871,12 @@ async function sendChatMsg(channelId) {
   } catch {}
 }
 
-async function createChatChannel() {
-  const name = prompt('Име на групата (или остави празно за DM):');
-  const memberSelect = prompt('ID-та на членове (разделени с запетая):');
-  if (!memberSelect) return;
-  const member_ids = memberSelect.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+async function createGroupChat() {
+  const name = prompt('Име на групата:');
+  if (!name?.trim()) return;
+  // For now, create empty group — members can be added later
   try {
-    const res = await fetch('/api/chat/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, type: name ? 'group' : 'dm', member_ids }) });
+    const res = await fetch('/api/chat/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, type: 'group', member_ids: [] }) });
     if (res.ok) { const ch = await res.json(); location.hash = `#/chat/${ch.id}`; }
   } catch {}
 }
