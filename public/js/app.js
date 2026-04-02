@@ -187,7 +187,7 @@ async function renderHome(el) {
         </div>
 
         <a href="#/project/1" class="project-card-home">
-          <div class="project-card-home__pin" title="Pinned project">
+          <div class="project-card-home__pin" title="Закачен проект">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
           </div>
           <div class="project-card-home__above">ThePact Tasks</div>
@@ -855,7 +855,7 @@ async function renderChatChannel(el, channelId) {
   try {
     const [msgs, channels] = await Promise.all([(await fetch(`/api/chat/channels/${channelId}/messages`)).json(), (await fetch('/api/chat/channels')).json()]);
     const ch = channels.find(c=>c.id===channelId);
-    const name = ch?.name || ch?.members?.filter(m=>m.id!==currentUser.id).map(m=>m.name).join(', ') || 'Chat';
+    const name = ch?.name || ch?.members?.filter(m=>m.id!==currentUser.id).map(m=>m.name).join(', ') || 'Чат';
     const chatColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
     el.innerHTML = `
       <div class="chat-page"><div class="chat-header"><a href="#/chat" class="btn btn-sm">\u2190 Назад</a><h2>${esc(name)}</h2></div>
