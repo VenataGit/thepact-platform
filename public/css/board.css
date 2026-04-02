@@ -184,3 +184,50 @@
 .vault-item:hover { border-color: var(--border-hover); }
 .vault-icon { font-size: 32px; }
 .vault-name { font-size: 12px; font-weight: 500; word-break: break-all; }
+
+/* ==================== TRIX EDITOR (DARK THEME) ==================== */
+trix-editor.trix-dark {
+  background: var(--bg-input, #18181b);
+  color: var(--text, #e4e4e7);
+  border: 1px solid var(--border, #27272a);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 120px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+trix-editor.trix-dark:focus { border-color: var(--accent, #d4a853); outline: none; }
+trix-editor.trix-dark a { color: var(--accent, #d4a853); }
+
+trix-toolbar {
+  background: var(--bg-card, #1c1c1e);
+  border: 1px solid var(--border, #27272a);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  padding: 4px 8px;
+}
+trix-toolbar + trix-editor.trix-dark { border-radius: 0 0 8px 8px; }
+
+trix-toolbar .trix-button-group { border-color: var(--border, #27272a); margin-bottom: 0; }
+trix-toolbar .trix-button {
+  background: transparent;
+  color: var(--text-secondary, #a1a1aa);
+  border-color: var(--border, #27272a);
+  padding: 4px 8px;
+}
+trix-toolbar .trix-button:hover { background: var(--bg-hover, #27272a); color: #fff; }
+trix-toolbar .trix-button.trix-active { background: var(--accent-dim, rgba(212,168,83,0.15)); color: var(--accent, #d4a853); }
+trix-toolbar .trix-button-group:not(:first-child) { margin-left: 4px; }
+
+/* Hide attachment button (not needed for notes) */
+trix-toolbar .trix-button-group--file-tools { display: none; }
+
+/* Rich content display for non-edit mode */
+.rich-content { font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+.rich-content h1, .rich-content h2, .rich-content h3 { color: #fff; margin: 12px 0 8px; }
+.rich-content a { color: var(--accent); }
+.rich-content blockquote { border-left: 3px solid var(--accent-dim); padding-left: 12px; color: var(--text-dim); margin: 8px 0; }
+.rich-content code { background: var(--bg-hover); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.rich-content pre { background: var(--bg-hover); padding: 12px; border-radius: 8px; overflow-x: auto; }
+.rich-content ul, .rich-content ol { padding-left: 24px; margin: 8px 0; }
+.rich-content img { max-width: 100%; border-radius: 8px; margin: 8px 0; }

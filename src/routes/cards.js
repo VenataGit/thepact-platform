@@ -24,12 +24,12 @@ router.get('/', requireAuth, async (req, res) => {
     const params = [];
     let i = 1;
 
-    if (board_id) { sql += ` AND c.board_id = $${i++}`; params.push(board_id); }
-    if (column_id) { sql += ` AND c.column_id = $${i++}`; params.push(column_id); }
+    if (board_id && !isNaN(parseInt(board_id))) { sql += ` AND c.board_id = $${i++}`; params.push(parseInt(board_id)); }
+    if (column_id && !isNaN(parseInt(column_id))) { sql += ` AND c.column_id = $${i++}`; params.push(parseInt(column_id)); }
     if (client) { sql += ` AND c.client_name ILIKE $${i++}`; params.push(`%${client}%`); }
-    if (assignee_id) {
+    if (assignee_id && !isNaN(parseInt(assignee_id))) {
       sql += ` AND c.id IN (SELECT card_id FROM card_assignees WHERE user_id = $${i++})`;
-      params.push(assignee_id);
+      params.push(parseInt(assignee_id));
     }
 
     sql += ' ORDER BY b.position, col.position, c.position, c.created_at';

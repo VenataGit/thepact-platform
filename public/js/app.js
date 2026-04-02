@@ -83,6 +83,7 @@ function populateFind(el) {
       <div class="search-filters">
         <select id="searchType"><option value="">Search Everything</option><option value="card">Cards</option><option value="comment">Comments</option><option value="message">Messages</option></select>
         <select id="searchPerson"><option value="">by Anyone</option>${allUsers.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
+        <select id="searchProject"><option value="">Everywhere</option>${allBoards.map(b => `<option value="${b.id}">${esc(b.title)}</option>`).join('')}</select>
       </div>
       <div class="search-results" id="searchResults"></div>
     </div>
@@ -95,11 +96,14 @@ async function doGlobalSearch() {
   const container = document.getElementById('searchResults');
   if (!q || q.length < 2) { container.innerHTML = ''; return; }
   try {
+    const boardFilter = document.getElementById('searchProject')?.value || '';
     const { cards, users } = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
+    let filteredCards = cards;
+    if (boardFilter) filteredCards = cards.filter(c => c.board_id === parseInt(boardFilter));
     container.innerHTML =
-      cards.map(c => `<a class="nav-dropdown__item" href="#/card/${c.id}" onclick="closeAllDropdowns()">${esc(c.title)}<span style="margin-left:auto;font-size:11px;color:var(--text-dim)">${esc(c.board_title)}</span></a>`).join('') +
+      filteredCards.map(c => `<a class="nav-dropdown__item" href="#/card/${c.id}" onclick="closeAllDropdowns()">${esc(c.title)}<span style="margin-left:auto;font-size:11px;color:var(--text-dim)">${esc(c.board_title)}</span></a>`).join('') +
       users.map(u => `<div class="nav-dropdown__item">${esc(u.name)} <span style="margin-left:auto;font-size:11px;color:var(--text-dim)">${u.role}</span></div>`).join('') +
-      (cards.length === 0 && users.length === 0 ? '<div class="nav-dropdown__empty">No results</div>' : '');
+      (filteredCards.length === 0 && users.length === 0 ? '<div class="nav-dropdown__empty">No results</div>' : '');
   } catch {}
 }
 
@@ -160,7 +164,7 @@ async function renderHome(el) {
     ]);
     allBoards = boards;
     const overdue = cards.filter(c => !c.is_on_hold && !c.completed_at && c.due_on && new Date(c.due_on+'T00:00:00') < new Date(new Date().toDateString()));
-    const myCards = cards.filter(c => c.assignees?.some(a => a.id === currentUser.userId));
+    const myCards = cards.filter(c => c.assignees?.some(a => a.id === currentUser.id));
 
     el.innerHTML = `
       <div class="page-header">
@@ -527,7 +531,11 @@ async function renderCardPage(el, cardId) {
             <div class="card-field card-field--notes">
               <strong>Notes</strong>
               <div class="card-field__value card-content-area">
-                ${card.content ? esc(card.content).replace(/\n/g, '<br>') : '<span style="color:var(--text-dim)">Add notes...</span>'}
+                ${manage ? `
+                  <input id="cardNotesInput" type="hidden" value="${esc(card.content || '')}">
+                  <trix-editor input="cardNotesInput" class="trix-dark" placeholder="Add notes..."></trix-editor>
+                  <button class="btn btn-sm" style="margin-top:8px" onclick="saveCardNotes(${cardId})">💾 Запази бележки</button>
+                ` : (card.content ? `<div class="rich-content">${card.content}</div>` : '<span style="color:var(--text-dim)">Add notes...</span>')}
               </div>
             </div>
           </section>
@@ -601,7 +609,7 @@ async function renderCardCreate(el) {
         <div class="edit-row"><label>Title *</label><input id="createTitle" placeholder="Card title" autofocus></div>
         <div class="edit-row"><label>Board</label><select id="createBoard" onchange="updateCreateColumns()">${allBoards.map(b=>`<option value="${b.id}" ${b.id===boardId?'selected':''}>${esc(b.title)}</option>`).join('')}</select></div>
         <div class="edit-row"><label>Column</label><select id="createColumn">${(board?.columns||[]).filter(c=>!c.is_done_column).map(c=>`<option value="${c.id}" ${c.id===columnId?'selected':''}>${esc(c.title)}</option>`).join('')}</select></div>
-        <div class="edit-row"><label>Notes</label><textarea id="createContent" rows="8" placeholder="Add notes..."></textarea></div>
+        <div class="edit-row"><label>Notes</label><input id="createContent" type="hidden"><trix-editor input="createContent" class="trix-dark" placeholder="Add notes..."></trix-editor></div>
         <div class="edit-row"><label>Due on</label><input type="date" id="createDue"></div>
         <div class="edit-row"><label>Client</label><input id="createClient" placeholder="Client name"></div>
         <div class="edit-row"><label>Assign to</label><select id="createAssignees" multiple style="min-height:80px">${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
@@ -638,6 +646,16 @@ async function submitCreateCard() {
 // ==================== CARD ACTIONS ====================
 async function updateField(cardId, field, value) {
   try { await fetch(`/api/cards/${cardId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({[field]:value}) }); } catch {}
+}
+async function saveCardNotes(cardId) {
+  const editor = document.querySelector('trix-editor');
+  if (!editor) return;
+  const content = editor.editor.getDocument().toString().trim() ? document.getElementById('cardNotesInput').value : null;
+  try {
+    await fetch(`/api/cards/${cardId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content}) });
+    const btn = document.querySelector('.card-field--notes .btn');
+    if (btn) { btn.textContent = '✓ Запазено'; setTimeout(() => btn.textContent = '💾 Запази бележки', 1500); }
+  } catch {}
 }
 async function moveCard(cardId, columnId) {
   if (!columnId) return;
@@ -698,7 +716,7 @@ async function renderActivity(el) {
 async function renderMyStuff(el) {
   setBreadcrumb(null); el.className = '';
   try {
-    const cards = await (await fetch(`/api/cards?assignee_id=${currentUser.userId}`)).json();
+    const cards = await (await fetch(`/api/cards?assignee_id=${currentUser.id}`)).json();
     el.innerHTML = `
       <div class="page-header"><h1>My Assignments</h1></div>
       <div class="task-list" style="max-width:700px;margin:0 auto">
@@ -734,12 +752,12 @@ async function renderChatList(el) {
         <div class="pings-search-bar">
           <input id="pingSearchInput" placeholder="Start a private chat with..." autocomplete="off" oninput="filterPingUsers()" onfocus="document.getElementById('pingSuggestions').style.display='block'">
           <div class="ping-suggestions" id="pingSuggestions" style="display:none">
-            ${allUsers.filter(u=>u.id!==currentUser.userId).map(u=>`<div class="ping-suggestion" onclick="startDirectChat(${u.id})"><div class="ping-avatar" style="background:${colors[u.id%colors.length]}">${initials(u.name)}</div><span>${esc(u.name)}</span></div>`).join('')}
+            ${allUsers.filter(u=>u.id!==currentUser.id).map(u=>`<div class="ping-suggestion" onclick="startDirectChat(${u.id})"><div class="ping-avatar" style="background:${colors[u.id%colors.length]}">${initials(u.name)}</div><span>${esc(u.name)}</span></div>`).join('')}
           </div>
         </div>
         <div class="pings-grid">
           ${channels.map(ch=>{
-            const others = ch.members?.filter(m=>m.id!==currentUser.userId)||[];
+            const others = ch.members?.filter(m=>m.id!==currentUser.id)||[];
             const name = ch.name||others.map(m=>m.name?.split(' ')[0]).join(', ')||'Chat';
             const other = others[0];
             const c = colors[(other?.id||0)%colors.length];
@@ -765,7 +783,7 @@ async function renderChatChannel(el, channelId) {
   try {
     const [msgs, channels] = await Promise.all([(await fetch(`/api/chat/channels/${channelId}/messages`)).json(), (await fetch('/api/chat/channels')).json()]);
     const ch = channels.find(c=>c.id===channelId);
-    const name = ch?.name || ch?.members?.filter(m=>m.id!==currentUser.userId).map(m=>m.name).join(', ') || 'Chat';
+    const name = ch?.name || ch?.members?.filter(m=>m.id!==currentUser.id).map(m=>m.name).join(', ') || 'Chat';
     el.innerHTML = `
       <div class="chat-page"><div class="chat-header"><a href="#/chat" class="btn btn-sm">← Back</a><h2>${esc(name)}</h2></div>
         <div class="chat-messages" id="chatMessages">${msgs.map(m=>`<div class="chat-msg"><div class="chat-msg-avatar" style="background:var(--accent-dim);color:var(--accent)">${initials(m.user_name)}</div><div class="chat-msg-body"><div class="chat-msg-name">${esc(m.user_name)} <span class="hint">${new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'})}</span></div><div class="chat-msg-text">${esc(m.content).replace(/\n/g,'<br>')}</div></div></div>`).join('')}</div>
