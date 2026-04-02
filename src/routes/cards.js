@@ -111,7 +111,7 @@ router.post('/', requireAuth, async (req, res) => {
       }
     }
 
-    broadcast({ type: 'card:created', card }, req.user.userId);
+    broadcast({ type: 'card:created', card });
     res.status(201).json(card);
   } catch (err) {
     console.error('Card create error:', err.message);
@@ -145,7 +145,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       }
     }
 
-    broadcast({ type: 'card:updated', cardId: card.id, changes: req.body }, req.user.userId);
+    broadcast({ type: 'card:updated', cardId: card.id, changes: req.body });
     res.json(card);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -193,7 +193,7 @@ router.post('/:id/move', requireAuth, async (req, res) => {
       position: targetPosition,
       userId: req.user.userId,
       userName: req.user.name
-    }, req.user.userId);
+    });
 
     res.json(updated);
   } catch (err) {
@@ -216,7 +216,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
       [card.id, 'archived', req.user.userId]
     );
 
-    broadcast({ type: 'card:deleted', cardId: card.id }, req.user.userId);
+    broadcast({ type: 'card:deleted', cardId: card.id });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -235,7 +235,7 @@ router.post('/:id/steps', requireAuth, async (req, res) => {
       'INSERT INTO card_steps (card_id, title, due_on, assignee_id, position) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [req.params.id, title, due_on || null, assignee_id || null, maxPos.pos]
     );
-    broadcast({ type: 'step:created', cardId: parseInt(req.params.id), step }, req.user.userId);
+    broadcast({ type: 'step:created', cardId: parseInt(req.params.id), step });
     res.status(201).json(step);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -258,7 +258,7 @@ router.put('/:cardId/steps/:stepId', requireAuth, async (req, res) => {
     `, [completed, title, due_on, assignee_id, position, req.params.stepId, req.params.cardId]);
     if (!step) return res.status(404).json({ error: 'Step not found' });
 
-    broadcast({ type: 'step:updated', cardId: parseInt(req.params.cardId), step }, req.user.userId);
+    broadcast({ type: 'step:updated', cardId: parseInt(req.params.cardId), step });
     res.json(step);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -269,7 +269,7 @@ router.put('/:cardId/steps/:stepId', requireAuth, async (req, res) => {
 router.delete('/:cardId/steps/:stepId', requireAuth, async (req, res) => {
   try {
     await execute('DELETE FROM card_steps WHERE id = $1 AND card_id = $2', [req.params.stepId, req.params.cardId]);
-    broadcast({ type: 'step:deleted', cardId: parseInt(req.params.cardId), stepId: parseInt(req.params.stepId) }, req.user.userId);
+    broadcast({ type: 'step:deleted', cardId: parseInt(req.params.cardId), stepId: parseInt(req.params.stepId) });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

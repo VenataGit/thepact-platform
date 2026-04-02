@@ -1534,13 +1534,19 @@ document.getElementById('profileModal')?.addEventListener('click',e=>{if(e.targe
 
 // ==================== WEBSOCKET ====================
 function connectWS() { const p=location.protocol==='https:'?'wss':'ws'; ws=new WebSocket(`${p}://${location.host}/ws`); ws.onopen=()=>{wsReconnectDelay=1000;document.getElementById('wsStatusDot').className='status-dot online';document.getElementById('wsStatus').textContent='live'}; ws.onmessage=e=>{try{handleWSEvent(JSON.parse(e.data))}catch{}}; ws.onclose=()=>{document.getElementById('wsStatusDot').className='status-dot offline';document.getElementById('wsStatus').textContent='';setTimeout(connectWS,wsReconnectDelay);wsReconnectDelay=Math.min(wsReconnectDelay*2,30000)}; ws.onerror=()=>ws.close(); }
+let _wsRouterTimeout = null;
+function wsRouter() {
+  // Debounce WS-triggered re-renders to avoid double refresh
+  clearTimeout(_wsRouterTimeout);
+  _wsRouterTimeout = setTimeout(router, 150);
+}
 function handleWSEvent(ev) {
   const t = ev.type || '';
   // Core data events — re-render current page
-  if (t.startsWith('card:') || t.startsWith('board:') || t.startsWith('column:') || t.startsWith('step:') || t.startsWith('comment:')) router();
-  if (t === 'chat:message' && location.hash.startsWith(`#/chat/${ev.channelId}`)) router();
-  if (t === 'campfire:message' && location.hash.startsWith('#/campfire/')) router();
-  if (t === 'checkin:reminder') router();
+  if (t.startsWith('card:') || t.startsWith('board:') || t.startsWith('column:') || t.startsWith('step:') || t.startsWith('comment:')) wsRouter();
+  if (t === 'chat:message' && location.hash.startsWith(`#/chat/${ev.channelId}`)) wsRouter();
+  if (t === 'campfire:message' && location.hash.startsWith('#/campfire/')) wsRouter();
+  if (t === 'checkin:reminder') wsRouter();
   // Presence
   if (t === 'presence:online') { onlineUsers.add(ev.userId); updatePresenceDots(); }
   if (t === 'presence:offline') { onlineUsers.delete(ev.userId); updatePresenceDots(); }
