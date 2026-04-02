@@ -163,55 +163,55 @@ async function renderHome(el) {
       (await fetch('/api/boards')).json()
     ]);
     allBoards = boards;
-    const overdue = cards.filter(c => !c.is_on_hold && !c.completed_at && c.due_on && new Date(c.due_on+'T00:00:00') < new Date(new Date().toDateString()));
     const myCards = cards.filter(c => c.assignees?.some(a => a.id === currentUser.id));
 
+    // Team avatars with colors
+    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+    const teamAvatars = allUsers.slice(0, 10).map((u, i) => `<div style="width:36px;height:36px;border-radius:50%;background:${avatarColors[i % avatarColors.length]};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;border:2px solid var(--bg);margin-left:${i > 0 ? '-6px' : '0'};position:relative;z-index:${10-i}">${initials(u.name)}</div>`).join('');
+
     el.innerHTML = `
-      <div class="page-header">
-        <div class="page-above">ThePact</div>
-        <h1>Video Production</h1>
-      </div>
+      <div style="max-width:600px;margin:0 auto">
+        <div class="page-header" style="margin-bottom:16px">
+          <img src="/img/logo.png" alt="" onerror="this.style.display='none'" style="height:40px;margin-bottom:12px">
+          <div style="font-size:13px;color:var(--text-dim);margin-bottom:4px">ThePact Tasks</div>
+          <h1 style="font-size:36px;letter-spacing:-0.03em">THEPACT™</h1>
+        </div>
 
-      <div style="text-align:center;margin-bottom:32px">
-        <a href="#/project/1" style="color:var(--text-dim);font-size:13px">View all projects in a list</a>
-        <span style="color:var(--text-dim);font-size:13px"> · Press <kbd style="background:var(--bg-hover);padding:2px 6px;border-radius:4px;font-size:11px;border:1px solid var(--border)">Ctrl+J</kbd> anytime to jump</span>
-      </div>
+        <div style="text-align:center;margin-bottom:32px">
+          <a href="#/project/1" style="color:var(--accent);font-size:13px;text-decoration:underline">View all projects in a list</a>
+          <span style="color:var(--text-dim);font-size:13px"> · Press <kbd style="background:var(--bg-hover);padding:2px 6px;border-radius:4px;font-size:11px;border:1px solid var(--border)">Ctrl+J</kbd> anytime to jump</span>
+        </div>
 
-      <div style="margin-bottom:32px">
         <div style="text-align:center;margin-bottom:16px">
-          <span style="background:var(--accent-dim);color:var(--accent);padding:4px 12px;border-radius:9999px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Recent Projects</span>
+          <span class="section-pill">Recent Projects</span>
         </div>
-        <div class="boards-grid" style="max-width:900px;margin:0 auto">
-          ${boards.map(board => {
-            const bc = cards.filter(c => c.board_id === board.id);
-            return `<a class="board-box" href="#/project/1">${renderBoardPreview(board, bc)}</a>`;
-          }).join('')}
-        </div>
-      </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:900px;margin:0 auto">
-        <div>
-          <div style="text-align:center;margin-bottom:12px">
-            <span style="background:var(--blue-dim);color:var(--blue);padding:4px 12px;border-radius:9999px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Your Schedule</span>
-          </div>
-          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:20px">
-            ${renderMiniCalendar()}
-            <div style="margin-top:16px;font-size:13px;color:var(--text-dim)">
-              <span style="margin-right:8px">📅</span>
-              ${new Date().toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}
-              <span style="margin-left:12px">Nothing's on the schedule</span>
+        <a href="#/project/1" class="project-card-home">
+          <div class="project-card-home__above">ThePact Tasks</div>
+          <div class="project-card-home__title">Video Production</div>
+          <div class="project-card-home__avatars">${teamAvatars}</div>
+        </a>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:32px">
+          <div>
+            <div style="text-align:center;margin-bottom:12px"><span class="section-pill section-pill--blue">Your Schedule</span></div>
+            <div class="home-panel">
+              ${renderMiniCalendar()}
+              <div style="margin-top:16px;font-size:13px;color:var(--text-dim);display:flex;align-items:center;gap:8px">
+                <span>📅</span>
+                <span>${new Date().toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}</span>
+                <span style="margin-left:4px">Nothing's on the schedule</span>
+              </div>
             </div>
           </div>
-        </div>
-        <div>
-          <div style="text-align:center;margin-bottom:12px">
-            <span style="background:var(--green-dim);color:var(--green);padding:4px 12px;border-radius:9999px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Your Assignments</span>
-          </div>
-          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:20px;min-height:200px;display:flex;align-items:center;justify-content:center">
-            ${myCards.length === 0
-              ? '<div style="text-align:center;color:var(--text-dim)"><div style="font-size:48px;opacity:0.3;margin-bottom:8px">✓</div><p>You don\'t have any assignments right now.</p></div>'
-              : `<div style="width:100">${myCards.slice(0,5).map(c => `<a href="#/card/${c.id}" style="display:block;padding:8px;border-bottom:1px solid var(--border);text-decoration:none;color:var(--text);font-size:13px">${esc(c.title)}</a>`).join('')}</div>`
-            }
+          <div>
+            <div style="text-align:center;margin-bottom:12px"><span class="section-pill section-pill--green">Your Assignments</span></div>
+            <div class="home-panel" style="min-height:200px;display:flex;align-items:center;justify-content:center">
+              ${myCards.length === 0
+                ? '<div style="text-align:center;color:var(--text-dim)"><svg viewBox="0 0 24 24" width="64" height="64" style="opacity:0.2;margin-bottom:8px"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" fill="none" stroke-width="1.5"/></svg><p style="font-size:13px">You don\'t have any assignments right now.<br>To-dos and cards assigned to you will show up here.</p></div>'
+                : `<div style="width:100%">${myCards.slice(0,8).map(c => `<a href="#/card/${c.id}" class="assignment-row"><span class="assignment-title">${esc(c.title)}</span><span class="assignment-board">${esc(c.board_title || '')}</span></a>`).join('')}</div>`
+              }
+            </div>
           </div>
         </div>
       </div>
@@ -448,7 +448,8 @@ async function renderBoard(el, boardId) {
 function renderKanbanCard(card) {
   const color = getCardColorClass(card);
   const dueStr = card.due_on ? formatDate(card.due_on) : '';
-  const assigneeStr = card.assignees?.map(a => a.name?.split(' ')[0]).join(', ') || '';
+  const authorName = card.assignees?.[0]?.name?.split(' ')[0] || card.creator_name?.split(' ')[0] || '';
+  const createdDate = card.created_at ? new Date(card.created_at).toLocaleDateString('en', { month: 'short', day: 'numeric' }) : '';
   const stepsStr = card.steps_total > 0 ? `${card.steps_done}/${card.steps_total}` : '';
 
   return `
@@ -458,12 +459,15 @@ function renderKanbanCard(card) {
       <div class="kanban-card__content">
         <h3 class="kanban-card__title">${esc(card.title)}</h3>
         <div class="kanban-card__meta">
-          <span class="kanban-card__author">By ${assigneeStr || esc(card.creator_name || '')} ${dueStr ? `<span class="kanban-card__due">📅 ${dueStr}</span>` : ''}</span>
-          ${card.comment_count ? `<span class="kanban-card__comments">${card.comment_count}</span>` : ''}
-          ${stepsStr ? `<span class="kanban-card__steps">✓ ${stepsStr}</span>` : ''}
+          <span class="kanban-card__author">By ${esc(authorName)}${createdDate ? ' \u00b7 at ' + createdDate : ''}</span>
+        </div>
+        <div class="kanban-card__badges">
+          ${dueStr ? `<span class="kanban-card__due">\ud83d\udcc5 ${dueStr}</span>` : ''}
+          ${stepsStr ? `<span class="kanban-card__steps">\u2713 ${stepsStr}</span>` : ''}
+          ${card.comment_count ? `<span class="kanban-card__comments">\ud83d\udcac ${card.comment_count}</span>` : ''}
         </div>
       </div>
-      <div class="kanban-card__avatar">${assigneeStr ? initials(card.assignees?.[0]?.name || '') : '👤'}</div>
+      <div class="kanban-card__avatar">${card.assignees?.length ? initials(card.assignees[0].name || '') : '\ud83d\udc64'}</div>
     </a>`;
 }
 
@@ -691,22 +695,50 @@ async function renderActivity(el) {
   setBreadcrumb(null); el.className = '';
   try {
     const items = await (await fetch('/api/activity?limit=50')).json();
+    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+    const getAvatarColor = (name) => avatarColors[(name||'').length % avatarColors.length];
+
+    // Group by date
+    const grouped = {};
+    items.forEach(a => {
+      const d = new Date(a.created_at);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
+      const dateKey = d >= today ? 'TODAY' : d >= yesterday ? 'YESTERDAY' : d.toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' });
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(a);
+    });
+
+    const actionText = (a) => {
+      if (a.action === 'created') return 'created';
+      if (a.action === 'commented') return 'commented on';
+      if (a.action === 'moved') return 'moved';
+      if (a.action === 'completed') return 'completed';
+      if (a.action === 'checked_off') return 'checked off a step on';
+      return a.action;
+    };
+
     el.innerHTML = `
       <div class="page-header"><h1>Latest Activity</h1></div>
       <div style="display:flex;justify-content:center;gap:8px;margin-bottom:24px">
-        <button class="btn btn-sm active">Everything</button>
+        <button class="btn btn-sm" style="background:var(--accent-dim);color:var(--accent);border-color:var(--accent)">Everything</button>
         <button class="btn btn-sm">Filter by projects</button>
         <button class="btn btn-sm">Filter by people</button>
       </div>
       <div style="max-width:700px;margin:0 auto">
         ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">No activity yet</div>':
-          items.map(a=>`
-            <div style="display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--border)">
-              <div style="width:32px;height:32px;border-radius:50%;background:var(--bg-hover);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--accent);flex-shrink:0">${initials(a.user_name||'')}</div>
-              <div style="flex:1">
-                <div style="font-size:13px"><strong>${esc(a.user_name||'')}</strong> ${a.action==='created'?'created':a.action==='commented'?'commented on':a.action==='moved'?'moved':a.action} ${a.target_type==='card'?`<a href="#/card/${a.target_id}" style="color:var(--accent)">${esc(a.target_title||'')}</a>`:esc(a.target_title||'')}</div>
-                <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${timeAgo(a.created_at)}</div>
-              </div>
+          Object.entries(grouped).map(([date, entries]) => `
+            <div style="margin-bottom:24px">
+              <div style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px">${date}</div>
+              ${entries.map(a=>`
+                <div class="activity-entry">
+                  <div class="activity-avatar" style="background:${getAvatarColor(a.user_name)}">${initials(a.user_name||'')}</div>
+                  <div class="activity-body">
+                    <div class="activity-text"><strong>${esc(a.user_name||'')}</strong> ${actionText(a)} ${a.target_type==='card'?`<a href="#/card/${a.target_id}">${esc(a.target_title||'')}</a>`:esc(a.target_title||'')}</div>
+                    ${a.excerpt ? `<div class="activity-excerpt">${esc(a.excerpt).substring(0,150)}</div>` : ''}
+                    <div class="activity-meta">${a.board_title ? esc(a.board_title) + ' · ' : ''}${timeAgo(a.created_at)}</div>
+                  </div>
+                </div>`).join('')}
             </div>`).join('')}
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Error</div>'; }
