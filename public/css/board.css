@@ -46,7 +46,7 @@
 .board-preview-total { font-size: 11px; color: var(--text-dim); margin-top: 10px; font-weight: 500; }
 
 /* Tool card colored headers */
-.tool-card__color-bar { height: 4px; border-radius: 10px 10px 0 0; }
+.tool-card__color-bar { height: 6px; border-radius: 12px 12px 0 0; }
 .tool-card__color-bar--orange { background: linear-gradient(90deg, #f97316, #fb923c); }
 .tool-card__color-bar--blue { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
 .tool-card__color-bar--teal { background: linear-gradient(90deg, #14b8a6, #2dd4bf); }
@@ -91,14 +91,14 @@
 .column-cards--grid .kanban-card { margin-bottom: 0; }
 
 /* ON HOLD section */
-.on-hold-section { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border); }
-.on-hold-label { font-size: 10px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; text-align: center; padding: 6px; }
+.on-hold-section { margin-top: auto; padding-top: 10px; border-top: 2px dashed var(--border); }
+.on-hold-label { font-size: 10px; font-weight: 700; color: var(--yellow); text-transform: uppercase; letter-spacing: 0.06em; text-align: center; padding: 6px; background: var(--yellow-dim); border-radius: 4px; margin-bottom: 6px; }
 
 /* Done/Not Now sidebar */
-.kanban-sidebar { display: flex; flex-direction: column; gap: 0; border-left: 1px solid var(--border); }
-.kanban-sidebar-tab { writing-mode: vertical-rl; text-orientation: mixed; padding: 12px 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; text-align: center; border-bottom: 1px solid var(--border); transition: background var(--transition-fast); }
-.kanban-sidebar-tab:hover { background: var(--bg-hover); }
-.done-tab { background: var(--green-dim); color: var(--green); }
+.kanban-sidebar { display: flex; flex-direction: column; gap: 0; border-left: 2px solid var(--border); }
+.kanban-sidebar-tab { writing-mode: vertical-rl; text-orientation: mixed; padding: 16px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; text-align: center; border-bottom: 1px solid var(--border); transition: background var(--transition-fast), color var(--transition-fast); }
+.kanban-sidebar-tab:hover { background: var(--bg-hover); color: #fff; }
+.done-tab { background: var(--green-dim); color: var(--green); border-left: 2px solid var(--green); }
 .sidebar-count { display: block; font-weight: 400; margin-bottom: 4px; }
 .sidebar-label { display: block; }
 
@@ -189,7 +189,7 @@
 .steps-progress__fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s ease; }
 
 /* Card create form */
-.card-create-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
+.card-create-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 28px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
 .edit-row { margin-bottom: 14px; }
 .edit-row label { display: block; font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
 .edit-row input, .edit-row select, .edit-row textarea { width: 100%; }
