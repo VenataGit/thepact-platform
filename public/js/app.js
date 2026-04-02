@@ -582,21 +582,20 @@ async function renderCardPage(el, cardId) {
     el.innerHTML = `
       <div class="card-page">
         <div class="card-page__toolbar">
-          <button class="btn btn-sm" onclick="toggleBookmark('card',${cardId},'${esc(card.title)}')" title="Запази в отметки">⚑</button>
-          <button class="btn btn-sm" onclick="toggleBoardMenu(event, ${card.board_id}, ${cardId})">⋯</button>
+          <button class="btn btn-sm btn-ghost" onclick="toggleBookmark('card',${cardId},'${esc(card.title)}')" title="Запази в отметки">⚑</button>
+          <button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${card.board_id}, ${cardId})">⋯</button>
         </div>
 
-        <article class="card-perma">
-          <header class="card-perma__header">
-            <h1 class="card-perma__title">
-              ${manage ? `<a href="#/card/${cardId}/edit" class="card-perma__title-link">${esc(card.title)}</a>` : esc(card.title)}
-            </h1>
+        <article class="card-modal edit-mode">
+          <header class="card-header">
+            <div class="card-icon">🗂️</div>
+            <h1 class="card-perma__title">${esc(card.title)}</h1>
           </header>
 
-          <section class="card-perma__details">
-            <div class="card-field">
-              <strong>Колона</strong>
-              <div class="card-field__value">
+          <section class="card-metadata">
+            <div class="meta-row">
+              <span class="meta-label">Колона</span>
+              <div class="meta-value">
                 <span class="column-badge">${esc(col?.title || '—')}</span>
                 ${manage ? `<select class="input input-sm" onchange="moveCard(${cardId}, this.value)" style="margin-left:8px;width:auto">
                   <option value="">Премести в...</option>
@@ -604,65 +603,74 @@ async function renderCardPage(el, cardId) {
                 </select>` : ''}
               </div>
             </div>
-            <div class="card-field">
-              <strong>Възложено на</strong>
-              <div class="card-field__value">
+            <div class="meta-row">
+              <span class="meta-label">Възложено на</span>
+              <div class="meta-value">
                 ${card.assignees?.length > 0
                   ? card.assignees.map(a => `<span class="assignee-tag">${esc(a.name)}</span>`).join(' ')
-                  : `<span style="color:var(--text-dim)">Възложи на...</span>`}
+                  : `<span style="color:var(--text-dim)">Няма</span>`}
                 ${manage ? `<select class="input input-sm" style="margin-left:8px;width:auto" onchange="addAssignee(${cardId}, this.value)">
                   <option value="">+ Добави...</option>
                   ${allUsers.filter(u => !card.assignees?.some(a => a.id === u.id)).map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}
                 </select>` : ''}
               </div>
             </div>
-            <div class="card-field">
-              <strong>Краен срок</strong>
-              <div class="card-field__value">
-                ${manage ? `<input type="date" lang="bg" class="input input-sm" value="${card.due_on || ''}" onchange="updateField(${cardId},'due_on',this.value||null)" style="width:auto" title="дд.мм.гггг">` : `<span>${card.due_on ? formatDate(card.due_on) : '—'}</span>`}
-              </div>
-            </div>
-            <div class="card-field card-field--notes">
-              <strong>Бележки</strong>
-              <div class="card-field__value card-content-area">
+            <div class="meta-row">
+              <span class="meta-label">Краен срок</span>
+              <div class="meta-value">
                 ${manage ? `
-                  <input id="cardNotesInput" type="hidden" value="${esc(card.content || '')}">
-                  <trix-editor input="cardNotesInput" class="trix-dark" placeholder="Добави бележки..."></trix-editor>
-                  <button class="btn btn-sm btn-save-notes" onclick="saveCardNotes(${cardId})">Запази бележки</button>
-                ` : (card.content ? `<div class="rich-content">${card.content}</div>` : '<span style="color:var(--text-dim)">Добави бележки...</span>')}
+                  <label class="radio-label"><input type="radio" name="due_${cardId}" ${!card.due_on ? 'checked' : ''} onchange="updateField(${cardId},'due_on',null)"> Без краен срок</label>
+                  <label class="radio-label"><input type="radio" name="due_${cardId}" ${card.due_on ? 'checked' : ''}> Конкретна дата</label>
+                  <input type="date" class="input input-sm" value="${card.due_on || ''}" onchange="updateField(${cardId},'due_on',this.value||null);this.closest('.meta-value').querySelector('input[type=radio]:last-of-type').checked=true" style="width:auto;margin-left:4px">
+                ` : `<span>${card.due_on ? formatDate(card.due_on) : 'Без краен срок'}</span>`}
               </div>
             </div>
           </section>
 
+          <section class="card-notes-section">
+            <h4>Бележки</h4>
+            <div class="editor-container">
+              ${manage ? `
+                <input id="cardNotesInput" type="hidden" value="${esc(card.content || '')}">
+                <trix-editor input="cardNotesInput" class="trix-dark" placeholder="Добави бележки..."></trix-editor>
+              ` : (card.content ? `<div class="rich-content" style="padding:15px">${card.content}</div>` : '<div style="padding:15px;color:var(--text-dim)">Няма бележки</div>')}
+            </div>
+            ${manage ? `<div class="edit-actions">
+              <button class="btn-save" onclick="saveCardNotes(${cardId})">Запази промените</button>
+              <button class="btn-discard" onclick="router()">Откажи промените</button>
+            </div>` : ''}
+          </section>
+
           <!-- Steps -->
-          <section class="card-perma__steps">
-            <div class="steps-header">
-              <span style="font-weight:600;color:var(--text)">Стъпки</span>
-              <span style="color:var(--text-dim);font-size:12px">(${card.steps?.filter(s=>s.completed).length||0}/${card.steps?.length||0})</span>
+          <section class="card-steps-section">
+            <h4>Стъпки</h4>
+            <div class="steps-header-bar">
+              <span style="color:var(--text-dim);font-size:12px">${card.steps?.filter(s=>s.completed).length||0} от ${card.steps?.length||0} завършени</span>
               ${card.steps?.length ? `<div class="steps-progress"><div class="steps-progress__fill" style="width:${Math.round((card.steps.filter(s=>s.completed).length/card.steps.length)*100)}%"></div></div>` : ''}
             </div>
-            <div class="steps-list">
+            <ul class="checklist">
               ${(card.steps||[]).map(s => `
-                <div class="step-item ${s.completed ? 'completed' : ''}">
+                <li class="checklist-item ${s.completed ? 'completed' : ''}">
                   <input type="checkbox" ${s.completed?'checked':''} onchange="toggleStep(${cardId},${s.id},this.checked)">
-                  <span class="step-title">${esc(s.title)}</span>
+                  <span class="checklist-title">${esc(s.title)}</span>
                   ${s.assignee_id ? `<span class="step-assignee">${esc(allUsers.find(u=>u.id===s.assignee_id)?.name||'')}</span>` : ''}
                   ${s.due_on ? `<span class="step-due">${formatDate(s.due_on)}</span>` : ''}
-                </div>`).join('')}
-            </div>
-            <div class="add-step-row">
-              <input id="newStepInput" placeholder="Добави стъпка..." onkeydown="if(event.key==='Enter')addStepFromPage(${cardId})">
-              <select id="newStepAssignee" style="width:120px"><option value="">Възложи...</option>${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
-              <input type="date" id="newStepDue" style="width:130px">
-              <button class="btn btn-sm" onclick="addStepFromPage(${cardId})">+</button>
-            </div>
+                </li>`).join('')}
+              <li class="checklist-item add-new-step">
+                <input id="newStepInput" type="text" placeholder="Добави нова стъпка..." onkeydown="if(event.key==='Enter')addStepFromPage(${cardId})">
+                <select id="newStepAssignee" style="width:110px"><option value="">Възложи...</option>${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
+                <input type="date" id="newStepDue" style="width:120px">
+                <button class="btn btn-sm" onclick="addStepFromPage(${cardId})">+</button>
+              </li>
+            </ul>
           </section>
 
           <!-- Attachments -->
           <section class="card-attachments" id="cardAttachments"></section>
 
           <!-- Comments -->
-          <section class="card-perma__comments">
+          <section class="card-comments-section">
+            <h4>Коментари</h4>
             ${comments.map((c, ci) => {
               const commentColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
               const cc = commentColors[(c.user_name||'').length % commentColors.length];

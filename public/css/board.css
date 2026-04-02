@@ -192,6 +192,45 @@
 .steps-progress { height: 4px; background: var(--bg-hover); border-radius: 2px; overflow: hidden; flex: 1; }
 .steps-progress__fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s ease; }
 
+/* ==================== CARD MODAL (Basecamp Edit Mode) ==================== */
+.card-modal { max-width: 760px; margin: 0 auto; }
+.card-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.card-icon { font-size: 28px; flex-shrink: 0; }
+.card-header .card-perma__title { font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -0.02em; line-height: 1.2; margin: 0; }
+
+.card-metadata { margin-bottom: 24px; }
+.meta-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.meta-label { font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; min-width: 110px; flex-shrink: 0; }
+.meta-value { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.radio-label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-size: 13px; color: var(--text-secondary); margin-right: 12px; }
+.radio-label input[type="radio"] { accent-color: var(--accent); width: 14px; height: 14px; }
+
+.card-notes-section { margin-bottom: 28px; }
+.card-notes-section h4, .card-steps-section h4, .card-comments-section h4 { font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; }
+.editor-container { border: 1px solid var(--border); border-radius: 8px; background: rgba(0,0,0,0.2); overflow: hidden; }
+.editor-container trix-toolbar { border: none; border-bottom: 1px solid var(--border); border-radius: 0; background: rgba(255,255,255,0.03); }
+.editor-container trix-editor.trix-dark { border: none; border-radius: 0; min-height: 120px; }
+
+.edit-actions { margin-top: 14px; display: flex; gap: 16px; align-items: center; }
+.btn-save { background-color: #46a374; color: #fff; border: none; padding: 9px 22px; border-radius: 20px; font-weight: 700; cursor: pointer; font-size: 13px; font-family: inherit; transition: background var(--transition-fast); }
+.btn-save:hover { background-color: #3d9168; }
+.btn-discard { background: transparent; border: none; color: var(--text-dim); text-decoration: underline; cursor: pointer; font-size: 13px; font-family: inherit; padding: 4px; }
+.btn-discard:hover { color: #fff; }
+
+.card-steps-section { margin-bottom: 28px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+.steps-header-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.checklist { list-style: none; padding: 0; margin: 0; }
+.checklist-item { display: flex; align-items: center; gap: 8px; padding: 8px 4px; border-radius: 4px; transition: background var(--transition-fast); }
+.checklist-item:hover { background: var(--bg-hover); }
+.checklist-item.completed .checklist-title { text-decoration: line-through; color: var(--text-dim); }
+.checklist-item input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+.checklist-title { flex: 1; font-size: 13px; }
+.add-new-step { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 12px; }
+.add-new-step input[type="text"] { flex: 1; background: transparent; border: none; color: var(--text); font-size: 13px; padding: 4px 0; outline: none; font-family: inherit; }
+.add-new-step input[type="text"]::placeholder { color: var(--text-dim); }
+
+.card-comments-section { margin-top: 28px; }
+
 /* Card create form */
 .card-create-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 28px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
 .edit-row { margin-bottom: 14px; }
