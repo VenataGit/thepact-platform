@@ -256,4 +256,21 @@ router.delete('/:cardId/steps/:stepId', requireAuth, async (req, res) => {
   }
 });
 
+// === NOTES ===
+
+// POST /api/cards/:id/notes
+router.post('/:id/notes', requireAuth, async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ error: 'Content required' });
+    const note = await queryOne(
+      'INSERT INTO card_notes (card_id, user_id, content) VALUES ($1, $2, $3) RETURNING *',
+      [req.params.id, req.user.userId, content.trim()]
+    );
+    res.status(201).json(note);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

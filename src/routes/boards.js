@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireModerator } = require('../middleware/auth');
+const { broadcast } = require('../ws/broadcast');
 
 // GET /api/boards — all boards with columns
 router.get('/', requireAuth, async (req, res) => {
@@ -20,8 +21,20 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/boards — create board (admin)
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+// GET /api/boards/:id — single board with columns
+router.get('/:id', requireAuth, async (req, res) => {
+  try {
+    const board = await queryOne('SELECT * FROM boards WHERE id = $1', [req.params.id]);
+    if (!board) return res.status(404).json({ error: 'Board not found' });
+    const columns = await query('SELECT * FROM columns WHERE board_id = $1 ORDER BY position', [req.params.id]);
+    res.json({ ...board, columns });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/boards — create board
+router.post('/', requireAuth, requireModerator, async (req, res) => {
   try {
     const { title, color } = req.body;
     if (!title) return res.status(400).json({ error: 'Title required' });
@@ -30,6 +43,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
       'INSERT INTO boards (title, color, position) VALUES ($1, $2, $3) RETURNING *',
       [title, color || null, maxPos.pos]
     );
+    broadcast({ type: 'board:created', board }, req.user.userId);
     res.status(201).json(board);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -37,7 +51,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // PUT /api/boards/:id — update board
-router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
+router.put('/:id', requireAuth, requireModerator, async (req, res) => {
   try {
     const { title, color, position } = req.body;
     const board = await queryOne(
@@ -45,14 +59,27 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
       [title, color, position, req.params.id]
     );
     if (!board) return res.status(404).json({ error: 'Board not found' });
+    broadcast({ type: 'board:updated', board }, req.user.userId);
     res.json(board);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+// DELETE /api/boards/:id — delete board (and all columns/cards cascade)
+router.delete('/:id', requireAuth, requireModerator, async (req, res) => {
+  try {
+    const board = await queryOne('DELETE FROM boards WHERE id = $1 RETURNING *', [req.params.id]);
+    if (!board) return res.status(404).json({ error: 'Board not found' });
+    broadcast({ type: 'board:deleted', boardId: board.id }, req.user.userId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/boards/:id/columns — add column
-router.post('/:id/columns', requireAuth, requireAdmin, async (req, res) => {
+router.post('/:id/columns', requireAuth, requireModerator, async (req, res) => {
   try {
     const { title, is_done_column } = req.body;
     if (!title) return res.status(400).json({ error: 'Title required' });
@@ -64,6 +91,7 @@ router.post('/:id/columns', requireAuth, requireAdmin, async (req, res) => {
       'INSERT INTO columns (board_id, title, position, is_done_column) VALUES ($1, $2, $3, $4) RETURNING *',
       [req.params.id, title, maxPos.pos, is_done_column || false]
     );
+    broadcast({ type: 'column:created', column: col, boardId: parseInt(req.params.id) }, req.user.userId);
     res.status(201).json(col);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -71,7 +99,7 @@ router.post('/:id/columns', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // PUT /api/boards/:boardId/columns/:colId — update column
-router.put('/:boardId/columns/:colId', requireAuth, requireAdmin, async (req, res) => {
+router.put('/:boardId/columns/:colId', requireAuth, requireModerator, async (req, res) => {
   try {
     const { title, position, is_done_column, wip_limit } = req.body;
     const col = await queryOne(
@@ -81,7 +109,23 @@ router.put('/:boardId/columns/:colId', requireAuth, requireAdmin, async (req, re
       [title, position, is_done_column, wip_limit, req.params.colId, req.params.boardId]
     );
     if (!col) return res.status(404).json({ error: 'Column not found' });
+    broadcast({ type: 'column:updated', column: col, boardId: parseInt(req.params.boardId) }, req.user.userId);
     res.json(col);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/boards/:boardId/columns/:colId — delete column
+router.delete('/:boardId/columns/:colId', requireAuth, requireModerator, async (req, res) => {
+  try {
+    const col = await queryOne(
+      'DELETE FROM columns WHERE id = $1 AND board_id = $2 RETURNING *',
+      [req.params.colId, req.params.boardId]
+    );
+    if (!col) return res.status(404).json({ error: 'Column not found' });
+    broadcast({ type: 'column:deleted', columnId: col.id, boardId: parseInt(req.params.boardId) }, req.user.userId);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }

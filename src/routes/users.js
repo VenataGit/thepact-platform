@@ -1,0 +1,87 @@
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcrypt');
+const { query, queryOne, execute } = require('../db/pool');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
+const config = require('../config');
+
+// GET /api/users — list all users (admin only)
+router.get('/', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const users = await query(
+      'SELECT id, email, name, avatar_url, role, is_active, last_login_at, created_at FROM users ORDER BY name'
+    );
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/users/team — list all active users (any authenticated user)
+router.get('/team', requireAuth, async (req, res) => {
+  try {
+    const users = await query(
+      'SELECT id, name, avatar_url, role FROM users WHERE is_active = TRUE ORDER BY name'
+    );
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/users — create user (admin only)
+router.post('/', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { email, password, name, role } = req.body;
+    if (!email || !password || !name) return res.status(400).json({ error: 'email, password, name required' });
+    const validRoles = ['admin', 'moderator', 'member'];
+    const userRole = validRoles.includes(role) ? role : 'member';
+
+    const existing = await queryOne('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing) return res.status(409).json({ error: 'Email already exists' });
+
+    const hash = await bcrypt.hash(password, config.BCRYPT_ROUNDS);
+    const user = await queryOne(
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role, created_at',
+      [email, hash, name, userRole]
+    );
+    res.status(201).json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/users/:id/role — change user role (admin only)
+router.put('/:id/role', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { role } = req.body;
+    const validRoles = ['admin', 'moderator', 'member'];
+    if (!validRoles.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+
+    const user = await queryOne(
+      'UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, name, role',
+      [role, req.params.id]
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/users/:id/active — toggle user active status (admin only)
+router.put('/:id/active', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { is_active } = req.body;
+    const user = await queryOne(
+      'UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, name, role, is_active',
+      [is_active, req.params.id]
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+module.exports = router;

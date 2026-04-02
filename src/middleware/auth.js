@@ -48,6 +48,14 @@ function requireAuth(req, res, next) {
   }
 }
 
+// Middleware: require moderator or admin role
+function requireModerator(req, res, next) {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'moderator') {
+    return res.status(403).json({ error: 'Moderator access required' });
+  }
+  next();
+}
+
 // Middleware: require admin role
 function requireAdmin(req, res, next) {
   if (req.user?.role !== 'admin') {
@@ -70,5 +78,5 @@ function verifyFromCookieHeader(cookieHeader) {
 
 module.exports = {
   COOKIE_NAME, signToken, setTokenCookie, clearTokenCookie,
-  requireAuth, requireAdmin, verifyFromCookieHeader
+  requireAuth, requireModerator, requireAdmin, verifyFromCookieHeader
 };

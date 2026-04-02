@@ -84,6 +84,7 @@ app.use('/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/boards', require('./routes/boards'));
 app.use('/api/cards', require('./routes/cards'));
+app.use('/api/users', require('./routes/users'));
 
 // Serve login page if not authenticated (check for JWT cookie)
 app.get('/', (req, res) => {
