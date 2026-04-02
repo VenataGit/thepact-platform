@@ -79,6 +79,21 @@ app.post('/deploy', (req, res) => {
   }
 });
 
+// Run migrations endpoint (uses deploy secret)
+app.post('/migrate', async (req, res) => {
+  const secret = req.query.secret || req.body?.secret;
+  if (!config.DEPLOY_SECRET || secret !== config.DEPLOY_SECRET) {
+    return res.status(403).json({ error: 'Invalid secret' });
+  }
+  const { execSync } = require('child_process');
+  try {
+    const out = execSync('node scripts/run-new-migrations.js', { cwd: path.join(__dirname, '..'), timeout: 60000, env: { ...process.env, DATABASE_URL: config.DATABASE_URL } }).toString();
+    res.json({ ok: true, output: out.trim() });
+  } catch (err) {
+    res.status(500).json({ error: err.message, output: err.stdout?.toString() || '' });
+  }
+});
+
 // Routes — Core
 app.use('/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));
