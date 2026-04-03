@@ -102,11 +102,6 @@
 .kanban-column:last-of-type { border-right: none; }
 .kanban-column__inner { display: flex; flex-direction: column; flex: 1; padding: 0 14px; }
 
-/* Colored top bar per column */
-.column-color-bar {
-  height: 5px; background: var(--col-color, var(--accent));
-  border-radius: 0; flex-shrink: 0; margin: 0;
-}
 
 .column-header {
   display: flex; justify-content: space-between; align-items: center;
