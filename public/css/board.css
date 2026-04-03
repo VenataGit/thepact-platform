@@ -218,7 +218,7 @@
 
 /* Editor — Basecamp Trix style */
 .bc-editor { border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.15); overflow: hidden; width: 100%; }
-.bc-editor trix-toolbar { border: none; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.03); }
+.bc-editor trix-toolbar { border: none; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.03); border-radius: 0; padding: 4px 8px; }
 .bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; padding: 12px; color: var(--text); }
 
 /* Steps — expandable items */
@@ -408,7 +408,10 @@ trix-toolbar .trix-button {
   color: var(--text-secondary, #8fa3b0);
   border-color: var(--border, #2a3f4d);
   padding: 4px 8px;
+  filter: invert(0.8);
 }
+trix-toolbar .trix-button:hover { filter: invert(1); }
+trix-toolbar .trix-button.trix-active { filter: invert(1) sepia(1) saturate(5) hue-rotate(175deg); }
 trix-toolbar .trix-button:hover { background: var(--bg-hover, #2a4454); color: #fff; }
 trix-toolbar .trix-button.trix-active { background: var(--accent-dim, rgba(28,176,246,0.12)); color: var(--accent, #1cb0f6); }
 trix-toolbar .trix-button-group:not(:first-child) { margin-left: 4px; }
