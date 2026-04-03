@@ -542,7 +542,6 @@ async function renderBoard(el, boardId) {
         <h1 class="board-page-header__title">${esc(board.title)}</h1>
         <div class="board-page-header__actions">
           <div class="board-page-header__watchers">
-            <span class="board-page-header__watcher-label">Екип</span>
             <div class="board-page-header__watcher-avatars">
               ${allUsers.slice(0,6).map((u,i) => `<div class="board-page-header__watcher-av" style="background:${wColors[i%wColors.length]}" title="${esc(u.name)}">${initials(u.name)}</div>`).join('')}
             </div>
