@@ -154,6 +154,7 @@ function router() {
     case 'admin': return renderAdmin(el);
     case 'reports': return renderReports(el);
     case 'bookmarks': return renderBookmarks(el);
+    case 'kp-auto': return renderKpAuto(el);
     default: return renderHome(el);
   }
 }
@@ -2140,6 +2141,194 @@ async function renderReports(el) {
         </div>
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
+}
+
+// ==================== КП АВТОМАТИЗАЦИЯ ====================
+async function renderKpAuto(el) {
+  setBreadcrumb([{ label: 'Инструменти' }, { label: 'КП-Автоматизация' }]);
+  el.className = '';
+  el.innerHTML = '<div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--text-dim)">Зареждане...</div></div>';
+  await loadKpAuto(el);
+}
+
+async function loadKpAuto(el) {
+  try {
+    const clients = await (await fetch('/api/kp/clients')).json();
+
+    const needsKp = clients.filter(function(c) { return !c.has_kp_card; });
+    var warningHtml = '';
+    if (needsKp.length > 0) {
+      warningHtml = '<div class="kp-warning">' +
+        '<span>⚠️</span>' +
+        '<span>' + (needsKp.length === 1 ? esc(needsKp[0].name) + ' няма активна карта в Измисляне' : needsKp.length + ' клиента нямат активна карта в Измисляне') + ' — трябва да се пусне следващ КП</span>' +
+      '</div>';
+    }
+
+    var rowsHtml = '';
+    clients.forEach(function(c) {
+      var autoCreateDate = '—';
+      if (c.next_kp_date) {
+        var nkd = new Date(c.next_kp_date + 'T12:00:00');
+        nkd.setDate(nkd.getDate() - 21);
+        var today = new Date(); today.setHours(0,0,0,0);
+        var autoStr = nkd.toLocaleDateString('bg-BG', { day:'2-digit', month:'2-digit', year:'numeric' });
+        autoCreateDate = nkd <= today
+          ? '<span style="color:var(--red)">' + autoStr + ' ⚠</span>'
+          : autoStr;
+      }
+      var missingKp = !c.has_kp_card;
+      var rowBg = missingKp ? 'background:rgba(220,120,0,0.08);' : '';
+      var nameCell = missingKp
+        ? '<td class="kp-td"><strong>' + esc(c.name) + '</strong> <span style="color:#e8a030" title="Няма карта в Измисляне">⚠️</span></td>'
+        : '<td class="kp-td"><strong>' + esc(c.name) + '</strong></td>';
+      var actionBtn = missingKp
+        ? '<button class="btn btn-sm kp-launch-btn" onclick="createKpCardNow(' + c.id + ',\'' + esc(c.name) + '\')">🚀 Пусни КП</button>'
+        : '<button class="btn btn-sm" onclick="createKpCardNow(' + c.id + ',\'' + esc(c.name) + '\')">📋 Нов КП</button>';
+      rowsHtml += '<tr style="' + rowBg + '">' +
+        nameCell +
+        '<td class="kp-td">' + (c.videos_per_month || 10) + '</td>' +
+        '<td class="kp-td">' + (c.publish_interval_days || 3) + 'д</td>' +
+        '<td class="kp-td">КП-' + (c.current_kp_number || 1) + '</td>' +
+        '<td class="kp-td">' + (c.first_publish_date ? new Date(c.first_publish_date).toLocaleDateString('bg-BG') : '—') + '</td>' +
+        '<td class="kp-td">' + (c.last_video_date ? new Date(c.last_video_date).toLocaleDateString('bg-BG') : '—') + '</td>' +
+        '<td class="kp-td">' + (c.next_kp_date ? new Date(c.next_kp_date).toLocaleDateString('bg-BG') : '—') + '</td>' +
+        '<td class="kp-td">' + autoCreateDate + '</td>' +
+        '<td class="kp-td" style="display:flex;gap:4px">' +
+          '<button class="btn btn-sm" onclick="editKpClientForm(' + c.id + ')">✏️</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="deleteKpClientNow(' + c.id + ',\'' + esc(c.name) + '\')">🗑️</button>' +
+          actionBtn +
+        '</td>' +
+      '</tr>';
+    });
+
+    var tableHtml = clients.length === 0
+      ? '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма клиенти. Добавете първия.</div>'
+      : '<div class="kp-table-wrap"><table class="kp-table">' +
+          '<thead><tr>' +
+            '<th class="kp-th">Клиент</th><th class="kp-th">Видеа</th><th class="kp-th">Интервал</th>' +
+            '<th class="kp-th">Текущ КП</th><th class="kp-th">Първо видео</th><th class="kp-th">Последно видео</th>' +
+            '<th class="kp-th">Следващ КП</th><th class="kp-th">Създаване на</th><th class="kp-th">Действия</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rowsHtml + '</tbody>' +
+        '</table></div>';
+
+    el.innerHTML = '<div class="kp-auto-wrap">' +
+      '<div class="kp-auto-header">' +
+        '<h2 class="kp-auto-title">📋 КП-Автоматизация</h2>' +
+        '<button class="btn btn-primary" onclick="showKpClientForm()">+ Нов клиент</button>' +
+      '</div>' +
+      warningHtml +
+      '<div id="kpClientFormWrap" style="display:none"></div>' +
+      tableHtml +
+    '</div>';
+  } catch (err) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc(err.message) + '</div>';
+  }
+}
+
+function showKpClientForm(editData) {
+  var wrap = document.getElementById('kpClientFormWrap');
+  if (!wrap) return;
+  var isEdit = !!editData;
+  wrap.style.display = 'block';
+  wrap.innerHTML = '<div class="kp-form-box">' +
+    '<h4 style="margin:0 0 16px">' + (isEdit ? 'Редактиране' : 'Нов клиент') + '</h4>' +
+    '<div class="kp-form-grid">' +
+      '<div><label class="kp-label">Клиент</label><input class="input" type="text" id="kpName" value="' + (isEdit ? esc(editData.name) : '') + '" placeholder="Име на клиент"></div>' +
+      '<div><label class="kp-label">Видеа в КП</label><input class="input" type="number" id="kpVideos" value="' + (isEdit ? (editData.videos_per_month || 10) : 10) + '" min="1" max="50" onchange="kpRecalcDates()"></div>' +
+      '<div><label class="kp-label">Интервал (дни)</label><input class="input" type="number" id="kpInterval" value="' + (isEdit ? (editData.publish_interval_days || 3) : 3) + '" min="1" max="30" onchange="kpRecalcDates()"></div>' +
+      '<div><label class="kp-label">Текущ КП №</label><input class="input" type="number" id="kpKpNum" value="' + (isEdit ? (editData.current_kp_number || 1) : 1) + '" min="1"></div>' +
+      '<div><label class="kp-label">Дата първо видео</label><input class="input" type="date" id="kpFirstDate" value="' + (isEdit ? (editData.first_publish_date || '').split('T')[0] : '') + '" onclick="this.showPicker?.()" onchange="kpRecalcDates()"></div>' +
+      '<div><label class="kp-label">Последно видео <span style="opacity:.5">(авто)</span></label><input class="input" type="date" id="kpLastDate" value="' + (isEdit ? (editData.last_video_date || '').split('T')[0] : '') + '" onclick="this.showPicker?.()"></div>' +
+      '<div><label class="kp-label">Следващ КП първо видео <span style="opacity:.5">(авто)</span></label><input class="input" type="date" id="kpNextDate" value="' + (isEdit ? (editData.next_kp_date || '').split('T')[0] : '') + '" onclick="this.showPicker?.()"></div>' +
+    '</div>' +
+    '<div style="margin-top:12px"><label class="kp-label">Бележки</label><textarea class="input" id="kpNotes" rows="2" style="width:100%;resize:vertical">' + (isEdit ? esc(editData.notes || '') : '') + '</textarea></div>' +
+    '<div style="margin-top:16px;display:flex;gap:8px">' +
+      '<button class="btn btn-primary" onclick="saveKpClient(' + (isEdit ? editData.id : 'null') + ')">' + (isEdit ? 'Запази' : 'Добави') + '</button>' +
+      '<button class="btn" onclick="document.getElementById(\'kpClientFormWrap\').style.display=\'none\'">Отказ</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function kpRecalcDates() {
+  var firstDate = document.getElementById('kpFirstDate') && document.getElementById('kpFirstDate').value;
+  var videos = parseInt((document.getElementById('kpVideos') || {}).value) || 10;
+  var interval = parseInt((document.getElementById('kpInterval') || {}).value) || 3;
+  if (!firstDate) return;
+  var first = new Date(firstDate + 'T12:00:00');
+  var last = new Date(first); last.setDate(last.getDate() + (videos - 1) * interval);
+  var nextFirst = new Date(last); nextFirst.setDate(nextFirst.getDate() + interval);
+  if (document.getElementById('kpLastDate')) document.getElementById('kpLastDate').value = last.toISOString().split('T')[0];
+  if (document.getElementById('kpNextDate')) document.getElementById('kpNextDate').value = nextFirst.toISOString().split('T')[0];
+}
+
+async function editKpClientForm(id) {
+  try {
+    var clients = await (await fetch('/api/kp/clients')).json();
+    var client = clients.find(function(c) { return c.id === id; });
+    if (client) showKpClientForm(client);
+  } catch (err) { alert('Грешка: ' + err.message); }
+}
+
+async function saveKpClient(id) {
+  var name = document.getElementById('kpName').value.trim();
+  if (!name) return alert('Въведи име на клиент');
+  var data = {
+    name: name,
+    videos_per_month: parseInt(document.getElementById('kpVideos').value) || 10,
+    publish_interval_days: parseInt(document.getElementById('kpInterval').value) || 3,
+    current_kp_number: parseInt(document.getElementById('kpKpNum').value) || 1,
+    first_publish_date: document.getElementById('kpFirstDate').value || null,
+    last_video_date: document.getElementById('kpLastDate').value || null,
+    next_kp_date: document.getElementById('kpNextDate').value || null,
+    notes: document.getElementById('kpNotes').value || null
+  };
+  try {
+    var url = id ? '/api/kp/clients/' + id : '/api/kp/clients';
+    var method = id ? 'PUT' : 'POST';
+    var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    var json = await res.json();
+    if (!res.ok) return alert('Грешка: ' + (json.error || 'Unknown'));
+    document.getElementById('kpClientFormWrap').style.display = 'none';
+    var el = document.getElementById('pageContent');
+    if (el) await loadKpAuto(el);
+    // Auto-create KP card for new client with date set
+    if (!id && data.first_publish_date && json.id) {
+      var cardRes = await fetch('/api/kp/create-card/' + json.id, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ firstPublishDate: data.first_publish_date })
+      });
+      var cardData = await cardRes.json();
+      if (cardData.ok) alert('✅ Клиентът е добавен и КП картата е създадена:\n' + cardData.title);
+      else alert('⚠️ Клиентът е добавен, но КП картата не се създаде:\n' + (cardData.error || 'Грешка'));
+      if (el) await loadKpAuto(el);
+    }
+  } catch (err) { alert('Грешка: ' + err.message); }
+}
+
+async function createKpCardNow(clientId, clientName) {
+  if (!confirm('Създай нов контент план за ' + clientName + ' в платформата?')) return;
+  try {
+    var res = await fetch('/api/kp/create-card/' + clientId, { method: 'POST', headers: {'Content-Type':'application/json'} });
+    var data = await res.json();
+    if (data.ok) {
+      alert('✅ Създадено: ' + data.title);
+      var el = document.getElementById('pageContent');
+      if (el) await loadKpAuto(el);
+    } else {
+      alert('Грешка: ' + (data.error || 'Unknown'));
+    }
+  } catch (err) { alert('Грешка: ' + err.message); }
+}
+
+async function deleteKpClientNow(clientId, clientName) {
+  if (!confirm('Изтрий клиент "' + clientName + '"?\n\nТова ще скрие записа от автоматизацията.')) return;
+  try {
+    var res = await fetch('/api/kp/clients/' + clientId, { method: 'DELETE' });
+    var data = await res.json();
+    if (data.ok) { var el = document.getElementById('pageContent'); if (el) await loadKpAuto(el); }
+    else alert('Грешка: ' + (data.error || 'Unknown'));
+  } catch (err) { alert('Грешка: ' + err.message); }
 }
 
 // ==================== BOOKMARKS ====================
