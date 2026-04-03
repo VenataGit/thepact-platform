@@ -22,6 +22,15 @@ const KP_DEFAULT_TEMPLATE = `Дата за публикуване на първ�
 
 {video_sections}`;
 
+// Convert plain-text (with \n) to Trix-compatible HTML so card content renders properly
+function textToHtml(text) {
+  if (!text) return '';
+  return text.split('\n').map(line => {
+    const esc = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return esc === '' ? '<div><br></div>' : `<div>${esc}</div>`;
+  }).join('');
+}
+
 function addWorkingDays(date, days) {
   const result = new Date(date);
   let added = 0;
@@ -312,7 +321,7 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
     const card = await queryOne(
       `INSERT INTO cards (board_id, column_id, title, content, due_on, creator_id, client_name, kp_number, position)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [izmislianeCol.board_id, izmislianeCol.id, title, content, dueDateStr,
+      [izmislianeCol.board_id, izmislianeCol.id, title, textToHtml(content), dueDateStr,
        req.user.userId, client.name, kpNumber, maxPos.pos]
     );
 
@@ -393,7 +402,7 @@ router.post('/generate-video-cards/:cardId', requireAuth, async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
         [
           targetCol.board_id, targetCol.id, videoCardTitle,
-          section.sectionText || null,
+          section.sectionText ? textToHtml(section.sectionText) : null,
           publishDate ? publishDate.toISOString().split('T')[0] : null,
           publishDate ? publishDate.toISOString().split('T')[0] : null,
           req.user.userId,
