@@ -856,13 +856,14 @@ function renderKanbanCard(card, colColor) {
     : `<div class="kanban-card__av kanban-card__av--empty">–</div>`;
 
   const holdLabel = card.is_on_hold ? `<span class="kanban-card__hold-badge">⏸ На изчакване</span>` : '';
+  const priorityBadge = card.priority === 'urgent' ? '<span class="kanban-card__priority-badge kanban-card__priority-badge--urgent">\ud83d\udd34 \u0421\u043f\u0435\u0448\u043d\u043e</span>' : card.priority === 'high' ? '<span class="kanban-card__priority-badge kanban-card__priority-badge--high">\u2191 \u0412\u0438\u0441\u043e\u043a</span>' : '';
   return `
     <div class="kanban-card-wrap">
       <a class="kanban-card ${color}" href="#/card/${card.id}" draggable="true" data-card-id="${card.id}"
          ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)"
          onauxclick="if(event.button===1){event.preventDefault();window.open('#/card/${card.id}','_blank')}">
         <div class="kanban-card__content">
-          ${holdLabel}
+          ${holdLabel}${priorityBadge}
           <h3 class="kanban-card__title">${esc(card.title)}</h3>
           <div class="kanban-card__footer">
             <div class="kanban-card__avatars">${avatarsHtml}</div>
@@ -2565,7 +2566,7 @@ function showAdminTab(tab, btn) {
 }
 async function createNewUser() {
   const name = prompt('Име:'); if(!name?.trim()) return;
-  const email = prompt('Email:'); if(!email?.trim()) return;
+  const email = prompt('\u0418\u043c\u0435\u0439\u043b:'); if(!email?.trim()) return;
   const password = prompt('Парола:'); if(!password?.trim()) return;
   try { await fetch('/api/users', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),email:email.trim(),password})}); router(); } catch {}
 }
@@ -3234,12 +3235,24 @@ function showKanbanCardMenu(e, cardId, isOnHold) {
   document.querySelectorAll('.kanban-card-context').forEach(m => m.remove());
   const menu = document.createElement('div');
   menu.className = 'kanban-card-context';
-  menu.innerHTML = isOnHold
-    ? `<button onclick="toggleCardHold(${cardId},false);this.parentElement.remove()">▶ Върни в колоната</button>`
-    : `<button onclick="toggleCardHold(${cardId},true);this.parentElement.remove()">⏸ Сложи на изчакване</button>`;
+  const holdBtn = isOnHold
+    ? `<button onclick="toggleCardHold(${cardId},false);this.parentElement.remove()">\u25b6 \u0412\u044a\u0440\u043d\u0438 \u0432 \u043a\u043e\u043b\u043e\u043d\u0430\u0442\u0430</button>`
+    : `<button onclick="toggleCardHold(${cardId},true);this.parentElement.remove()">\u23f8 \u0421\u043b\u043e\u0436\u0438 \u043d\u0430 \u0438\u0437\u0447\u0430\u043a\u0432\u0430\u043d\u0435</button>`;
+  menu.innerHTML =
+    `<a class="kanban-card-context__link" href="#/card/${cardId}">\u270f\ufe0f \u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0430\u0439</a>` +
+    `<div class="kanban-card-context__sep"></div>` +
+    `<button onclick="setCardPriorityQuick(${cardId},'urgent');this.parentElement.remove()">\ud83d\udd34 \u0421\u043f\u0435\u0448\u043d\u043e</button>` +
+    `<button onclick="setCardPriorityQuick(${cardId},'high');this.parentElement.remove()">\u2191 \u0412\u0438\u0441\u043e\u043a \u043f\u0440\u0438\u043e\u0440\u0438\u0442\u0435\u0442</button>` +
+    `<button onclick="setCardPriorityQuick(${cardId},'normal');this.parentElement.remove()">\u2014 \u041d\u043e\u0440\u043c\u0430\u043b\u0435\u043d</button>` +
+    `<div class="kanban-card-context__sep"></div>` +
+    holdBtn;
   menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:9999`;
   document.body.appendChild(menu);
   setTimeout(() => document.addEventListener('click', () => menu.remove(), {once:true}), 10);
+}
+async function setCardPriorityQuick(cardId, priority) {
+  await updateField(cardId, 'priority', priority);
+  router();
 }
 async function toggleCardHold(cardId, hold) {
   try {
