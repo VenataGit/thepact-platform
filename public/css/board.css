@@ -304,6 +304,13 @@
 .bc-select-inline:hover { border-color: var(--accent); }
 .bc-select-inline--ghost { border-color: transparent; background: transparent; color: var(--text-dim); padding-left: 0; }
 .bc-select-inline--ghost:hover { border-color: var(--border); background: var(--bg-elevated); color: var(--text-secondary); }
+.bc-inline-input {
+  background: var(--bg-elevated); border: 1px solid var(--border-hover); border-radius: 6px;
+  color: var(--text); font-size: 13px; padding: 4px 10px; width: 100%; max-width: 260px;
+  font-family: inherit; outline: none; box-sizing: border-box;
+}
+.bc-inline-input:focus { border-color: var(--accent); }
+.bc-inline-input::placeholder { color: var(--text-dim); }
 
 /* Radio buttons — vertical like Basecamp, one per line */
 .bc-radio {

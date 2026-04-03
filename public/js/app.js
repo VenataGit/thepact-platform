@@ -556,8 +556,9 @@ function renderDashCard(card) {
   var stepsStr = card.steps_total > 0 ? card.steps_done + '/' + card.steps_total : '';
   var holdClass = card.is_on_hold ? ' dash-card--hold' : '';
 
+  var priIcon = card.priority === 'urgent' ? '\ud83d\udd34 ' : card.priority === 'high' ? '\u2191 ' : '';
   return '<a class="dash-card ' + colorClass + holdClass + '" href="#/card/' + card.id + '" draggable="true" data-card-id="' + card.id + '" ondragstart="handleDragStart(event)" ondragend="handleDashDragEnd(event)">' +
-    '<div class="dash-card__title">' + (card.is_on_hold ? '\u23f8 ' : '') + esc(card.title) + '</div>' +
+    '<div class="dash-card__title">' + (card.is_on_hold ? '\u23f8 ' : priIcon) + esc(card.title) + '</div>' +
     (card.client_name ? '<div class="dash-card__client">' + esc(card.client_name) + '</div>' : '') +
     '<div class="dash-card__footer">' +
       (dueStr ? '<span class="dash-card__date">\ud83d\udcc5 ' + dueStr + '</span>' : '<span></span>') +
@@ -952,6 +953,16 @@ async function renderCardPage(el, cardId) {
       dueHtml = '<span>' + (card.due_on ? formatDate(card.due_on) : '<span class="bc-field__placeholder">Избери дата</span>') + '</span>';
     }
 
+    // ===== CLIENT NAME =====
+    var clientHtml = '';
+    if (editing) {
+      clientHtml = '<input class="bc-inline-input" id="clientNameInput_' + cardId + '" type="text" value="' + esc(card.client_name || '') + '" placeholder="\u0418\u043c\u0435 \u043d\u0430 \u043a\u043b\u0438\u0435\u043d\u0442\u2026" onblur="saveClientNameField(' + cardId + ',this.value)">';
+    } else {
+      clientHtml = card.client_name
+        ? '<span class="bc-client-badge">' + esc(card.client_name) + (card.kp_number ? ' \u00b7 \u041a\u041f-' + card.kp_number : '') + '</span>'
+        : '<span class="bc-field__placeholder">\u2014</span>';
+    }
+
     // ===== PRIORITY =====
     var priorityHtml = '';
     if (editing) {
@@ -1125,7 +1136,7 @@ async function renderCardPage(el, cardId) {
           '</header>' +
           '<div class="bc-card__fields">' +
             '<div class="bc-field"><span class="bc-field__label">Колона</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
-            (card.client_name ? '<div class="bc-field"><span class="bc-field__label">Клиент</span><div class="bc-field__value"><span class="bc-client-badge">' + esc(card.client_name) + (card.kp_number ? ' \u00b7 \u041a\u041f-' + card.kp_number : '') + '</span></div></div>' : '') +
+            '<div class="bc-field"><span class="bc-field__label">Клиент</span><div class="bc-field__value">' + clientHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Отговорник</span><div class="bc-field__value">' + assigneesHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Приоритет</span><div class="bc-field__value">' + priorityHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Краен срок</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
@@ -1560,6 +1571,10 @@ async function savePublishDateField(cardId, value) {
   await updateField(cardId, 'publish_date', value || null);
   var lbl = document.getElementById('pubSavedLabel_' + cardId);
   if (lbl) { lbl.style.display = 'inline'; setTimeout(function() { lbl.style.display = 'none'; }, 2000); }
+}
+async function saveClientNameField(cardId, value) {
+  _suppressWsRerender = Date.now() + 2000;
+  await updateField(cardId, 'client_name', value.trim() || null);
 }
 
 // Steps: expand on click
@@ -2697,8 +2712,9 @@ async function testDailyReport(btn) {
 function renderReportRow(c, tab) {
   const now = new Date(); now.setHours(0,0,0,0);
   const isOver = c.due_on && new Date(c.due_on+'T00:00:00') < now;
+  const priLabel = c.priority === 'urgent' ? '<span style="color:var(--red);font-weight:700;font-size:11px">\ud83d\udd34</span>' : c.priority === 'high' ? '<span style="color:var(--yellow);font-weight:700;font-size:11px">\u2191</span>' : '';
   return '<a class="task-row ' + (isOver ? 'overdue' : '') + '" href="#/card/' + c.id + '">' +
-    '<span class="task-title">' + esc(c.title) + '</span>' +
+    '<span class="task-title">' + priLabel + (priLabel ? ' ' : '') + esc(c.title) + '</span>' +
     '<span class="task-meta">' +
       (c.client_name ? '<span style="color:var(--accent);font-weight:600">' + esc(c.client_name) + '</span>' : '') +
       (c.board_title ? '<span class="task-board">' + esc(c.board_title) + '</span>' : '') +
@@ -2726,20 +2742,29 @@ async function renderReports(el) {
 
   try {
     let data;
+    const days = parseInt(params.get('days')) || 7;
     if (tab === 'overdue') data = await (await fetch('/api/reports/overdue')).json();
-    else if (tab === 'upcoming') data = await (await fetch('/api/reports/upcoming?days=7')).json();
-    else if (tab === 'assignments') data = await (await fetch('/api/reports/assignments')).json();
-    else data = await (await fetch('/api/reports/unassigned')).json();
+    else if (tab === 'upcoming') data = await (await fetch('/api/reports/upcoming?days=' + days)).json();
+    else if (tab === 'assignments') {
+      const uid = params.get('user_id') || '';
+      data = await (await fetch('/api/reports/assignments' + (uid ? '?user_id=' + uid : ''))).json();
+    } else data = await (await fetch('/api/reports/unassigned')).json();
+
+    const upcomingDaysHtml = tab === 'upcoming' ? `
+      <div style="display:flex;gap:6px;justify-content:center;margin-bottom:12px">
+        ${[7,14,30].map(d => `<a href="#/reports?tab=upcoming&days=${d}" class="btn btn-sm btn-ghost${days===d?' active':''}" style="${days===d?'background:var(--accent-dim);color:var(--accent)':''}">${d} дни</a>`).join('')}
+      </div>` : '';
 
     el.innerHTML = `
       <div style="max-width:800px;margin:0 auto">
-        <div class="page-header"><h1>📊 Отчети</h1><div class="page-subtitle">${data.length} резултата</div></div>
-        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:24px">
+        <div class="page-header"><h1>\ud83d\udcca \u041e\u0442\u0447\u0435\u0442\u0438</h1><div class="page-subtitle">${data.length} \u0440\u0435\u0437\u0443\u043b\u0442\u0430\u0442\u0430</div></div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px">
           <a href="#/reports?tab=overdue" class="btn btn-sm ${tab==='overdue'?'btn-primary':''}">🔴 Просрочени</a>
           <a href="#/reports?tab=upcoming" class="btn btn-sm ${tab==='upcoming'?'btn-primary':''}">🟡 Предстоящи</a>
           <a href="#/reports?tab=assignments" class="btn btn-sm ${tab==='assignments'?'btn-primary':''}">👤 По хора</a>
           <a href="#/reports?tab=unassigned" class="btn btn-sm ${tab==='unassigned'?'btn-primary':''}">❓ Невъзложени</a>
         </div>
+        ${upcomingDaysHtml}
         <div class="task-list">
           ${renderReportRows(data, tab)}
         </div>
