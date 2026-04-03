@@ -69,7 +69,7 @@ router.post('/clients', requireAuth, async (req, res) => {
     );
     await execute(
       'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
-      [req.user.userName || 'Unknown', 'create_client', name, JSON.stringify(req.body)]
+      [req.user.name || 'Unknown', 'create_client', name, JSON.stringify(req.body)]
     );
     res.status(201).json(client);
   } catch (err) {
@@ -94,7 +94,7 @@ router.put('/clients/:id', requireAuth, async (req, res) => {
     if (!client) return res.status(404).json({ error: 'Not found' });
     await execute(
       'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
-      [req.user.userName || 'Unknown', 'update_client', client.name, JSON.stringify(req.body)]
+      [req.user.name || 'Unknown', 'update_client', client.name, JSON.stringify(req.body)]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -110,7 +110,7 @@ router.delete('/clients/:id', requireAuth, requireAdmin, async (req, res) => {
     await execute('UPDATE kp_clients SET active = false WHERE id = $1', [req.params.id]);
     await execute(
       'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
-      [req.user.userName || 'Unknown', 'delete_client', client.name, `id=${req.params.id}`]
+      [req.user.name || 'Unknown', 'delete_client', client.name, `id=${req.params.id}`]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -237,7 +237,7 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
 
     await execute(
       'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
-      [req.user.userName || 'Unknown', 'create_kp_card', client.name, `Card id=${card.id}: ${title}`]
+      [req.user.name || 'Unknown', 'create_kp_card', client.name, `Card id=${card.id}: ${title}`]
     );
 
     res.json({ ok: true, cardId: card.id, title });

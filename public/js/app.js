@@ -2153,7 +2153,12 @@ async function renderKpAuto(el) {
 
 async function loadKpAuto(el) {
   try {
-    const clients = await (await fetch('/api/kp/clients')).json();
+    const res = await fetch('/api/kp/clients');
+    const clients = await res.json();
+    if (!res.ok || !Array.isArray(clients)) {
+      el.innerHTML = '<div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc((clients && clients.error) || 'Неуспешно зареждане') + '</div></div>';
+      return;
+    }
 
     const needsKp = clients.filter(function(c) { return !c.has_kp_card; });
     var warningHtml = '';
