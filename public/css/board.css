@@ -747,9 +747,13 @@ trix-toolbar .trix-button-group--file-tools { }
 .dash-settings-panel__header button:hover { color: #fff; }
 .dash-settings-panel__body { padding: 10px 0; }
 .dash-settings-board { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 16px 4px; }
-.dash-settings-col { display: flex; align-items: center; gap: 10px; padding: 7px 16px; cursor: pointer; font-size: 13px; color: var(--text); transition: background 0.1s; }
-.dash-settings-col:hover { background: var(--bg-hover); }
-.dash-settings-col input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; flex-shrink: 0; }
+.dash-settings-board-row { display: flex; align-items: center; gap: 10px; padding: 9px 16px 5px; cursor: pointer; font-size: 14px; font-weight: 700; color: #fff; transition: background 0.1s; border-top: 1px solid var(--border); margin-top: 4px; }
+.dash-settings-board-row:first-child { border-top: none; margin-top: 0; }
+.dash-settings-board-row:hover { background: var(--bg-hover); }
+.dash-settings-board-row input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; flex-shrink: 0; }
+.dash-settings-col { display: flex; align-items: center; gap: 10px; padding: 6px 16px 6px 36px; cursor: pointer; font-size: 13px; color: var(--text-dim); transition: background 0.1s; }
+.dash-settings-col:hover { background: var(--bg-hover); color: var(--text); }
+.dash-settings-col input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
 
 .dash-board {
   display: flex; gap: 8px; min-height: calc(100vh - 180px); align-items: stretch;

@@ -239,25 +239,22 @@ function renderMiniCalendar() {
 let expandedDashCol = null;
 let collapsedSubCols = JSON.parse(localStorage.getItem('thepact-collapsed-subcols') || '{}');
 
-// Dashboard column visibility — stored in localStorage
+// Dashboard visibility — board-level + column-level
+function getDashHiddenBoards() {
+  try { return new Set(JSON.parse(localStorage.getItem('thepact-dash-hidden-boards') || '[]')); } catch { return new Set(); }
+}
+function saveDashHiddenBoards(set) { localStorage.setItem('thepact-dash-hidden-boards', JSON.stringify([...set])); }
 function getDashHiddenCols() {
   try { return new Set(JSON.parse(localStorage.getItem('thepact-dash-hidden-cols') || '[]')); } catch { return new Set(); }
 }
-function saveDashHiddenCols(set) {
-  localStorage.setItem('thepact-dash-hidden-cols', JSON.stringify([...set]));
-}
-function initDashHiddenCols(boards) {
-  // On first visit, hide columns named "Задачи" by default
-  const hidden = getDashHiddenCols();
-  let changed = false;
-  if (!localStorage.getItem('thepact-dash-hidden-cols-initialized')) {
-    boards.forEach(b => (b.columns||[]).forEach(c => {
-      if (c.title.toLowerCase() === 'задачи') { hidden.add(c.id); changed = true; }
-    }));
-    localStorage.setItem('thepact-dash-hidden-cols-initialized', '1');
-    if (changed) saveDashHiddenCols(hidden);
-  }
-  return hidden;
+function saveDashHiddenCols(set) { localStorage.setItem('thepact-dash-hidden-cols', JSON.stringify([...set])); }
+function initDashDefaults(boards) {
+  if (localStorage.getItem('thepact-dash-defaults-set')) return;
+  // Hide boards named "Задачи" by default
+  const hiddenBoards = getDashHiddenBoards();
+  boards.forEach(b => { if (b.title.toLowerCase() === 'задачи') hiddenBoards.add(b.id); });
+  saveDashHiddenBoards(hiddenBoards);
+  localStorage.setItem('thepact-dash-defaults-set', '1');
 }
 
 let _dashBoards = [], _dashCards = [];
@@ -275,7 +272,7 @@ async function renderDashboard(el) {
     _dashBoards = boards;
     _dashCards = cards;
 
-    const hidden = initDashHiddenCols(boards);
+    initDashDefaults(boards);
 
     const totalActive = cards.filter(c => !c.completed_at && !c.archived_at).length;
     const totalOnHold = cards.filter(c => c.is_on_hold).length;
@@ -301,7 +298,8 @@ async function renderDashboard(el) {
 
 function showDashSettings() {
   document.querySelectorAll('.dash-settings-panel').forEach(p => p.remove());
-  const hidden = getDashHiddenCols();
+  const hiddenBoards = getDashHiddenBoards();
+  const hiddenCols = getDashHiddenCols();
   const btn = document.querySelector('.dash-settings-btn');
   if (!btn) return;
 
@@ -312,15 +310,21 @@ function showDashSettings() {
   html += '<div class="dash-settings-panel__body">';
   _dashBoards.forEach(board => {
     const cols = (board.columns || []).filter(c => !c.is_done_column);
-    if (!cols.length) return;
-    html += `<div class="dash-settings-board">${esc(board.title)}</div>`;
-    cols.forEach(col => {
-      const checked = !hidden.has(col.id) ? 'checked' : '';
-      html += `<label class="dash-settings-col">
-        <input type="checkbox" ${checked} onchange="toggleDashCol2(${col.id}, this.checked)">
-        <span>${esc(col.title)}</span>
-      </label>`;
-    });
+    const boardHidden = hiddenBoards.has(board.id);
+    const boardChecked = !boardHidden ? 'checked' : '';
+    html += `<label class="dash-settings-board-row">
+      <input type="checkbox" ${boardChecked} onchange="toggleDashBoard(${board.id}, this.checked)">
+      <span>${esc(board.title)}</span>
+    </label>`;
+    if (!boardHidden && cols.length) {
+      cols.forEach(col => {
+        const colChecked = !hiddenCols.has(col.id) ? 'checked' : '';
+        html += `<label class="dash-settings-col">
+          <input type="checkbox" ${colChecked} onchange="toggleDashColVisibility(${col.id}, this.checked)">
+          <span>${esc(col.title)}</span>
+        </label>`;
+      });
+    }
   });
   html += '</div>';
   panel.innerHTML = html;
@@ -333,18 +337,30 @@ function showDashSettings() {
   }), 10);
 }
 
-function toggleDashCol2(colId, visible) {
+function toggleDashBoard(boardId, visible) {
+  const hidden = getDashHiddenBoards();
+  if (visible) hidden.delete(boardId); else hidden.add(boardId);
+  saveDashHiddenBoards(hidden);
+  renderDashboardBoard(_dashBoards, _dashCards, _dashStageColors);
+  // Refresh settings panel to show/hide sub-columns
+  showDashSettings();
+}
+function toggleDashColVisibility(colId, visible) {
   const hidden = getDashHiddenCols();
   if (visible) hidden.delete(colId); else hidden.add(colId);
   saveDashHiddenCols(hidden);
   renderDashboardBoard(_dashBoards, _dashCards, _dashStageColors);
 }
+// Keep old alias for compatibility
+function toggleDashCol2(colId, visible) { toggleDashColVisibility(colId, visible); }
 
 function renderDashboardBoard(boards, cards, stageColors) {
   const container = document.getElementById('dashBoard');
   if (!container) return;
 
-  container.innerHTML = boards.map(function(board, bi) {
+  var hiddenBoards = getDashHiddenBoards();
+  var visibleBoards = boards.filter(function(b) { return !hiddenBoards.has(b.id); });
+  container.innerHTML = visibleBoards.map(function(board, bi) {
     var boardCards = cards.filter(function(c) { return c.board_id === board.id && !c.completed_at && !c.archived_at; });
     var totalCards = boardCards.length;
     var isExpanded = expandedDashCol === board.id;
