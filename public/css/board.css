@@ -566,8 +566,10 @@
 
 /* ==================== VAULT ==================== */
 .vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
-.vault-item { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 24px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--text); transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast); cursor: pointer; text-align: center; }
+.vault-item { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 24px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--text); transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast); cursor: pointer; text-align: center; position: relative; }
 .vault-item:hover { border-color: var(--border-hover); box-shadow: 0 4px 12px rgba(0,0,0,0.2); transform: translateY(-2px); }
+.vault-item:hover .vault-del-btn { opacity: 0.6 !important; }
+.vault-del-btn:hover { opacity: 1 !important; color: var(--red) !important; }
 .vault-icon { font-size: 36px; }
 .vault-name { font-size: 12px; font-weight: 600; word-break: break-all; color: var(--text); }
 

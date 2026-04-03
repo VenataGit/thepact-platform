@@ -36,7 +36,11 @@ router.get('/folders', requireAuth, async (req, res) => {
         : 'SELECT * FROM vault_files WHERE folder_id IS NULL ORDER BY created_at DESC',
       parentId ? [parentId] : []
     );
-    res.json({ folders, files });
+    let current_folder = null;
+    if (parentId) {
+      current_folder = await queryOne('SELECT * FROM vault_folders WHERE id = $1', [parentId]);
+    }
+    res.json({ folders, files, current_folder });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }

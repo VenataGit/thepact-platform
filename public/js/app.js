@@ -751,6 +751,7 @@ async function renderBoard(el, boardId) {
       <div class="board-page-header">
         <h1 class="board-page-header__title">${esc(board.title)}</h1>
         <div class="board-page-header__actions">
+          <input id="boardFilterInput" type="search" placeholder="Филтрирай карти..." style="background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text);width:160px;outline:none" oninput="filterBoardCards(this.value)">
           <div class="board-page-header__watchers">
             <div class="board-page-header__watcher-avatars">
               ${allUsers.slice(0,6).map((u,i) => `<div class="board-page-header__watcher-av" style="background:${wColors[i%wColors.length]}" title="${esc(u.name)}">${initials(u.name)}</div>`).join('')}
@@ -818,6 +819,23 @@ async function renderBoard(el, boardId) {
       </div>
     `;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
+}
+
+function filterBoardCards(q) {
+  const query = (q || '').toLowerCase().trim();
+  document.querySelectorAll('.kanban-card').forEach(card => {
+    if (!query) { card.style.display = ''; return; }
+    const title = (card.querySelector('.kanban-card__title')?.textContent || '').toLowerCase();
+    const client = (card.querySelector('.kanban-card__client')?.textContent || '').toLowerCase();
+    const assignees = [...card.querySelectorAll('.kanban-card__av')].map(a => a.title.toLowerCase()).join(' ');
+    card.style.display = (title.includes(query) || client.includes(query) || assignees.includes(query)) ? '' : 'none';
+  });
+  // Update column counts
+  document.querySelectorAll('.kanban-column').forEach(col => {
+    const visible = col.querySelectorAll('.column-cards:not(.on-hold-drop) .kanban-card:not([style*="display: none"])').length;
+    const countEl = col.querySelector('.col-count');
+    if (countEl) countEl.dataset.filtered = query ? '1' : '';
+  });
 }
 
 function renderKanbanCard(card, colColor) {
@@ -1983,8 +2001,27 @@ async function renderChatChannel(el, channelId) {
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 async function sendChatMsg(chId) {
-  const i=document.getElementById('chatInput'),c=i?.value?.trim(); if(!c)return;
-  try { await fetch(`/api/chat/channels/${chId}/messages`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})}); i.value=''; router(); } catch {}
+  const i=document.getElementById('chatInput'), c=i?.value?.trim(); if(!c)return;
+  i.value = '';
+  try {
+    const res = await fetch(`/api/chat/channels/${chId}/messages`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})});
+    const msg = await res.json();
+    if (msg && msg.id) appendChatMsg(msg);
+  } catch {}
+}
+function appendChatMsg(msg) {
+  const msgs = document.getElementById('chatMessages');
+  if (!msgs) return;
+  const chatColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+  const mc = chatColors[(msg.user_name||'').length % chatColors.length];
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.innerHTML = '<div class="chat-msg-avatar" style="background:' + mc + ';color:#fff">' + initials(msg.user_name) + '</div>' +
+    '<div class="chat-msg-body"><div class="chat-msg-name">' + esc(msg.user_name) +
+    ' <span class="hint">' + new Date(msg.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'}) + '</span></div>' +
+    '<div class="chat-msg-text">' + esc(msg.content).replace(/\n/g,'<br>') + '</div></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
 }
 
 // ==================== MESSAGE BOARD ====================
@@ -2015,26 +2052,51 @@ async function generateDailyReport() {
 
 // ==================== VAULT ====================
 async function renderVault(el, folderId) {
-  setBreadcrumb([{label:'Документи'}]); el.className='';
+  el.className='';
   try {
     const url = folderId ? `/api/vault/folders?parent_id=${folderId}` : '/api/vault/folders';
-    const { folders, files } = await (await fetch(url)).json();
+    const data = await (await fetch(url)).json();
+    const { folders, files } = data;
+    // Fetch current folder info for breadcrumb
+    let folderName = null;
+    if (folderId) {
+      try {
+        const allFolders = await (await fetch('/api/vault/folders')).json();
+        const findFolder = (fid, list) => list.find(f => f.id === fid);
+        const cf = data.current_folder;
+        folderName = cf ? cf.name : null;
+      } catch {}
+    }
+    setBreadcrumb(folderId && folderName
+      ? [{label:'Документи',href:'#/vault'},{label:folderName}]
+      : [{label:'Документи'}]);
+    const canDel = canManage();
     el.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-        <button class="btn btn-primary btn-sm" onclick="createVaultFolder(${folderId||'null'})">+ Ново...</button>
+        <button class="btn btn-primary btn-sm" onclick="createVaultFolder(${folderId||'null'})">📁 Нова папка</button>
         <h1 style="font-size:22px;font-weight:800;color:#fff;text-align:center;flex:1">Документи</h1>
-        <label class="btn btn-sm" style="cursor:pointer">\ud83d\udcce Качи<input type="file" style="display:none" onchange="uploadVaultFile(this,${folderId||'null'})"></label>
+        <label class="btn btn-sm" style="cursor:pointer">📎 Качи файл<input type="file" style="display:none" onchange="uploadVaultFile(this,${folderId||'null'})"></label>
       </div>
-      ${folderId?'<a href="#/vault" class="btn btn-sm" style="margin-bottom:16px;display:inline-flex">\u2190 Назад</a>':''}
+      ${folderId?'<a href="#/vault" class="btn btn-sm" style="margin-bottom:16px;display:inline-flex">← Назад</a>':''}
       <div class="vault-grid">
-        ${folders.map(f=>`<a class="vault-item folder" href="#/vault/${f.id}"><span class="vault-icon">📁</span><span class="vault-name">${esc(f.name)}</span></a>`).join('')}
-        ${files.map(f=>`<div class="vault-item file"><a href="${f.storage_path}" target="_blank" class="vault-icon">${getFileIcon(f.mime_type)}</a><span class="vault-name">${esc(f.original_name)}</span><span class="hint">${formatFileSize(f.size_bytes)}</span></div>`).join('')}
+        ${folders.map(f=>`<div class="vault-item folder" style="position:relative">
+          <a href="#/vault/${f.id}" style="display:contents"><span class="vault-icon">📁</span><span class="vault-name">${esc(f.name)}</span></a>
+          ${canDel ? `<button onclick="deleteVaultFolder(${f.id})" style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;opacity:0;transition:opacity .15s" class="vault-del-btn" title="Изтрий папка">✕</button>` : ''}
+        </div>`).join('')}
+        ${files.map(f=>`<div class="vault-item file" style="position:relative">
+          <a href="${f.storage_path}" target="_blank" class="vault-icon">${getFileIcon(f.mime_type)}</a>
+          <span class="vault-name">${esc(f.original_name)}</span>
+          <span class="hint">${formatFileSize(f.size_bytes)}</span>
+          ${canDel ? `<button onclick="deleteVaultFile(${f.id})" style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;opacity:0;transition:opacity .15s" class="vault-del-btn" title="Изтрий файл">✕</button>` : ''}
+        </div>`).join('')}
         ${folders.length===0&&files.length===0?'<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Празна папка</div>':''}
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 async function createVaultFolder(pid) { const n=prompt('Име на папка:'); if(!n?.trim())return; try { await fetch('/api/vault/folders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,parent_id:pid})}); router(); } catch {} }
 async function uploadVaultFile(input,fid) { if(!input.files[0])return; const f=new FormData(); f.append('file',input.files[0]); if(fid)f.append('folder_id',fid); try { await fetch('/api/vault/upload',{method:'POST',body:f}); router(); } catch {} }
+async function deleteVaultFile(id) { if(!confirm('Изтрий файла?'))return; try{ await fetch('/api/vault/files/'+id,{method:'DELETE'}); router(); }catch{} }
+async function deleteVaultFolder(id) { if(!confirm('Изтрий папката и всичко в нея?'))return; try{ await fetch('/api/vault/folders/'+id,{method:'DELETE'}); router(); }catch{} }
 function getFileIcon(m) { if(m?.startsWith('image/'))return'🖼️'; if(m?.startsWith('video/'))return'🎬'; if(m?.includes('pdf'))return'📄'; return'📎'; }
 function formatFileSize(b) { if(!b)return''; if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; return(b/1048576).toFixed(1)+' MB'; }
 
@@ -2896,14 +2958,20 @@ async function renderBookmarks(el) {
         <div class="page-header"><h1>⚑ Отметки</h1></div>
         <div class="task-list">
           ${bookmarks.length === 0 ? '<div style="text-align:center;padding:40px;color:var(--text-dim)"><div style="font-size:48px;opacity:0.3;margin-bottom:8px">⚑</div>Нямаш запазени отметки.<br>Натисни ⚑ на карта за да я добавиш тук.</div>' :
-            bookmarks.map(b => `
-              <div class="task-row" style="justify-content:space-between">
-                <a href="${b.target_type === 'card' ? `#/card/${b.target_id}` : '#'}" class="task-title" style="text-decoration:none;color:var(--text)">${esc(b.title || 'Без заглавие')}</a>
-                <div class="task-meta">
-                  <span class="task-board">${esc(b.target_type)}</span>
-                  <button class="btn btn-sm" onclick="removeBookmark(${b.id})" style="color:var(--red)">✕</button>
-                </div>
-              </div>`).join('')}
+            bookmarks.map(b => {
+              const href = b.target_type === 'card' ? '#/card/' + b.target_id : '#';
+              const typeLabel = b.target_type === 'card' ? '📋 Карта' : b.target_type === 'message' ? '📢 Съобщение' : esc(b.target_type);
+              const board = b.board_title ? esc(b.board_title) : '';
+              return '<a class="task-row ' + (b.color_class || '') + '" href="' + href + '" style="text-decoration:none">' +
+                '<span class="task-title">' + esc(b.title || 'Без заглавие') + '</span>' +
+                '<span class="task-meta">' +
+                  '<span class="task-board" style="opacity:.6">' + typeLabel + '</span>' +
+                  (board ? '<span class="task-board">' + board + '</span>' : '') +
+                  (b.saved_at ? '<span style="font-size:10px;color:var(--text-dim)">' + timeAgo(b.saved_at) + '</span>' : '') +
+                  '<button class="btn btn-sm" onclick="event.preventDefault();removeBookmark(' + b.id + ')" style="color:var(--text-dim);margin-left:4px">✕</button>' +
+                '</span>' +
+              '</a>';
+            }).join('')}
         </div>
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
@@ -3277,7 +3345,7 @@ function handleWSEvent(ev) {
   if (t === 'sos:resolved') { document.querySelectorAll('.sos-alert-banner[data-alert-id="' + ev.alertId + '"]').forEach(function(b) { b.remove(); }); return; }
   // Core data events — re-render current page
   if (t.startsWith('card:') || t.startsWith('board:') || t.startsWith('column:') || t.startsWith('step:') || t.startsWith('comment:')) wsRouter();
-  if (t === 'chat:message' && location.hash.startsWith(`#/chat/${ev.channelId}`)) wsRouter();
+  if (t === 'chat:message' && location.hash.startsWith('#/chat/' + ev.channelId)) { if (ev.message) appendChatMsg(ev.message); return; }
   if (t === 'campfire:message' && location.hash.startsWith('#/campfire/')) { if (ev.message) appendCampfireMsg(ev.message); return; }
   if (t === 'checkin:reminder') wsRouter();
   // Presence
