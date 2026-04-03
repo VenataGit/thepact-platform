@@ -116,6 +116,7 @@ app.use('/api/checkins', require('./routes/checkins'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/bookmarks', require('./routes/bookmarks'));
 app.use('/api/projects', require('./routes/projects'));
+app.use('/api/timers', require('./routes/timers'));
 // Online users endpoint
 app.get('/api/users/online', require('./middleware/auth').requireAuth, (req, res) => {
   const { getOnlineUserIds } = require('./ws/broadcast');

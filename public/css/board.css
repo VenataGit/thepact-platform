@@ -812,12 +812,15 @@ trix-toolbar .trix-button-group--file-tools { }
   font-size: 11px; font-weight: 700; color: var(--text-secondary);
   background: var(--bg); padding: 1px 8px; border-radius: 10px;
 }
-.dash-subcol-timer {
-  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px;
-  letter-spacing: 0.02em; margin-left: 4px;
+.dash-timer-bar {
+  padding: 4px 10px; font-size: 11px; text-align: center;
+  border-bottom: 1px solid var(--border); letter-spacing: 0.2px;
+  margin-bottom: 6px;
 }
-.dash-subcol-timer--overdue { background: rgba(239,68,68,0.15); color: var(--red); }
-.dash-subcol-timer--clean { background: rgba(70,163,116,0.15); color: var(--green); }
+.dash-timer-bar--clean { color: var(--green); }
+.dash-timer-bar--overdue { color: var(--red); background: rgba(239,68,68,0.07); }
+.dash-timer-label { font-weight: 600; }
+.dash-timer-value { font-weight: 400; font-variant-numeric: tabular-nums; }
 
 .dash-subcol.subcol-collapsed {
   flex: 0 0 36px; min-width: 36px; cursor: pointer; padding: 0;

@@ -257,7 +257,7 @@ function initDashDefaults(boards) {
   localStorage.setItem('thepact-dash-defaults-set', '1');
 }
 
-let _dashBoards = [], _dashCards = [];
+let _dashBoards = [], _dashCards = [], _dashTimers = {};
 const _dashStageColors = { 0: 'var(--blue)', 1: 'var(--orange)', 2: '#a78bfa', 3: 'var(--green)' };
 
 async function renderDashboard(el) {
@@ -288,6 +288,30 @@ async function renderDashboard(el) {
       '</div>' +
       '<div class="dash-board" id="dashBoard"></div>' +
     '</div>';
+
+    // Load + sync column timers
+    try {
+      var now = new Date(); now.setHours(0,0,0,0);
+      var syncPayload = [];
+      boards.forEach(function(board) {
+        var boardCards = cards.filter(function(c) { return c.board_id === board.id && !c.completed_at && !c.archived_at; });
+        (board.columns || []).forEach(function(col) {
+          if (col.is_done_column) return;
+          var hasOverdue = boardCards.some(function(c) {
+            return c.column_id === col.id && c.due_on && !c.is_on_hold && new Date(c.due_on) < now;
+          });
+          syncPayload.push({ column_id: col.id, has_overdue: hasOverdue });
+        });
+      });
+      var timerRes = await fetch('/api/timers/columns/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(syncPayload)
+      });
+      var timerRows = await timerRes.json();
+      _dashTimers = {};
+      timerRows.forEach(function(t) { _dashTimers[t.column_id] = t; });
+    } catch (e) { console.warn('Timer sync failed', e); }
 
     renderDashboardBoard(boards, cards, _dashStageColors);
   } catch (err) {
@@ -398,27 +422,27 @@ function renderDashboardBoard(boards, cards, stageColors) {
             holdCards.map(function(c) { return renderDashCard(c); }).join('');
         }
 
-        // Column overdue timer
-        var _now = new Date(); _now.setHours(0,0,0,0);
-        var overdueColCards = colCards.filter(function(c) {
-          return c.due_on && !c.is_on_hold && !c.completed_at && new Date(c.due_on) < _now;
-        });
-        var timerHtml = '';
-        if (overdueColCards.length > 0) {
-          var maxDays = Math.max.apply(null, overdueColCards.map(function(c) {
-            var d = new Date(c.due_on); d.setHours(0,0,0,0);
-            return Math.ceil((_now - d) / 86400000);
-          }));
-          timerHtml = '<span class="dash-subcol-timer dash-subcol-timer--overdue">\u26a0 ' + maxDays + '\u0434</span>';
+        // Column timer bar
+        var colTimer = _dashTimers[col.id];
+        var timerBarHtml = '';
+        if (colTimer && colTimer.is_paused) {
+          timerBarHtml = '<div class="dash-timer-bar dash-timer-bar--overdue">' +
+            '<span class="dash-timer-label">\u23f8 \u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0430 \u0437\u0430\u0434\u0430\u0447\u0430</span>' +
+          '</div>';
         } else {
-          timerHtml = '<span class="dash-subcol-timer dash-subcol-timer--clean">\u2713</span>';
+          var sinceVal = colTimer ? colTimer.started_at : '';
+          timerBarHtml = '<div class="dash-timer-bar dash-timer-bar--clean" id="dash-timer-' + col.id + '" data-since="' + sinceVal + '">' +
+            '<span class="dash-timer-label">\u2705 \u0411\u0435\u0437 \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438: </span>' +
+            '<span class="dash-timer-value">0\u0434, 0\u0447, 0\u043c, 0\u0441</span>' +
+          '</div>';
         }
 
         return '<div class="dash-subcol">' +
           '<div class="dash-subcol-header" onclick="event.stopPropagation();toggleDashSubCol(' + board.id + ',' + col.id + ')" style="cursor:pointer">' +
             '<span>' + esc(col.title) + '</span>' +
-            '<div style="display:flex;align-items:center;gap:4px">' + timerHtml + '<span class="dash-subcol-count">' + colCards.length + '</span></div>' +
+            '<span class="dash-subcol-count">' + colCards.length + '</span>' +
           '</div>' +
+          timerBarHtml +
           '<div class="dash-subcol-cards">' + cardsHtml + holdHtml + '</div>' +
         '</div>';
       }).join('');
@@ -2493,6 +2517,22 @@ function addBookmarkToCardPage(cardId, cardTitle) {
   btn.onclick = () => toggleBookmark('card', cardId, cardTitle);
   toolbar.prepend(btn);
 }
+
+// ==================== DASHBOARD TIMER TICKER ====================
+setInterval(function() {
+  document.querySelectorAll('.dash-timer-bar--clean[data-since]').forEach(function(el) {
+    var since = el.dataset.since;
+    if (!since) return;
+    var diff = Math.floor((Date.now() - new Date(since).getTime()) / 1000);
+    if (diff < 0) diff = 0;
+    var days = Math.floor(diff / 86400);
+    var hours = Math.floor((diff % 86400) / 3600);
+    var mins = Math.floor((diff % 3600) / 60);
+    var secs = diff % 60;
+    var val = el.querySelector('.dash-timer-value');
+    if (val) val.textContent = days + '\u0434, ' + hours + '\u0447, ' + mins + '\u043c, ' + secs + '\u0441';
+  });
+}, 1000);
 
 // ==================== INIT ====================
 (async function() {
