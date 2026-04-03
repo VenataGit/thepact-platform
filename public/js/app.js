@@ -1859,7 +1859,7 @@ let _activityItems = [];
 function filterActivity(board, btn) {
   document.querySelectorAll('.activity-filter-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  const toShow = board === 'all' ? _activityItems : _activityItems.filter(a => a.board_title === board);
+  const toShow = board === 'all' ? _activityItems : board === 'mine' ? _activityItems.filter(a => a.user_id === currentUser.id) : _activityItems.filter(a => a.board_title === board);
   const container = document.getElementById('activityList');
   if (!container) return;
   const campColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
@@ -1921,8 +1921,9 @@ async function renderActivity(el) {
     el.innerHTML = `
       <div class="page-header"><h1>Последна активност</h1></div>
       <div style="display:flex;justify-content:center;gap:8px;margin-bottom:24px;flex-wrap:wrap">
-        <button class="btn btn-sm activity-filter-btn active" style="background:var(--accent-dim);color:var(--accent);border-color:var(--accent)" onclick="filterActivity('all',this)">Всичко</button>
-        ${[...new Set(items.filter(a=>a.board_title).map(a=>a.board_title))].slice(0,6).map(b=>`<button class="btn btn-sm activity-filter-btn" onclick="filterActivity('${b.replace(/'/g,'')}',this)">${esc(b)}</button>`).join('')}
+        <button class="btn btn-sm activity-filter-btn active" style="background:var(--accent-dim);color:var(--accent);border-color:var(--accent)" onclick="filterActivity('all',this)">\u0412\u0441\u0438\u0447\u043a\u043e</button>
+        <button class="btn btn-sm activity-filter-btn" onclick="filterActivity('mine',this)">\ud83d\udc64 \u041c\u043e\u0438\u0442\u0435</button>
+        ${[...new Set(items.filter(a=>a.board_title).map(a=>a.board_title))].slice(0,5).map(b=>`<button class="btn btn-sm activity-filter-btn" onclick="filterActivity('${b.replace(/'/g,'')}',this)">${esc(b)}</button>`).join('')}
       </div>
       <div id="activityList" style="max-width:700px;margin:0 auto">
         ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма активност все още</div>':
@@ -1952,16 +1953,19 @@ async function renderMyStuff(el) {
     const overdue  = cards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
     const upcoming = cards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') >= now);
     const noDate   = cards.filter(c => !c.due_on);
-    const renderCard = c => `<a class="task-row ${getCardColorClass(c)}" href="#/card/${c.id}">
-      <span class="task-title">${esc(c.title)}</span>
-      <span class="task-meta">
-        ${c.client_name ? `<span class="task-board" style="color:var(--accent)">${esc(c.client_name)}</span>` : ''}
-        ${c.board_title ? `<span class="task-board">${esc(c.board_title)}</span>` : ''}
-        ${c.column_title ? `<span class="task-board" style="opacity:0.6">${esc(c.column_title)}</span>` : ''}
-        ${c.steps_total > 0 ? `<span style="font-size:10px;color:var(--green)">✓ ${c.steps_done}/${c.steps_total}</span>` : ''}
-        ${c.due_on ? `<span class="task-due">${formatDate(c.due_on)}</span>` : ''}
-      </span>
-    </a>`;
+    const renderCard = c => {
+      const pri = c.priority === 'urgent' ? '\ud83d\udd34 ' : c.priority === 'high' ? '\u2191 ' : '';
+      return `<a class="task-row ${getCardColorClass(c)}" href="#/card/${c.id}">
+        <span class="task-title">${pri}${esc(c.title)}</span>
+        <span class="task-meta">
+          ${c.client_name ? `<span class="task-board" style="color:var(--accent)">${esc(c.client_name)}</span>` : ''}
+          ${c.board_title ? `<span class="task-board">${esc(c.board_title)}</span>` : ''}
+          ${c.column_title ? `<span class="task-board" style="opacity:0.6">${esc(c.column_title)}</span>` : ''}
+          ${c.steps_total > 0 ? `<span style="font-size:10px;color:var(--green)">✓ ${c.steps_done}/${c.steps_total}</span>` : ''}
+          ${c.due_on ? `<span class="task-due">${formatDate(c.due_on)}</span>` : ''}
+        </span>
+      </a>`;
+    };
     el.innerHTML = `
       <div class="page-header"><h1>Моите задачи</h1><div class="page-subtitle">${cards.length} задачи</div></div>
       <div class="task-list" style="max-width:760px;margin:0 auto">
@@ -2118,17 +2122,8 @@ async function renderVault(el, folderId) {
   try {
     const url = folderId ? `/api/vault/folders?parent_id=${folderId}` : '/api/vault/folders';
     const data = await (await fetch(url)).json();
-    const { folders, files } = data;
-    // Fetch current folder info for breadcrumb
-    let folderName = null;
-    if (folderId) {
-      try {
-        const allFolders = await (await fetch('/api/vault/folders')).json();
-        const findFolder = (fid, list) => list.find(f => f.id === fid);
-        const cf = data.current_folder;
-        folderName = cf ? cf.name : null;
-      } catch {}
-    }
+    const { folders, files, current_folder } = data;
+    const folderName = current_folder ? current_folder.name : null;
     setBreadcrumb(folderId && folderName
       ? [{label:'Документи',href:'#/vault'},{label:folderName}]
       : [{label:'Документи'}]);
