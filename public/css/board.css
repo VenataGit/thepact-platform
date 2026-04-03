@@ -421,7 +421,7 @@
 /* Trix color picker — Basecamp style */
 .bc-color-picker {
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   gap: 4px;
   padding: 10px;
   background: var(--bg-elevated);
@@ -429,7 +429,7 @@
   border-radius: 10px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.45);
   z-index: 9000;
-  width: 270px;
+  width: 248px;
 }
 .bc-color-swatch {
   height: 26px;

@@ -1190,28 +1190,16 @@ function showTrixColorPicker(e, trixEl) {
   var existing = document.querySelector('.bc-color-picker');
   if (existing) { existing.remove(); return; }
 
-  // 2 rows × 9 — matching Basecamp exactly
+  // Basecamp's exact highlight colors
   var COLORS = [
-    // Row 1 — lighter
-    { name: 'Жълто',    bg: '#fde047', fg: '#1a1a1a' },
-    { name: 'Оранжево', bg: '#fb923c', fg: '#fff' },
-    { name: 'Червено',  bg: '#f87171', fg: '#fff' },
-    { name: 'Розово',   bg: '#f472b6', fg: '#fff' },
-    { name: 'Лилаво',   bg: '#c084fc', fg: '#fff' },
-    { name: 'Индиго',   bg: '#818cf8', fg: '#fff' },
-    { name: 'Синьо',    bg: '#38bdf8', fg: '#1a1a1a' },
-    { name: 'Тюркоаз',  bg: '#2dd4bf', fg: '#1a1a1a' },
-    { name: 'Зелено',   bg: '#4ade80', fg: '#1a1a1a' },
-    // Row 2 — darker
-    { name: 'Кехлибар',      bg: '#a16207', fg: '#fff' },
-    { name: 'Тъмно оранжево',bg: '#c2410c', fg: '#fff' },
-    { name: 'Тъмно червено', bg: '#b91c1c', fg: '#fff' },
-    { name: 'Малиново',      bg: '#9d174d', fg: '#fff' },
-    { name: 'Тъмно лилаво',  bg: '#7e22ce', fg: '#fff' },
-    { name: 'Тъмно индиго',  bg: '#1e40af', fg: '#fff' },
-    { name: 'Тъмно синьо',   bg: '#0369a1', fg: '#fff' },
-    { name: 'Тъмно тюркоаз', bg: '#0f766e', fg: '#fff' },
-    { name: 'Тъмно зелено',  bg: '#15803d', fg: '#fff' },
+    { name: 'Оранжево',  bg: '#993200', fg: '#fff' },
+    { name: 'Червено',   bg: '#6A2217', fg: '#fff' },
+    { name: 'Малиново',  bg: '#7C3240', fg: '#fff' },
+    { name: 'Лилаво',    bg: '#725EAD', fg: '#fff' },
+    { name: 'Синьо',     bg: '#204166', fg: '#fff' },
+    { name: 'Зелено',    bg: '#175331', fg: '#fff' },
+    { name: 'Кафяво',    bg: '#473732', fg: '#fff' },
+    { name: 'Сиво',      bg: '#4D4D4D', fg: '#fff' },
   ];
 
   // Find the active color if any
