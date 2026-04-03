@@ -662,7 +662,7 @@ async function renderCardPage(el, cardId) {
 
     // ===== ASSIGNED TO =====
     var assigneesHtml = '';
-    if (editing) {
+    if (manage) {
       if (card.assignees && card.assignees.length > 0) {
         assigneesHtml = card.assignees.map(function(a) {
           return '<span class="bc-assignee">' + esc(a.name) + '<button class="bc-assignee__remove" onclick="event.stopPropagation();removeAssignee(' + cardId + ',' + a.id + ')" title="Remove">\u2715</button></span>';
@@ -685,7 +685,7 @@ async function renderCardPage(el, cardId) {
 
     // ===== DUE DATE =====
     var dueHtml = '';
-    if (editing) {
+    if (manage) {
       var noDueChecked = !card.due_on ? ' checked' : '';
       var specificChecked = card.due_on ? ' checked' : '';
       var dateHidden = !card.due_on ? ' bc-date-input--hidden' : '';
@@ -703,6 +703,10 @@ async function renderCardPage(el, cardId) {
       notesHtml = '<div class="bc-editor">' +
         '<input id="cardNotesInput" type="hidden" value="' + esc(card.content || '') + '">' +
         '<trix-editor input="cardNotesInput" class="trix-dark" placeholder="Add notes\u2026"></trix-editor>' +
+        '</div>' +
+        '<div class="bc-attach-row">' +
+        '<button class="bc-attach-btn" onclick="document.getElementById(\'notesFileInput_' + cardId + '\').click()">&#128206; Прикачи файл</button>' +
+        '<input type="file" id="notesFileInput_' + cardId + '" style="display:none" onchange="attachNotesFile(' + cardId + ',this)" accept="*/*">' +
         '</div>';
     } else {
       if (card.content && card.content.replace(/<[^>]*>/g, '').trim()) {
@@ -719,7 +723,7 @@ async function renderCardPage(el, cardId) {
       stepsHtml += card.steps.map(function(s) {
         var doneClass = s.completed ? ' bc-checklist__item--done' : '';
         var assigneeName = s.assignee_id ? (allUsers.find(function(u) { return u.id === s.assignee_id; }) || {}).name || '' : '';
-        var stepClick = editing ? ' onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'))"' : '';
+        var stepClick = manage ? ' onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'))"' : '';
         return '<li class="bc-checklist__item' + doneClass + '" data-step-id="' + s.id + '">' +
           '<input type="checkbox" ' + (s.completed ? 'checked' : '') + ' onclick="event.stopPropagation();toggleStep(' + cardId + ',' + s.id + ',this.checked)">' +
           '<span' + stepClick + '>' + esc(s.title) + '</span>' +
@@ -757,8 +761,11 @@ async function renderCardPage(el, cardId) {
     var commentAddHtml = '<div class="bc-comment-add">' +
       '<div class="bc-comment-avatar" style="background:' + getAC(currentUser ? currentUser.name : '') + '">' + initials(currentUser ? currentUser.name : '') + '</div>' +
       '<div class="bc-comment-input-wrap">' +
+      '<div class="bc-comment-placeholder" onclick="expandCommentInput()">Написвай коментар\u2026</div>' +
+      '<div class="bc-comment-editor-wrap" id="commentEditorWrap">' +
       '<div class="bc-editor"><input id="newCommentInput" type="hidden" value=""><trix-editor input="newCommentInput" class="trix-dark" placeholder="Type your comment here\u2026" style="min-height:80px"></trix-editor></div>' +
-      '<button class="bc-btn-save bc-btn-add-comment" onclick="addComment(' + cardId + ')">Add this comment</button>' +
+      '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save bc-btn-add-comment" onclick="addComment(' + cardId + ')">Добави коментар</button><button class="bc-btn-discard" onclick="collapseCommentInput()">Отказ</button></div>' +
+      '</div>' +
       '</div></div>';
 
     var commentsListHtml = '';
@@ -795,6 +802,11 @@ async function renderCardPage(el, cardId) {
         '</div>';
     }
 
+    // Register Trix foreground color attribute (idempotent)
+    if (window.Trix && !Trix.config.textAttributes.foregroundColor) {
+      Trix.config.textAttributes.foregroundColor = { styleProperty: 'color', inheritable: true };
+    }
+
     // ===== BUILD PAGE =====
     var wrapperStart = pinnedSidebarHtml ? '<div class="card-page-wrapper">' : '';
     var wrapperEnd = pinnedSidebarHtml ? pinnedSidebarHtml + '</div>' : '';
@@ -811,7 +823,7 @@ async function renderCardPage(el, cardId) {
           '</div>' +
           '<header class="bc-card__header">' +
             '<span class="bc-card__icon">' + envelopeIcon + '</span>' +
-            '<h1 class="bc-card__title"' + (editing ? ' onclick="editCardTitle(this,' + cardId + ')"' : '') + '>' + esc(card.title) + '</h1>' +
+            '<h1 class="bc-card__title" onclick="editCardTitle(this,' + cardId + ')">' + esc(card.title) + '</h1>' +
           '</header>' +
           '<div class="bc-card__fields">' +
             '<div class="bc-field"><span class="bc-field__label">Колона</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
@@ -826,7 +838,10 @@ async function renderCardPage(el, cardId) {
         '<div class="bc-comments">' + commentAddHtml + commentsListHtml + '</div>' +
       '</div>' + wrapperEnd;
 
-    // Setup Trix attachment handlers (only in edit mode when trix editors exist)
+    // Setup image lightbox for view mode
+    setTimeout(function() { setupImageLightbox(); }, 100);
+
+    // Setup Trix attachment handlers and color picker
     if (editing) {
       setTimeout(function() {
         var notesEditor = document.querySelector('trix-editor[input="cardNotesInput"]');
@@ -834,18 +849,20 @@ async function renderCardPage(el, cardId) {
           notesEditor.addEventListener('trix-attachment-add', function(e) {
             if (e.attachment.file) uploadTrixAttachment(cardId, e.attachment);
           });
+          injectTrixColorButton(notesEditor);
         }
-      }, 200);
+      }, 300);
     }
-    // Comment trix is always present
+    // Comment trix is always present (hidden until expanded)
     setTimeout(function() {
       var commentEditor = document.querySelector('trix-editor[input="newCommentInput"]');
       if (commentEditor) {
         commentEditor.addEventListener('trix-attachment-add', function(e) {
           if (e.attachment.file) uploadTrixAttachment(cardId, e.attachment);
         });
+        injectTrixColorButton(commentEditor);
       }
-    }, 200);
+    }, 300);
 
   } catch(e) { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">\u041a\u0430\u0440\u0442\u0430\u0442\u0430 \u043d\u0435 \u0435 \u043d\u0430\u043c\u0435\u0440\u0435\u043d\u0430</div>'; }
 }
@@ -883,6 +900,138 @@ async function uploadTrixAttachment(cardId, attachment) {
       attachment.setAttributes({ url: data.storage_path, href: data.storage_path });
     }
   } catch(e) {}
+}
+
+// ==================== COMMENT COLLAPSE ====================
+function expandCommentInput() {
+  var placeholder = document.querySelector('.bc-comment-placeholder');
+  var wrap = document.getElementById('commentEditorWrap');
+  if (placeholder) placeholder.style.display = 'none';
+  if (wrap) {
+    wrap.classList.add('expanded');
+    setTimeout(function() {
+      var editor = wrap.querySelector('trix-editor');
+      if (editor) editor.focus();
+    }, 50);
+  }
+}
+function collapseCommentInput() {
+  var placeholder = document.querySelector('.bc-comment-placeholder');
+  var wrap = document.getElementById('commentEditorWrap');
+  if (placeholder) placeholder.style.display = '';
+  if (wrap) wrap.classList.remove('expanded');
+}
+
+// ==================== IMAGE LIGHTBOX ====================
+function setupImageLightbox() {
+  document.querySelectorAll('.rich-content img, .bc-comment-text img').forEach(function(img) {
+    img.style.cursor = 'pointer';
+    img.addEventListener('click', function() { showLightbox(img.src); });
+  });
+}
+function showLightbox(src) {
+  var existing = document.querySelector('.bc-lightbox');
+  if (existing) existing.remove();
+  var lb = document.createElement('div');
+  lb.className = 'bc-lightbox';
+  lb.innerHTML = '<div class="bc-lightbox__backdrop"></div>' +
+    '<button class="bc-lightbox__close" title="Затвори">&times;</button>' +
+    '<img class="bc-lightbox__img" src="' + src + '">';
+  document.body.appendChild(lb);
+  lb.querySelector('.bc-lightbox__backdrop').addEventListener('click', function() { lb.remove(); });
+  lb.querySelector('.bc-lightbox__close').addEventListener('click', function() { lb.remove(); });
+  document.addEventListener('keydown', function handler(e) {
+    if (e.key === 'Escape') { lb.remove(); document.removeEventListener('keydown', handler); }
+  });
+}
+
+// ==================== TRIX COLOR PICKER ====================
+function injectTrixColorButton(trixEl) {
+  var toolbar = trixEl.previousElementSibling;
+  if (!toolbar || toolbar.tagName !== 'TRIX-TOOLBAR') return;
+  if (toolbar.querySelector('.bc-trix-color-btn')) return; // already injected
+  var group = toolbar.querySelector('.trix-button-group--text-tools');
+  if (!group) return;
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'trix-button bc-trix-color-btn';
+  btn.title = 'Цвят на текст';
+  btn.innerHTML = '<span style="background:#ef4444;border-radius:50%;width:12px;height:12px;display:inline-block;border:1px solid rgba(255,255,255,0.35)"></span>';
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    showTrixColorPicker(e, trixEl);
+  });
+  group.appendChild(btn);
+}
+function showTrixColorPicker(e, trixEl) {
+  var existing = document.querySelector('.bc-color-picker');
+  if (existing) { existing.remove(); return; }
+  var COLORS = [
+    { name: 'Червено', value: '#ef4444' },
+    { name: 'Оранжево', value: '#f97316' },
+    { name: 'Жълто', value: '#fbbf24' },
+    { name: 'Зелено', value: '#22c55e' },
+    { name: 'Тюркоаз', value: '#14b8a6' },
+    { name: 'Синьо', value: '#3b82f6' },
+    { name: 'Индиго', value: '#6366f1' },
+    { name: 'Лилаво', value: '#a855f7' },
+    { name: 'Розово', value: '#ec4899' }
+  ];
+  var picker = document.createElement('div');
+  picker.className = 'bc-color-picker';
+  COLORS.forEach(function(c) {
+    var swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.className = 'bc-color-swatch';
+    swatch.style.background = c.value;
+    swatch.title = c.name;
+    swatch.addEventListener('click', function(ev) {
+      ev.stopPropagation();
+      if (window.Trix && Trix.config.textAttributes.foregroundColor) {
+        trixEl.editor.activateAttribute('foregroundColor', c.value);
+      }
+      picker.remove();
+      trixEl.focus();
+    });
+    picker.appendChild(swatch);
+  });
+  var resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.className = 'bc-color-swatch bc-color-swatch--reset';
+  resetBtn.title = 'Без цвят';
+  resetBtn.textContent = 'A';
+  resetBtn.addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    if (window.Trix && Trix.config.textAttributes.foregroundColor) {
+      trixEl.editor.deactivateAttribute('foregroundColor');
+    }
+    picker.remove();
+    trixEl.focus();
+  });
+  picker.appendChild(resetBtn);
+  var rect = e.currentTarget.getBoundingClientRect();
+  picker.style.position = 'fixed';
+  picker.style.top = (rect.bottom + 4) + 'px';
+  picker.style.left = rect.left + 'px';
+  document.body.appendChild(picker);
+  setTimeout(function() {
+    document.addEventListener('click', function handler() {
+      picker.remove();
+      document.removeEventListener('click', handler);
+    });
+  }, 10);
+}
+
+// ==================== NOTES FILE ATTACH ====================
+function attachNotesFile(cardId, input) {
+  var file = input.files[0];
+  if (!file) return;
+  var editor = document.querySelector('trix-editor[input="cardNotesInput"]');
+  if (!editor) return;
+  var attachment = new Trix.Attachment({ file: file });
+  editor.editor.insertAttachment(attachment);
+  input.value = '';
 }
 
 // Click-to-edit title
