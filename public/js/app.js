@@ -576,18 +576,24 @@ async function renderBoard(el, boardId) {
                     ${manage ? `<button class="col-menu-btn" onclick="showColMenu(event, ${boardId}, ${col.id})">⋮</button>` : ''}
                   </div>
                 </div>
-                <div class="column-cards" data-column-id="${col.id}" data-board-id="${boardId}"
+                <div class="column-cards" data-column-id="${col.id}" data-board-id="${boardId}" data-is-hold="false"
                      ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
                   ${colCards.map(c => renderKanbanCard(c, colColor)).join('')}
                 </div>
-                ${holdCards.length > 0 ? `
-                  <div class="on-hold-section">
-                    <div class="on-hold-label">ИЗЧАКВАНЕ (${holdCards.length})</div>
-                    <div class="column-cards" data-column-id="${col.id}" data-board-id="${boardId}"
+                <div class="on-hold-section" id="hold-${col.id}">
+                  <button class="on-hold-toggle" onclick="toggleHoldSection(${col.id})">
+                    <span class="on-hold-toggle__icon">${holdCards.length > 0 ? '▾' : '▸'}</span>
+                    <span>На изчакване</span>
+                    <span class="on-hold-toggle__count">${holdCards.length}</span>
+                  </button>
+                  <div class="on-hold-cards" id="hold-cards-${col.id}" style="${holdCards.length > 0 ? '' : 'display:none'}">
+                    <div class="column-cards on-hold-drop" data-column-id="${col.id}" data-board-id="${boardId}" data-is-hold="true"
                          ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
                       ${holdCards.map(c => renderKanbanCard(c, colColor)).join('')}
+                      <div class="on-hold-drop-hint">Влачи тук за пауза</div>
                     </div>
-                  </div>` : ''}
+                  </div>
+                </div>
                 ${edit ? `<a class="add-card-btn" href="#/card/0/new?board=${boardId}&column=${col.id}">+ Добави карта</a>` : ''}
               </div>
             </div>`;
@@ -620,23 +626,28 @@ function renderKanbanCard(card, colColor) {
       + (extra > 0 ? `<div class="kanban-card__av kanban-card__av--more">+${extra}</div>` : '')
     : `<div class="kanban-card__av kanban-card__av--empty">–</div>`;
 
+  const holdLabel = card.is_on_hold ? `<span class="kanban-card__hold-badge">⏸ На изчакване</span>` : '';
   return `
-    <a class="kanban-card ${color}" href="#/card/${card.id}" draggable="true" data-card-id="${card.id}"
-       ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)"
-       onauxclick="if(event.button===1){event.preventDefault();window.open('#/card/${card.id}','_blank')}">
-      <div class="kanban-card__content">
-        <h3 class="kanban-card__title">${esc(card.title)}</h3>
-        <div class="kanban-card__footer">
-          <div class="kanban-card__avatars">${avatarsHtml}</div>
-          <div class="kanban-card__badges">
-            ${card.client_name ? `<span class="kanban-card__client">${esc(card.client_name)}</span>` : ''}
-            ${stepsStr ? `<span class="kanban-card__steps">✓ ${stepsStr}</span>` : ''}
-            ${dueStr ? `<span class="kanban-card__due">${dueStr}</span>` : ''}
-            ${card.comment_count ? `<span class="kanban-card__comments">💬 ${card.comment_count}</span>` : ''}
+    <div class="kanban-card-wrap">
+      <a class="kanban-card ${color}" href="#/card/${card.id}" draggable="true" data-card-id="${card.id}"
+         ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)"
+         onauxclick="if(event.button===1){event.preventDefault();window.open('#/card/${card.id}','_blank')}">
+        <div class="kanban-card__content">
+          ${holdLabel}
+          <h3 class="kanban-card__title">${esc(card.title)}</h3>
+          <div class="kanban-card__footer">
+            <div class="kanban-card__avatars">${avatarsHtml}</div>
+            <div class="kanban-card__badges">
+              ${card.client_name ? `<span class="kanban-card__client">${esc(card.client_name)}</span>` : ''}
+              ${stepsStr ? `<span class="kanban-card__steps">✓ ${stepsStr}</span>` : ''}
+              ${dueStr ? `<span class="kanban-card__due">${dueStr}</span>` : ''}
+              ${card.comment_count ? `<span class="kanban-card__comments">💬 ${card.comment_count}</span>` : ''}
+            </div>
           </div>
         </div>
-      </div>
-    </a>`;
+      </a>
+      <button class="kanban-card__menu-btn" onclick="event.preventDefault();event.stopPropagation();showKanbanCardMenu(event,${card.id},${card.is_on_hold?'true':'false'})" title="Опции">⋮</button>
+    </div>`;
 }
 
 // ==================== CARD PAGE ====================
@@ -2089,7 +2100,46 @@ function handleDragStart(e) { dragCardId=e.currentTarget.dataset.cardId; e.curre
 function handleDragEnd(e) { e.currentTarget.classList.remove('dragging'); dragCardId=null; }
 function handleDragOver(e) { if(!dragCardId)return; e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
 function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
-async function handleDrop(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('drag-over'); if(!dragCardId)return; try{await fetch(`/api/cards/${dragCardId}/move`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({column_id:parseInt(e.currentTarget.dataset.columnId),board_id:parseInt(e.currentTarget.dataset.boardId)})}); router();}catch{} }
+async function handleDrop(e) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over');
+  if(!dragCardId) return;
+  const colId = parseInt(e.currentTarget.dataset.columnId);
+  const boardId = parseInt(e.currentTarget.dataset.boardId);
+  const isHold = e.currentTarget.dataset.isHold === 'true';
+  try {
+    await fetch(`/api/cards/${dragCardId}/move`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({column_id:colId,board_id:boardId})});
+    await fetch(`/api/cards/${dragCardId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_on_hold:isHold})});
+    router();
+  } catch {}
+}
+
+// ==================== ON HOLD ====================
+function toggleHoldSection(colId) {
+  const cards = document.getElementById('hold-cards-' + colId);
+  const btn = document.querySelector('#hold-' + colId + ' .on-hold-toggle__icon');
+  if (!cards) return;
+  const open = cards.style.display !== 'none';
+  cards.style.display = open ? 'none' : '';
+  if (btn) btn.textContent = open ? '▸' : '▾';
+}
+function showKanbanCardMenu(e, cardId, isOnHold) {
+  document.querySelectorAll('.kanban-card-context').forEach(m => m.remove());
+  const menu = document.createElement('div');
+  menu.className = 'kanban-card-context';
+  menu.innerHTML = isOnHold
+    ? `<button onclick="toggleCardHold(${cardId},false);this.parentElement.remove()">▶ Върни в колоната</button>`
+    : `<button onclick="toggleCardHold(${cardId},true);this.parentElement.remove()">⏸ Сложи на изчакване</button>`;
+  menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:9999`;
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), {once:true}), 10);
+}
+async function toggleCardHold(cardId, hold) {
+  try {
+    await fetch(`/api/cards/${cardId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_on_hold:hold})});
+    router();
+  } catch {}
+}
 
 // ==================== COLUMN DRAG ====================
 let dragColId = null, dragColEl = null;
