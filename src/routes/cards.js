@@ -133,18 +133,24 @@ router.post('/', requireAuth, async (req, res) => {
 // PUT /api/cards/:id — update card fields
 router.put('/:id', requireAuth, async (req, res) => {
   try {
-    const { title, content, due_on, publish_date, priority, is_on_hold, assignee_ids, client_name, kp_number, video_number, video_title } = req.body;
+    const { assignee_ids } = req.body;
+    const allowedFields = ['title', 'content', 'due_on', 'publish_date', 'priority', 'is_on_hold', 'client_name', 'kp_number', 'video_number', 'video_title'];
 
-    const card = await queryOne(`
-      UPDATE cards SET
-        title = COALESCE($1, title), content = COALESCE($2, content),
-        due_on = COALESCE($3, due_on), publish_date = COALESCE($4, publish_date),
-        priority = COALESCE($5, priority), is_on_hold = COALESCE($6, is_on_hold),
-        client_name = COALESCE($7, client_name), kp_number = COALESCE($8, kp_number),
-        video_number = COALESCE($9, video_number), video_title = COALESCE($10, video_title),
-        updated_at = NOW()
-      WHERE id = $11 AND archived_at IS NULL RETURNING *
-    `, [title, content, due_on, publish_date, priority, is_on_hold, client_name, kp_number, video_number, video_title, req.params.id]);
+    const setClauses = ['updated_at = NOW()'];
+    const params = [];
+    let i = 1;
+    for (const field of allowedFields) {
+      if (field in req.body) {
+        setClauses.push(`${field} = $${i++}`);
+        params.push(req.body[field] === '' ? null : req.body[field]);
+      }
+    }
+    params.push(req.params.id);
+
+    const card = await queryOne(
+      `UPDATE cards SET ${setClauses.join(', ')} WHERE id = $${i} AND archived_at IS NULL RETURNING *`,
+      params
+    );
 
     if (!card) return res.status(404).json({ error: 'Card not found' });
 

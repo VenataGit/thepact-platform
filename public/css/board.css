@@ -143,14 +143,14 @@
 .col-context-menu button:hover { background: var(--bg-hover); }
 
 /* ==================== CARD PAGE (Basecamp Style) ==================== */
-.card-page { max-width: 900px; margin: 0 auto; position: relative; }
-.card-page-wrapper { display: flex; gap: 20px; align-items: flex-start; max-width: 1100px; margin: 0 auto; position: relative; }
-.card-page-main { flex: 1; min-width: 0; max-width: 900px; margin: 0 auto; }
+.card-page { max-width: 960px; margin: 0 auto; position: relative; }
+.card-page-wrapper { display: flex; gap: 24px; align-items: flex-start; max-width: 1200px; margin: 0 auto; position: relative; }
+.card-page-main { flex: 1; min-width: 0; max-width: 960px; margin: 0 auto; }
 
-.bc-card-options { display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 4px; position: relative; }
-
-/* Card: framed container like Basecamp */
-.bc-card { background: var(--bg-card, #182830); border: 1px solid var(--border, #2a3f4d); border-radius: 10px; padding: 36px 44px; max-width: 900px; margin: 0 auto; }
+/* Card: framed container — options button absolutely positioned inside */
+.bc-card { background: var(--bg-card, #182830); border: 1px solid var(--border, #2a3f4d); border-radius: 10px; padding: 36px 44px; max-width: 960px; margin: 0 auto; position: relative; }
+.bc-card-options { position: absolute; top: 14px; right: 14px; display: flex; gap: 4px; align-items: center; }
+.bc-card-options__dots { font-size: 18px; padding: 2px 8px; line-height: 1; }
 
 .bc-card__header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
 .bc-card__icon { flex-shrink: 0; color: var(--text-dim); display: flex; align-items: center; }
@@ -228,10 +228,10 @@
 .bc-date-input--hidden { display: none; }
 
 /* Editor — Basecamp Trix style */
-.bc-editor { border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.2); overflow: hidden; width: 100%; max-width: 100%; box-sizing: border-box; }
+.bc-editor { border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.2); overflow-x: hidden; overflow-y: visible; width: 100%; max-width: 100%; box-sizing: border-box; }
 .bc-editor trix-toolbar { border: none; border-bottom: 1px solid rgba(255,255,255,0.1); background: transparent; border-radius: 0; padding: 6px 4px; }
 .bc-editor trix-toolbar .trix-button-group { flex-wrap: wrap; }
-.bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; padding: 14px; color: var(--text); font-size: 14px; line-height: 1.6; min-width: 0; box-sizing: border-box; }
+.bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; max-height: none !important; overflow-y: visible !important; height: auto; padding: 14px; color: var(--text); font-size: 14px; line-height: 1.6; min-width: 0; box-sizing: border-box; }
 
 /* Steps — expandable items */
 .bc-checklist { list-style: none; padding: 0; margin: 0 0 8px; }
@@ -278,7 +278,7 @@
 .bc-btn-discard:hover { background: rgba(70,163,116,0.1); }
 
 /* Comments — Basecamp style (outside the card frame) */
-.bc-comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); max-width: 900px; margin-left: auto; margin-right: auto; }
+.bc-comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); max-width: 960px; margin-left: auto; margin-right: auto; }
 .bc-comment-add { display: flex; gap: 12px; margin-bottom: 24px; }
 .bc-comment-avatar {
   width: 36px; height: 36px; border-radius: 50%;
@@ -309,7 +309,7 @@
 .bc-comment-action--pin { color: var(--accent); }
 
 /* Pinned comment sidebar */
-.bc-pinned-sidebar { position: sticky; top: 20px; width: 260px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.bc-pinned-sidebar { position: sticky; top: 100px; width: 260px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
 .bc-pinned-sidebar__title { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
 .bc-pinned-sidebar__content { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
 .bc-pinned-sidebar__meta { font-size: 11px; color: var(--text-dim); margin-top: 8px; }

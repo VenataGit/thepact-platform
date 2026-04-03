@@ -804,11 +804,11 @@ async function renderCardPage(el, cardId) {
 
     el.innerHTML = wrapperStart +
       '<div class="' + (pinnedSidebarHtml ? 'card-page-main' : 'card-page') + '">' +
-        '<div class="bc-card-options">' +
-          editBtnHtml +
-          '<button class="btn btn-sm btn-ghost" onclick="toggleCardOptionsMenu(event,' + cardId + ',\'' + titleEsc + '\')" title="Options">\u22ef</button>' +
-        '</div>' +
         '<article class="bc-card">' +
+          '<div class="bc-card-options">' +
+            editBtnHtml +
+            '<button class="btn btn-sm btn-ghost bc-card-options__dots" onclick="toggleCardOptionsMenu(event,' + cardId + ',\'' + titleEsc + '\')" title="Options">\u22ef</button>' +
+          '</div>' +
           '<header class="bc-card__header">' +
             '<span class="bc-card__icon">' + envelopeIcon + '</span>' +
             '<h1 class="bc-card__title"' + (editing ? ' onclick="editCardTitle(this,' + cardId + ')"' : '') + '>' + esc(card.title) + '</h1>' +
