@@ -398,10 +398,26 @@ function renderDashboardBoard(boards, cards, stageColors) {
             holdCards.map(function(c) { return renderDashCard(c); }).join('');
         }
 
+        // Column overdue timer
+        var _now = new Date(); _now.setHours(0,0,0,0);
+        var overdueColCards = colCards.filter(function(c) {
+          return c.due_on && !c.is_on_hold && !c.completed_at && new Date(c.due_on) < _now;
+        });
+        var timerHtml = '';
+        if (overdueColCards.length > 0) {
+          var maxDays = Math.max.apply(null, overdueColCards.map(function(c) {
+            var d = new Date(c.due_on); d.setHours(0,0,0,0);
+            return Math.ceil((_now - d) / 86400000);
+          }));
+          timerHtml = '<span class="dash-subcol-timer dash-subcol-timer--overdue">\u26a0 ' + maxDays + '\u0434</span>';
+        } else {
+          timerHtml = '<span class="dash-subcol-timer dash-subcol-timer--clean">\u2713</span>';
+        }
+
         return '<div class="dash-subcol">' +
           '<div class="dash-subcol-header" onclick="event.stopPropagation();toggleDashSubCol(' + board.id + ',' + col.id + ')" style="cursor:pointer">' +
             '<span>' + esc(col.title) + '</span>' +
-            '<span class="dash-subcol-count">' + colCards.length + '</span>' +
+            '<div style="display:flex;align-items:center;gap:4px">' + timerHtml + '<span class="dash-subcol-count">' + colCards.length + '</span></div>' +
           '</div>' +
           '<div class="dash-subcol-cards">' + cardsHtml + holdHtml + '</div>' +
         '</div>';
