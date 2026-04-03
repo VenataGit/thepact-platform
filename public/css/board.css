@@ -149,8 +149,8 @@
 
 .bc-card-options { display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 4px; position: relative; }
 
-/* Card: no border/background — content directly on page */
-.bc-card { background: transparent; border: none; border-radius: 0; padding: 0 0 32px; }
+/* Card: framed container like Basecamp */
+.bc-card { background: var(--bg-card, #182830); border: 1px solid var(--border, #2a3f4d); border-radius: 10px; padding: 32px 36px; max-width: 720px; margin: 0 auto; }
 
 .bc-card__header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
 .bc-card__icon { flex-shrink: 0; color: var(--text-dim); display: flex; align-items: center; }
@@ -185,6 +185,15 @@
 .bc-field__value--full { flex-direction: column; align-items: stretch; }
 .bc-field__hint { color: var(--text-dim); font-size: 13px; }
 .bc-field--light { opacity: 0.7; }
+.bc-field__placeholder { color: var(--text-dim); font-style: normal; }
+
+/* Edit card button */
+.bc-card__edit-btn {
+  background: transparent; border: 1px solid var(--border); border-radius: 20px;
+  color: var(--text-dim); font-size: 12px; padding: 4px 14px; cursor: pointer;
+  font-family: inherit; transition: all 0.15s;
+}
+.bc-card__edit-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Assignee with remove on hover */
 .bc-assignee { color: var(--text); position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px; transition: background 0.1s; }
@@ -267,8 +276,8 @@
 }
 .bc-btn-discard:hover { background: rgba(70,163,116,0.1); }
 
-/* Comments — Basecamp style */
-.bc-comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
+/* Comments — Basecamp style (outside the card frame) */
+.bc-comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); max-width: 720px; margin-left: auto; margin-right: auto; }
 .bc-comment-add { display: flex; gap: 12px; margin-bottom: 24px; }
 .bc-comment-avatar {
   width: 36px; height: 36px; border-radius: 50%;

@@ -129,6 +129,9 @@ function router() {
   const el = document.getElementById('pageContent');
   closeAllDropdowns();
 
+  // Reset card edit mode when navigating away from card page
+  if (page !== 'card') _cardEditMode = false;
+
   switch (page) {
     case 'home': return renderHome(el);
     case 'project': return renderProject(el, id);
@@ -626,6 +629,8 @@ function renderKanbanCard(card) {
 // ==================== CARD PAGE ====================
 var _cardPinnedComment = null;
 
+var _cardEditMode = false;
+
 async function renderCardPage(el, cardId) {
   el.className = '';
   try {
@@ -646,6 +651,7 @@ async function renderCardPage(el, cardId) {
     ]);
 
     var manage = canManage();
+    var editing = _cardEditMode && manage;
     var creatorName = card.creator_name || (allUsers.find(function(u) { return u.id === card.creator_id; }) || {}).name || '';
     var createdAgo = card.created_at ? timeAgo(card.created_at) : '';
     var avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
@@ -654,30 +660,32 @@ async function renderCardPage(el, cardId) {
     // Envelope SVG icon
     var envelopeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>';
 
-    // Build assignees HTML
+    // ===== ASSIGNED TO =====
     var assigneesHtml = '';
-    if (card.assignees && card.assignees.length > 0) {
-      assigneesHtml = card.assignees.map(function(a) {
-        if (manage) {
+    if (editing) {
+      if (card.assignees && card.assignees.length > 0) {
+        assigneesHtml = card.assignees.map(function(a) {
           return '<span class="bc-assignee">' + esc(a.name) + '<button class="bc-assignee__remove" onclick="event.stopPropagation();removeAssignee(' + cardId + ',' + a.id + ')" title="Remove">\u2715</button></span>';
-        }
-        return '<span class="bc-assignee">' + esc(a.name) + '</span>';
-      }).join(' ');
-    }
-    var addAssigneeHtml = '';
-    if (manage) {
+        }).join(' ');
+      }
       var availableUsers = allUsers.filter(function(u) { return !(card.assignees || []).some(function(a) { return a.id === u.id; }); });
       var assignPlaceholder = card.assignees && card.assignees.length ? '+ Add...' : 'Type names to assign\u2026';
       var assignClass = card.assignees && card.assignees.length ? 'bc-select-inline' : 'bc-select-inline bc-select-inline--ghost';
-      addAssigneeHtml = '<select class="' + assignClass + '" onchange="addAssignee(' + cardId + ', this.value)">' +
+      assigneesHtml += '<select class="' + assignClass + '" onchange="addAssignee(' + cardId + ', this.value)">' +
         '<option value="">' + assignPlaceholder + '</option>' +
         availableUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') +
         '</select>';
+    } else {
+      if (card.assignees && card.assignees.length > 0) {
+        assigneesHtml = card.assignees.map(function(a) { return '<span>' + esc(a.name) + '</span>'; }).join(', ');
+      } else {
+        assigneesHtml = '<span class="bc-field__placeholder">Type names to assign\u2026</span>';
+      }
     }
 
-    // Build due date HTML
+    // ===== DUE DATE =====
     var dueHtml = '';
-    if (manage) {
+    if (editing) {
       var noDueChecked = !card.due_on ? ' checked' : '';
       var specificChecked = card.due_on ? ' checked' : '';
       var dateHidden = !card.due_on ? ' bc-date-input--hidden' : '';
@@ -686,26 +694,41 @@ async function renderCardPage(el, cardId) {
         '<input type="date" id="dueDateInput_' + cardId + '" class="bc-date-input' + dateHidden + '" value="' + (card.due_on || '') + '" onchange="updateField(' + cardId + ',\'due_on\',this.value||null)">' +
         '</label>';
     } else {
-      dueHtml = '<span>' + (card.due_on ? formatDate(card.due_on) : 'No due date') + '</span>';
+      dueHtml = '<span>' + (card.due_on ? formatDate(card.due_on) : '<span class="bc-field__placeholder">Select a due date</span>') + '</span>';
     }
 
-    // Build steps HTML
+    // ===== NOTES =====
+    var notesHtml = '';
+    if (editing) {
+      notesHtml = '<div class="bc-editor">' +
+        '<input id="cardNotesInput" type="hidden" value="' + esc(card.content || '') + '">' +
+        '<trix-editor input="cardNotesInput" class="trix-dark" placeholder="Add notes\u2026"></trix-editor>' +
+        '</div>';
+    } else {
+      if (card.content && card.content.replace(/<[^>]*>/g, '').trim()) {
+        notesHtml = '<div class="rich-content">' + card.content + '</div>';
+      } else {
+        notesHtml = '<span class="bc-field__placeholder">Add notes\u2026</span>';
+      }
+    }
+
+    // ===== STEPS =====
     var stepsHtml = '';
     if (card.steps && card.steps.length) {
       stepsHtml += '<ul class="bc-checklist">';
       stepsHtml += card.steps.map(function(s) {
         var doneClass = s.completed ? ' bc-checklist__item--done' : '';
         var assigneeName = s.assignee_id ? (allUsers.find(function(u) { return u.id === s.assignee_id; }) || {}).name || '' : '';
+        var stepClick = editing ? ' onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'))"' : '';
         return '<li class="bc-checklist__item' + doneClass + '" data-step-id="' + s.id + '">' +
           '<input type="checkbox" ' + (s.completed ? 'checked' : '') + ' onclick="event.stopPropagation();toggleStep(' + cardId + ',' + s.id + ',this.checked)">' +
-          '<span onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'))">' + esc(s.title) + '</span>' +
+          '<span' + stepClick + '>' + esc(s.title) + '</span>' +
           (assigneeName ? '<span class="bc-step-meta">' + esc(assigneeName) + '</span>' : '') +
           (s.due_on ? '<span class="bc-step-meta">' + formatDate(s.due_on) + '</span>' : '') +
           '</li>';
       }).join('');
       stepsHtml += '</ul>';
     }
-    // "Add a new step" link
     if (manage) {
       stepsHtml += '<button class="bc-add-step-link" onclick="showAddStepForm(' + cardId + ')">Add a new step</button>';
       stepsHtml += '<div class="bc-add-step" id="addStepForm_' + cardId + '">' +
@@ -720,20 +743,9 @@ async function renderCardPage(el, cardId) {
         '</div>';
     }
 
-    // Build notes HTML
-    var notesHtml = '';
-    if (manage) {
-      notesHtml = '<div class="bc-editor">' +
-        '<input id="cardNotesInput" type="hidden" value="' + esc(card.content || '') + '">' +
-        '<trix-editor input="cardNotesInput" class="trix-dark" placeholder="Describe your card here\u2026"></trix-editor>' +
-        '</div>';
-    } else {
-      notesHtml = card.content ? '<div class="rich-content">' + card.content + '</div>' : '<div style="color:var(--text-dim);padding:12px">Describe your card here\u2026</div>';
-    }
-
-    // Build column move options
+    // ===== COLUMN =====
     var colOptionsHtml = '';
-    if (manage && board && board.columns) {
+    if (editing && board && board.columns) {
       var otherCols = board.columns.filter(function(c) { return c.id !== card.column_id; });
       colOptionsHtml = '<select class="bc-select-inline" onchange="moveCard(' + cardId + ', this.value)">' +
         '<option value="">Move along to\u2026</option>' +
@@ -741,11 +753,11 @@ async function renderCardPage(el, cardId) {
         '</select>';
     }
 
-    // Build comments HTML with Trix editor
+    // ===== COMMENTS =====
     var commentAddHtml = '<div class="bc-comment-add">' +
       '<div class="bc-comment-avatar" style="background:' + getAC(currentUser ? currentUser.name : '') + '">' + initials(currentUser ? currentUser.name : '') + '</div>' +
       '<div class="bc-comment-input-wrap">' +
-      '<div class="bc-editor"><input id="newCommentInput" type="hidden" value=""><trix-editor input="newCommentInput" class="trix-dark" placeholder="Add a comment here\u2026" style="min-height:60px"></trix-editor></div>' +
+      '<div class="bc-editor"><input id="newCommentInput" type="hidden" value=""><trix-editor input="newCommentInput" class="trix-dark" placeholder="Type your comment here\u2026" style="min-height:80px"></trix-editor></div>' +
       '<button class="bc-btn-save" onclick="addComment(' + cardId + ')" style="margin-top:8px">Add this comment</button>' +
       '</div></div>';
 
@@ -771,7 +783,7 @@ async function renderCardPage(el, cardId) {
       commentsListHtml += '</div>';
     }
 
-    // Pinned comment sidebar
+    // ===== PINNED SIDEBAR =====
     var pinnedSidebarHtml = '';
     if (_cardPinnedComment) {
       var pc = _cardPinnedComment;
@@ -783,56 +795,79 @@ async function renderCardPage(el, cardId) {
         '</div>';
     }
 
-    // Build full page
+    // ===== BUILD PAGE =====
     var wrapperStart = pinnedSidebarHtml ? '<div class="card-page-wrapper">' : '';
     var wrapperEnd = pinnedSidebarHtml ? pinnedSidebarHtml + '</div>' : '';
+
+    var titleEsc = esc(card.title).replace(/'/g, "\\'");
+    var editBtnHtml = manage && !editing ? '<button class="bc-card__edit-btn" onclick="enterCardEditMode(' + cardId + ')" title="Edit">Edit card</button>' : '';
 
     el.innerHTML = wrapperStart +
       '<div class="' + (pinnedSidebarHtml ? 'card-page-main' : 'card-page') + '">' +
         '<div class="bc-card-options">' +
-          '<button class="btn btn-sm btn-ghost" onclick="toggleCardOptionsMenu(event,' + cardId + ',\'' + esc(card.title).replace(/'/g, "\\'") + '\')" title="Options">\u22ef</button>' +
+          editBtnHtml +
+          '<button class="btn btn-sm btn-ghost" onclick="toggleCardOptionsMenu(event,' + cardId + ',\'' + titleEsc + '\')" title="Options">\u22ef</button>' +
         '</div>' +
         '<article class="bc-card">' +
           '<header class="bc-card__header">' +
             '<span class="bc-card__icon">' + envelopeIcon + '</span>' +
-            '<h1 class="bc-card__title" onclick="editCardTitle(this,' + cardId + ')">' + esc(card.title) + '</h1>' +
+            '<h1 class="bc-card__title"' + (editing ? ' onclick="editCardTitle(this,' + cardId + ')"' : '') + '>' + esc(card.title) + '</h1>' +
           '</header>' +
           '<div class="bc-card__fields">' +
             '<div class="bc-field"><span class="bc-field__label">Column</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
-            '<div class="bc-field"><span class="bc-field__label">Assigned to</span><div class="bc-field__value">' + assigneesHtml + addAssigneeHtml + '</div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Assigned to</span><div class="bc-field__value">' + assigneesHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Due on</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Notes</span><div class="bc-field__value bc-field__value--full">' + notesHtml + '</div></div>' +
-            '<div class="bc-field bc-field--light"><span class="bc-field__label">Added by</span><div class="bc-field__value"><span>' + esc(creatorName) + '</span><span class="bc-field__hint">' + createdAgo + '</span></div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Steps</span><div class="bc-field__value bc-field__value--full">' + stepsHtml + '</div></div>' +
+            '<div class="bc-field bc-field--light"><span class="bc-field__label">Added by</span><div class="bc-field__value"><span>' + esc(creatorName) + '</span><span class="bc-field__hint">' + createdAgo + '</span></div></div>' +
           '</div>' +
-          (manage ? '<div class="bc-card__actions"><button class="bc-btn-save" onclick="saveCardNotes(' + cardId + ')">Save changes</button><button class="bc-btn-discard" onclick="router()">Discard changes</button></div>' : '') +
-          '<div class="bc-comments">' + commentAddHtml + commentsListHtml + '</div>' +
+          (editing ? '<div class="bc-card__actions"><button class="bc-btn-save" onclick="saveCardEdits(' + cardId + ')">Save changes</button><button class="bc-btn-discard" onclick="exitCardEditMode(' + cardId + ')">Discard changes</button></div>' : '') +
         '</article>' +
+        '<div class="bc-comments">' + commentAddHtml + commentsListHtml + '</div>' +
       '</div>' + wrapperEnd;
 
-    // Setup Trix file attachment for notes editor
+    // Setup Trix attachment handlers (only in edit mode when trix editors exist)
+    if (editing) {
+      setTimeout(function() {
+        var notesEditor = document.querySelector('trix-editor[input="cardNotesInput"]');
+        if (notesEditor) {
+          notesEditor.addEventListener('trix-attachment-add', function(e) {
+            if (e.attachment.file) uploadTrixAttachment(cardId, e.attachment);
+          });
+        }
+      }, 200);
+    }
+    // Comment trix is always present
     setTimeout(function() {
-      var notesEditor = document.querySelector('trix-editor[input="cardNotesInput"]');
-      if (notesEditor) {
-        notesEditor.addEventListener('trix-attachment-add', function(e) {
-          var attachment = e.attachment;
-          if (attachment.file) {
-            uploadTrixAttachment(cardId, attachment);
-          }
-        });
-      }
       var commentEditor = document.querySelector('trix-editor[input="newCommentInput"]');
       if (commentEditor) {
         commentEditor.addEventListener('trix-attachment-add', function(e) {
-          var attachment = e.attachment;
-          if (attachment.file) {
-            uploadTrixAttachment(cardId, attachment);
-          }
+          if (e.attachment.file) uploadTrixAttachment(cardId, e.attachment);
         });
       }
     }, 200);
 
   } catch(e) { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">\u041a\u0430\u0440\u0442\u0430\u0442\u0430 \u043d\u0435 \u0435 \u043d\u0430\u043c\u0435\u0440\u0435\u043d\u0430</div>'; }
+}
+
+// Enter/exit edit mode
+function enterCardEditMode(cardId) {
+  _cardEditMode = true;
+  router();
+}
+function exitCardEditMode(cardId) {
+  _cardEditMode = false;
+  router();
+}
+async function saveCardEdits(cardId) {
+  var notesInput = document.getElementById('cardNotesInput');
+  if (notesInput) {
+    var content = notesInput.value;
+    var textContent = content ? content.replace(/<[^>]*>/g, '').trim() : '';
+    await fetch('/api/cards/' + cardId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: textContent ? content : null }) });
+  }
+  _cardEditMode = false;
+  router();
 }
 
 // ==================== CARD PAGE HELPERS ====================
