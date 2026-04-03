@@ -293,11 +293,11 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
     const izmislianeColIdSetting = await queryOne("SELECT value FROM settings WHERE key = 'kp_izmislyane_column_id'");
     const izmislianeColId = izmislianeColIdSetting?.value ? parseInt(izmislianeColIdSetting.value) : null;
     if (izmislianeColId) {
-      izmislianeCol = await queryOne('SELECT id, board_id FROM columns WHERE id = $1 AND archived_at IS NULL', [izmislianeColId]);
+      izmislianeCol = await queryOne('SELECT id, board_id FROM columns WHERE id = $1', [izmislianeColId]);
     }
     if (!izmislianeCol) {
       izmislianeCol = await queryOne(
-        `SELECT col.id, col.board_id FROM columns col WHERE col.title ILIKE 'Измисляне' AND col.archived_at IS NULL LIMIT 1`
+        `SELECT col.id, col.board_id FROM columns col WHERE col.title ILIKE 'Измисляне' LIMIT 1`
       );
     }
     if (!izmislianeCol) return res.status(400).json({ error: 'Не е намерена целева колона. Настройте я в Администрация → Настройки → КП Автоматизация.' });
