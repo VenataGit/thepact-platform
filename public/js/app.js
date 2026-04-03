@@ -26,7 +26,7 @@ async function updateHeyBadge() {
   try {
     const { count } = await (await fetch('/api/notifications/unread-count')).json();
     const b = document.getElementById('heyBadge');
-    if (count > 0) { b.textContent = count; b.style.display = ''; } else b.style.display = 'none';
+    if (count > 0) { b.textContent = count > 99 ? '99+' : count; b.style.display = ''; } else b.style.display = 'none';
   } catch {}
 }
 
@@ -884,6 +884,11 @@ async function renderCardPage(el, cardId) {
           if (e.attachment.file) uploadTrixAttachment(cardId, e.attachment);
         });
         injectTrixColorButton(commentEditor);
+        setupMentionPicker(commentEditor, cardId);
+      }
+      var notesEditor = document.querySelector('trix-editor[input="cardNotesInput"]');
+      if (notesEditor) {
+        setupMentionPicker(notesEditor, cardId);
       }
     }, 300);
 
@@ -2090,6 +2095,73 @@ async function handleColDrop(e, boardId) {
     })));
   } catch(err) { console.error(err); }
 }
+
+// ==================== MENTION PICKER ====================
+let _mentionState = null;
+const _mentionCyrillic = /[@]([\w\u00C0-\u024F\u0400-\u04FF]*)$/;
+
+function setupMentionPicker(trixEl, cardId) {
+  trixEl.addEventListener('trix-change', function() {
+    const editor = trixEl.editor;
+    const pos = editor.getSelectedRange()[0];
+    const text = editor.getDocument().toString();
+    const textBefore = text.substring(0, pos);
+    const atMatch = textBefore.match(_mentionCyrillic);
+    if (atMatch) {
+      const query = atMatch[1].toLowerCase();
+      const atPos = pos - atMatch[0].length;
+      _showMentionDropdown(trixEl, query, function(user) {
+        editor.setSelectedRange([atPos, pos]);
+        editor.insertString('@' + user.name + ' ');
+        _hideMentionDropdown();
+      });
+    } else {
+      _hideMentionDropdown();
+    }
+  });
+  trixEl.addEventListener('keydown', function(e) {
+    if (!_mentionState) return;
+    if (e.key === 'Escape') { _hideMentionDropdown(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); _moveMention(1); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); _moveMention(-1); }
+    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); _selectCurrentMention(); }
+  });
+  trixEl.addEventListener('blur', function() { setTimeout(_hideMentionDropdown, 150); });
+}
+function _showMentionDropdown(anchorEl, query, onSelect) {
+  _hideMentionDropdown();
+  const avColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+  const users = allUsers.filter(u => !query || u.name.toLowerCase().includes(query)).slice(0, 8);
+  if (!users.length) return;
+  _mentionState = { users, selectedIdx: 0, onSelect };
+  const dd = document.createElement('div');
+  dd.id = 'mentionDropdown';
+  dd.className = 'mention-dropdown';
+  dd.innerHTML = users.map((u, i) =>
+    `<div class="mention-item${i===0?' mention-item--active':''}" data-idx="${i}" onmousedown="event.preventDefault();_selectMentionByIdx(${i})">
+      <div class="mention-av" style="background:${avColors[u.id%avColors.length]}">${initials(u.name)}</div>
+      <span>${esc(u.name)}</span>
+    </div>`
+  ).join('');
+  const rect = anchorEl.getBoundingClientRect();
+  dd.style.cssText = `position:fixed;left:${rect.left}px;top:${Math.min(rect.bottom+4, window.innerHeight-260)}px;z-index:9999`;
+  document.body.appendChild(dd);
+  _mentionState.dd = dd;
+}
+function _hideMentionDropdown() {
+  document.getElementById('mentionDropdown')?.remove();
+  _mentionState = null;
+}
+function _moveMention(delta) {
+  if (!_mentionState) return;
+  const items = _mentionState.dd.querySelectorAll('.mention-item');
+  items[_mentionState.selectedIdx].classList.remove('mention-item--active');
+  _mentionState.selectedIdx = (_mentionState.selectedIdx + delta + items.length) % items.length;
+  items[_mentionState.selectedIdx].classList.add('mention-item--active');
+  items[_mentionState.selectedIdx].scrollIntoView({ block: 'nearest' });
+}
+function _selectCurrentMention() { if (_mentionState) _mentionState.onSelect(_mentionState.users[_mentionState.selectedIdx]); }
+function _selectMentionByIdx(idx) { if (_mentionState) _mentionState.onSelect(_mentionState.users[idx]); }
 
 // ==================== PROFILE ====================
 async function openProfile() { const m=document.getElementById('profileModal'); m.style.display='flex'; try{ const u=await(await fetch('/api/profile')).json(); const av=document.getElementById('profileAvatar'); if(u.avatar_url)av.innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`; else av.textContent=initials(u.name); document.getElementById('profileName').textContent=u.name; document.getElementById('profileEmail').textContent=u.email; document.getElementById('profileRole').innerHTML=u.role==='admin'?'<span class="badge badge-accent">АДМИН</span>':u.role==='moderator'?'<span class="badge badge-blue">МОДЕРАТОР</span>':'<span class="badge">ЧЛЕН</span>'; document.getElementById('profileNameInput').value=u.name; }catch{} }
