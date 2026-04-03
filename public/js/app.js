@@ -425,7 +425,7 @@ function renderDashboardBoard(boards, cards, stageColors) {
             '<span>' + esc(col.title) + '</span>' +
             '<span class="dash-subcol-count">' + colCards.length + '</span>' +
           '</div>' +
-          '<div class="dash-subcol-cards">' + cardsHtml + holdHtml + '</div>' +
+          '<div class="dash-subcol-cards" data-column-id="' + col.id + '" data-board-id="' + board.id + '" ondragover="handleDashDragOver(event)" ondragleave="handleDashDragLeave(event)" ondrop="handleDashDrop(event)">' + cardsHtml + holdHtml + '</div>' +
         '</div>';
       }).join('');
     }
@@ -466,7 +466,7 @@ function renderDashCard(card) {
   var stepsStr = card.steps_total > 0 ? card.steps_done + '/' + card.steps_total : '';
   var holdClass = card.is_on_hold ? ' dash-card--hold' : '';
 
-  return '<a class="dash-card ' + colorClass + holdClass + '" href="#/card/' + card.id + '">' +
+  return '<a class="dash-card ' + colorClass + holdClass + '" href="#/card/' + card.id + '" draggable="true" data-card-id="' + card.id + '" ondragstart="handleDragStart(event)" ondragend="handleDashDragEnd(event)">' +
     '<div class="dash-card__title">' + (card.is_on_hold ? '\u23f8 ' : '') + esc(card.title) + '</div>' +
     '<div class="dash-card__footer">' +
       (dueStr ? '<span class="dash-card__date">\ud83d\udcc5 ' + dueStr + '</span>' : '<span></span>') +
@@ -2685,6 +2685,54 @@ async function handleDrop(e) {
     await fetch(`/api/cards/${dragCardId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_on_hold:isHold})});
     router();
   } catch {}
+}
+
+// ==================== DASHBOARD DRAG & DROP ====================
+function handleDashDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  dragCardId = null;
+  // Clear any lingering drop-over highlights
+  document.querySelectorAll('.dash-drop-over').forEach(el => el.classList.remove('dash-drop-over'));
+}
+function handleDashDragOver(e) {
+  if (!dragCardId) return;
+  e.preventDefault();
+  e.currentTarget.classList.add('dash-drop-over');
+}
+function handleDashDragLeave(e) {
+  // Only remove if leaving to outside the drop zone (not into a child element)
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    e.currentTarget.classList.remove('dash-drop-over');
+  }
+}
+async function handleDashDrop(e) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('dash-drop-over');
+  if (!dragCardId) return;
+  const colId   = parseInt(e.currentTarget.dataset.columnId);
+  const boardId = parseInt(e.currentTarget.dataset.boardId);
+  const cardId  = dragCardId;
+  dragCardId = null;
+  try {
+    await fetch('/api/cards/' + cardId + '/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ column_id: colId, board_id: boardId })
+    });
+    // Refresh dashboard data in-place (no full page reload)
+    const [boards, cards] = await Promise.all([
+      fetch('/api/boards').then(r => r.json()),
+      fetch('/api/cards').then(r => r.json())
+    ]);
+    _dashBoards = boards; _dashCards = cards;
+    // Sync timers
+    try {
+      const timerRows = await (await fetch('/api/timers/boards')).json();
+      _dashTimers = {};
+      timerRows.forEach(function(t) { _dashTimers[t.board_id] = t; });
+    } catch {}
+    renderDashboardBoard(boards, cards, _dashStageColors);
+  } catch(err) { console.error('Dashboard drop error:', err); }
 }
 
 // ==================== ON HOLD ====================
