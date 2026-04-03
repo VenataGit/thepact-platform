@@ -951,6 +951,35 @@ async function renderCardPage(el, cardId) {
       dueHtml = '<span>' + (card.due_on ? formatDate(card.due_on) : '<span class="bc-field__placeholder">Избери дата</span>') + '</span>';
     }
 
+    // ===== PRIORITY =====
+    var priorityHtml = '';
+    if (editing) {
+      priorityHtml = '<select class="bc-select-inline" onchange="updateField(' + cardId + ',\'priority\',this.value)">' +
+        '<option value="normal"' + (!card.priority || card.priority === 'normal' ? ' selected' : '') + '>\u041d\u043e\u0440\u043c\u0430\u043b\u0435\u043d</option>' +
+        '<option value="high"' + (card.priority === 'high' ? ' selected' : '') + '>\u2191 \u0412\u0438\u0441\u043e\u043a</option>' +
+        '<option value="urgent"' + (card.priority === 'urgent' ? ' selected' : '') + '>\ud83d\udd34 \u0421\u043f\u0435\u0448\u043d\u043e</option>' +
+        '</select>';
+    } else {
+      var pLabels = {'urgent': '\ud83d\udd34 \u0421\u043f\u0435\u0448\u043d\u043e', 'high': '\u2191 \u0412\u0438\u0441\u043e\u043a', 'normal': '\u041d\u043e\u0440\u043c\u0430\u043b\u0435\u043d'};
+      priorityHtml = '<span>' + (pLabels[card.priority] || '\u041d\u043e\u0440\u043c\u0430\u043b\u0435\u043d') + '</span>';
+    }
+
+    // ===== PUBLISH DATE =====
+    var publishHtml = '';
+    if (editing) {
+      var pubHidden = !card.publish_date ? ' bc-date-input--hidden' : '';
+      var noPubChecked = !card.publish_date ? ' checked' : '';
+      var yesPubChecked = card.publish_date ? ' checked' : '';
+      publishHtml = '<label class="bc-radio"><input type="radio" name="pub_' + cardId + '"' + noPubChecked + ' onclick="savePublishDateField(' + cardId + ',null)"> \u0411\u0435\u0437 \u0434\u0430\u0442\u0430</label>' +
+        '<label class="bc-radio"><input type="radio" name="pub_' + cardId + '"' + yesPubChecked + ' onclick="handlePublishDate(' + cardId + ')"> \u041a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u0430 \u0434\u0430\u0442\u0430' +
+        '<input type="date" id="publishDateInput_' + cardId + '" class="bc-date-input' + pubHidden + '" value="' + (card.publish_date || '') + '" onchange="savePublishDateField(' + cardId + ',this.value)" onclick="event.stopPropagation()"></label>' +
+        '<span id="pubSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 \u0417\u0430\u043f\u0430\u0437\u0435\u043d\u043e</span>';
+    } else {
+      publishHtml = card.publish_date
+        ? '<span style="color:var(--accent)">\ud83d\udcc5 ' + formatDate(card.publish_date) + '</span>'
+        : '<span class="bc-field__placeholder">\u2014</span>';
+    }
+
     // ===== NOTES =====
     var notesHtml = '';
     if (editing) {
@@ -1097,8 +1126,9 @@ async function renderCardPage(el, cardId) {
             '<div class="bc-field"><span class="bc-field__label">Колона</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
             (card.client_name ? '<div class="bc-field"><span class="bc-field__label">Клиент</span><div class="bc-field__value"><span class="bc-client-badge">' + esc(card.client_name) + (card.kp_number ? ' \u00b7 \u041a\u041f-' + card.kp_number : '') + '</span></div></div>' : '') +
             '<div class="bc-field"><span class="bc-field__label">Отговорник</span><div class="bc-field__value">' + assigneesHtml + '</div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Приоритет</span><div class="bc-field__value">' + priorityHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Краен срок</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
-            (card.publish_date ? '<div class="bc-field"><span class="bc-field__label">Публикуване</span><div class="bc-field__value"><span style="color:var(--accent)">\ud83d\udcc5 ' + formatDate(card.publish_date) + '</span></div></div>' : '') +
+            '<div class="bc-field"><span class="bc-field__label">Публикуване</span><div class="bc-field__value bc-field__value--vertical">' + publishHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Бележки</span><div class="bc-field__value bc-field__value--full">' + notesHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Стъпки</span><div class="bc-field__value bc-field__value--full">' + stepsHtml + '</div></div>' +
             '<div class="bc-field bc-field--light"><span class="bc-field__label">Добавено от</span><div class="bc-field__value"><span>' + esc(creatorName) + '</span><span class="bc-field__hint">' + createdAgo + '</span></div></div>' +
@@ -1475,7 +1505,7 @@ async function archiveCard(cardId) {
 
 // Trash card (same as archive for now)
 async function trashCard(cardId) {
-  if (!confirm('Put this card in the trash?')) return;
+  if (!confirm('Архивирай тази карта?')) return;
   try {
     await fetch('/api/cards/' + cardId, { method: 'DELETE' });
     history.back();
@@ -1518,6 +1548,19 @@ async function saveDueDateField(cardId, value) {
   if (lbl) { lbl.style.display = 'inline'; setTimeout(function() { lbl.style.display = 'none'; }, 2000); }
 }
 
+function handlePublishDate(cardId) {
+  var dateInput = document.getElementById('publishDateInput_' + cardId);
+  if (!dateInput) return;
+  dateInput.classList.remove('bc-date-input--hidden');
+  try { dateInput.showPicker(); } catch(e) { dateInput.click(); }
+}
+async function savePublishDateField(cardId, value) {
+  _suppressWsRerender = Date.now() + 2000;
+  await updateField(cardId, 'publish_date', value || null);
+  var lbl = document.getElementById('pubSavedLabel_' + cardId);
+  if (lbl) { lbl.style.display = 'inline'; setTimeout(function() { lbl.style.display = 'none'; }, 2000); }
+}
+
 // Steps: expand on click
 function expandStep(cardId, stepId, li) {
   // If already expanded, collapse
@@ -1532,7 +1575,7 @@ function expandStep(cardId, stepId, li) {
   form.onclick = function(e) { e.stopPropagation(); };
   form.innerHTML =
     '<div class="bc-step-expand__row"><label>Заглавие</label><input type="text" id="editStepTitle_' + stepId + '" value="' + esc(stepText) + '"></div>' +
-    '<div class="bc-step-expand__row"><label>Отговорник</label><select id="editStepAssignee_' + stepId + '"><option value="">Nobody</option>' +
+    '<div class="bc-step-expand__row"><label>Отговорник</label><select id="editStepAssignee_' + stepId + '"><option value="">\u041d\u0438\u043a\u043e\u0439</option>' +
     allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
     '<div class="bc-step-expand__row"><label>Краен срок</label><input type="date" id="editStepDue_' + stepId + '" class="bc-date-input"></div>' +
     '<div class="bc-step-expand__actions">' +
