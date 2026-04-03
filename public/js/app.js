@@ -770,7 +770,7 @@ var _cardEditMode = false;
 const cardEditingPresence = new Map(); // cardId -> { userId, userName }
 
 async function renderCardPage(el, cardId) {
-  el.className = '';
+  el.className = 'page-tool';
   try {
     const card = await (await fetch('/api/cards/' + cardId)).json();
     var comments = [];
@@ -2146,7 +2146,7 @@ async function renderReports(el) {
 // ==================== КП АВТОМАТИЗАЦИЯ ====================
 async function renderKpAuto(el) {
   setBreadcrumb([{ label: 'Инструменти' }, { label: 'КП-Автоматизация' }]);
-  el.className = '';
+  el.className = 'page-tool';
   el.innerHTML = '<div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--text-dim)">Зареждане...</div></div>';
   await loadKpAuto(el);
 }

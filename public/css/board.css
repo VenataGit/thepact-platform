@@ -358,7 +358,7 @@
 .bc-btn-discard:hover { background: rgba(70,163,116,0.1); }
 
 /* Comments — Basecamp style (outside the card frame) */
-.bc-comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); max-width: 960px; margin-left: auto; margin-right: auto; }
+.bc-comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); max-width: 960px; margin-left: auto; margin-right: auto; background: inherit; }
 .bc-comment-add { display: flex; gap: 12px; margin-bottom: 24px; }
 .bc-comment-avatar {
   width: 36px; height: 36px; border-radius: 50%;
