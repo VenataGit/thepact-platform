@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Pact — Презентация</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0d1a22;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    /* ===== HEADER ===== */
+    .present-header {
+      background: #111e27;
+      border-bottom: 1px solid #1e3040;
+      padding: 16px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .present-logo {
+      height: 28px;
+      opacity: 0.9;
+    }
+    .present-header-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .present-btn {
+      padding: 7px 18px;
+      border-radius: 20px;
+      border: 1px solid #2a3f52;
+      background: transparent;
+      color: #a0b4c4;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .present-btn:hover { background: #1a2d3d; border-color: #46a374; color: #fff; }
+    .present-btn--print { border-color: #46a374; color: #46a374; }
+    .present-btn--print:hover { background: #46a374; color: #fff; }
+
+    /* ===== MAIN CONTENT ===== */
+    .present-body {
+      max-width: 860px;
+      margin: 48px auto 80px;
+      padding: 0 24px;
+    }
+
+    .present-meta {
+      font-size: 12px;
+      color: #4a6a80;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+
+    .present-title {
+      font-size: 32px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #1e3040;
+    }
+
+    /* ===== RICH CONTENT ===== */
+    .present-content {
+      line-height: 1.75;
+      font-size: 15px;
+      color: #ccd8e0;
+    }
+
+    /* Video section blocks */
+    .video-section {
+      background: #111e27;
+      border: 1px solid #1e3040;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 24px;
+    }
+    .video-section__title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1e3040;
+    }
+    .video-section__title span {
+      color: #46a374;
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 10px;
+    }
+    .video-section__body {
+      color: #a8b8c4;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    .video-section__body strong {
+      color: #ccd8e0;
+    }
+
+    /* Intro block (dates, general info) */
+    .intro-block {
+      background: #0f1c27;
+      border: 1px solid #1e3040;
+      border-left: 3px solid #46a374;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 32px;
+      font-size: 14px;
+      color: #8a9fae;
+      line-height: 1.8;
+    }
+    .intro-block strong { color: #e2e8f0; }
+
+    /* Plain paragraph fallback */
+    .present-content p {
+      margin-bottom: 12px;
+      color: #a8b8c4;
+    }
+
+    /* ===== LOADING / ERROR ===== */
+    .present-loading {
+      text-align: center;
+      padding: 80px 24px;
+      color: #4a6a80;
+      font-size: 15px;
+    }
+    .present-loading .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #1e3040;
+      border-top-color: #46a374;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .present-error {
+      text-align: center;
+      padding: 80px 24px;
+    }
+    .present-error h2 { color: #e05252; margin-bottom: 12px; }
+    .present-error p { color: #4a6a80; }
+
+    /* ===== FOOTER ===== */
+    .present-footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 12px;
+      color: #2a3f52;
+      border-top: 1px solid #0f1c27;
+      margin-top: 60px;
+    }
+
+    /* ===== PRINT ===== */
+    @media print {
+      body { background: #fff; color: #111; }
+      .present-header { display: none; }
+      .present-body { margin-top: 20px; }
+      .present-title { color: #111; border-color: #ddd; }
+      .video-section { background: #f9f9f9; border-color: #ddd; page-break-inside: avoid; }
+      .video-section__title { color: #111; border-color: #ddd; }
+      .video-section__body { color: #444; }
+      .intro-block { background: #f0f9f4; border-color: #46a374; color: #444; }
+      .present-footer { color: #aaa; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="present-header">
+  <img src="/img/logo-white.svg" alt="The Pact" class="present-logo">
+  <div class="present-header-actions">
+    <button class="present-btn present-btn--print" onclick="window.print()">🖨 Принтирай</button>
+    <a class="present-btn" id="backToCardLink" href="#">← Обратно към задачата</a>
+  </div>
+</div>
+
+<div class="present-body" id="presentBody">
+  <div class="present-loading">
+    <div class="spinner"></div>
+    Зареждане...
+  </div>
+</div>
+
+<div class="present-footer">
+  Генерирано от The Pact Platform
+</div>
+
+<script>
+(async function() {
+  // Read card ID from URL path: /present/123
+  var pathParts = window.location.pathname.split('/').filter(Boolean);
+  var cardId = pathParts[pathParts.length - 1];
+
+  if (!cardId || isNaN(parseInt(cardId))) {
+    showError('Невалиден ID на задача.');
+    return;
+  }
+
+  // Update back link
+  var backLink = document.getElementById('backToCardLink');
+  if (backLink) backLink.href = '/#/card/' + cardId;
+
+  try {
+    var res = await fetch('/api/cards/' + cardId + '/present');
+    if (res.status === 401) {
+      window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname);
+      return;
+    }
+    if (!res.ok) throw new Error('Card not found');
+    var card = await res.json();
+
+    document.title = card.title + ' — The Pact';
+    renderCard(card);
+  } catch (err) {
+    showError(err.message || 'Неизвестна грешка');
+  }
+
+  function renderCard(card) {
+    var body = document.getElementById('presentBody');
+
+    var metaText = '';
+    if (card.client_name) metaText += card.client_name;
+    if (card.kp_number) metaText += ' · КП-' + card.kp_number;
+    if (card.board_title) metaText += ' · ' + card.board_title;
+
+    var html = '';
+    if (metaText) html += '<div class="present-meta">' + esc(metaText) + '</div>';
+    html += '<h1 class="present-title">' + esc(card.title) + '</h1>';
+
+    if (card.content && card.content.trim()) {
+      html += '<div class="present-content">' + renderContent(card.content) + '</div>';
+    } else {
+      html += '<div class="present-content" style="color:#4a6a80;font-style:italic">Няма съдържание.</div>';
+    }
+
+    body.innerHTML = html;
+  }
+
+  function renderContent(htmlContent) {
+    // Parse and restructure into video sections
+    var text = htmlContent
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+
+    var lines = text.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    var sections = [];
+    var introLines = [];
+    var currentSection = null;
+    var currentLines = [];
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var match = line.match(/^Видео\s+(\d+)\s*[-–—]\s*(.+)$/);
+      if (match) {
+        if (currentSection) {
+          sections.push({ number: currentSection.number, title: currentSection.title, lines: currentLines });
+        } else if (currentLines.length > 0) {
+          introLines = currentLines;
+        }
+        currentSection = { number: parseInt(match[1]), title: match[2].trim() };
+        currentLines = [];
+      } else {
+        currentLines.push(line);
+      }
+    }
+    if (currentSection) {
+      sections.push({ number: currentSection.number, title: currentSection.title, lines: currentLines });
+    } else if (currentLines.length > 0 && introLines.length === 0) {
+      introLines = currentLines;
+    }
+
+    var html = '';
+
+    // Intro block (dates, general info)
+    if (introLines.length > 0) {
+      html += '<div class="intro-block">';
+      introLines.forEach(function(l) {
+        if (l) html += '<div>' + formatLine(l) + '</div>';
+      });
+      html += '</div>';
+    }
+
+    // Video sections
+    sections.forEach(function(s) {
+      html += '<div class="video-section">';
+      html += '<div class="video-section__title"><span>Видео ' + s.number + '</span>' + esc(s.title) + '</div>';
+      html += '<div class="video-section__body">';
+      s.lines.forEach(function(l) {
+        if (l) html += '<div>' + formatLine(l) + '</div>';
+      });
+      html += '</div></div>';
+    });
+
+    // Fallback: if no video sections parsed, just render as HTML
+    if (sections.length === 0 && introLines.length === 0) {
+      html = htmlContent;
+    }
+
+    return html;
+  }
+
+  function formatLine(line) {
+    // Highlight key: value patterns
+    var formatted = esc(line);
+    // Bold field labels like "/Участници - ..." or "Дата за публикуване:"
+    formatted = formatted.replace(/^(\/[^\/]+\/?)/, '<strong>$1</strong>');
+    formatted = formatted.replace(/^([^:]+:)(\s)/, '<strong>$1</strong>$2');
+    return formatted;
+  }
+
+  function showError(msg) {
+    var body = document.getElementById('presentBody');
+    body.innerHTML = '<div class="present-error"><h2>Грешка</h2><p>' + esc(msg) + '</p><br><a href="/" style="color:#46a374">← Към платформата</a></div>';
+  }
+
+  function esc(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+})();
+</script>
+</body>
+</html>

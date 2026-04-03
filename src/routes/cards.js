@@ -41,6 +41,22 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/cards/:id/present — minimal data for presentation view (client-facing)
+router.get('/:id/present', requireAuth, async (req, res) => {
+  try {
+    const card = await queryOne(`
+      SELECT c.id, c.title, c.content, c.client_name, c.kp_number,
+             b.title as board_title, col.title as column_title
+      FROM cards c JOIN boards b ON c.board_id = b.id JOIN columns col ON c.column_id = col.id
+      WHERE c.id = $1 AND c.archived_at IS NULL
+    `, [req.params.id]);
+    if (!card) return res.status(404).json({ error: 'Card not found' });
+    res.json(card);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/cards/:id — single card with steps, assignees, notes
 router.get('/:id', requireAuth, async (req, res) => {
   try {

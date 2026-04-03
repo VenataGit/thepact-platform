@@ -33,6 +33,81 @@ function addWorkingDays(date, days) {
   return result;
 }
 
+function subtractWorkingDays(date, days) {
+  const result = new Date(date);
+  let subtracted = 0;
+  while (subtracted < days) {
+    result.setDate(result.getDate() - 1);
+    const dow = result.getDay();
+    if (dow !== 0 && dow !== 6) subtracted++;
+  }
+  return result;
+}
+
+// Parses "Видео N - Title" sections from HTML/plain card content
+function parseVideoSectionsFromHtml(htmlContent) {
+  if (!htmlContent) return [];
+  const text = htmlContent
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+
+  const sections = [];
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  let currentSection = null;
+  let currentLines = [];
+
+  for (const line of lines) {
+    const match = line.match(/^Видео\s+(\d+)\s*[-–—]\s*(.+)$/);
+    if (match) {
+      if (currentSection) sections.push({ ...currentSection, sectionText: currentLines.join('\n') });
+      currentSection = { videoNumber: parseInt(match[1]), title: match[2].trim() };
+      currentLines = [line];
+    } else if (currentSection) {
+      currentLines.push(line);
+    }
+  }
+  if (currentSection) sections.push({ ...currentSection, sectionText: currentLines.join('\n') });
+  return sections;
+}
+
+// Extracts "Дата за публикуване: DD.MM.YYYY" from a section's text
+function parsePublishDateFromSection(sectionText) {
+  if (!sectionText) return null;
+  const match = sectionText.match(/Дата за публикуване\s*:\s*(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
+  if (!match) return null;
+  const day = parseInt(match[1]), month = parseInt(match[2]) - 1, year = parseInt(match[3]);
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+  return new Date(year, month, day);
+}
+
+const VIDEO_CARD_STEPS = [
+  { title: 'Сценарий и концепция', daysBeforePublish: 10 },
+  { title: 'Одобрение на концепция', daysBeforePublish: 9 },
+  { title: 'Подготовка за снимане', daysBeforePublish: 8 },
+  { title: 'Снимане', daysBeforePublish: 7 },
+  { title: 'Преглед на суров материал', daysBeforePublish: 6 },
+  { title: 'Груб монтаж', daysBeforePublish: 6 },
+  { title: 'Финален монтаж', daysBeforePublish: 5 },
+  { title: 'Вътрешен преглед', daysBeforePublish: 5 },
+  { title: 'Корекции след вътрешен преглед', daysBeforePublish: 4 },
+  { title: 'Клиентски преглед', daysBeforePublish: 3 },
+  { title: 'Корекции след клиент', daysBeforePublish: 3 },
+  { title: 'Финално одобрение', daysBeforePublish: 2 },
+  { title: 'Озвучаване / Музика', daysBeforePublish: 2 },
+  { title: 'Субтитри и текст', daysBeforePublish: 1 },
+  { title: 'Export и форматиране', daysBeforePublish: 1 },
+  { title: 'Качване в платформата', daysBeforePublish: 1 },
+  { title: 'Публикуване', daysBeforePublish: 0 },
+];
+
 // GET /api/kp/clients
 router.get('/clients', requireAuth, async (req, res) => {
   try {
@@ -243,6 +318,95 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
     res.json({ ok: true, cardId: card.id, title });
   } catch (err) {
     console.error('KP create-card error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/kp/generate-video-cards/:cardId — parse KP card content and create video task cards
+router.post('/generate-video-cards/:cardId', requireAuth, async (req, res) => {
+  try {
+    const cardId = parseInt(req.params.cardId);
+    const card = await queryOne('SELECT * FROM cards WHERE id = $1 AND archived_at IS NULL', [cardId]);
+    if (!card) return res.status(404).json({ error: 'Card not found' });
+
+    // Parse video sections from card HTML content
+    const videoSections = parseVideoSectionsFromHtml(card.content || '');
+    if (videoSections.length === 0) {
+      return res.status(400).json({ error: 'Няма намерени видео секции. Форматирайте ги като "Видео 1 - Заглавие" в съдържанието на картата.' });
+    }
+
+    // Find "Разпределение" column — first in same board, then any board
+    let targetCol = await queryOne(
+      `SELECT col.id, col.board_id FROM columns col
+       WHERE col.title ILIKE 'Разпределение' AND col.board_id = $1 LIMIT 1`,
+      [card.board_id]
+    );
+    if (!targetCol) {
+      targetCol = await queryOne(
+        `SELECT col.id, col.board_id FROM columns col WHERE col.title ILIKE 'Разпределение' LIMIT 1`
+      );
+    }
+    if (!targetCol) {
+      return res.status(400).json({ error: 'Не е намерена колона "Разпределение". Моля добавете я в платформата.' });
+    }
+
+    const { broadcast } = require('../ws/broadcast');
+    const createdCards = [];
+
+    for (const section of videoSections) {
+      const publishDate = parsePublishDateFromSection(section.sectionText);
+      const videoCardTitle = `${card.client_name || card.title} КП-${card.kp_number || '?'} - Видео ${section.videoNumber} - ${section.title}`;
+
+      const maxPos = await queryOne(
+        'SELECT COALESCE(MAX(position), -1) + 1 as pos FROM cards WHERE column_id = $1',
+        [targetCol.id]
+      );
+
+      const videoCard = await queryOne(
+        `INSERT INTO cards (board_id, column_id, title, content, due_on, publish_date, creator_id, client_name, kp_number, video_number, video_title, parent_id, position)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+        [
+          targetCol.board_id, targetCol.id, videoCardTitle,
+          section.sectionText || null,
+          publishDate ? publishDate.toISOString().split('T')[0] : null,
+          publishDate ? publishDate.toISOString().split('T')[0] : null,
+          req.user.userId,
+          card.client_name, card.kp_number, section.videoNumber, section.title,
+          cardId, maxPos.pos
+        ]
+      );
+
+      // Create steps with calculated due dates
+      for (let i = 0; i < VIDEO_CARD_STEPS.length; i++) {
+        const stepDef = VIDEO_CARD_STEPS[i];
+        let stepDueDate = null;
+        if (publishDate !== null) {
+          if (stepDef.daysBeforePublish === 0) {
+            stepDueDate = publishDate.toISOString().split('T')[0];
+          } else {
+            const d = subtractWorkingDays(publishDate, stepDef.daysBeforePublish);
+            stepDueDate = d.toISOString().split('T')[0];
+          }
+        }
+        await execute(
+          'INSERT INTO card_steps (card_id, title, due_on, position) VALUES ($1, $2, $3, $4)',
+          [videoCard.id, stepDef.title, stepDueDate, i]
+        );
+      }
+
+      createdCards.push(videoCard);
+      broadcast({ type: 'card:created', card: videoCard });
+    }
+
+    await execute(
+      'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
+      [req.user.name || 'Unknown', 'generate_video_cards', card.client_name || card.title,
+       `${createdCards.length} video cards from card ${cardId} (${card.title})`]
+    );
+
+    res.json({ ok: true, count: createdCards.length, cards: createdCards.map(c => ({ id: c.id, title: c.title })) });
+  } catch (err) {
+    console.error('Generate video cards error:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -969,6 +969,7 @@ async function renderCardPage(el, cardId) {
 
     el.innerHTML = wrapperStart +
       '<div class="' + (pinnedSidebarHtml ? 'card-page-main' : 'card-page') + '">' +
+        '<div class="card-page__toolbar" id="cardPageToolbar_' + cardId + '"></div>' +
         '<div id="cardEditingBanner" class="card-editing-banner" style="display:none"></div>' +
         '<article class="bc-card">' +
           '<div class="bc-card-options">' +
@@ -991,6 +992,9 @@ async function renderCardPage(el, cardId) {
         '</article>' +
         '<div class="bc-comments">' + commentAddHtml + commentsListHtml + '</div>' +
       '</div>' + wrapperEnd;
+
+    // Populate card toolbar with action buttons
+    setupCardPageToolbar(card, col);
 
     // Setup image lightbox + process video/file attachments in view mode
     setTimeout(function() { processRichContent(); setupImageLightbox(); }, 100);
@@ -2709,24 +2713,67 @@ function showShortcutsHelp() {
   document.body.appendChild(modal);
 }
 
-// ==================== BOOKMARK ON CARD PAGE ====================
-function addBookmarkToCardPage(cardId, cardTitle) {
-  const toolbar = document.querySelector('.card-page__toolbar');
+// ==================== CARD PAGE TOOLBAR ====================
+function setupCardPageToolbar(card, col) {
+  var cardId = card.id;
+  var cardTitle = card.title;
+  var toolbar = document.getElementById('cardPageToolbar_' + cardId);
   if (!toolbar) return;
-  // Bookmark btn
-  const btn = document.createElement('button');
-  btn.className = 'btn btn-sm';
-  btn.style.marginRight = '8px';
-  btn.textContent = '⚑ Запази';
-  btn.onclick = () => toggleBookmark('card', cardId, cardTitle);
-  toolbar.prepend(btn);
-  // SOS btn
-  const sosBtn = document.createElement('button');
+
+  // SOS button
+  var sosBtn = document.createElement('button');
   sosBtn.className = 'btn btn-sm sos-card-btn';
   sosBtn.textContent = '🚨 SOS';
   sosBtn.title = 'Спешен сигнал за тази карта';
-  sosBtn.onclick = () => openSosModal(cardId, cardTitle);
-  toolbar.prepend(sosBtn);
+  sosBtn.onclick = function() { openSosModal(cardId, cardTitle); };
+  toolbar.appendChild(sosBtn);
+
+  // Bookmark button
+  var bookmarkBtn = document.createElement('button');
+  bookmarkBtn.className = 'btn btn-sm btn-ghost';
+  bookmarkBtn.textContent = '⚑ Запази';
+  bookmarkBtn.onclick = function() { toggleBookmark('card', cardId, cardTitle); };
+  toolbar.appendChild(bookmarkBtn);
+
+  // Presentation button — for cards with content
+  var presentBtn = document.createElement('button');
+  presentBtn.className = 'btn btn-sm btn-ghost';
+  presentBtn.textContent = '👁 Презентация';
+  presentBtn.title = 'Отвори като презентация за клиента';
+  presentBtn.onclick = function() { openPresentation(cardId); };
+  toolbar.appendChild(presentBtn);
+
+  // Generate video tasks button — only for КП cards (have kp_number)
+  if (card.kp_number) {
+    var generateBtn = document.createElement('button');
+    generateBtn.className = 'btn btn-sm btn-ghost kp-generate-btn';
+    generateBtn.textContent = '⚙️ Генерирай задачи';
+    generateBtn.title = 'Генерирай видео задачи от съдържанието на картата';
+    generateBtn.onclick = function() { generateVideoCards(cardId, cardTitle, generateBtn); };
+    toolbar.appendChild(generateBtn);
+  }
+}
+
+function openPresentation(cardId) {
+  window.open('/present/' + cardId, '_blank');
+}
+
+async function generateVideoCards(cardId, cardTitle, btn) {
+  if (!confirm('Ще бъдат генерирани видео задачи за "' + cardTitle + '".\n\nКартите ще бъдат създадени в колона "Разпределение".\n\nПродължаваш?')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Генериране...'; }
+  try {
+    var res = await fetch('/api/kp/generate-video-cards/' + cardId, { method: 'POST' });
+    var data = await res.json();
+    if (data.ok) {
+      alert('✅ Генерирани ' + data.count + ' видео задачи успешно!\n\nВиж ги в колона "Разпределение".');
+    } else {
+      alert('Грешка: ' + (data.error || 'Неизвестна грешка'));
+    }
+  } catch (err) {
+    alert('Грешка: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⚙️ Генерирай задачи'; }
+  }
 }
 
 // ==================== SOS СИСТЕМА ====================
