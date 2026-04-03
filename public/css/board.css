@@ -143,14 +143,14 @@
 .col-context-menu button:hover { background: var(--bg-hover); }
 
 /* ==================== CARD PAGE (Basecamp Style) ==================== */
-.card-page { max-width: 760px; margin: 0 auto; position: relative; }
-.card-page-wrapper { display: flex; gap: 20px; align-items: flex-start; max-width: 960px; margin: 0 auto; position: relative; }
-.card-page-main { flex: 1; min-width: 0; max-width: 760px; margin: 0 auto; }
+.card-page { max-width: 900px; margin: 0 auto; position: relative; }
+.card-page-wrapper { display: flex; gap: 20px; align-items: flex-start; max-width: 1100px; margin: 0 auto; position: relative; }
+.card-page-main { flex: 1; min-width: 0; max-width: 900px; margin: 0 auto; }
 
 .bc-card-options { display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 4px; position: relative; }
 
 /* Card: framed container like Basecamp */
-.bc-card { background: var(--bg-card, #182830); border: 1px solid var(--border, #2a3f4d); border-radius: 10px; padding: 32px 36px; max-width: 720px; margin: 0 auto; }
+.bc-card { background: var(--bg-card, #182830); border: 1px solid var(--border, #2a3f4d); border-radius: 10px; padding: 36px 44px; max-width: 900px; margin: 0 auto; }
 
 .bc-card__header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
 .bc-card__icon { flex-shrink: 0; color: var(--text-dim); display: flex; align-items: center; }
@@ -278,7 +278,7 @@
 .bc-btn-discard:hover { background: rgba(70,163,116,0.1); }
 
 /* Comments — Basecamp style (outside the card frame) */
-.bc-comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); max-width: 720px; margin-left: auto; margin-right: auto; }
+.bc-comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); max-width: 900px; margin-left: auto; margin-right: auto; }
 .bc-comment-add { display: flex; gap: 12px; margin-bottom: 24px; }
 .bc-comment-avatar {
   width: 36px; height: 36px; border-radius: 50%;
