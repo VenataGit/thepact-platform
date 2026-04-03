@@ -1190,16 +1190,16 @@ function showTrixColorPicker(e, trixEl) {
   var existing = document.querySelector('.bc-color-picker');
   if (existing) { existing.remove(); return; }
 
-  // Basecamp's exact highlight colors
+  // 8 colors — all at S=39% L=44% (same as Basecamp's #9B7D44), hue-stepped 45°
   var COLORS = [
-    { name: 'Оранжево',  bg: '#993200', fg: '#fff' },
-    { name: 'Червено',   bg: '#6A2217', fg: '#fff' },
-    { name: 'Малиново',  bg: '#7C3240', fg: '#fff' },
-    { name: 'Лилаво',    bg: '#725EAD', fg: '#fff' },
-    { name: 'Синьо',     bg: '#204166', fg: '#fff' },
-    { name: 'Зелено',    bg: '#175331', fg: '#fff' },
-    { name: 'Кафяво',    bg: '#473732', fg: '#fff' },
-    { name: 'Сиво',      bg: '#4D4D4D', fg: '#fff' },
+    { name: 'Злато',     bg: '#9B7D44', fg: '#fff' }, // H=38°  — anchor
+    { name: 'Маслина',   bg: '#7A9C44', fg: '#fff' }, // H=83°
+    { name: 'Зелено',    bg: '#449C50', fg: '#fff' }, // H=128°
+    { name: 'Тюркоаз',   bg: '#449C92', fg: '#fff' }, // H=173°
+    { name: 'Синьо',     bg: '#44659C', fg: '#fff' }, // H=218°
+    { name: 'Индиго',    bg: '#66449C', fg: '#fff' }, // H=263°
+    { name: 'Лилаво',    bg: '#9C4490', fg: '#fff' }, // H=308°
+    { name: 'Червено',   bg: '#9C444F', fg: '#fff' }, // H=353°
   ];
 
   // Find the active color if any
