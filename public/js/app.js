@@ -2850,6 +2850,9 @@ async function handleDashDrop(e) {
   const cardId  = dragCardId;
   dragCardId = null;
 
+  // Suppress WS re-render so the incoming card:moved broadcast doesn't re-render the dashboard
+  _suppressWsRerender = Date.now() + 3000;
+
   // --- Optimistic DOM move (instant, no flicker) ---
   const cardEl   = document.querySelector('.dash-card[data-card-id="' + cardId + '"]');
   const targetZone = e.currentTarget;
