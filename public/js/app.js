@@ -289,28 +289,24 @@ async function renderDashboard(el) {
       '<div class="dash-board" id="dashBoard"></div>' +
     '</div>';
 
-    // Load + sync column timers
+    // Load + sync board timers
     try {
       var now = new Date(); now.setHours(0,0,0,0);
-      var syncPayload = [];
-      boards.forEach(function(board) {
+      var syncPayload = boards.map(function(board) {
         var boardCards = cards.filter(function(c) { return c.board_id === board.id && !c.completed_at && !c.archived_at; });
-        (board.columns || []).forEach(function(col) {
-          if (col.is_done_column) return;
-          var hasOverdue = boardCards.some(function(c) {
-            return c.column_id === col.id && c.due_on && !c.is_on_hold && new Date(c.due_on) < now;
-          });
-          syncPayload.push({ column_id: col.id, has_overdue: hasOverdue });
+        var hasOverdue = boardCards.some(function(c) {
+          return c.due_on && !c.is_on_hold && new Date(c.due_on) < now;
         });
+        return { board_id: board.id, has_overdue: hasOverdue };
       });
-      var timerRes = await fetch('/api/timers/columns/sync', {
+      var timerRes = await fetch('/api/timers/boards/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(syncPayload)
       });
       var timerRows = await timerRes.json();
       _dashTimers = {};
-      timerRows.forEach(function(t) { _dashTimers[t.column_id] = t; });
+      timerRows.forEach(function(t) { _dashTimers[t.board_id] = t; });
     } catch (e) { console.warn('Timer sync failed', e); }
 
     renderDashboardBoard(boards, cards, _dashStageColors);
@@ -422,30 +418,31 @@ function renderDashboardBoard(boards, cards, stageColors) {
             holdCards.map(function(c) { return renderDashCard(c); }).join('');
         }
 
-        // Column timer bar
-        var colTimer = _dashTimers[col.id];
-        var timerBarHtml = '';
-        if (colTimer && colTimer.is_paused) {
-          timerBarHtml = '<div class="dash-timer-bar dash-timer-bar--overdue">' +
-            '<span class="dash-timer-label">\u23f8 \u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0430 \u0437\u0430\u0434\u0430\u0447\u0430</span>' +
-          '</div>';
-        } else {
-          var sinceVal = colTimer ? colTimer.started_at : '';
-          timerBarHtml = '<div class="dash-timer-bar dash-timer-bar--clean" id="dash-timer-' + col.id + '" data-since="' + sinceVal + '">' +
-            '<span class="dash-timer-label">\u2705 \u0411\u0435\u0437 \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438: </span>' +
-            '<span class="dash-timer-value">0\u0434, 0\u0447, 0\u043c, 0\u0441</span>' +
-          '</div>';
-        }
-
         return '<div class="dash-subcol">' +
           '<div class="dash-subcol-header" onclick="event.stopPropagation();toggleDashSubCol(' + board.id + ',' + col.id + ')" style="cursor:pointer">' +
             '<span>' + esc(col.title) + '</span>' +
             '<span class="dash-subcol-count">' + colCards.length + '</span>' +
           '</div>' +
-          timerBarHtml +
           '<div class="dash-subcol-cards">' + cardsHtml + holdHtml + '</div>' +
         '</div>';
       }).join('');
+    }
+
+    // Board-level timer bar
+    var boardTimer = _dashTimers[board.id];
+    var boardTimerHtml = '';
+    if (!isCollapsed) {
+      if (boardTimer && boardTimer.is_paused) {
+        boardTimerHtml = '<div class="dash-timer-bar dash-timer-bar--overdue">' +
+          '<span class="dash-timer-label">\u23f8 \u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0430 \u0437\u0430\u0434\u0430\u0447\u0430</span>' +
+        '</div>';
+      } else {
+        var sinceVal = boardTimer ? boardTimer.started_at : '';
+        boardTimerHtml = '<div class="dash-timer-bar dash-timer-bar--clean" id="dash-timer-' + board.id + '" data-since="' + sinceVal + '">' +
+          '<span class="dash-timer-label">\u2705 \u0411\u0435\u0437 \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438: </span>' +
+          '<span class="dash-timer-value">0\u0434, 0\u0447, 0\u043c, 0\u0441</span>' +
+        '</div>';
+      }
     }
 
     return '<div class="' + colClass + '">' +
@@ -453,6 +450,7 @@ function renderDashboardBoard(boards, cards, stageColors) {
         '<span class="dash-col-title">' + esc(board.title) + '</span>' +
         '<span class="dash-col-count">' + totalCards + '</span>' +
       '</div>' +
+      boardTimerHtml +
       '<div class="dash-col-body">' + subColsHtml + '</div>' +
       (doneCol && !isCollapsed ? '<div class="dash-done-footer" onclick="toggleDashDone(' + board.id + ',' + doneCol.id + ')">\u2705 Готово (' + doneCount + ')</div>' : '') +
     '</div>';

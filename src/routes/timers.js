@@ -3,51 +3,48 @@ const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
 const { query, queryOne, execute } = require('../db/pool');
 
-// GET /api/timers/columns — return all column timer states
-router.get('/columns', requireAuth, async (req, res) => {
+// GET /api/timers/boards
+router.get('/boards', requireAuth, async (req, res) => {
   try {
-    const rows = await query('SELECT column_id, started_at, is_paused FROM column_overdue_timers');
+    const rows = await query('SELECT board_id, started_at, is_paused FROM board_overdue_timers');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/timers/columns/sync — update timers based on current overdue state
-// Body: [{column_id, has_overdue}]
-router.post('/columns/sync', requireAuth, async (req, res) => {
+// POST /api/timers/boards/sync
+// Body: [{board_id, has_overdue}]
+router.post('/boards/sync', requireAuth, async (req, res) => {
   try {
-    const cols = req.body;
-    if (!Array.isArray(cols) || cols.length === 0) return res.json([]);
+    const boards = req.body;
+    if (!Array.isArray(boards) || boards.length === 0) return res.json([]);
 
-    for (const { column_id, has_overdue } of cols) {
-      if (!column_id) continue;
+    for (const { board_id, has_overdue } of boards) {
+      if (!board_id) continue;
       const existing = await queryOne(
-        'SELECT is_paused FROM column_overdue_timers WHERE column_id = $1',
-        [column_id]
+        'SELECT is_paused FROM board_overdue_timers WHERE board_id = $1',
+        [board_id]
       );
       if (!existing) {
-        // First time we see this column — create record
         await execute(
-          'INSERT INTO column_overdue_timers (column_id, started_at, is_paused) VALUES ($1, NOW(), $2)',
-          [column_id, has_overdue ? true : false]
+          'INSERT INTO board_overdue_timers (board_id, started_at, is_paused) VALUES ($1, NOW(), $2)',
+          [board_id, has_overdue ? true : false]
         );
       } else if (has_overdue && !existing.is_paused) {
-        // Column went overdue — pause the timer
         await execute(
-          'UPDATE column_overdue_timers SET is_paused = true WHERE column_id = $1',
-          [column_id]
+          'UPDATE board_overdue_timers SET is_paused = true WHERE board_id = $1',
+          [board_id]
         );
       } else if (!has_overdue && existing.is_paused) {
-        // Column became clean — reset timer to now
         await execute(
-          'UPDATE column_overdue_timers SET is_paused = false, started_at = NOW() WHERE column_id = $1',
-          [column_id]
+          'UPDATE board_overdue_timers SET is_paused = false, started_at = NOW() WHERE board_id = $1',
+          [board_id]
         );
       }
     }
 
-    const rows = await query('SELECT column_id, started_at, is_paused FROM column_overdue_timers');
+    const rows = await query('SELECT board_id, started_at, is_paused FROM board_overdue_timers');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
