@@ -823,7 +823,7 @@ async function renderCardPage(el, cardId) {
           '</div>' +
           '<header class="bc-card__header">' +
             '<span class="bc-card__icon">' + envelopeIcon + '</span>' +
-            '<h1 class="bc-card__title" onclick="editCardTitle(this,' + cardId + ')">' + esc(card.title) + '</h1>' +
+            '<h1 class="bc-card__title" onclick="' + (editing ? 'editCardTitle(this,' + cardId + ')' : 'enterCardEditMode(' + cardId + ')') + '">' + esc(card.title) + '</h1>' +
           '</header>' +
           '<div class="bc-card__fields">' +
             '<div class="bc-field"><span class="bc-field__label">Колона</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
