@@ -827,10 +827,10 @@ async function renderCardPage(el, cardId) {
     var titleEsc = esc(card.title).replace(/'/g, "\\'");
     var editBtnHtml = manage && !editing ? '<button class="bc-card__edit-btn" onclick="enterCardEditMode(' + cardId + ')" title="Edit">Edit card</button>' : '';
 
-    // Populate editing presence from API response
-    if (card.editing_by) {
+    // Populate editing presence from API response (only if it's someone else)
+    if (card.editing_by && currentUser && card.editing_by.userId !== currentUser.id) {
       cardEditingPresence.set(cardId, { userId: card.editing_by.userId, userName: card.editing_by.userName });
-    } else {
+    } else if (!card.editing_by) {
       cardEditingPresence.delete(cardId);
     }
 
@@ -898,7 +898,8 @@ function updateCardEditingBanner(cardId) {
   var currentCardId = match ? parseInt(match[1]) : null;
   if (currentCardId !== parseInt(cardId)) return;
   var editor = cardEditingPresence.get(parseInt(cardId));
-  if (editor) {
+  // Don't show banner to the editor themselves
+  if (editor && currentUser && editor.userId !== currentUser.id) {
     banner.innerHTML = '✏️ <strong>' + esc(editor.userName) + '</strong> редактира тази задача в момента';
     banner.style.display = 'flex';
   } else {
@@ -908,6 +909,10 @@ function updateCardEditingBanner(cardId) {
 
 // Enter/exit edit mode
 function enterCardEditMode(cardId) {
+  var editor = cardEditingPresence.get(parseInt(cardId));
+  if (editor && currentUser && editor.userId !== currentUser.id) {
+    if (!confirm(editor.userName + ' редактира тази задача в момента.\n\nАко продължиш, промените им може да бъдат изгубени.\n\nИскаш ли все пак да редактираш?')) return;
+  }
   _cardEditMode = true;
   if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'card:editing', cardId }));
   router();
