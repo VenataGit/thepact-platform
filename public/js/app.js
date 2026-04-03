@@ -641,6 +641,7 @@ function renderKanbanCard(card, colColor) {
 var _cardPinnedComment = null;
 
 var _cardEditMode = false;
+const cardEditingPresence = new Map(); // cardId -> { userId, userName }
 
 async function renderCardPage(el, cardId) {
   el.className = '';
@@ -826,8 +827,16 @@ async function renderCardPage(el, cardId) {
     var titleEsc = esc(card.title).replace(/'/g, "\\'");
     var editBtnHtml = manage && !editing ? '<button class="bc-card__edit-btn" onclick="enterCardEditMode(' + cardId + ')" title="Edit">Edit card</button>' : '';
 
+    // Populate editing presence from API response
+    if (card.editing_by) {
+      cardEditingPresence.set(cardId, { userId: card.editing_by.userId, userName: card.editing_by.userName });
+    } else {
+      cardEditingPresence.delete(cardId);
+    }
+
     el.innerHTML = wrapperStart +
       '<div class="' + (pinnedSidebarHtml ? 'card-page-main' : 'card-page') + '">' +
+        '<div id="cardEditingBanner" class="card-editing-banner" style="display:none"></div>' +
         '<article class="bc-card">' +
           '<div class="bc-card-options">' +
             editBtnHtml +
@@ -876,16 +885,36 @@ async function renderCardPage(el, cardId) {
       }
     }, 300);
 
+    // Show editing banner if someone is currently editing
+    updateCardEditingBanner(cardId);
+
   } catch(e) { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">\u041a\u0430\u0440\u0442\u0430\u0442\u0430 \u043d\u0435 \u0435 \u043d\u0430\u043c\u0435\u0440\u0435\u043d\u0430</div>'; }
+}
+
+function updateCardEditingBanner(cardId) {
+  var banner = document.getElementById('cardEditingBanner');
+  if (!banner) return;
+  var match = location.hash.match(/#\/card\/(\d+)/);
+  var currentCardId = match ? parseInt(match[1]) : null;
+  if (currentCardId !== parseInt(cardId)) return;
+  var editor = cardEditingPresence.get(parseInt(cardId));
+  if (editor) {
+    banner.innerHTML = '✏️ <strong>' + esc(editor.userName) + '</strong> редактира тази задача в момента';
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
 }
 
 // Enter/exit edit mode
 function enterCardEditMode(cardId) {
   _cardEditMode = true;
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'card:editing', cardId }));
   router();
 }
 function exitCardEditMode(cardId) {
   _cardEditMode = false;
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'card:editing:stop', cardId }));
   router();
 }
 async function saveCardEdits(cardId) {
@@ -896,6 +925,7 @@ async function saveCardEdits(cardId) {
     await fetch('/api/cards/' + cardId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: textContent ? content : '' }) });
   }
   _cardEditMode = false;
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'card:editing:stop', cardId }));
   router();
 }
 
@@ -2073,6 +2103,17 @@ function wsRouter() {
 }
 function handleWSEvent(ev) {
   const t = ev.type || '';
+  // Card editing presence — handle without re-render
+  if (t === 'card:editing') {
+    cardEditingPresence.set(ev.cardId, { userId: ev.userId, userName: ev.userName });
+    updateCardEditingBanner(ev.cardId);
+    return;
+  }
+  if (t === 'card:editing:stop') {
+    cardEditingPresence.delete(ev.cardId);
+    updateCardEditingBanner(ev.cardId);
+    return;
+  }
   // Core data events — re-render current page
   if (t.startsWith('card:') || t.startsWith('board:') || t.startsWith('column:') || t.startsWith('step:') || t.startsWith('comment:')) wsRouter();
   if (t === 'chat:message' && location.hash.startsWith(`#/chat/${ev.channelId}`)) wsRouter();

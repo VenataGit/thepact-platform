@@ -3,6 +3,7 @@ const { verifyFromCookieHeader } = require('../middleware/auth');
 
 let wss = null;
 const clients = new Map(); // userId -> Set<ws>
+const cardEditors = new Map(); // cardId -> { userId, userName, since }
 
 function setupWebSocket(server) {
   wss = new WebSocketServer({ server, path: '/ws' });
@@ -39,8 +40,14 @@ function setupWebSocket(server) {
         userSockets.delete(ws);
         if (userSockets.size === 0) {
           clients.delete(ws.userId);
-          // Broadcast presence:offline only when ALL connections for this user are gone
           broadcast({ type: 'presence:offline', userId: ws.userId }, null);
+        }
+      }
+      // Clean up card editing presence on disconnect
+      for (const [cardId, editor] of cardEditors.entries()) {
+        if (editor.userId === ws.userId) {
+          cardEditors.delete(cardId);
+          broadcast({ type: 'card:editing:stop', cardId }, null);
         }
       }
     });
@@ -72,8 +79,24 @@ function handleClientMessage(ws, msg) {
       channelId: msg.channelId || null,
       roomId: msg.roomId || null
     };
-    // Broadcast to all except sender
     broadcast(event, ws.userId);
+  }
+
+  // Card editing presence
+  if (msg.type === 'card:editing') {
+    const cardId = parseInt(msg.cardId);
+    if (isNaN(cardId)) return;
+    cardEditors.set(cardId, { userId: ws.userId, userName: ws.userName, since: Date.now() });
+    broadcast({ type: 'card:editing', cardId, userId: ws.userId, userName: ws.userName }, ws.userId);
+  }
+  if (msg.type === 'card:editing:stop') {
+    const cardId = parseInt(msg.cardId);
+    if (isNaN(cardId)) return;
+    const editor = cardEditors.get(cardId);
+    if (editor && editor.userId === ws.userId) {
+      cardEditors.delete(cardId);
+      broadcast({ type: 'card:editing:stop', cardId }, ws.userId);
+    }
   }
 }
 
@@ -114,4 +137,8 @@ function getOnlineUserIds() {
   return Array.from(clients.keys());
 }
 
-module.exports = { setupWebSocket, broadcast, sendToUser, getConnectedCount, getOnlineUserIds };
+function getCardEditor(cardId) {
+  return cardEditors.get(parseInt(cardId)) || null;
+}
+
+module.exports = { setupWebSocket, broadcast, sendToUser, getConnectedCount, getOnlineUserIds, getCardEditor };

@@ -197,6 +197,7 @@
 
 /* ==================== CARD PAGE (Basecamp Style) ==================== */
 .card-page { max-width: 960px; margin: 0 auto; position: relative; }
+.card-editing-banner { display: flex; align-items: center; gap: 10px; max-width: 960px; margin: 0 auto 12px; padding: 10px 16px; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 8px; color: #eab308; font-size: 14px; }
 .card-page-wrapper { display: flex; gap: 24px; align-items: flex-start; max-width: 1200px; margin: 0 auto; position: relative; }
 .card-page-main { flex: 1; min-width: 0; max-width: 960px; margin: 0 auto; }
 

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
-const { broadcast } = require('../ws/broadcast');
+const { broadcast, getCardEditor } = require('../ws/broadcast');
 
 // GET /api/cards — all active cards grouped by board/column
 router.get('/', requireAuth, async (req, res) => {
@@ -68,7 +68,8 @@ router.get('/:id', requireAuth, async (req, res) => {
       );
     }
 
-    res.json({ ...card, steps, assignees, notes, pinned_comment });
+    const editing_by = getCardEditor(card.id);
+    res.json({ ...card, steps, assignees, notes, pinned_comment, editing_by });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
