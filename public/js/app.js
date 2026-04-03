@@ -1330,16 +1330,16 @@ function toggleCardOptionsMenu(e, cardId, cardTitle) {
   var menu = document.createElement('div');
   menu.className = 'bc-options-menu';
   menu.innerHTML =
-    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();document.querySelector(\'.bc-card__title\').click()">\u270f\ufe0f Edit</button>' +
-    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();showMoveCardPicker(' + cardId + ')">\u2197\ufe0f Move</button>' +
-    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();copyCardLink(' + cardId + ')">\ud83d\udccb Copy link</button>' +
-    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();archiveCard(' + cardId + ')">\ud83d\udce6 Archive</button>' +
-    '<button class="bc-options-menu__item bc-options-menu__item--danger" onclick="document.querySelector(\'.bc-options-menu\').remove();trashCard(' + cardId + ')">\ud83d\uddd1\ufe0f Put in the trash</button>' +
-    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();toggleBookmark(\'card\',' + cardId + ',\'' + cardTitle.replace(/'/g, "\\'") + '\')">\ud83d\udd16 Bookmark</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();document.querySelector(\'.bc-card__title\').click()">\u270f\ufe0f Редактирай</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();showMoveCardPicker(' + cardId + ')">\u2197\ufe0f Премести</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();copyCardLink(' + cardId + ')">\ud83d\udccb Копирай линк</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();archiveCard(' + cardId + ')">\ud83d\udce6 Архивирай</button>' +
+    '<button class="bc-options-menu__item bc-options-menu__item--danger" onclick="document.querySelector(\'.bc-options-menu\').remove();trashCard(' + cardId + ')">\ud83d\uddd1\ufe0f В кошчето</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();toggleBookmark(\'card\',' + cardId + ',\'' + cardTitle.replace(/'/g, "\\'") + '\')">\ud83d\udd16 Отметка</button>' +
     '<div class="bc-options-menu__sep"></div>' +
-    '<div class="bc-options-menu__heading">History</div>' +
-    '<button class="bc-options-menu__item" style="opacity:0.5;cursor:default">\ud83d\udd50 View change log</button>' +
-    '<button class="bc-options-menu__item" style="opacity:0.5;cursor:default">\ud83d\udc65 Notified people</button>';
+    '<div class="bc-options-menu__heading">История</div>' +
+    '<button class="bc-options-menu__item" style="opacity:0.5;cursor:default">\ud83d\udd50 История на промените</button>' +
+    '<button class="bc-options-menu__item" style="opacity:0.5;cursor:default">\ud83d\udc65 Уведомени хора</button>';
 
   var optionsDiv = document.querySelector('.bc-card-options');
   if (optionsDiv) { optionsDiv.appendChild(menu); }
@@ -1356,13 +1356,13 @@ function toggleCardOptionsMenu(e, cardId, cardTitle) {
 // Move card picker (simple prompt for now)
 function showMoveCardPicker(cardId) {
   var boardNames = allBoards.map(function(b, i) { return (i + 1) + '. ' + b.title; }).join('\n');
-  var choice = prompt('Move to which board?\n' + boardNames);
+  var choice = prompt('Премести в кой борд?\n' + boardNames);
   if (!choice) return;
   var idx = parseInt(choice) - 1;
   var board = allBoards[idx];
   if (!board) return;
   var colNames = (board.columns || []).map(function(c, i) { return (i + 1) + '. ' + c.title; }).join('\n');
-  var colChoice = prompt('Which column?\n' + colNames);
+  var colChoice = prompt('Коя колона?\n' + colNames);
   if (!colChoice) return;
   var colIdx = parseInt(colChoice) - 1;
   var col = (board.columns || [])[colIdx];
@@ -1380,7 +1380,7 @@ function copyCardLink(cardId) {
 
 // Archive card (DELETE)
 async function archiveCard(cardId) {
-  if (!confirm('Archive this card?')) return;
+  if (!confirm('Архивирай тази карта?')) return;
   try {
     await fetch('/api/cards/' + cardId, { method: 'DELETE' });
     history.back();
@@ -1445,14 +1445,14 @@ function expandStep(cardId, stepId, li) {
   form.className = 'bc-step-expand';
   form.onclick = function(e) { e.stopPropagation(); };
   form.innerHTML =
-    '<div class="bc-step-expand__row"><label>Title</label><input type="text" id="editStepTitle_' + stepId + '" value="' + esc(stepText) + '"></div>' +
-    '<div class="bc-step-expand__row"><label>Assign to</label><select id="editStepAssignee_' + stepId + '"><option value="">Nobody</option>' +
+    '<div class="bc-step-expand__row"><label>Заглавие</label><input type="text" id="editStepTitle_' + stepId + '" value="' + esc(stepText) + '"></div>' +
+    '<div class="bc-step-expand__row"><label>Отговорник</label><select id="editStepAssignee_' + stepId + '"><option value="">Nobody</option>' +
     allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
     '<div class="bc-step-expand__row"><label>Краен срок</label><input type="date" id="editStepDue_' + stepId + '" class="bc-date-input"></div>' +
     '<div class="bc-step-expand__actions">' +
-    '<div style="display:flex;gap:8px"><button class="bc-btn-save" onclick="saveStepEdit(' + cardId + ',' + stepId + ')">Save</button>' +
-    '<button class="bc-btn-discard" onclick="this.closest(\'.bc-step-expand\').remove()">Cancel</button></div>' +
-    '<button class="bc-step-expand__delete" onclick="deleteStep(' + cardId + ',' + stepId + ')">Delete step</button>' +
+    '<div style="display:flex;gap:8px"><button class="bc-btn-save" onclick="saveStepEdit(' + cardId + ',' + stepId + ')">Запази</button>' +
+    '<button class="bc-btn-discard" onclick="this.closest(\'.bc-step-expand\').remove()">Отказ</button></div>' +
+    '<button class="bc-step-expand__delete" onclick="deleteStep(' + cardId + ',' + stepId + ')">Изтрий стъпка</button>' +
     '</div>';
   li.appendChild(form);
 }
@@ -1472,7 +1472,7 @@ async function saveStepEdit(cardId, stepId) {
 }
 
 async function deleteStep(cardId, stepId) {
-  if (!confirm('Delete this step?')) return;
+  if (!confirm('Изтрий тази стъпка?')) return;
   try {
     await fetch('/api/cards/' + cardId + '/steps/' + stepId, { method: 'DELETE' });
     router();
@@ -1501,7 +1501,7 @@ function editComment(cardId, commentId, btn) {
   var currentText = textDiv.textContent;
 
   textDiv.innerHTML = '<div class="bc-editor"><input id="editCommentInput_' + commentId + '" type="hidden" value="' + esc(currentHtml) + '"><trix-editor input="editCommentInput_' + commentId + '" class="trix-dark" style="min-height:60px"></trix-editor></div>' +
-    '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save" onclick="saveCommentEdit(' + cardId + ',' + commentId + ')">Save</button><button class="bc-btn-discard" onclick="router()">Cancel</button></div>';
+    '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save" onclick="saveCommentEdit(' + cardId + ',' + commentId + ')">Запази</button><button class="bc-btn-discard" onclick="router()">Отказ</button></div>';
 }
 
 async function saveCommentEdit(cardId, commentId) {
