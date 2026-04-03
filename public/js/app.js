@@ -547,7 +547,7 @@ async function renderBoard(el, boardId) {
             </div>
           </div>
           ${manage ? `<a class="btn btn-sm" href="#/card/0/new?board=${boardId}">+ Нова карта</a>` : ''}
-          ${manage ? `<button class="btn btn-sm btn-ghost" onclick="promptAddColumn(${boardId})">+ Колона</button>` : ''}
+          ${manage ? `<button class="btn btn-sm btn-ghost" onclick="showAddColumnModal(${boardId})">+ Колона</button>` : ''}
           <button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>
         </div>
       </div>
@@ -1994,11 +1994,15 @@ function showDoneCards(doneCards, boardId) {
 }
 
 // ==================== COLUMN/BOARD MGMT ====================
-async function promptAddColumn(bid) { const t=prompt('Име на колона:'); if(!t?.trim())return; try { await fetch(`/api/boards/${bid}/columns`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards=await(await fetch('/api/boards')).json(); router(); } catch {} }
+let _addColumnBoardId = null;
+function showAddColumnModal(bid) { _addColumnBoardId=bid; const m=document.getElementById('addColumnModal'); document.getElementById('addColumnInput').value=''; m.style.display='flex'; setTimeout(()=>document.getElementById('addColumnInput').focus(),50); }
+function closeAddColumnModal() { document.getElementById('addColumnModal').style.display='none'; }
+async function submitAddColumn() { const t=document.getElementById('addColumnInput').value.trim(); if(!t)return; closeAddColumnModal(); try{await fetch(`/api/boards/${_addColumnBoardId}/columns`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
+async function promptAddColumn(bid) { showAddColumnModal(bid); }
 function editColumnTitle(bid,cid,el) { const cur=el.textContent; el.contentEditable=true; el.focus(); const save=async()=>{ el.contentEditable=false; const t=el.textContent.trim(); if(t&&t!==cur){ try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})})}catch{} } else el.textContent=cur; }; el.onblur=save; el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();el.blur()}if(e.key==='Escape'){el.textContent=cur;el.blur()}}; }
 function showColMenu(e,bid,cid) { e.stopPropagation(); document.querySelectorAll('.col-context-menu').forEach(m=>m.remove()); const menu=document.createElement('div'); menu.className='col-context-menu'; menu.innerHTML=`<button onclick="promptRenameColumn(${bid},${cid});this.parentElement.remove()">\u270e Преименувай</button><button onclick="deleteColumn(${bid},${cid});this.parentElement.remove()">\ud83d\uddd1 Изтрий</button>`; e.target.closest('.column-header-right').appendChild(menu); setTimeout(()=>document.addEventListener('click',()=>menu.remove(),{once:true}),10); }
 async function promptRenameColumn(bid,cid) { const t=prompt('Ново име:'); if(!t?.trim())return; try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
-async function deleteColumn(bid,cid) { if(!confirm('Изтрий колона и всички карти в нея?'))return; try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'DELETE'}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
+async function deleteColumn(bid,cid) { if(!confirm('Изтрий колона и всички карти в нея?'))return; try{const r=await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'DELETE'}); if(!r.ok){const d=await r.json();alert(d.error||'Грешка');return;} allBoards=await(await fetch('/api/boards')).json(); router();}catch{alert('Грешка при изтриване');} }
 function toggleBoardMenu(e,bid,cid) { /* TODO: full board menu */ }
 
 // ==================== DRAG & DROP ====================
@@ -2056,7 +2060,7 @@ function closeProfile() { document.getElementById('profileModal').style.display=
 async function saveProfileName() { const n=document.getElementById('profileNameInput').value.trim(); if(!n)return; try{const u=await(await fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})})).json(); document.getElementById('profileName').textContent=u.name; document.getElementById('navAvatar').textContent=initials(u.name);}catch{} }
 async function uploadAvatar(input) { if(!input.files[0])return; const f=new FormData(); f.append('avatar',input.files[0]); try{const u=await(await fetch('/api/profile/avatar',{method:'POST',body:f})).json(); document.getElementById('profileAvatar').innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`;}catch{} }
 async function changePassword() { const msg=document.getElementById('pwdMsg'),c=document.getElementById('currentPwd').value,n=document.getElementById('newPwd').value; if(!c||!n){msg.textContent='Попълни и двете полета';msg.style.color='var(--red)';return;} try{const r=await fetch('/api/profile/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:c,newPassword:n})}); const d=await r.json(); if(r.ok){msg.textContent='Сменена';msg.style.color='var(--green)';}else{msg.textContent=d.error;msg.style.color='var(--red)';}}catch{msg.textContent='Грешка';msg.style.color='var(--red)';} }
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfile()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeProfile();closeAddColumnModal();}});
 document.getElementById('profileModal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeProfile()});
 
 // ==================== WEBSOCKET ====================

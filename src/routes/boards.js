@@ -119,15 +119,22 @@ router.put('/:boardId/columns/:colId', requireAuth, requireModerator, async (req
 // DELETE /api/boards/:boardId/columns/:colId — delete column
 router.delete('/:boardId/columns/:colId', requireAuth, requireModerator, async (req, res) => {
   try {
+    const { colId, boardId } = req.params;
+    // Delete all cards in this column (cascades to steps, assignees, events, time_entries)
+    await execute('DELETE FROM cards WHERE column_id = $1', [colId]);
+    // Null out remaining column references in card_events (from other cards' history)
+    await execute('UPDATE card_events SET from_column_id = NULL WHERE from_column_id = $1', [colId]);
+    await execute('UPDATE card_events SET to_column_id = NULL WHERE to_column_id = $1', [colId]);
     const col = await queryOne(
       'DELETE FROM columns WHERE id = $1 AND board_id = $2 RETURNING *',
-      [req.params.colId, req.params.boardId]
+      [colId, boardId]
     );
     if (!col) return res.status(404).json({ error: 'Column not found' });
-    broadcast({ type: 'column:deleted', columnId: col.id, boardId: parseInt(req.params.boardId) }, req.user.userId);
+    broadcast({ type: 'column:deleted', columnId: col.id, boardId: parseInt(boardId) }, req.user.userId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Delete column error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
