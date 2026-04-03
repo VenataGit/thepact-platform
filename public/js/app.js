@@ -215,12 +215,17 @@ async function renderHome(el) {
     allBoards = boards;
     const now = new Date(); now.setHours(0,0,0,0);
     const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+    const now14 = new Date(now); now14.setDate(now14.getDate() + 14);
     const activeCards = cards.filter(c => !c.completed_at && !c.archived_at);
     const myCards = activeCards.filter(c => c.assignees?.some(a => a.id === currentUser.id));
     const overdueCards = activeCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
     const myOverdue = myCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
     const todayCards = activeCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') >= now && new Date(c.due_on+'T00:00:00') < tomorrow);
     const urgentCards = activeCards.filter(c => c.priority === 'urgent');
+    const myUpcoming = myCards
+      .filter(c => c.due_on && new Date(c.due_on+'T00:00:00') <= now14)
+      .sort((a, b) => new Date(a.due_on) - new Date(b.due_on))
+      .slice(0, 8);
     const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
 
     el.innerHTML = `
@@ -300,6 +305,28 @@ async function renderHome(el) {
             <a href="#/vault" class="btn btn-sm">📁 Документи</a>
           </div>
         </div>
+
+        <!-- My upcoming tasks -->
+        ${myUpcoming.length > 0 ? `
+        <div style="margin-bottom:32px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">\u041c\u043e\u0438\u0442\u0435 \u043f\u0440\u0435\u0434\u0441\u0442\u043e\u044f\u0449\u0438</div>
+          <div class="task-list" style="max-width:100%">
+            ${myUpcoming.map(c => {
+              const dueDate = new Date(c.due_on+'T00:00:00');
+              const isOver = dueDate < now;
+              const isToday = dueDate.getTime() === now.getTime();
+              const dueLabel = isOver ? '<span style="color:var(--red);font-weight:600">\u26a0 ' + formatDate(c.due_on) + '</span>' : isToday ? '<span style="color:var(--yellow);font-weight:600">\u23f0 Днес</span>' : '<span>' + formatDate(c.due_on) + '</span>';
+              const pri = c.priority === 'urgent' ? '\ud83d\udd34 ' : c.priority === 'high' ? '\u2191 ' : '';
+              return '<a class="task-row ' + (isOver ? 'overdue' : '') + '" href="#/card/' + c.id + '" style="align-items:center">' +
+                '<span class="task-title">' + pri + esc(c.title) + '</span>' +
+                '<span class="task-meta">' +
+                  (c.client_name ? '<span style="color:var(--accent)">' + esc(c.client_name) + '</span>' : '') +
+                  dueLabel +
+                '</span></a>';
+            }).join('')}
+          </div>
+          <a href="#/mystuff" style="font-size:12px;color:var(--accent);text-decoration:none;display:inline-block;margin-top:8px">\u0412\u0441\u0438\u0447\u043a\u0438 \u043c\u043e\u0438 \u0437\u0430\u0434\u0430\u0447\u0438 \u2192</a>
+        </div>` : ''}
 
         <!-- Team -->
         <div>
@@ -763,6 +790,8 @@ async function renderBoard(el, boardId) {
     const doneCol = board.columns.find(c => c.is_done_column);
     const doneCards = doneCol ? cards.filter(c => c.column_id === doneCol.id) : [];
     const wColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308'];
+    const nowB = new Date(); nowB.setHours(0,0,0,0);
+    const boardOverdueCount = cards.filter(c => c.due_on && !c.is_on_hold && !c.completed_at && new Date(c.due_on+'T00:00:00') < nowB).length;
 
     el.innerHTML = `
       <div class="board-page-header">
@@ -774,6 +803,7 @@ async function renderBoard(el, boardId) {
               ${allUsers.slice(0,6).map((u,i) => `<div class="board-page-header__watcher-av" style="background:${wColors[i%wColors.length]}" title="${esc(u.name)}">${initials(u.name)}</div>`).join('')}
             </div>
           </div>
+          ${boardOverdueCount > 0 ? `<button class="btn btn-sm btn-ghost" id="overdueFilterBtn" onclick="toggleOverdueFilter(this)" title="\u041f\u043e\u043a\u0430\u0436\u0438 \u0441\u0430\u043c\u043e \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438">\u26a0 ${boardOverdueCount}</button>` : ''}
           ${edit ? `<a class="btn btn-sm" href="#/card/0/new?board=${boardId}">+ Нова карта</a>` : ''}
           ${manage ? `<button class="btn btn-sm btn-ghost" onclick="showAddColumnModal(${boardId})">+ Колона</button>` : ''}
           <button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>
@@ -856,6 +886,34 @@ function filterBoardCards(q) {
       const visible = col.querySelectorAll('.column-cards:not(.on-hold-drop) .kanban-card:not([style*="display: none"]):not([style*="display:none"])').length;
       const wip = countEl.dataset.originalCount.includes('/') ? '/' + countEl.dataset.originalCount.split('/')[1] : '';
       countEl.textContent = visible + wip;
+    } else if (countEl.dataset.originalCount) {
+      countEl.textContent = countEl.dataset.originalCount;
+      delete countEl.dataset.originalCount;
+    }
+  });
+}
+
+function toggleOverdueFilter(btn) {
+  var active = btn.dataset.active === '1';
+  active = !active;
+  btn.dataset.active = active ? '1' : '';
+  btn.style.cssText = active ? 'background:rgba(239,68,68,0.15) !important;color:var(--red) !important;border-color:var(--red) !important' : '';
+  document.querySelectorAll('.kanban-card-wrap').forEach(function(wrap) {
+    if (active) {
+      var card = wrap.querySelector('.kanban-card');
+      var isOver = card && (card.classList.contains('overdue') || card.classList.contains('deadline-today'));
+      wrap.style.display = isOver ? '' : 'none';
+    } else {
+      wrap.style.display = '';
+    }
+  });
+  document.querySelectorAll('.kanban-column').forEach(function(col) {
+    var countEl = col.querySelector('.col-count');
+    if (!countEl) return;
+    if (active) {
+      if (!countEl.dataset.originalCount) countEl.dataset.originalCount = countEl.textContent;
+      var visible = col.querySelectorAll('.kanban-card-wrap:not([style*="display: none"]):not([style*="display:none"])').length;
+      countEl.textContent = visible;
     } else if (countEl.dataset.originalCount) {
       countEl.textContent = countEl.dataset.originalCount;
       delete countEl.dataset.originalCount;
@@ -978,7 +1036,18 @@ async function renderCardPage(el, cardId) {
         '<input type="date" id="dueDateInput_' + cardId + '" class="bc-date-input' + dateHidden + '" value="' + (card.due_on || '') + '" onchange="saveDueDateField(' + cardId + ', this.value)" onclick="event.stopPropagation()"></label>' +
         '<span id="dueSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 Запазено</span>';
     } else {
-      dueHtml = '<span>' + (card.due_on ? formatDate(card.due_on) : '<span class="bc-field__placeholder">Избери дата</span>') + '</span>';
+      var dueDateObj = card.due_on ? new Date(card.due_on+'T00:00:00') : null;
+      var nowDay2 = new Date(); nowDay2.setHours(0,0,0,0);
+      var dueIsOverdue = dueDateObj && dueDateObj < nowDay2 && !card.completed_at;
+      var dueIsToday = dueDateObj && dueDateObj.getTime() === nowDay2.getTime();
+      if (card.due_on) {
+        var dueStyle = dueIsOverdue ? ' style="color:var(--red);font-weight:600"' : dueIsToday ? ' style="color:var(--yellow);font-weight:600"' : '';
+        var duePrefix = dueIsOverdue ? '\u26a0 ' : dueIsToday ? '\u23f0 ' : '';
+        dueHtml = '<span' + dueStyle + '>' + duePrefix + formatDate(card.due_on) + '</span>' +
+          (dueIsOverdue ? ' <span style="background:rgba(239,68,68,0.15);color:var(--red);font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px">\u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u043e!</span>' : '');
+      } else {
+        dueHtml = '<span class="bc-field__placeholder">\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430</span>';
+      }
     }
 
     // ===== CLIENT NAME =====
