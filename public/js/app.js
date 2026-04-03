@@ -239,6 +239,30 @@ function renderMiniCalendar() {
 let expandedDashCol = null;
 let collapsedSubCols = JSON.parse(localStorage.getItem('thepact-collapsed-subcols') || '{}');
 
+// Dashboard column visibility — stored in localStorage
+function getDashHiddenCols() {
+  try { return new Set(JSON.parse(localStorage.getItem('thepact-dash-hidden-cols') || '[]')); } catch { return new Set(); }
+}
+function saveDashHiddenCols(set) {
+  localStorage.setItem('thepact-dash-hidden-cols', JSON.stringify([...set]));
+}
+function initDashHiddenCols(boards) {
+  // On first visit, hide columns named "Задачи" by default
+  const hidden = getDashHiddenCols();
+  let changed = false;
+  if (!localStorage.getItem('thepact-dash-hidden-cols-initialized')) {
+    boards.forEach(b => (b.columns||[]).forEach(c => {
+      if (c.title.toLowerCase() === 'задачи') { hidden.add(c.id); changed = true; }
+    }));
+    localStorage.setItem('thepact-dash-hidden-cols-initialized', '1');
+    if (changed) saveDashHiddenCols(hidden);
+  }
+  return hidden;
+}
+
+let _dashBoards = [], _dashCards = [];
+const _dashStageColors = { 0: 'var(--blue)', 1: 'var(--orange)', 2: '#a78bfa', 3: 'var(--green)' };
+
 async function renderDashboard(el) {
   setBreadcrumb([{ label: 'Home', href: '#/home' }, { label: 'Dashboard', href: '#/dashboard' }]);
   el.className = 'full-width';
@@ -248,15 +272,11 @@ async function renderDashboard(el) {
       (await fetch('/api/cards')).json()
     ]);
     allBoards = boards;
+    _dashBoards = boards;
+    _dashCards = cards;
 
-    const stageColors = {
-      0: 'var(--blue)',
-      1: 'var(--orange)',
-      2: '#a78bfa',
-      3: 'var(--green)'
-    };
+    const hidden = initDashHiddenCols(boards);
 
-    // Quick stats
     const totalActive = cards.filter(c => !c.completed_at && !c.archived_at).length;
     const totalOnHold = cards.filter(c => c.is_on_hold).length;
     const totalOverdue = cards.filter(c => c.due_on && !c.is_on_hold && !c.completed_at && new Date(c.due_on) < new Date()).length;
@@ -267,15 +287,57 @@ async function renderDashboard(el) {
         '<div class="dash-stat dash-stat--warn"><span class="dash-stat__num">' + totalOverdue + '</span><span class="dash-stat__label">Просрочени</span></div>' +
         '<div class="dash-stat"><span class="dash-stat__num">' + totalOnHold + '</span><span class="dash-stat__label">Изчакване</span></div>' +
         '<div class="dash-stat"><span class="dash-stat__num">' + boards.length + '</span><span class="dash-stat__label">Борда</span></div>' +
+        '<button class="dash-settings-btn" onclick="showDashSettings()" title="Настройки на Dashboard">⚙ Настройки</button>' +
       '</div>' +
       '<div class="dash-board" id="dashBoard"></div>' +
     '</div>';
 
-    renderDashboardBoard(boards, cards, stageColors);
+    renderDashboardBoard(boards, cards, _dashStageColors);
   } catch (err) {
     console.error('Dashboard error:', err);
     el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане</div>';
   }
+}
+
+function showDashSettings() {
+  document.querySelectorAll('.dash-settings-panel').forEach(p => p.remove());
+  const hidden = getDashHiddenCols();
+  const btn = document.querySelector('.dash-settings-btn');
+  if (!btn) return;
+
+  const panel = document.createElement('div');
+  panel.className = 'dash-settings-panel';
+
+  let html = '<div class="dash-settings-panel__header"><strong>Колони в Dashboard</strong><button onclick="this.closest(\'.dash-settings-panel\').remove()">✕</button></div>';
+  html += '<div class="dash-settings-panel__body">';
+  _dashBoards.forEach(board => {
+    const cols = (board.columns || []).filter(c => !c.is_done_column);
+    if (!cols.length) return;
+    html += `<div class="dash-settings-board">${esc(board.title)}</div>`;
+    cols.forEach(col => {
+      const checked = !hidden.has(col.id) ? 'checked' : '';
+      html += `<label class="dash-settings-col">
+        <input type="checkbox" ${checked} onchange="toggleDashCol2(${col.id}, this.checked)">
+        <span>${esc(col.title)}</span>
+      </label>`;
+    });
+  });
+  html += '</div>';
+  panel.innerHTML = html;
+
+  const rect = btn.getBoundingClientRect();
+  panel.style.cssText = `position:fixed;top:${rect.bottom + 6}px;right:${window.innerWidth - rect.right}px;z-index:1000`;
+  document.body.appendChild(panel);
+  setTimeout(() => document.addEventListener('click', function h(e) {
+    if (!panel.contains(e.target) && e.target !== btn) { panel.remove(); document.removeEventListener('click', h); }
+  }), 10);
+}
+
+function toggleDashCol2(colId, visible) {
+  const hidden = getDashHiddenCols();
+  if (visible) hidden.delete(colId); else hidden.add(colId);
+  saveDashHiddenCols(hidden);
+  renderDashboardBoard(_dashBoards, _dashCards, _dashStageColors);
 }
 
 function renderDashboardBoard(boards, cards, stageColors) {
@@ -289,7 +351,8 @@ function renderDashboardBoard(boards, cards, stageColors) {
     var isCollapsed = expandedDashCol && expandedDashCol !== board.id;
     var colClass = isExpanded ? 'dash-col expanded' : isCollapsed ? 'dash-col collapsed' : 'dash-col';
     var stageColor = stageColors[bi] || 'var(--accent)';
-    var visibleCols = (board.columns || []).filter(function(c) { return !c.is_done_column; });
+    var hiddenCols = getDashHiddenCols();
+    var visibleCols = (board.columns || []).filter(function(c) { return !c.is_done_column && !hiddenCols.has(c.id); });
     var doneCol = (board.columns || []).find(function(c) { return c.is_done_column; });
     var doneCount = doneCol ? boardCards.filter(function(c) { return c.column_id === doneCol.id; }).length : 0;
 
@@ -374,12 +437,9 @@ function getDashCardColor(card) {
 
 function toggleDashCol(boardId) {
   expandedDashCol = expandedDashCol === boardId ? null : boardId;
-  // Re-render
-  var stageColors = { 0: 'var(--blue)', 1: 'var(--orange)', 2: '#a78bfa', 3: 'var(--green)' };
-  Promise.all([
-    fetch('/api/boards').then(function(r) { return r.json(); }),
-    fetch('/api/cards').then(function(r) { return r.json(); })
-  ]).then(function(res) { renderDashboardBoard(res[0], res[1], stageColors); });
+  if (_dashBoards.length) { renderDashboardBoard(_dashBoards, _dashCards, _dashStageColors); return; }
+  Promise.all([fetch('/api/boards').then(r=>r.json()), fetch('/api/cards').then(r=>r.json())])
+    .then(res => { _dashBoards=res[0]; _dashCards=res[1]; renderDashboardBoard(res[0], res[1], _dashStageColors); });
 }
 
 function toggleDashSubCol(boardId, colId) {
@@ -387,11 +447,9 @@ function toggleDashSubCol(boardId, colId) {
   collapsedSubCols[key] = !collapsedSubCols[key];
   if (!collapsedSubCols[key]) delete collapsedSubCols[key];
   localStorage.setItem('thepact-collapsed-subcols', JSON.stringify(collapsedSubCols));
-  var stageColors = { 0: 'var(--blue)', 1: 'var(--orange)', 2: '#a78bfa', 3: 'var(--green)' };
-  Promise.all([
-    fetch('/api/boards').then(function(r) { return r.json(); }),
-    fetch('/api/cards').then(function(r) { return r.json(); })
-  ]).then(function(res) { renderDashboardBoard(res[0], res[1], stageColors); });
+  if (_dashBoards.length) { renderDashboardBoard(_dashBoards, _dashCards, _dashStageColors); return; }
+  Promise.all([fetch('/api/boards').then(r=>r.json()), fetch('/api/cards').then(r=>r.json())])
+    .then(res => { _dashBoards=res[0]; _dashCards=res[1]; renderDashboardBoard(res[0], res[1], _dashStageColors); });
 }
 
 function toggleDashDone(boardId, doneColId) {
