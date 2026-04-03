@@ -213,29 +213,89 @@ async function renderHome(el) {
       (await fetch('/api/boards')).json()
     ]);
     allBoards = boards;
-    const myCards = cards.filter(c => c.assignees?.some(a => a.id === currentUser.id));
-
-    // Team avatars with colors
+    const now = new Date(); now.setHours(0,0,0,0);
+    const activeCards = cards.filter(c => !c.completed_at && !c.archived_at);
+    const myCards = activeCards.filter(c => c.assignees?.some(a => a.id === currentUser.id));
+    const overdueCards = activeCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
+    const myOverdue = myCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
     const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
-    const teamAvatars = allUsers.slice(0, 10).map((u, i) => `<div style="width:36px;height:36px;border-radius:50%;background:${avatarColors[i % avatarColors.length]};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;border:2px solid var(--bg);margin-left:${i > 0 ? '-6px' : '0'};position:relative;z-index:${10-i}">${initials(u.name)}</div>`).join('');
 
     el.innerHTML = `
-      <div style="max-width:600px;margin:0 auto">
-        <div class="page-header" style="margin-bottom:16px">
-          <img src="/img/logo-white.svg" alt="The Pact" style="height:48px;margin-bottom:12px">
+      <div style="max-width:820px;margin:0 auto">
+        <div style="text-align:center;margin-bottom:28px;padding-top:8px">
+          <img src="/img/logo-white.svg" alt="The Pact" style="height:44px;margin-bottom:6px">
         </div>
 
-        <div class="projects-home-grid">
-          <a href="#/videoproduction" class="project-card-home">
-            <div class="project-card-home__above">ThePact Tasks</div>
-            <div class="project-card-home__title">Video Production</div>
+        <!-- Stats bar -->
+        <div style="display:flex;gap:12px;justify-content:center;margin-bottom:32px;flex-wrap:wrap">
+          <a href="#/mystuff" style="text-decoration:none">
+            <div class="dash-stat" style="min-width:110px;cursor:pointer">
+              <span class="dash-stat__num">${myCards.length}</span>
+              <span class="dash-stat__label">Мои задачи</span>
+            </div>
           </a>
-          <a href="#/dashboard" class="project-card-home">
-            <div class="project-card-home__above">ThePact Tasks</div>
-            <div class="project-card-home__title">Dashboard</div>
+          <a href="#/mystuff" style="text-decoration:none">
+            <div class="dash-stat ${myOverdue.length > 0 ? 'dash-stat--warn' : ''}" style="min-width:110px;cursor:pointer">
+              <span class="dash-stat__num">${myOverdue.length}</span>
+              <span class="dash-stat__label">Мои просрочени</span>
+            </div>
+          </a>
+          <a href="#/reports?tab=overdue" style="text-decoration:none">
+            <div class="dash-stat ${overdueCards.length > 0 ? 'dash-stat--warn' : ''}" style="min-width:110px;cursor:pointer">
+              <span class="dash-stat__num">${overdueCards.length}</span>
+              <span class="dash-stat__label">Просрочени общо</span>
+            </div>
+          </a>
+          <a href="#/dashboard" style="text-decoration:none">
+            <div class="dash-stat" style="min-width:110px;cursor:pointer">
+              <span class="dash-stat__num">${boards.length}</span>
+              <span class="dash-stat__label">Борда</span>
+            </div>
           </a>
         </div>
 
+        <!-- Boards grid -->
+        <div style="margin-bottom:32px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Проекти</div>
+          <div class="projects-home-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+            ${boards.map(b => {
+              const bc = activeCards.filter(c => c.board_id === b.id);
+              const bOver = bc.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now).length;
+              return '<a href="#/board/' + b.id + '" class="project-card-home" style="padding:16px 20px">' +
+                '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
+                  '<div class="project-card-home__title" style="font-size:15px;margin:0">' + esc(b.title) + '</div>' +
+                  (bOver > 0 ? '<span style="background:rgba(239,68,68,.2);color:var(--red);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">⚠ ' + bOver + '</span>' : '') +
+                '</div>' +
+                '<div style="font-size:12px;color:var(--text-dim)">' + bc.length + ' карти · ' + (b.columns?.filter(c=>!c.is_done_column).length || 0) + ' колони</div>' +
+              '</a>';
+            }).join('')}
+            ${canManage() ? '<div class="project-card-home" style="padding:16px 20px;cursor:pointer;border-style:dashed;opacity:0.5" onclick="promptCreateBoard()"><div class="project-card-home__title" style="font-size:14px;margin:0">+ Нов борд</div></div>' : ''}
+          </div>
+        </div>
+
+        <!-- Quick access -->
+        <div style="margin-bottom:32px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Бърз достъп</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <a href="#/dashboard" class="btn btn-sm">📊 Dashboard</a>
+            <a href="#/calendar" class="btn btn-sm">📅 Календар</a>
+            <a href="#/reports?tab=overdue" class="btn btn-sm">🔴 Просрочени</a>
+            <a href="#/campfire/1" class="btn btn-sm">🔥 Campfire</a>
+            <a href="#/tools/kp-auto" class="btn btn-sm">🤖 КП-Автоматизация</a>
+            <a href="#/vault" class="btn btn-sm">📁 Документи</a>
+          </div>
+        </div>
+
+        <!-- Team -->
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Екип</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${allUsers.map((u, i) => '<div style="display:flex;align-items:center;gap:8px;background:var(--card);border-radius:8px;padding:8px 12px">' +
+              '<div style="width:30px;height:30px;border-radius:50%;background:' + avatarColors[i % avatarColors.length] + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">' + initials(u.name) + '</div>' +
+              '<span style="font-size:13px;color:var(--text)">' + esc(u.name) + '</span>' +
+            '</div>').join('')}
+          </div>
+        </div>
       </div>
     `;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
@@ -293,7 +353,7 @@ let _dashBoards = [], _dashCards = [], _dashTimers = {};
 const _dashStageColors = { 0: 'var(--blue)', 1: 'var(--orange)', 2: '#a78bfa', 3: 'var(--green)' };
 
 async function renderDashboard(el) {
-  setBreadcrumb([{ label: 'Home', href: '#/home' }, { label: 'Dashboard', href: '#/dashboard' }]);
+  setBreadcrumb([{ label: 'Начало', href: '#/home' }, { label: 'Dashboard', href: '#/dashboard' }]);
   el.className = 'full-width';
   try {
     const [boards, cards] = await Promise.all([
@@ -572,16 +632,21 @@ async function renderProject(el, projectId) {
     el.innerHTML = `
       <div class="page-header" style="margin-bottom:16px">
         <img src="/img/logo-white.svg" alt="The Pact" style="height:40px;margin-bottom:8px">
-        <div style="font-size:13px;color:var(--text-dim)">Video Production</div>
+        <div style="font-size:13px;color:var(--text-dim)">Видео Продукция</div>
       </div>
 
       <div class="projects-home-grid" style="grid-template-columns:repeat(3, 1fr);max-width:900px">
         ${boards.map((board, bi) => {
-          const bc = cards.filter(c => c.board_id === board.id);
-          const activeCards = bc.filter(c => !c.is_on_hold);
+          const now = new Date(); now.setHours(0,0,0,0);
+          const bc = cards.filter(c => c.board_id === board.id && !c.completed_at && !c.archived_at);
+          const overdue = bc.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now).length;
           return '<a href="#/board/' + board.id + '" class="project-card-home">' +
-            '<div class="project-card-home__above">' + esc(board.title) + '</div>' +
-            '<div class="project-card-home__title" style="font-size:18px;margin-bottom:8px">' + activeCards.length + ' карти</div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+              '<div class="project-card-home__above">' + esc(board.title) + '</div>' +
+              (overdue > 0 ? '<span style="background:rgba(239,68,68,.2);color:var(--red);font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">⚠ ' + overdue + '</span>' : '') +
+            '</div>' +
+            '<div class="project-card-home__title" style="font-size:18px;margin-bottom:4px">' + bc.length + ' карти</div>' +
+            '<div style="font-size:11px;color:var(--text-dim)">' + (board.columns?.filter(c=>!c.is_done_column).length || 0) + ' колони</div>' +
           '</a>';
         }).join('')}
 
@@ -596,12 +661,12 @@ async function renderProject(el, projectId) {
         </a>
 
         <a href="#/checkins" class="project-card-home">
-          <div class="project-card-home__above">Check-ins</div>
+          <div class="project-card-home__above">Дейности</div>
           <div class="project-card-home__title" style="font-size:18px">✋ Въпроси</div>
         </a>
 
         <a href="#/chat" class="project-card-home">
-          <div class="project-card-home__above">Pings</div>
+          <div class="project-card-home__above">Чат</div>
           <div class="project-card-home__title" style="font-size:18px">💬 Съобщения</div>
         </a>
 
@@ -1518,7 +1583,7 @@ async function saveCommentEdit(cardId, commentId) {
 
 // Comment: delete
 async function deleteComment(cardId, commentId) {
-  if (!confirm('Delete this comment?')) return;
+  if (!confirm('Изтрий коментара?')) return;
   try {
     await fetch('/api/cards/' + cardId + '/comments/' + commentId, { method: 'DELETE' });
     router();
@@ -1975,7 +2040,7 @@ function formatFileSize(b) { if(!b)return''; if(b<1024)return b+' B'; if(b<10485
 
 // ==================== CAMPFIRE (Group Chat) ====================
 async function renderCampfire(el, roomId) {
-  setBreadcrumb([{label:'Campfire',href:`#/campfire/${roomId}`}]);
+  setBreadcrumb([{label:'🔥 Campfire',href:`#/campfire/${roomId}`}]);
   el.className = '';
   try {
     const msgs = await (await fetch(`/api/campfire/rooms/${roomId}/messages?limit=100`)).json();
@@ -2262,7 +2327,7 @@ function toggleCalDay(dateStr) {
 
 // ==================== AUTOMATIC CHECK-INS ====================
 async function renderCheckins(el) {
-  setBreadcrumb([{label:'Check-ins'}]);
+  setBreadcrumb([{label:'✋ Дейности'}]);
   el.className = '';
   try {
     const [questions, pending] = await Promise.all([
@@ -2273,7 +2338,7 @@ async function renderCheckins(el) {
     el.innerHTML = `
       <div style="max-width:700px;margin:0 auto">
         <div class="page-header">
-          <h1>✋ Check-ins</h1>
+          <h1>✋ Дейности</h1>
           <p class="page-subtitle">Автоматични въпроси към екипа</p>
         </div>
 
@@ -2888,10 +2953,63 @@ function closeAddColumnModal() { document.getElementById('addColumnModal').style
 async function submitAddColumn() { const t=document.getElementById('addColumnInput').value.trim(); if(!t)return; closeAddColumnModal(); try{await fetch(`/api/boards/${_addColumnBoardId}/columns`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
 async function promptAddColumn(bid) { showAddColumnModal(bid); }
 function editColumnTitle(bid,cid,el) { const cur=el.textContent; el.contentEditable=true; el.focus(); const save=async()=>{ el.contentEditable=false; const t=el.textContent.trim(); if(t&&t!==cur){ try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})})}catch{} } else el.textContent=cur; }; el.onblur=save; el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();el.blur()}if(e.key==='Escape'){el.textContent=cur;el.blur()}}; }
-function showColMenu(e,bid,cid) { e.stopPropagation(); document.querySelectorAll('.col-context-menu').forEach(m=>m.remove()); const menu=document.createElement('div'); menu.className='col-context-menu'; menu.innerHTML=`<button onclick="promptRenameColumn(${bid},${cid});this.parentElement.remove()">\u270e Преименувай</button><button onclick="deleteColumn(${bid},${cid});this.parentElement.remove()">\ud83d\uddd1 Изтрий</button>`; e.target.closest('.column-header-right').appendChild(menu); setTimeout(()=>document.addEventListener('click',()=>menu.remove(),{once:true}),10); }
+function showColMenu(e,bid,cid) {
+  e.stopPropagation();
+  document.querySelectorAll('.col-context-menu').forEach(m=>m.remove());
+  const menu=document.createElement('div');
+  menu.className='col-context-menu';
+  const board = allBoards.find(b=>b.id===bid);
+  const col = board && board.columns ? board.columns.find(c=>c.id===cid) : null;
+  const wipCurrent = col && col.wip_limit ? col.wip_limit : '';
+  menu.innerHTML = '<button onclick="promptRenameColumn(' + bid + ',' + cid + ');this.parentElement.remove()">\u270e Преименувай</button>' +
+    '<button onclick="promptSetWipLimit(' + bid + ',' + cid + ');this.parentElement.remove()">\ud83d\udea6 WIP лимит' + (wipCurrent ? ' (' + wipCurrent + ')' : '') + '</button>' +
+    '<button style="color:var(--red)" onclick="deleteColumn(' + bid + ',' + cid + ');this.parentElement.remove()">\ud83d\uddd1 Изтрий</button>';
+  e.target.closest('.column-header-right').appendChild(menu);
+  setTimeout(()=>document.addEventListener('click',()=>menu.remove(),{once:true}),10);
+}
+async function promptSetWipLimit(bid,cid) {
+  const board = allBoards.find(b=>b.id===bid);
+  const col = board && board.columns ? board.columns.find(c=>c.id===cid) : null;
+  const current = col && col.wip_limit ? col.wip_limit : '';
+  const val = prompt('WIP лимит (0 = без лимит):', current);
+  if (val === null) return;
+  const limit = parseInt(val) || 0;
+  try { await fetch('/api/boards/' + bid + '/columns/' + cid, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({wip_limit: limit || null})}); allBoards=await(await fetch('/api/boards')).json(); router(); } catch {}
+}
 async function promptRenameColumn(bid,cid) { const t=prompt('Ново име:'); if(!t?.trim())return; try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
 async function deleteColumn(bid,cid) { if(!confirm('Изтрий колона и всички карти в нея?'))return; try{const r=await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'DELETE'}); if(!r.ok){const d=await r.json();alert(d.error||'Грешка');return;} allBoards=await(await fetch('/api/boards')).json(); router();}catch{alert('Грешка при изтриване');} }
-function toggleBoardMenu(e,bid,cid) { /* TODO: full board menu */ }
+function toggleBoardMenu(e, bid) {
+  e.stopPropagation();
+  document.querySelectorAll('.board-context-menu').forEach(m => m.remove());
+  const menu = document.createElement('div');
+  menu.className = 'col-context-menu board-context-menu';
+  menu.style.cssText = 'right:0;left:auto;min-width:180px';
+  const manage = canManage();
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  let html = '<button onclick="promptRenameBoard(' + bid + ');this.parentElement.remove()">✏️ Преименувай борд</button>';
+  if (manage) html += '<button onclick="showAddColumnModal(' + bid + ');this.parentElement.remove()">+ Добави колона</button>';
+  if (isAdmin) html += '<button style="color:var(--red)" onclick="deleteBoardConfirm(' + bid + ');this.parentElement.remove()">\ud83d\uddd1 Изтрий борд</button>';
+  menu.innerHTML = html;
+  e.target.closest('.board-page-header__actions').appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+}
+async function promptRenameBoard(bid) {
+  const board = allBoards.find(b => b.id === bid);
+  const t = prompt('Ново име на борда:', board ? board.title : '');
+  if (!t || !t.trim()) return;
+  try { await fetch('/api/boards/' + bid, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards = await (await fetch('/api/boards')).json(); router(); } catch {}
+}
+async function deleteBoardConfirm(bid) {
+  const board = allBoards.find(b => b.id === bid);
+  if (!confirm('Изтрий борд "' + (board ? board.title : '') + '"?\nВсички карти и колони ще бъдат изтрити!')) return;
+  try {
+    const r = await fetch('/api/boards/' + bid, { method: 'DELETE' });
+    if (!r.ok) { const d = await r.json(); alert(d.error || 'Грешка'); return; }
+    allBoards = await (await fetch('/api/boards')).json();
+    location.hash = '#/home';
+    router();
+  } catch { alert('Грешка при изтриване'); }
+}
 
 // ==================== DRAG & DROP ====================
 let dragCardId = null;
