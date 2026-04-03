@@ -517,7 +517,6 @@ async function promptCreateBoard() {
 async function renderBoard(el, boardId) {
   el.className = 'full-width';
   const COLUMN_COLORS = ['#f97316','#3b82f6','#14b8a6','#a855f7','#22c55e','#eab308','#ec4899','#06b6d4','#ef4444','#8b5cf6'];
-  const COLUMN_BGS   = ['#1c1008','#0d1522','#0c1c1c','#160f22','#0c1a10','#1a1600','#200e18','#0c1820','#1e0a0a','#100c22'];
   try {
     const [boards, cards] = await Promise.all([
       (await fetch('/api/boards')).json(),
@@ -557,11 +556,10 @@ async function renderBoard(el, boardId) {
       <div class="board-kanban">
         ${visibleCols.map((col, i) => {
           const colColor = COLUMN_COLORS[i % COLUMN_COLORS.length];
-          const colBg    = COLUMN_BGS[i % COLUMN_BGS.length];
           const colCards = cards.filter(c => c.column_id === col.id && !c.is_on_hold);
           const holdCards = cards.filter(c => c.column_id === col.id && c.is_on_hold);
           return `
-            <div class="kanban-column" data-col-id="${col.id}" style="--col-color:${colColor};background:${colBg}">
+            <div class="kanban-column" data-col-id="${col.id}" style="--col-color:${colColor}">
               <div class="kanban-column__inner">
                 <div class="column-header">
                   <div class="column-title-wrap">

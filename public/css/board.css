@@ -98,6 +98,7 @@
 .kanban-column {
   flex: 1; min-width: 280px; border-right: 1px solid var(--border);
   display: flex; flex-direction: column; position: relative;
+  background: linear-gradient(180deg, #1e3040 0%, #182835 60%, #14222e 100%);
 }
 .kanban-column:last-of-type { border-right: none; }
 .kanban-column__inner { display: flex; flex-direction: column; flex: 1; padding: 0 14px; }
