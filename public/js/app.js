@@ -847,16 +847,29 @@ function filterBoardCards(q) {
     const assignees = [...card.querySelectorAll('.kanban-card__av')].map(a => a.title.toLowerCase()).join(' ');
     card.style.display = (title.includes(query) || client.includes(query) || assignees.includes(query)) ? '' : 'none';
   });
-  // Update column counts
+  // Update column counts to show filtered/total when searching
   document.querySelectorAll('.kanban-column').forEach(col => {
-    const visible = col.querySelectorAll('.column-cards:not(.on-hold-drop) .kanban-card:not([style*="display: none"])').length;
     const countEl = col.querySelector('.col-count');
-    if (countEl) countEl.dataset.filtered = query ? '1' : '';
+    if (!countEl) return;
+    if (query) {
+      if (!countEl.dataset.originalCount) countEl.dataset.originalCount = countEl.textContent;
+      const visible = col.querySelectorAll('.column-cards:not(.on-hold-drop) .kanban-card:not([style*="display: none"]):not([style*="display:none"])').length;
+      const wip = countEl.dataset.originalCount.includes('/') ? '/' + countEl.dataset.originalCount.split('/')[1] : '';
+      countEl.textContent = visible + wip;
+    } else if (countEl.dataset.originalCount) {
+      countEl.textContent = countEl.dataset.originalCount;
+      delete countEl.dataset.originalCount;
+    }
   });
 }
 
 function renderKanbanCard(card, colColor) {
   const color = getCardColorClass(card);
+  const nowDay = new Date(); nowDay.setHours(0,0,0,0);
+  const dueDate = card.due_on ? new Date(card.due_on+'T00:00:00') : null;
+  const isDueOverdue = dueDate && dueDate < nowDay;
+  const isDueToday = dueDate && dueDate.getTime() === nowDay.getTime();
+  const dueClass = isDueOverdue ? ' kanban-card__due--overdue' : isDueToday ? ' kanban-card__due--today' : '';
   const dueStr = card.due_on ? formatDate(card.due_on) : '';
   const publishStr = card.publish_date ? formatDate(card.publish_date) : '';
   const stepsStr = card.steps_total > 0 ? `${card.steps_done}/${card.steps_total}` : '';
@@ -886,7 +899,7 @@ function renderKanbanCard(card, colColor) {
             <div class="kanban-card__badges">
               ${card.client_name ? `<span class="kanban-card__client">${esc(card.client_name)}</span>` : ''}
               ${stepsStr ? `<span class="kanban-card__steps">✓ ${stepsStr}</span>` : ''}
-              ${publishStr ? `<span class="kanban-card__publish">📅 ${publishStr}</span>` : dueStr ? `<span class="kanban-card__due">${dueStr}</span>` : ''}
+              ${publishStr ? `<span class="kanban-card__publish">📅 ${publishStr}</span>` : dueStr ? `<span class="kanban-card__due${dueClass}">${isDueOverdue ? '⚠ ' : isDueToday ? '⏰ ' : ''}${dueStr}</span>` : ''}
               ${card.comment_count ? `<span class="kanban-card__comments">💬 ${card.comment_count}</span>` : ''}
             </div>
           </div>
@@ -1250,6 +1263,7 @@ async function saveCardEdits(cardId) {
   }
   _cardEditMode = false;
   if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'card:editing:stop', cardId }));
+  showToast('\u041f\u0440\u043e\u043c\u0435\u043d\u0438\u0442\u0435 \u0441\u0430 \u0437\u0430\u043f\u0430\u0437\u0435\u043d\u0438', 'success');
   router();
 }
 
@@ -1567,7 +1581,7 @@ async function removeAssignee(cardId, userId) {
     var ids = (card.assignees || []).map(function(a) { return a.id; }).filter(function(id) { return id !== parseInt(userId); });
     await fetch('/api/cards/' + cardId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignee_ids: ids }) });
     router();
-  } catch(e) {}
+  } catch(e) { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043f\u0440\u0435\u043c\u0430\u0445\u0432\u0430\u043d\u0435', 'error'); }
 }
 
 // Due date radio handlers
@@ -1816,7 +1830,10 @@ async function submitCreateCard() {
 
 // ==================== CARD ACTIONS ====================
 async function updateField(cardId, field, value) {
-  try { await fetch(`/api/cards/${cardId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({[field]:value}) }); } catch {}
+  try {
+    const r = await fetch(`/api/cards/${cardId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({[field]:value}) });
+    if (!r.ok) { const d = await r.json(); showToast(d.error || '\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0437\u0430\u043f\u0430\u0437\u0432\u0430\u043d\u0435', 'error'); }
+  } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0437\u0430\u043f\u0430\u0437\u0432\u0430\u043d\u0435', 'error'); }
 }
 async function saveCardNotes(cardId) {
   const editor = document.querySelector('trix-editor');
@@ -1830,7 +1847,11 @@ async function saveCardNotes(cardId) {
 }
 async function moveCard(cardId, columnId) {
   if (!columnId) return;
-  try { await fetch(`/api/cards/${cardId}/move`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({column_id:parseInt(columnId)}) }); router(); } catch {}
+  try {
+    await fetch(`/api/cards/${cardId}/move`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({column_id:parseInt(columnId)}) });
+    showToast('\u041a\u0430\u0440\u0442\u0430\u0442\u0430 \u0435 \u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0435\u043d\u0430', 'success');
+    router();
+  } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0432\u0430\u043d\u0435', 'error'); }
 }
 async function addAssignee(cardId, userId) {
   if (!userId) return;
@@ -1839,16 +1860,16 @@ async function addAssignee(cardId, userId) {
     const ids = (card.assignees||[]).map(a=>a.id).concat(parseInt(userId));
     await fetch(`/api/cards/${cardId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({assignee_ids:ids}) });
     router();
-  } catch {}
+  } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0434\u043e\u0431\u0430\u0432\u044f\u043d\u0435', 'error'); }
 }
 async function toggleStep(cid, sid, done) {
-  try { await fetch(`/api/cards/${cid}/steps/${sid}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({completed:done}) }); router(); } catch {}
+  try { await fetch(`/api/cards/${cid}/steps/${sid}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({completed:done}) }); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043e\u0431\u043d\u043e\u0432\u044f\u0432\u0430\u043d\u0435', 'error'); }
 }
 async function addStepFromPage(cardId) {
   const t = document.getElementById('newStepInput')?.value?.trim(); if (!t) return;
   const a = document.getElementById('newStepAssignee')?.value || null;
   const d = document.getElementById('newStepDue')?.value || null;
-  try { await fetch(`/api/cards/${cardId}/steps`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:t, assignee_id:a?parseInt(a):null, due_on:d}) }); document.getElementById('newStepInput').value=''; router(); } catch {}
+  try { await fetch(`/api/cards/${cardId}/steps`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:t, assignee_id:a?parseInt(a):null, due_on:d}) }); document.getElementById('newStepInput').value=''; router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0434\u043e\u0431\u0430\u0432\u044f\u043d\u0435', 'error'); }
 }
 async function addComment(cardId) {
   var input = document.getElementById('newCommentInput');

@@ -194,6 +194,8 @@
 /* Card badges */
 .kanban-card__badges { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; justify-content: flex-end; }
 .kanban-card__due { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: var(--text-secondary); background: var(--bg-hover); padding: 2px 7px; border-radius: 4px; }
+.kanban-card__due--overdue { background: rgba(239,68,68,0.15) !important; color: var(--red) !important; font-weight: 600; }
+.kanban-card__due--today { background: rgba(234,179,8,0.15) !important; color: var(--yellow) !important; font-weight: 600; }
 .kanban-card__publish { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: var(--accent); background: var(--accent-dim); padding: 2px 7px; border-radius: 4px; }
 .kanban-card__comments { display: inline-flex; align-items: center; gap: 3px; background: var(--bg-hover); color: var(--text-secondary); border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 600; }
 .kanban-card__steps { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: var(--green); background: var(--green-dim); padding: 2px 7px; border-radius: 4px; font-weight: 600; }
