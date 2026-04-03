@@ -516,6 +516,7 @@ async function promptCreateBoard() {
 // ==================== BOARD (CARD TABLE) ====================
 async function renderBoard(el, boardId) {
   el.className = 'full-width';
+  const COLUMN_COLORS = ['#f97316','#3b82f6','#14b8a6','#a855f7','#22c55e','#eab308','#ec4899','#06b6d4','#ef4444','#8b5cf6'];
   try {
     const [boards, cards] = await Promise.all([
       (await fetch('/api/boards')).json(),
@@ -534,78 +535,88 @@ async function renderBoard(el, boardId) {
     const visibleCols = board.columns.filter(c => !c.is_done_column);
     const doneCol = board.columns.find(c => c.is_done_column);
     const doneCards = doneCol ? cards.filter(c => c.column_id === doneCol.id) : [];
+    const wColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308'];
 
     el.innerHTML = `
-      <div style="padding:0 16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-          <div></div>
-          <h1 style="font-size:22px;font-weight:800;color:#fff;text-align:center;flex:1;letter-spacing:-0.02em">${esc(board.title)}</h1>
-          <div style="display:flex;gap:8px;align-items:center">
-            <div class="board-watching">
-              <span class="board-watching__label">Наблюдават</span>
-              <div class="board-watching__avatars">
-                ${allUsers.slice(0,6).map((u,i) => {
-                  const wc = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308'];
-                  return `<div class="board-watching__avatar" style="background:${wc[i%wc.length]}">${initials(u.name)}</div>`;
-                }).join('')}
-              </div>
+      <div class="board-page-header">
+        <h1 class="board-page-header__title">${esc(board.title)}</h1>
+        <div class="board-page-header__actions">
+          <div class="board-page-header__watchers">
+            <span class="board-page-header__watcher-label">Екип</span>
+            <div class="board-page-header__watcher-avatars">
+              ${allUsers.slice(0,6).map((u,i) => `<div class="board-page-header__watcher-av" style="background:${wColors[i%wColors.length]}" title="${esc(u.name)}">${initials(u.name)}</div>`).join('')}
             </div>
-            ${manage ? `<button class="btn btn-sm" onclick="promptAddColumn(${boardId})">+ Колона</button>` : ''}
-            <button class="btn btn-sm" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>
           </div>
+          ${manage ? `<a class="btn btn-sm" href="#/card/0/new?board=${boardId}">+ Нова карта</a>` : ''}
+          ${manage ? `<button class="btn btn-sm btn-ghost" onclick="promptAddColumn(${boardId})">+ Колона</button>` : ''}
+          <button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>
         </div>
+      </div>
 
-        <div class="board-kanban">
-          ${visibleCols.map((col, i) => {
-            const colCards = cards.filter(c => c.column_id === col.id && !c.is_on_hold);
-            const holdCards = cards.filter(c => c.column_id === col.id && c.is_on_hold);
-            const isFirst = i === 0;
-            return `
-              <div class="kanban-column" data-col-id="${col.id}">
+      <div class="board-kanban">
+        ${visibleCols.map((col, i) => {
+          const colColor = COLUMN_COLORS[i % COLUMN_COLORS.length];
+          const colCards = cards.filter(c => c.column_id === col.id && !c.is_on_hold);
+          const holdCards = cards.filter(c => c.column_id === col.id && c.is_on_hold);
+          return `
+            <div class="kanban-column" data-col-id="${col.id}" style="--col-color:${colColor}">
+              <div class="column-color-bar"></div>
+              <div class="kanban-column__inner">
                 <div class="column-header">
-                  <h2 class="column-title-link">
-                    <span ${manage ? `ondblclick="editColumnTitle(${boardId}, ${col.id}, this)"` : ''}>${esc(col.title)}</span>
-                    <span class="col-count">(${colCards.length + holdCards.length})</span>
-                  </h2>
+                  <div class="column-title-wrap">
+                    <span class="column-title-dot"></span>
+                    <h2 class="column-title-link">
+                      <span ${manage ? `ondblclick="editColumnTitle(${boardId}, ${col.id}, this)"` : ''}>${esc(col.title)}</span>
+                      <span class="col-count">${colCards.length + holdCards.length}</span>
+                    </h2>
+                  </div>
                   <div class="column-header-right">
                     ${manage ? `<button class="col-menu-btn" onclick="showColMenu(event, ${boardId}, ${col.id})">⋮</button>` : ''}
                   </div>
                 </div>
-                <div class="column-cards ${isFirst ? 'column-cards--grid' : ''}" data-column-id="${col.id}" data-board-id="${boardId}"
+                <div class="column-cards" data-column-id="${col.id}" data-board-id="${boardId}"
                      ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
-                  ${colCards.map(c => renderKanbanCard(c)).join('')}
+                  ${colCards.map(c => renderKanbanCard(c, colColor)).join('')}
                 </div>
                 ${holdCards.length > 0 ? `
                   <div class="on-hold-section">
                     <div class="on-hold-label">ИЗЧАКВАНЕ (${holdCards.length})</div>
                     <div class="column-cards" data-column-id="${col.id}" data-board-id="${boardId}"
                          ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
-                      ${holdCards.map(c => renderKanbanCard(c)).join('')}
+                      ${holdCards.map(c => renderKanbanCard(c, colColor)).join('')}
                     </div>
                   </div>` : ''}
                 ${manage ? `<a class="add-card-btn" href="#/card/0/new?board=${boardId}&column=${col.id}">+ Добави карта</a>` : ''}
-              </div>`;
-          }).join('')}
+              </div>
+            </div>`;
+        }).join('')}
 
-          ${doneCol ? `
-          <div class="kanban-sidebar">
-            <div class="kanban-sidebar-tab done-tab" onclick='showDoneCards(${JSON.stringify(doneCards.map(c=>({id:c.id,title:c.title,completed_at:c.completed_at})))}, ${boardId})'>
-              <span class="sidebar-count">(${doneCards.length})</span>
-              <span class="sidebar-label">ГОТОВО</span>
-            </div>
-          </div>` : ''}
-        </div>
+        ${doneCol ? `
+        <div class="kanban-sidebar">
+          <div class="kanban-sidebar-tab done-tab" onclick='showDoneCards(${JSON.stringify(doneCards.map(c=>({id:c.id,title:c.title,completed_at:c.completed_at})))}, ${boardId})'>
+            <span class="sidebar-count">(${doneCards.length})</span>
+            <span class="sidebar-label">ГОТОВО</span>
+          </div>
+        </div>` : ''}
       </div>
     `;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 
-function renderKanbanCard(card) {
+function renderKanbanCard(card, colColor) {
   const color = getCardColorClass(card);
   const dueStr = card.due_on ? formatDate(card.due_on) : '';
-  const authorName = card.assignees?.[0]?.name?.split(' ')[0] || card.creator_name?.split(' ')[0] || '';
-  const createdDate = card.created_at ? new Date(card.created_at).toLocaleDateString('bg', { month: 'short', day: 'numeric' }) : '';
   const stepsStr = card.steps_total > 0 ? `${card.steps_done}/${card.steps_total}` : '';
+  const avColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+  const getAC = n => avColors[(n||'').length % avColors.length];
+
+  const assignees = card.assignees || [];
+  const shown = assignees.slice(0, 4);
+  const extra = assignees.length - shown.length;
+  const avatarsHtml = assignees.length
+    ? shown.map(a => `<div class="kanban-card__av" style="background:${getAC(a.name)}" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')
+      + (extra > 0 ? `<div class="kanban-card__av kanban-card__av--more">+${extra}</div>` : '')
+    : `<div class="kanban-card__av kanban-card__av--empty">–</div>`;
 
   return `
     <a class="kanban-card ${color}" href="#/card/${card.id}" draggable="true" data-card-id="${card.id}"
@@ -613,16 +624,16 @@ function renderKanbanCard(card) {
        onauxclick="if(event.button===1){event.preventDefault();window.open('#/card/${card.id}','_blank')}">
       <div class="kanban-card__content">
         <h3 class="kanban-card__title">${esc(card.title)}</h3>
-        <div class="kanban-card__meta">
-          <span class="kanban-card__author">от ${esc(authorName)}${createdDate ? ' \u00b7 ' + createdDate : ''}</span>
-        </div>
-        <div class="kanban-card__badges">
-          ${dueStr ? `<span class="kanban-card__due">\ud83d\udcc5 ${dueStr}</span>` : ''}
-          ${stepsStr ? `<span class="kanban-card__steps">\u2713 ${stepsStr}</span>` : ''}
-          ${card.comment_count ? `<span class="kanban-card__comments">\ud83d\udcac ${card.comment_count}</span>` : ''}
+        <div class="kanban-card__footer">
+          <div class="kanban-card__avatars">${avatarsHtml}</div>
+          <div class="kanban-card__badges">
+            ${card.client_name ? `<span class="kanban-card__client">${esc(card.client_name)}</span>` : ''}
+            ${stepsStr ? `<span class="kanban-card__steps">✓ ${stepsStr}</span>` : ''}
+            ${dueStr ? `<span class="kanban-card__due">${dueStr}</span>` : ''}
+            ${card.comment_count ? `<span class="kanban-card__comments">💬 ${card.comment_count}</span>` : ''}
+          </div>
         </div>
       </div>
-      <div class="kanban-card__avatar">${card.assignees?.length ? initials(card.assignees[0].name || '') : '\ud83d\udc64'}</div>
     </a>`;
 }
 
