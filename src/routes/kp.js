@@ -141,7 +141,7 @@ router.get('/clients', requireAuth, async (req, res) => {
           [`%${client.name}%`]
         );
       }
-      return { ...client, has_kp_card: !!card };
+      return { ...client, has_kp_card: !!card, kp_card_id: card?.id || null };
     }));
 
     res.json(enriched);

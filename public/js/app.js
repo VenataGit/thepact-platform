@@ -835,11 +835,11 @@ async function renderCardPage(el, cardId) {
     if (canEdit()) {
       if (card.assignees && card.assignees.length > 0) {
         assigneesHtml = card.assignees.map(function(a) {
-          return '<span class="bc-assignee">' + esc(a.name) + '<button class="bc-assignee__remove" onclick="event.stopPropagation();removeAssignee(' + cardId + ',' + a.id + ')" title="Remove">\u2715</button></span>';
+          return '<span class="bc-assignee">' + esc(a.name) + '<button class="bc-assignee__remove" onclick="event.stopPropagation();removeAssignee(' + cardId + ',' + a.id + ')" title="Премахни">\u2715</button></span>';
         }).join(' ');
       }
       var availableUsers = allUsers.filter(function(u) { return !(card.assignees || []).some(function(a) { return a.id === u.id; }); });
-      var assignPlaceholder = card.assignees && card.assignees.length ? '+ Add...' : 'Type names to assign\u2026';
+      var assignPlaceholder = card.assignees && card.assignees.length ? '+ Добави...' : 'Търси хора\u2026';
       var assignClass = card.assignees && card.assignees.length ? 'bc-select-inline' : 'bc-select-inline bc-select-inline--ghost';
       assigneesHtml += '<select class="' + assignClass + '" onchange="addAssignee(' + cardId + ', this.value)">' +
         '<option value="">' + assignPlaceholder + '</option>' +
@@ -849,7 +849,7 @@ async function renderCardPage(el, cardId) {
       if (card.assignees && card.assignees.length > 0) {
         assigneesHtml = card.assignees.map(function(a) { return '<span>' + esc(a.name) + '</span>'; }).join(', ');
       } else {
-        assigneesHtml = '<span class="bc-field__placeholder">Type names to assign\u2026</span>';
+        assigneesHtml = '<span class="bc-field__placeholder">Търси хора\u2026</span>';
       }
     }
 
@@ -859,12 +859,12 @@ async function renderCardPage(el, cardId) {
       var noDueChecked = !card.due_on ? ' checked' : '';
       var specificChecked = card.due_on ? ' checked' : '';
       var dateHidden = !card.due_on ? ' bc-date-input--hidden' : '';
-      dueHtml = '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + noDueChecked + ' onclick="handleNoDueDate(' + cardId + ')"> No due date</label>' +
-        '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + specificChecked + ' onclick="handleSpecificDate(' + cardId + ')"> A specific day' +
+      dueHtml = '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + noDueChecked + ' onclick="handleNoDueDate(' + cardId + ')"> Без дата</label>' +
+        '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + specificChecked + ' onclick="handleSpecificDate(' + cardId + ')"> Конкретна дата' +
         '<input type="date" id="dueDateInput_' + cardId + '" class="bc-date-input' + dateHidden + '" value="' + (card.due_on || '') + '" onchange="saveDueDateField(' + cardId + ', this.value)" onclick="event.stopPropagation()"></label>' +
         '<span id="dueSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 Запазено</span>';
     } else {
-      dueHtml = '<span>' + (card.due_on ? formatDate(card.due_on) : '<span class="bc-field__placeholder">Select a due date</span>') + '</span>';
+      dueHtml = '<span>' + (card.due_on ? formatDate(card.due_on) : '<span class="bc-field__placeholder">Избери дата</span>') + '</span>';
     }
 
     // ===== NOTES =====
@@ -872,14 +872,14 @@ async function renderCardPage(el, cardId) {
     if (editing) {
       notesHtml = '<div class="bc-editor">' +
         '<input id="cardNotesInput" type="hidden" value="' + esc(card.content || '') + '">' +
-        '<trix-editor input="cardNotesInput" class="trix-dark" placeholder="Add notes\u2026"></trix-editor>' +
+        '<trix-editor input="cardNotesInput" class="trix-dark" placeholder="Добави бележки\u2026"></trix-editor>' +
         '</div>' +
         '';
     } else {
       if (card.content && card.content.replace(/<[^>]*>/g, '').trim()) {
         notesHtml = '<div class="rich-content">' + card.content + '</div>';
       } else {
-        notesHtml = '<span class="bc-field__placeholder">Add notes\u2026</span>';
+        notesHtml = '<span class="bc-field__placeholder">Добави бележки\u2026</span>';
       }
     }
 
@@ -901,16 +901,16 @@ async function renderCardPage(el, cardId) {
       stepsHtml += '</ul>';
     }
     if (canEdit()) {
-      stepsHtml += '<button class="bc-add-step-link" onclick="showAddStepForm(' + cardId + ')">Add a new step</button>';
+      stepsHtml += '<button class="bc-add-step-link" onclick="showAddStepForm(' + cardId + ')">Добави стъпка</button>';
       stepsHtml += '<div class="bc-add-step" id="addStepForm_' + cardId + '">' +
-        '<div class="bc-add-step__row"><label>Step</label><input id="newStepInput" type="text" placeholder="Describe this step\u2026" onkeydown="if(event.key===\'Enter\')addStepFromPage(' + cardId + ')"></div>' +
-        '<div class="bc-add-step__row"><label>Assign to</label><select id="newStepAssignee"><option value="">Nobody</option>' + allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
-        '<div class="bc-add-step__row"><label>Due on</label>' +
-        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" checked onchange="document.getElementById(\'newStepDue\').classList.add(\'bc-date-input--hidden\')"> No date</label>' +
-        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" onchange="var d=document.getElementById(\'newStepDue\');d.classList.remove(\'bc-date-input--hidden\');d.focus()"> Date</label>' +
+        '<div class="bc-add-step__row"><label>Стъпка</label><input id="newStepInput" type="text" placeholder="Опиши тази стъпка\u2026" onkeydown="if(event.key===\'Enter\')addStepFromPage(' + cardId + ')"></div>' +
+        '<div class="bc-add-step__row"><label>Отговорник</label><select id="newStepAssignee"><option value="">Никой</option>' + allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="bc-add-step__row"><label>Краен срок</label>' +
+        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" checked onchange="document.getElementById(\'newStepDue\').classList.add(\'bc-date-input--hidden\')"> Без дата</label>' +
+        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" onchange="var d=document.getElementById(\'newStepDue\');d.classList.remove(\'bc-date-input--hidden\');d.focus()"> Дата</label>' +
         '<input type="date" id="newStepDue" class="bc-date-input bc-date-input--hidden">' +
         '</div>' +
-        '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save" onclick="addStepFromPage(' + cardId + ')">Add this step</button><button class="bc-btn-discard" onclick="hideAddStepForm(' + cardId + ')">Cancel</button></div>' +
+        '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save" onclick="addStepFromPage(' + cardId + ')">Добави тази стъпка</button><button class="bc-btn-discard" onclick="hideAddStepForm(' + cardId + ')">Отказ</button></div>' +
         '</div>';
     }
 
@@ -920,7 +920,7 @@ async function renderCardPage(el, cardId) {
     if (canEdit() && board && board.columns) {
       var otherCols = board.columns.filter(function(c) { return c.id !== card.column_id; });
       colOptionsHtml = '<select class="bc-select-inline" onchange="moveCard(' + cardId + ', this.value)">' +
-        '<option value="">Move along to\u2026</option>' +
+        '<option value="">Премести в\u2026</option>' +
         otherCols.map(function(c) { return '<option value="' + c.id + '">' + esc(c.title) + '</option>'; }).join('') +
         '</select>';
     }
@@ -931,7 +931,7 @@ async function renderCardPage(el, cardId) {
       '<div class="bc-comment-input-wrap">' +
       '<div class="bc-comment-placeholder" onclick="expandCommentInput()">Написвай коментар\u2026</div>' +
       '<div class="bc-comment-editor-wrap" id="commentEditorWrap">' +
-      '<div class="bc-editor"><input id="newCommentInput" type="hidden" value=""><trix-editor input="newCommentInput" class="trix-dark" placeholder="Type your comment here\u2026" style="min-height:80px"></trix-editor></div>' +
+      '<div class="bc-editor"><input id="newCommentInput" type="hidden" value=""><trix-editor input="newCommentInput" class="trix-dark" placeholder="Написвай коментар тук\u2026" style="min-height:80px"></trix-editor></div>' +
       '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save bc-btn-add-comment" onclick="addComment(' + cardId + ')">Добави коментар</button><button class="bc-btn-discard" onclick="collapseCommentInput()">Отказ</button></div>' +
       '</div>' +
       '</div></div>';
@@ -952,9 +952,9 @@ async function renderCardPage(el, cardId) {
           '<div class="bc-comment-meta"><strong>' + esc(c.user_name) + '</strong> <span>' + timeAgo(c.created_at) + '</span></div>' +
           '<div class="bc-comment-text">' + (c.content || '').replace(/\n/g, '<br>') + '</div>' +
           '<div class="bc-comment-actions">' +
-          (isOwn ? '<button class="bc-comment-action" onclick="editComment(' + cardId + ',' + c.id + ',this)">Edit</button>' : '') +
-          (isOwn ? '<button class="bc-comment-action bc-comment-action--danger" onclick="deleteComment(' + cardId + ',' + c.id + ')">Delete</button>' : '') +
-          (canManage() ? '<button class="bc-comment-action bc-comment-action--pin" onclick="pinComment(' + cardId + ',' + c.id + ')">' + (isPinned ? 'Unpin' : '\ud83d\udccc Pin') + '</button>' : '') +
+          (isOwn ? '<button class="bc-comment-action" onclick="editComment(' + cardId + ',' + c.id + ',this)">Редактирай</button>' : '') +
+          (isOwn ? '<button class="bc-comment-action bc-comment-action--danger" onclick="deleteComment(' + cardId + ',' + c.id + ')">Изтрий</button>' : '') +
+          (canManage() ? '<button class="bc-comment-action bc-comment-action--pin" onclick="pinComment(' + cardId + ',' + c.id + ')">' + (isPinned ? 'Откачи' : '\ud83d\udccc Pin') + '</button>' : '') +
           '</div></div></div>';
       };
       commentsListHtml += shown.map(renderComment).join('');
@@ -973,7 +973,7 @@ async function renderCardPage(el, cardId) {
         '<div class="bc-pinned-sidebar__title">\ud83d\udccc Pinned</div>' +
         '<div class="bc-pinned-sidebar__content">' + (pc.content || '').replace(/\n/g, '<br>') + '</div>' +
         '<div class="bc-pinned-sidebar__meta">\u2014 ' + esc(pc.user_name) + ', ' + timeAgo(pc.created_at) + '</div>' +
-        '<button class="bc-pinned-sidebar__unpin" onclick="unpinComment(' + cardId + ')">Unpin</button>' +
+        '<button class="bc-pinned-sidebar__unpin" onclick="unpinComment(' + cardId + ')">Откачи</button>' +
         '</div>';
     }
 
@@ -987,7 +987,7 @@ async function renderCardPage(el, cardId) {
     var wrapperEnd = pinnedSidebarHtml ? pinnedSidebarHtml + '</div>' : '';
 
     var titleEsc = esc(card.title).replace(/'/g, "\\'");
-    var editBtnHtml = canEdit() && !editing ? '<button class="bc-card__edit-btn" onclick="enterCardEditMode(' + cardId + ')" title="Edit">Edit card</button>' : '';
+    var editBtnHtml = canEdit() && !editing ? '<button class="bc-card__edit-btn" onclick="enterCardEditMode(' + cardId + ')" title="Редактирай">Редактирай</button>' : '';
 
     // Populate editing presence from API response (only if it's someone else)
     if (card.editing_by && currentUser && card.editing_by.userId !== currentUser.id) {
@@ -1003,7 +1003,7 @@ async function renderCardPage(el, cardId) {
         '<article class="bc-card">' +
           '<div class="bc-card-options">' +
             editBtnHtml +
-            '<button class="btn btn-sm btn-ghost bc-card-options__dots" onclick="toggleCardOptionsMenu(event,' + cardId + ',\'' + titleEsc + '\')" title="Options">\u22ef</button>' +
+            '<button class="btn btn-sm btn-ghost bc-card-options__dots" onclick="toggleCardOptionsMenu(event,' + cardId + ',\'' + titleEsc + '\')" title="Опции">\u22ef</button>' +
           '</div>' +
           '<header class="bc-card__header">' +
             '<span class="bc-card__icon">' + envelopeIcon + '</span>' +
@@ -1011,13 +1011,13 @@ async function renderCardPage(el, cardId) {
           '</header>' +
           '<div class="bc-card__fields">' +
             '<div class="bc-field"><span class="bc-field__label">Колона</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
-            '<div class="bc-field"><span class="bc-field__label">Assigned to</span><div class="bc-field__value">' + assigneesHtml + '</div></div>' +
-            '<div class="bc-field"><span class="bc-field__label">Due on</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
-            '<div class="bc-field"><span class="bc-field__label">Notes</span><div class="bc-field__value bc-field__value--full">' + notesHtml + '</div></div>' +
-            '<div class="bc-field"><span class="bc-field__label">Steps</span><div class="bc-field__value bc-field__value--full">' + stepsHtml + '</div></div>' +
-            '<div class="bc-field bc-field--light"><span class="bc-field__label">Added by</span><div class="bc-field__value"><span>' + esc(creatorName) + '</span><span class="bc-field__hint">' + createdAgo + '</span></div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Отговорник</span><div class="bc-field__value">' + assigneesHtml + '</div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Краен срок</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Бележки</span><div class="bc-field__value bc-field__value--full">' + notesHtml + '</div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Стъпки</span><div class="bc-field__value bc-field__value--full">' + stepsHtml + '</div></div>' +
+            '<div class="bc-field bc-field--light"><span class="bc-field__label">Добавено от</span><div class="bc-field__value"><span>' + esc(creatorName) + '</span><span class="bc-field__hint">' + createdAgo + '</span></div></div>' +
           '</div>' +
-          (editing ? '<div class="bc-card__actions"><button class="bc-btn-save" onclick="saveCardEdits(' + cardId + ')">Save changes</button><button class="bc-btn-discard" onclick="exitCardEditMode(' + cardId + ')">Discard changes</button></div>' : '') +
+          (editing ? '<div class="bc-card__actions"><button class="bc-btn-save" onclick="saveCardEdits(' + cardId + ')">Запази промените</button><button class="bc-btn-discard" onclick="exitCardEditMode(' + cardId + ')">Откажи</button></div>' : '') +
         '</article>' +
         '<div class="bc-comments">' + commentAddHtml + commentsListHtml + '</div>' +
       '</div>' + wrapperEnd;
@@ -1237,7 +1237,7 @@ function showTrixColorPicker(e, trixEl) {
   var resetBtn = document.createElement('button');
   resetBtn.type = 'button';
   resetBtn.className = 'bc-color-swatch--reset';
-  resetBtn.textContent = 'Remove all coloring';
+  resetBtn.textContent = 'Премахни маркирането';
   resetBtn.addEventListener('click', function(ev) {
     ev.stopPropagation();
     if (window.Trix && Trix.config.textAttributes.backgroundColor) {
@@ -1448,7 +1448,7 @@ function expandStep(cardId, stepId, li) {
     '<div class="bc-step-expand__row"><label>Title</label><input type="text" id="editStepTitle_' + stepId + '" value="' + esc(stepText) + '"></div>' +
     '<div class="bc-step-expand__row"><label>Assign to</label><select id="editStepAssignee_' + stepId + '"><option value="">Nobody</option>' +
     allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
-    '<div class="bc-step-expand__row"><label>Due on</label><input type="date" id="editStepDue_' + stepId + '" class="bc-date-input"></div>' +
+    '<div class="bc-step-expand__row"><label>Краен срок</label><input type="date" id="editStepDue_' + stepId + '" class="bc-date-input"></div>' +
     '<div class="bc-step-expand__actions">' +
     '<div style="display:flex;gap:8px"><button class="bc-btn-save" onclick="saveStepEdit(' + cardId + ',' + stepId + ')">Save</button>' +
     '<button class="bc-btn-discard" onclick="this.closest(\'.bc-step-expand\').remove()">Cancel</button></div>' +
@@ -2581,6 +2581,9 @@ async function loadKpAuto(el) {
       var nameCell = missingKp
         ? '<td class="kp-td"><strong>' + esc(c.name) + '</strong> <span style="color:#e8a030" title="Няма карта в Измисляне">⚠️</span></td>'
         : '<td class="kp-td"><strong>' + esc(c.name) + '</strong></td>';
+      var cardLinkBtn = (!missingKp && c.kp_card_id)
+        ? '<a class="btn btn-sm btn-ghost" href="#/card/' + c.kp_card_id + '">👁 КП карта</a>'
+        : '';
       var actionBtn = missingKp
         ? '<button class="btn btn-sm kp-launch-btn" onclick="createKpCardNow(' + c.id + ',\'' + esc(c.name) + '\')">🚀 Пусни КП</button>'
         : '<button class="btn btn-sm" onclick="createKpCardNow(' + c.id + ',\'' + esc(c.name) + '\')">📋 Нов КП</button>';
@@ -2589,13 +2592,14 @@ async function loadKpAuto(el) {
         '<td class="kp-td">' + (c.videos_per_month || 10) + '</td>' +
         '<td class="kp-td">' + (c.publish_interval_days || 3) + 'д</td>' +
         '<td class="kp-td">КП-' + (c.current_kp_number || 1) + '</td>' +
-        '<td class="kp-td">' + (c.first_publish_date ? new Date(c.first_publish_date).toLocaleDateString('bg-BG') : '—') + '</td>' +
-        '<td class="kp-td">' + (c.last_video_date ? new Date(c.last_video_date).toLocaleDateString('bg-BG') : '—') + '</td>' +
-        '<td class="kp-td">' + (c.next_kp_date ? new Date(c.next_kp_date).toLocaleDateString('bg-BG') : '—') + '</td>' +
+        '<td class="kp-td">' + (c.first_publish_date ? formatDate(c.first_publish_date) : '—') + '</td>' +
+        '<td class="kp-td">' + (c.last_video_date ? formatDate(c.last_video_date) : '—') + '</td>' +
+        '<td class="kp-td">' + (c.next_kp_date ? formatDate(c.next_kp_date) : '—') + '</td>' +
         '<td class="kp-td">' + autoCreateDate + '</td>' +
         '<td class="kp-td" style="display:flex;gap:4px">' +
           '<button class="btn btn-sm" onclick="editKpClientForm(' + c.id + ')">✏️</button>' +
           '<button class="btn btn-sm btn-danger" onclick="deleteKpClientNow(' + c.id + ',\'' + esc(c.name) + '\')">🗑️</button>' +
+          cardLinkBtn +
           actionBtn +
         '</td>' +
       '</tr>';
