@@ -214,10 +214,13 @@ async function renderHome(el) {
     ]);
     allBoards = boards;
     const now = new Date(); now.setHours(0,0,0,0);
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
     const activeCards = cards.filter(c => !c.completed_at && !c.archived_at);
     const myCards = activeCards.filter(c => c.assignees?.some(a => a.id === currentUser.id));
     const overdueCards = activeCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
     const myOverdue = myCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
+    const todayCards = activeCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') >= now && new Date(c.due_on+'T00:00:00') < tomorrow);
+    const urgentCards = activeCards.filter(c => c.priority === 'urgent');
     const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
 
     el.innerHTML = `
@@ -246,10 +249,22 @@ async function renderHome(el) {
               <span class="dash-stat__label">Просрочени общо</span>
             </div>
           </a>
+          <a href="#/reports?tab=upcoming&days=1" style="text-decoration:none">
+            <div class="dash-stat ${todayCards.length > 0 ? 'dash-stat--warn' : ''}" style="min-width:110px;cursor:pointer">
+              <span class="dash-stat__num">${todayCards.length}</span>
+              <span class="dash-stat__label">\u0414\u043d\u0435\u0441 \u0435 \u043a\u0440\u0430\u0439\u043d\u0438\u044f\u0442 \u0441\u0440\u043e\u043a</span>
+            </div>
+          </a>
+          ${urgentCards.length > 0 ? `<a href="#/reports?tab=overdue" style="text-decoration:none">
+            <div class="dash-stat dash-stat--warn" style="min-width:110px;cursor:pointer">
+              <span class="dash-stat__num">${urgentCards.length}</span>
+              <span class="dash-stat__label">\ud83d\udd34 \u0421\u043f\u0435\u0448\u043d\u0438</span>
+            </div>
+          </a>` : ''}
           <a href="#/dashboard" style="text-decoration:none">
             <div class="dash-stat" style="min-width:110px;cursor:pointer">
               <span class="dash-stat__num">${boards.length}</span>
-              <span class="dash-stat__label">Борда</span>
+              <span class="dash-stat__label">\u0411\u043e\u0440\u0434\u0430</span>
             </div>
           </a>
         </div>
@@ -1502,7 +1517,11 @@ function showMoveCardPicker(cardId) {
 function copyCardLink(cardId) {
   var url = location.origin + '/#/card/' + cardId;
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(url);
+    navigator.clipboard.writeText(url).then(function() {
+      showToast('\u0421\u0441\u044b\u043b\u043a\u0430\u0442\u0430 \u0435 \u043a\u043e\u043f\u0438\u0440\u0430\u043d\u0430', 'success');
+    }).catch(function() {
+      showToast('\u041d\u0435 \u043c\u043e\u0436\u0435 \u0434\u0430 \u043a\u043e\u043f\u0438\u0440\u0430', 'error');
+    });
   }
 }
 
@@ -3542,6 +3561,9 @@ document.addEventListener('keydown', (e) => {
     closeAllDropdowns();
     document.getElementById('doneSidebarPanel')?.remove();
     closeProfile();
+    document.getElementById('shortcutsModal')?.remove();
+    document.querySelector('.modal-overlay')?.remove();
+    document.querySelectorAll('.kanban-card-context,.board-context-menu,.bc-options-menu').forEach(function(m) { m.remove(); });
   }
 });
 
