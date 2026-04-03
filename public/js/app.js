@@ -408,7 +408,7 @@ function renderDashboardBoard(boards, cards, stageColors) {
       }).join('');
     }
 
-    return '<div class="' + colClass + '" style="border-top-color:' + stageColor + '">' +
+    return '<div class="' + colClass + '">' +
       '<div class="dash-col-header" onclick="toggleDashCol(' + board.id + ')">' +
         '<span class="dash-col-title">' + esc(board.title) + '</span>' +
         '<span class="dash-col-count">' + totalCards + '</span>' +
