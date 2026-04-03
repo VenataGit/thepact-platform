@@ -827,9 +827,8 @@ async function renderCardPage(el, cardId) {
       var specificChecked = card.due_on ? ' checked' : '';
       var dateHidden = !card.due_on ? ' bc-date-input--hidden' : '';
       dueHtml = '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + noDueChecked + ' onchange="handleNoDueDate(' + cardId + ')"> No due date</label>' +
-        '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + specificChecked + ' onchange="handleSpecificDate(' + cardId + ')"> A specific day ' +
-        '<input type="date" id="dueDateInput_' + cardId + '" class="bc-date-input' + dateHidden + '" value="' + (card.due_on || '') + '" onchange="updateField(' + cardId + ',\'due_on\',this.value||null)">' +
-        '</label>';
+        '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + specificChecked + ' onchange="handleSpecificDate(' + cardId + ')"> A specific day</label>' +
+        '<input type="date" id="dueDateInput_' + cardId + '" class="bc-date-input' + dateHidden + '" value="' + (card.due_on || '') + '" onchange="saveDueDateField(' + cardId + ', this.value)">';
     } else {
       dueHtml = '<span>' + (card.due_on ? formatDate(card.due_on) : '<span class="bc-field__placeholder">Select a due date</span>') + '</span>';
     }
@@ -1364,10 +1363,14 @@ function handleNoDueDate(cardId) {
 
 function handleSpecificDate(cardId) {
   var dateInput = document.getElementById('dueDateInput_' + cardId);
-  if (dateInput) {
-    dateInput.classList.remove('bc-date-input--hidden');
-    dateInput.focus();
-  }
+  if (!dateInput) return;
+  dateInput.classList.remove('bc-date-input--hidden');
+  try { dateInput.showPicker(); } catch(e) { dateInput.click(); }
+}
+
+function saveDueDateField(cardId, value) {
+  if (!value) return;
+  updateField(cardId, 'due_on', value);
 }
 
 // Steps: expand on click
