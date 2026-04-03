@@ -52,20 +52,49 @@ function closeAllDropdowns() {
 async function populateHey(el) {
   try {
     const items = await (await fetch('/api/notifications')).json();
-    fetch('/api/notifications/read-all', { method: 'PUT' }); updateHeyBadge();
-    el.innerHTML = items.length === 0
-      ? '<div class="nav-dropdown__empty">Няма нищо ново за теб.</div>'
-      : `<div class="nav-dropdown__section"><div class="nav-dropdown__title">Известия</div></div>` +
-        items.slice(0, 15).map(n => `
-          <a class="hey-item ${n.is_read ? '' : 'unread'}" href="${n.reference_type === 'card' ? `#/card/${n.reference_id}` : '#'}" onclick="closeAllDropdowns()">
-            <div class="hey-item__body">
-              ${n.type === 'mentioned' ? '<span class="hey-item__type">@спомена те в:</span>' : n.type === 'assigned' ? '<span class="hey-item__type" style="background:var(--blue)">Възложено:</span>' : ''}
-              <div class="hey-item__title">${esc(n.body || n.title)}</div>
-              <div class="hey-item__meta">${timeAgo(n.created_at)}</div>
-            </div>
-          </a>
-        `).join('') + '<a class="hey-item" href="#/notifications" onclick="closeAllDropdowns()"><div class="hey-item__body" style="text-align:center;color:var(--accent)">Виж всички известия...</div></a>';
+    const unreadCount = items.filter(n => !n.is_read).length;
+
+    if (items.length === 0) {
+      el.innerHTML = '<div class="nav-dropdown__empty" style="padding:24px 16px">Няма нищо ново за теб.</div>';
+      return;
+    }
+
+    const headerHtml = `<div class="hey-header">
+      <span class="hey-header__title">Ново за теб${unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
+      ${unreadCount > 0 ? `<button class="hey-header__action" onclick="markAllHeyRead(event)">Маркирай всички</button>` : ''}
+    </div>`;
+
+    const itemsHtml = items.slice(0, 15).map(n => {
+      const senderName = n.sender_name || '';
+      const av = senderName ? initials(senderName) : '?';
+      const link = n.reference_type === 'card' ? `#/card/${n.reference_id}` : '#/notifications';
+      return `<a class="hey-item${n.is_read ? '' : ' unread'}" href="${link}" onclick="closeAllDropdowns()">
+        <div class="hey-item__av">${av}</div>
+        <div class="hey-item__content">
+          <div class="hey-item__subject">${esc(n.title)}</div>
+          ${n.body ? `<div class="hey-item__preview">${esc(n.body)}</div>` : ''}
+          <div class="hey-item__meta">${timeAgo(n.created_at)}</div>
+        </div>
+        ${!n.is_read ? '<div class="hey-item__unread-dot"></div>' : ''}
+      </a>`;
+    }).join('');
+
+    const footerHtml = `<a class="hey-item" href="#/notifications" onclick="closeAllDropdowns()" style="justify-content:center">
+      <div class="hey-item__content" style="text-align:center;color:var(--accent);padding:2px 0;flex:unset">Виж всички известия →</div>
+    </a>`;
+
+    el.innerHTML = headerHtml + itemsHtml + footerHtml;
   } catch { el.innerHTML = '<div class="nav-dropdown__empty">Грешка</div>'; }
+}
+
+async function markAllHeyRead(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  try {
+    await fetch('/api/notifications/read-all', { method: 'PUT' });
+    updateHeyBadge();
+    const dd = document.getElementById('heyDropdown');
+    if (dd?.classList.contains('open')) populateHey(dd);
+  } catch {}
 }
 
 function populateMyStuff(el) {
@@ -1737,12 +1766,34 @@ async function renderNotifications(el) {
   setBreadcrumb(null); el.className = '';
   try {
     const items = await (await fetch('/api/notifications')).json();
-    fetch('/api/notifications/read-all', { method:'PUT' }); updateHeyBadge();
+    const unreadCount = items.filter(n => !n.is_read).length;
+    // Auto-mark as read on full page view
+    if (unreadCount > 0) { fetch('/api/notifications/read-all', { method:'PUT' }); updateHeyBadge(); }
+
+    const listHtml = items.length === 0
+      ? '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма нищо ново за теб.</div>'
+      : items.map(n => {
+          const senderName = n.sender_name || '';
+          const av = senderName ? initials(senderName) : '?';
+          const link = n.reference_type === 'card' ? `#/card/${n.reference_id}` : '#';
+          return `<a class="hey-item${n.is_read ? '' : ' unread'}" href="${link}">
+            <div class="hey-item__av">${av}</div>
+            <div class="hey-item__content">
+              <div class="hey-item__subject">${esc(n.title)}</div>
+              ${n.body ? `<div class="hey-item__preview">${esc(n.body)}</div>` : ''}
+              <div class="hey-item__meta">${timeAgo(n.created_at)}</div>
+            </div>
+            ${!n.is_read ? '<div class="hey-item__unread-dot"></div>' : ''}
+          </a>`;
+        }).join('');
+
     el.innerHTML = `
-      <div class="page-header"><h1>Hey!</h1></div>
-      <div style="max-width:700px;margin:0 auto">
-        ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма нищо ново за теб.</div>':
-          items.map(n=>`<a class="hey-item ${n.is_read?'':'unread'}" href="${n.reference_type==='card'?`#/card/${n.reference_id}`:'#'}"><div class="hey-item__body">${n.type==='mentioned'?'<span class="hey-item__type">@спомена те в:</span>':n.type==='assigned'?'<span class="hey-item__type" style="background:var(--blue)">Възложено:</span>':''}<div class="hey-item__title">${esc(n.body||n.title)}</div><div class="hey-item__meta">${timeAgo(n.created_at)}</div></div></a>`).join('')}
+      <div class="page-header">
+        <h1>Hey!</h1>
+        <div class="page-subtitle">Твоите известия</div>
+      </div>
+      <div style="max-width:640px;margin:0 auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        ${listHtml}
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }

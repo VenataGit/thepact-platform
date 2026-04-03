@@ -131,9 +131,9 @@ router.post('/', requireAuth, async (req, res) => {
       for (const uid of assignee_ids) {
         if (uid !== req.user.userId) {
           await execute(
-            `INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id)
-             VALUES ($1, 'assigned', $2, $3, 'card', $4)`,
-            [uid, `${req.user.name} те назначи на задача`, card.title, card.id]
+            `INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id, sender_name)
+             VALUES ($1, 'assigned', $2, $3, 'card', $4, $5)`,
+            [uid, `${req.user.name} те назначи на задача`, card.title, card.id, req.user.name]
           );
         }
       }
