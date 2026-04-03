@@ -155,6 +155,7 @@ function router() {
     case 'reports': return renderReports(el);
     case 'bookmarks': return renderBookmarks(el);
     case 'kp-auto': return renderKpAuto(el);
+    case 'calendar': return renderCalendar(el);
     default: return renderHome(el);
   }
 }
@@ -1871,12 +1872,15 @@ async function renderCampfire(el, roomId) {
         <div class="chat-messages" id="campfireMessages">
           ${msgs.length === 0 ? '<div style="text-align:center;color:var(--text-dim);padding:40px">🔥 Добре дошли в Campfire!<br>Тук целият екип може да говори.</div>' : ''}
           ${msgs.map(m => {
-            const mc = campColors[(m.user_name||'').length % campColors.length];
-            return `<div class="chat-msg">
-              <div class="chat-msg-avatar" style="background:${mc};color:#fff">${initials(m.user_name)}</div>
+            const isSystem = !m.user_id;
+            const mc = isSystem ? '#1a3040' : campColors[(m.user_name||'').length % campColors.length];
+            const avatarContent = isSystem ? '📊' : initials(m.user_name);
+            const msgContent = parseCampfireMarkdown(m.content || '');
+            return `<div class="chat-msg${isSystem ? ' campfire-system-msg' : ''}">
+              <div class="chat-msg-avatar" style="background:${mc};color:#fff">${avatarContent}</div>
               <div class="chat-msg-body">
-                <div class="chat-msg-name">${esc(m.user_name)} <span class="hint">${new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'})}</span></div>
-                <div class="chat-msg-text">${esc(m.content).replace(/\n/g,'<br>')}</div>
+                <div class="chat-msg-name">${esc(m.user_name || 'Система')} <span class="hint">${new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'})}</span></div>
+                <div class="chat-msg-text">${msgContent}</div>
               </div>
             </div>`;
           }).join('')}
@@ -1891,6 +1895,11 @@ async function renderCampfire(el, roomId) {
       </div>`;
     const m = document.getElementById('campfireMessages'); if(m) m.scrollTop = m.scrollHeight;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане</div>'; }
+}
+function parseCampfireMarkdown(text) {
+  return esc(text)
+    .replace(/\n/g, '<br>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
 }
 async function sendCampfireMsg(roomId) {
   const i = document.getElementById('campfireInput'), c = i?.value?.trim(); if(!c) return;
@@ -1965,6 +1974,150 @@ async function createScheduleEvent() {
   const title = prompt('Заглавие на събитието:'); if(!title?.trim()) return;
   const dateStr = prompt('Дата (YYYY-MM-DD):', new Date().toISOString().split('T')[0]); if(!dateStr) return;
   try { await fetch('/api/schedule', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:title.trim(),starts_at:dateStr+'T09:00:00',all_day:true})}); router(); } catch {}
+}
+
+// ==================== PRODUCTION CALENDAR ====================
+async function renderCalendar(el) {
+  setBreadcrumb([{label:'Video Production',href:'#/project/1'},{label:'Производствен Календар',href:'#/calendar'}]);
+  el.className = '';
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  const now = new Date();
+  const year  = parseInt(params.get('y')) || now.getFullYear();
+  const month = parseInt(params.get('m'));
+  const m = isNaN(month) ? now.getMonth() : month;
+  const monthStr = `${year}-${String(m+1).padStart(2,'0')}`;
+
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim)">Зареждане...</div>';
+
+  try {
+    const data = await (await fetch(`/api/reports/calendar?month=${monthStr}`)).json();
+    const { dueCards, publishCards, stepDues } = data;
+
+    // Group all items by date string
+    const byDate = {};
+    const addItem = (item) => {
+      const d = (item.date || '').split('T')[0];
+      if (!d) return;
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(item);
+    };
+    dueCards.forEach(addItem);
+    publishCards.forEach(addItem);
+    stepDues.forEach(addItem);
+
+    const monthName = new Date(year, m).toLocaleDateString('bg', {month:'long', year:'numeric'});
+    // Week starts Monday: shift Sunday (0) to 6, others -1
+    const rawFirst = new Date(year, m, 1).getDay();
+    const firstDay = (rawFirst + 6) % 7;
+    const daysInMonth = new Date(year, m + 1, 0).getDate();
+    const todayD = (year === now.getFullYear() && m === now.getMonth()) ? now.getDate() : -1;
+    const dayNames = ['ПН','ВТ','СР','ЧТ','ПТ','СБ','НД'];
+
+    const prevM = m === 0 ? 11 : m - 1, prevY = m === 0 ? year-1 : year;
+    const nextM = m === 11 ? 0  : m + 1, nextY = m === 11 ? year+1 : year;
+
+    let cells = '';
+    for (let i = 0; i < firstDay; i++) cells += '<div class="prod-cal-day prod-cal-day--empty"></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const items = byDate[dateStr] || [];
+      const dueN     = items.filter(i => i.type === 'due').length;
+      const pubN     = items.filter(i => i.type === 'publish').length;
+      const stepN    = items.filter(i => i.type === 'step').length;
+      const isToday  = d === todayD;
+      const colIdx   = (firstDay + d - 1) % 7; // 0=Mon … 6=Sun
+      const isWeekend = colIdx >= 5;
+
+      let dotsHtml = '';
+      if (dueN)  dotsHtml += `<span class="prod-cal-dot prod-cal-dot--due">${dueN}</span>`;
+      if (pubN)  dotsHtml += `<span class="prod-cal-dot prod-cal-dot--publish">${pubN}</span>`;
+      if (stepN) dotsHtml += `<span class="prod-cal-dot prod-cal-dot--step">${stepN}</span>`;
+
+      cells += `<div class="prod-cal-day ${isToday?'prod-cal-day--today':''} ${isWeekend?'prod-cal-day--weekend':''} ${items.length?'prod-cal-day--has-events':''}"
+                    onclick="toggleCalDay('${dateStr}')">
+        <div class="prod-cal-day__num">${d}</div>
+        <div class="prod-cal-day__dots">${dotsHtml}</div>
+      </div>`;
+    }
+
+    el.innerHTML = `
+      <div style="max-width:980px;margin:0 auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <button class="btn btn-sm" onclick="location.hash='#/calendar?y=${prevY}&m=${prevM}'">&larr; Предишен</button>
+          <div style="text-align:center">
+            <h1 style="font-size:21px;font-weight:800;color:#fff;text-transform:capitalize;margin-bottom:6px">${monthName}</h1>
+            <div class="prod-cal-legend">
+              <span class="prod-cal-legend-item"><span class="prod-cal-dot prod-cal-dot--due">N</span> Краен срок</span>
+              <span class="prod-cal-legend-item"><span class="prod-cal-dot prod-cal-dot--publish">N</span> Публикуване</span>
+              <span class="prod-cal-legend-item"><span class="prod-cal-dot prod-cal-dot--step">N</span> Стъпка</span>
+            </div>
+          </div>
+          <button class="btn btn-sm" onclick="location.hash='#/calendar?y=${nextY}&m=${nextM}'">Следващ &rarr;</button>
+        </div>
+        <div class="prod-cal">
+          <div class="prod-cal-header">${dayNames.map(d=>`<div class="prod-cal-header__day">${d}</div>`).join('')}</div>
+          <div class="prod-cal-grid">${cells}</div>
+        </div>
+        <div id="calDayDetail" style="margin-top:16px"></div>
+      </div>`;
+
+    // Store for click handler
+    window._calData = byDate;
+  } catch(e) { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане</div>'; }
+}
+
+function toggleCalDay(dateStr) {
+  const detail = document.getElementById('calDayDetail');
+  if (!detail) return;
+  const items = (window._calData || {})[dateStr] || [];
+
+  // Toggle off if same date is clicked again
+  if (detail.dataset.date === dateStr && detail.innerHTML) { detail.innerHTML = ''; detail.dataset.date = ''; return; }
+  detail.dataset.date = dateStr;
+
+  if (!items.length) { detail.innerHTML = ''; return; }
+
+  const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('bg-BG', {weekday:'long',day:'numeric',month:'long'});
+  const due     = items.filter(i => i.type === 'due');
+  const publish = items.filter(i => i.type === 'publish');
+  const steps   = items.filter(i => i.type === 'step');
+
+  let html = `<div class="prod-cal-detail"><h3>📅 ${dateLabel}</h3>`;
+
+  if (due.length) {
+    html += `<div class="prod-cal-detail__section"><div class="prod-cal-detail__label">📌 Краен срок (${due.length})</div>`;
+    html += due.map(c => {
+      const who = Array.isArray(c.assignees) && c.assignees.length
+        ? c.assignees.map(a=>a.name).filter(Boolean).join(', ') : '';
+      return `<a class="prod-cal-detail__item" href="#/card/${c.id}">
+        <span style="color:#60a5fa;margin-left:0">📌</span> ${esc(c.title)}
+        <span>${who ? esc(who)+' · ' : ''}${esc(c.board_title||'')}</span>
+      </a>`;
+    }).join('');
+    html += '</div>';
+  }
+
+  if (publish.length) {
+    html += `<div class="prod-cal-detail__section"><div class="prod-cal-detail__label">🎬 Публикуване (${publish.length})</div>`;
+    html += publish.map(c => `<a class="prod-cal-detail__item" href="#/card/${c.id}">
+      <span style="color:#46a374;margin-left:0">🎬</span> ${esc(c.title)}
+      <span>${c.client_name ? esc(c.client_name)+' · ' : ''}${esc(c.board_title||'')}</span>
+    </a>`).join('');
+    html += '</div>';
+  }
+
+  if (steps.length) {
+    html += `<div class="prod-cal-detail__section"><div class="prod-cal-detail__label">📋 Стъпки (${steps.length})</div>`;
+    html += steps.map(c => `<a class="prod-cal-detail__item" href="#/card/${c.card_id}">
+      <span style="color:#eab308;margin-left:0">📋</span> ${esc(c.title)}
+      <span>→ ${esc(c.card_title||'')}</span>
+    </a>`).join('');
+    html += '</div>';
+  }
+
+  html += '</div>';
+  detail.innerHTML = html;
+  setTimeout(() => detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
 }
 
 // ==================== AUTOMATIC CHECK-INS ====================
@@ -2081,8 +2234,8 @@ async function renderAdmin(el) {
             </div>
           </div>
           <div id="adminSettings" style="display:none">
-            <h2 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:16px">Настройки</h2>
-            <div style="color:var(--text-dim);text-align:center;padding:40px">Настройките ще бъдат добавени скоро.</div>
+            <h2 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:20px">Настройки на системата</h2>
+            <div id="adminSettingsContent" style="color:var(--text-dim);text-align:center;padding:40px">Зареждане...</div>
           </div>
         </div>
       </div>`;
@@ -2095,6 +2248,7 @@ function showAdminTab(tab, btn) {
     const el = document.getElementById('admin'+t);
     if (el) el.style.display = t.toLowerCase() === tab ? 'block' : 'none';
   });
+  if (tab === 'settings') loadAdminSettings();
 }
 async function createNewUser() {
   const name = prompt('Име:'); if(!name?.trim()) return;
@@ -2107,6 +2261,107 @@ async function changeUserRole(userId, role) {
 }
 async function toggleUserActive(userId, active) {
   try { await fetch(`/api/users/${userId}/active`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:active})}); router(); } catch {}
+}
+
+// ==================== ADMIN SETTINGS ====================
+async function loadAdminSettings() {
+  const el = document.getElementById('adminSettingsContent');
+  if (!el) return;
+  try {
+    const [settingsRes, roomsRes] = await Promise.all([
+      fetch('/api/settings').then(r => r.json()),
+      fetch('/api/campfire/rooms').then(r => r.json())
+    ]);
+    const s = settingsRes.settings || {};
+    const rooms = Array.isArray(roomsRes) ? roomsRes : [];
+    const roomOpts = rooms.map(r => `<option value="${r.id}" ${String(s.daily_report_room_id) === String(r.id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('');
+    const reportEnabled = s.daily_report_enabled !== 'false';
+
+    el.innerHTML = `
+      <div class="admin-settings-section">
+        <h3>📊 Дневен отчет <span class="info-tooltip" title="Автоматично публикува сутрешен отчет в Campfire — задачи за деня, публикации и просрочени.">ⓘ</span></h3>
+        <div class="admin-setting-row">
+          <label>Активен</label>
+          <label class="toggle-switch">
+            <input type="checkbox" ${reportEnabled ? 'checked' : ''} onchange="saveSetting('daily_report_enabled', this.checked ? 'true' : 'false')">
+            <span class="toggle-track"></span>
+          </label>
+          <span style="font-size:11px;color:var(--text-dim)">${reportEnabled ? 'включен' : 'изключен'}</span>
+        </div>
+        <div class="admin-setting-row">
+          <label>Campfire канал</label>
+          <select class="input-sm" onchange="saveSetting('daily_report_room_id', this.value)">${roomOpts || '<option>Няма канали</option>'}</select>
+        </div>
+        <div class="admin-setting-row">
+          <label>Час (cron израз)</label>
+          <input class="input-sm" type="text" value="${esc(s.daily_report_cron || '30 9 * * 1-5')}"
+                 style="width:140px" placeholder="30 9 * * 1-5"
+                 onblur="saveSetting('daily_report_cron', this.value)">
+          <span style="font-size:11px;color:var(--text-dim)">Пн–Пт 9:30</span>
+        </div>
+        <div class="admin-setting-row">
+          <label>Ръчен тест</label>
+          <button class="btn btn-sm" onclick="testDailyReport(this)">📤 Изпрати сега</button>
+          <span style="font-size:11px;color:var(--text-dim)">Изпраща незабавно в избрания канал</span>
+        </div>
+      </div>
+
+      <div class="admin-settings-section">
+        <h3>💬 Коментари</h3>
+        <div class="admin-setting-row">
+          <label>Прозорец за редакция</label>
+          <input class="input-sm" type="number" min="0" max="1440" style="width:70px"
+                 value="${esc(s.comment_edit_window_minutes || '10')}"
+                 onblur="saveSetting('comment_edit_window_minutes', this.value)">
+          <span style="font-size:11px;color:var(--text-dim)">минути след изпращане</span>
+        </div>
+      </div>
+
+      <div class="admin-settings-section">
+        <h3>🤖 КП Автоматизация <span class="info-tooltip" title="Настройки за автоматично генериране на видео задачи от КП карти.">ⓘ</span></h3>
+        <div class="admin-setting-row">
+          <label>Стъпки за видео карта</label>
+          <span style="color:#fff;font-weight:600">17</span>
+          <span style="font-size:11px;color:var(--text-dim)">фиксирано — от концепция до публикуване</span>
+        </div>
+        <div class="admin-setting-row">
+          <label>Работни дни преди публ.</label>
+          <span style="color:#fff;font-weight:600">10 → 0</span>
+          <span style="font-size:11px;color:var(--text-dim)">автоматично изчислени</span>
+        </div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--red);padding:20px">Грешка при зареждане: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function saveSetting(key, value) {
+  try {
+    const res = await fetch(`/api/settings/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: String(value) })
+    });
+    if (!res.ok) console.error('Save setting failed:', key, value);
+  } catch(e) { console.error('Save setting error:', e); }
+}
+
+async function testDailyReport(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Генериране...'; }
+  try {
+    const res = await fetch('/api/settings/daily-report/trigger', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      if (btn) { btn.textContent = '✅ Изпратено!'; }
+      setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '📤 Изпрати сега'; } }, 3000);
+    } else {
+      alert('Грешка: ' + (data.error || 'Неизвестна'));
+      if (btn) { btn.disabled = false; btn.textContent = '📤 Изпрати сега'; }
+    }
+  } catch(e) {
+    alert('Грешка: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '📤 Изпрати сега'; }
+  }
 }
 
 // ==================== REPORTS ====================

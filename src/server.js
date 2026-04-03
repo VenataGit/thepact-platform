@@ -170,7 +170,9 @@ setupWebSocket(server);
 // Init services (non-blocking, safe to fail if tables don't exist yet)
 const { initCheckInScheduler } = require('./services/checkin-scheduler');
 const { initEmail } = require('./services/email');
+const { initDailyReport } = require('./services/daily-report');
 setTimeout(() => {
   initCheckInScheduler();
   initEmail();
+  initDailyReport();
 }, 2000);

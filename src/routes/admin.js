@@ -37,4 +37,18 @@ router.put('/:key', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// POST /api/settings/daily-report/trigger — manually trigger daily report (admin)
+router.post('/daily-report/trigger', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { generateAndPostDailyReport } = require('../services/daily-report');
+    const s = await queryOne("SELECT value FROM settings WHERE key = 'daily_report_room_id'");
+    const roomId = parseInt(s?.value) || 1;
+    await generateAndPostDailyReport(roomId);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Daily report trigger error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
