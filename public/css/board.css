@@ -118,6 +118,9 @@
 .col-menu-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; padding: 2px 6px; border-radius: 4px; opacity: 0; transition: opacity var(--transition-fast); line-height: 1; }
 .kanban-column:hover .col-menu-btn { opacity: 1; }
 .col-menu-btn:hover { background: var(--bg-hover); color: var(--text); }
+.col-permalink-btn { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 4px; color: var(--text-dim); text-decoration: none; font-size: 11px; opacity: 0; transition: opacity var(--transition-fast); }
+.kanban-column:hover .col-permalink-btn { opacity: 1; }
+.col-permalink-btn:hover { background: var(--bg-hover); color: var(--accent); }
 .col-drag-handle { cursor: grab; color: var(--text-dim); font-size: 16px; opacity: 0; transition: opacity var(--transition-fast); user-select: none; flex-shrink: 0; }
 .kanban-column:hover .col-drag-handle { opacity: 1; }
 .col-drag-handle:active { cursor: grabbing; }

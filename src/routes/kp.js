@@ -113,16 +113,26 @@ router.get('/clients', requireAuth, async (req, res) => {
   try {
     const clients = await query('SELECT * FROM kp_clients WHERE active = true ORDER BY name');
 
-    // Check which clients have an active card in "Измисляне" equivalent column
-    const enriched = await Promise.all(clients.map(async (c) => {
-      const card = await queryOne(
-        `SELECT c.id FROM cards c
-         JOIN columns col ON c.column_id = col.id
-         WHERE col.title ILIKE 'Измисляне' AND c.archived_at IS NULL AND c.completed_at IS NULL
-           AND c.title ILIKE $1 LIMIT 1`,
-        [`%${c.name}%`]
-      );
-      return { ...c, has_kp_card: !!card };
+    // Resolve target column by setting (ID) or fall back to name search
+    const izmislianeColIdSetting = await queryOne("SELECT value FROM settings WHERE key = 'kp_izmislyane_column_id'");
+    const izmislianeColId = izmislianeColIdSetting?.value ? parseInt(izmislianeColIdSetting.value) : null;
+
+    const enriched = await Promise.all(clients.map(async (client) => {
+      let card;
+      if (izmislianeColId) {
+        card = await queryOne(
+          `SELECT id FROM cards WHERE column_id = $1 AND archived_at IS NULL AND completed_at IS NULL AND title ILIKE $2 LIMIT 1`,
+          [izmislianeColId, `%${client.name}%`]
+        );
+      } else {
+        card = await queryOne(
+          `SELECT c.id FROM cards c JOIN columns col ON c.column_id = col.id
+           WHERE col.title ILIKE 'Измисляне' AND c.archived_at IS NULL AND c.completed_at IS NULL
+             AND c.title ILIKE $1 LIMIT 1`,
+          [`%${client.name}%`]
+        );
+      }
+      return { ...client, has_kp_card: !!card };
     }));
 
     res.json(enriched);
@@ -276,12 +286,19 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
     dueDate.setDate(dueDate.getDate() - 14);
     const dueDateStr = dueDate.toISOString().split('T')[0];
 
-    // Find the "Измисляне" column (or first column of a board)
-    const izmislianeCol = await queryOne(
-      `SELECT col.id, col.board_id FROM columns col
-       WHERE col.title ILIKE 'Измисляне' AND col.archived_at IS NULL LIMIT 1`
-    );
-    if (!izmislianeCol) return res.status(400).json({ error: 'Не е намерена колона "Измисляне". Моля добавете я в платформата.' });
+    // Find target column: setting (by ID) first, then fall back to name search
+    let izmislianeCol = null;
+    const izmislianeColIdSetting = await queryOne("SELECT value FROM settings WHERE key = 'kp_izmislyane_column_id'");
+    const izmislianeColId = izmislianeColIdSetting?.value ? parseInt(izmislianeColIdSetting.value) : null;
+    if (izmislianeColId) {
+      izmislianeCol = await queryOne('SELECT id, board_id FROM columns WHERE id = $1 AND archived_at IS NULL', [izmislianeColId]);
+    }
+    if (!izmislianeCol) {
+      izmislianeCol = await queryOne(
+        `SELECT col.id, col.board_id FROM columns col WHERE col.title ILIKE 'Измисляне' AND col.archived_at IS NULL LIMIT 1`
+      );
+    }
+    if (!izmislianeCol) return res.status(400).json({ error: 'Не е намерена целева колона. Настройте я в Администрация → Настройки → КП Автоматизация.' });
 
     // Get max position
     const maxPos = await queryOne(
@@ -335,19 +352,26 @@ router.post('/generate-video-cards/:cardId', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Няма намерени видео секции. Форматирайте ги като "Видео 1 - Заглавие" в съдържанието на картата.' });
     }
 
-    // Find "Разпределение" column — first in same board, then any board
-    let targetCol = await queryOne(
-      `SELECT col.id, col.board_id FROM columns col
-       WHERE col.title ILIKE 'Разпределение' AND col.board_id = $1 LIMIT 1`,
-      [card.board_id]
-    );
+    // Find target column: setting (by ID) first, then fall back to name search
+    let targetCol = null;
+    const razpredelenieSetting = await queryOne("SELECT value FROM settings WHERE key = 'kp_razpredelenie_column_id'");
+    const razpredelenieColId = razpredelenieSetting?.value ? parseInt(razpredelenieSetting.value) : null;
+    if (razpredelenieColId) {
+      targetCol = await queryOne('SELECT id, board_id FROM columns WHERE id = $1', [razpredelenieColId]);
+    }
+    if (!targetCol) {
+      targetCol = await queryOne(
+        `SELECT col.id, col.board_id FROM columns col WHERE col.title ILIKE 'Разпределение' AND col.board_id = $1 LIMIT 1`,
+        [card.board_id]
+      );
+    }
     if (!targetCol) {
       targetCol = await queryOne(
         `SELECT col.id, col.board_id FROM columns col WHERE col.title ILIKE 'Разпределение' LIMIT 1`
       );
     }
     if (!targetCol) {
-      return res.status(400).json({ error: 'Не е намерена колона "Разпределение". Моля добавете я в платформата.' });
+      return res.status(400).json({ error: 'Не е намерена целева колона. Настройте я в Администрация → Настройки → КП Автоматизация.' });
     }
 
     const { broadcast } = require('../ws/broadcast');

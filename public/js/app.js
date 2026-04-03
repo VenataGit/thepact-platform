@@ -185,6 +185,7 @@ function router() {
     case 'bookmarks': return renderBookmarks(el);
     case 'kp-auto': return renderKpAuto(el);
     case 'calendar': return renderCalendar(el);
+    case 'column': return id ? renderColumnView(el, id) : renderHome(el);
     default: return renderHome(el);
   }
 }
@@ -716,6 +717,7 @@ async function renderBoard(el, boardId) {
                     </h2>
                   </div>
                   <div class="column-header-right">
+                    <a class="col-permalink-btn" href="#/column/${col.id}" target="_blank" title="Отвори само тази колона" onclick="event.stopPropagation()">↗</a>
                     ${manage ? `<button class="col-menu-btn" onclick="showColMenu(event, ${boardId}, ${col.id})">⋮</button>` : ''}
                   </div>
                 </div>
@@ -2319,12 +2321,17 @@ async function loadAdminSettings() {
   const el = document.getElementById('adminSettingsContent');
   if (!el) return;
   try {
-    const [settingsRes, roomsRes] = await Promise.all([
+    const [settingsRes, roomsRes, boardsRes] = await Promise.all([
       fetch('/api/settings').then(r => r.json()),
-      fetch('/api/campfire/rooms').then(r => r.json())
+      fetch('/api/campfire/rooms').then(r => r.json()),
+      fetch('/api/boards').then(r => r.json())
     ]);
     const s = settingsRes.settings || {};
     const rooms = Array.isArray(roomsRes) ? roomsRes : [];
+    const boardsList = Array.isArray(boardsRes) ? boardsRes : [];
+    const allCols = boardsList.flatMap(b => (b.columns || []).map(c => ({ ...c, board_title: b.title })));
+    const colOpts = (settingKey) => `<option value="">— изберете колона —</option>` +
+      allCols.map(c => `<option value="${c.id}" ${String(s[settingKey]) === String(c.id) ? 'selected' : ''}>${esc(c.board_title)} → ${esc(c.title)}</option>`).join('');
     const roomOpts = rooms.map(r => `<option value="${r.id}" ${String(s.daily_report_room_id) === String(r.id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('');
     const reportEnabled = s.daily_report_enabled !== 'false';
 
@@ -2370,6 +2377,16 @@ async function loadAdminSettings() {
 
       <div class="admin-settings-section">
         <h3>🤖 КП Автоматизация <span class="info-tooltip" title="Настройки за автоматично генериране на видео задачи от КП карти.">ⓘ</span></h3>
+        <div class="admin-setting-row">
+          <label>Колона "Измисляне"</label>
+          <select class="input-sm" style="max-width:280px" onchange="saveSetting('kp_izmislyane_column_id', this.value)">${colOpts('kp_izmislyane_column_id')}</select>
+          <span style="font-size:11px;color:var(--text-dim)">тук се пускат КП картите</span>
+        </div>
+        <div class="admin-setting-row">
+          <label>Колона "Разпределение"</label>
+          <select class="input-sm" style="max-width:280px" onchange="saveSetting('kp_razpredelenie_column_id', this.value)">${colOpts('kp_razpredelenie_column_id')}</select>
+          <span style="font-size:11px;color:var(--text-dim)">тук отиват видео задачите</span>
+        </div>
         <div class="admin-setting-row">
           <label>Стъпки за видео карта</label>
           <span style="color:#fff;font-weight:600">17</span>
@@ -2451,6 +2468,57 @@ async function renderReports(el) {
         </div>
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
+}
+
+// ==================== COLUMN PERMALINK VIEW ====================
+async function renderColumnView(el, id) {
+  setBreadcrumb(null); el.className = '';
+  try {
+    const [col, cards] = await Promise.all([
+      (await fetch(`/api/boards/columns/${id}`)).json(),
+      (await fetch(`/api/cards?column_id=${id}`)).json()
+    ]);
+    if (col.error) { el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--red)">${esc(col.error)}</div>`; return; }
+
+    setBreadcrumb([
+      { label: col.board_title, href: `#/board/${col.board_id}` },
+      { label: col.title }
+    ]);
+
+    const activeCards = Array.isArray(cards) ? cards.filter(c => !c.is_on_hold) : [];
+    const holdCards = Array.isArray(cards) ? cards.filter(c => c.is_on_hold) : [];
+
+    const renderRow = (c) => `
+      <a class="task-row" href="#/card/${c.id}">
+        <span class="task-title">${esc(c.title)}</span>
+        <span class="task-meta">
+          ${c.due_on ? `<span class="task-due">${formatDate(c.due_on)}</span>` : ''}
+          ${c.publish_date ? `<span style="color:var(--accent)">📅 ${formatDate(c.publish_date)}</span>` : ''}
+          ${c.client_name ? `<span class="task-board">${esc(c.client_name)}</span>` : ''}
+          ${c.priority === 'high' ? `<span style="color:var(--red)">↑</span>` : ''}
+        </span>
+      </a>`;
+
+    el.innerHTML = `
+      <div style="max-width:820px;margin:0 auto">
+        <div class="page-header">
+          <h1>${esc(col.title)}</h1>
+          <div class="page-subtitle">${esc(col.board_title)} · ${activeCards.length} задачи${holdCards.length > 0 ? ` · ${holdCards.length} на изчакване` : ''}</div>
+        </div>
+        <div class="task-list">
+          ${activeCards.length === 0 && holdCards.length === 0
+            ? '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма задачи в тази колона</div>'
+            : activeCards.map(renderRow).join('')}
+          ${holdCards.length > 0 ? `
+            <div style="margin-top:16px;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em">
+              На изчакване (${holdCards.length})
+            </div>
+            ${holdCards.map(renderRow).join('')}` : ''}
+        </div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--red)">Грешка: ${esc(e.message)}</div>`;
+  }
 }
 
 // ==================== КП АВТОМАТИЗАЦИЯ ====================

@@ -21,6 +21,20 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/boards/columns/:id — single column info (for column permalink view)
+router.get('/columns/:id', requireAuth, async (req, res) => {
+  try {
+    const col = await queryOne(
+      `SELECT c.*, b.title as board_title FROM columns c JOIN boards b ON c.board_id = b.id WHERE c.id = $1`,
+      [req.params.id]
+    );
+    if (!col) return res.status(404).json({ error: 'Column not found' });
+    res.json(col);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/boards/:id — single board with columns
 router.get('/:id', requireAuth, async (req, res) => {
   try {
