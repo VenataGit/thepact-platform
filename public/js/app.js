@@ -636,7 +636,9 @@ async function renderCardPage(el, cardId) {
   try {
     const card = await (await fetch('/api/cards/' + cardId)).json();
     var comments = [];
+    var attachments = [];
     try { comments = await (await fetch('/api/cards/' + cardId + '/comments')).json(); } catch(e) {}
+    try { attachments = await (await fetch('/api/cards/' + cardId + '/attachments')).json(); if (!Array.isArray(attachments)) attachments = []; } catch(e) {}
 
     // Load pinned comment from API
     _cardPinnedComment = card.pinned_comment || null;
@@ -747,6 +749,29 @@ async function renderCardPage(el, cardId) {
         '</div>';
     }
 
+    // ===== ATTACHMENTS =====
+    var attachmentsHtml = '';
+    if (attachments.length) {
+      attachmentsHtml += '<div class="bc-attachments-list">';
+      attachmentsHtml += attachments.map(function(a) {
+        var isImage = a.mime_type && a.mime_type.startsWith('image/');
+        var isVideo = a.mime_type && a.mime_type.startsWith('video/');
+        var sizeStr = a.size_bytes > 1048576 ? (a.size_bytes / 1048576).toFixed(1) + ' MB' : Math.round(a.size_bytes / 1024) + ' KB';
+        var preview = '';
+        if (isImage) {
+          preview = '<img class="bc-att-thumb" src="' + a.storage_path + '" onclick="showLightbox(\'' + a.storage_path + '\')" title="' + esc(a.filename) + '">';
+        } else if (isVideo) {
+          preview = '<video class="bc-att-video" src="' + a.storage_path + '" controls preload="metadata"></video>';
+        } else {
+          preview = '<a class="bc-att-file" href="' + a.storage_path + '" download="' + esc(a.filename) + '" target="_blank">&#128196; ' + esc(a.filename) + '</a>';
+        }
+        var delBtn = manage ? '<button class="bc-att-del" onclick="deleteAttachment(' + cardId + ',' + a.id + ')" title="Изтрий">&times;</button>' : '';
+        return '<div class="bc-att-item">' + preview + '<div class="bc-att-meta"><span class="bc-att-name">' + esc(a.filename) + '</span><span class="bc-att-size">' + sizeStr + '</span>' + delBtn + '</div></div>';
+      }).join('');
+      attachmentsHtml += '</div>';
+    }
+    attachmentsHtml += '<label class="bc-att-upload-btn"><input type="file" accept="*/*" style="display:none" onchange="uploadAttachment(' + cardId + ',this)"> &#128206; Прикачи файл</label>';
+
     // ===== COLUMN (always show Move along to dropdown) =====
     var colOptionsHtml = '';
     if (manage && board && board.columns) {
@@ -831,6 +856,7 @@ async function renderCardPage(el, cardId) {
             '<div class="bc-field"><span class="bc-field__label">Due on</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Notes</span><div class="bc-field__value bc-field__value--full">' + notesHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Steps</span><div class="bc-field__value bc-field__value--full">' + stepsHtml + '</div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Файлове</span><div class="bc-field__value bc-field__value--full">' + attachmentsHtml + '</div></div>' +
             '<div class="bc-field bc-field--light"><span class="bc-field__label">Added by</span><div class="bc-field__value"><span>' + esc(creatorName) + '</span><span class="bc-field__hint">' + createdAgo + '</span></div></div>' +
           '</div>' +
           (editing ? '<div class="bc-card__actions"><button class="bc-btn-save" onclick="saveCardEdits(' + cardId + ')">Save changes</button><button class="bc-btn-discard" onclick="exitCardEditMode(' + cardId + ')">Discard changes</button></div>' : '') +
@@ -1023,15 +1049,27 @@ function showTrixColorPicker(e, trixEl) {
   }, 10);
 }
 
-// ==================== NOTES FILE ATTACH ====================
-function attachNotesFile(cardId, input) {
+// ==================== ATTACHMENTS ====================
+async function uploadAttachment(cardId, input) {
   var file = input.files[0];
   if (!file) return;
-  var editor = document.querySelector('trix-editor[input="cardNotesInput"]');
-  if (!editor) return;
-  var attachment = new Trix.Attachment({ file: file });
-  editor.editor.insertAttachment(attachment);
   input.value = '';
+  var label = input.closest('label');
+  if (label) label.classList.add('bc-att-uploading');
+  try {
+    var fd = new FormData();
+    fd.append('file', file);
+    var res = await fetch('/api/cards/' + cardId + '/attachments', { method: 'POST', body: fd });
+    if (res.ok) router();
+  } catch(e) {}
+  if (label) label.classList.remove('bc-att-uploading');
+}
+async function deleteAttachment(cardId, attId) {
+  if (!confirm('Изтрий файла?')) return;
+  try {
+    await fetch('/api/cards/' + cardId + '/attachments/' + attId, { method: 'DELETE' });
+    router();
+  } catch(e) {}
 }
 
 // Click-to-edit title
