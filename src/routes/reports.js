@@ -56,38 +56,31 @@ router.get('/upcoming', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/reports/assignments?user_id= — cards grouped by assignee
+// GET /api/reports/assignments?user_id= — cards flat list with assignee_name
 router.get('/assignments', requireAuth, async (req, res) => {
   try {
     const { user_id } = req.query;
-
-    let sql = `
-      SELECT u.id as user_id, u.name as user_name,
-        COALESCE(
-          (SELECT json_agg(json_build_object(
-            'id', c.id, 'title', c.title, 'due_on', c.due_on, 'priority', c.priority,
-            'board_title', b.title, 'column_title', col.title
-          ) ORDER BY c.due_on NULLS LAST)
-          FROM card_assignees ca2
-          JOIN cards c ON ca2.card_id = c.id AND c.archived_at IS NULL AND c.completed_at IS NULL
-          JOIN boards b ON c.board_id = b.id
-          JOIN columns col ON c.column_id = col.id
-          WHERE ca2.user_id = u.id),
-          '[]'::json
-        ) as cards
-      FROM users u
-      WHERE u.active = TRUE
-    `;
     const params = [];
-
+    let whereExtra = '';
     if (user_id && !isNaN(parseInt(user_id))) {
-      sql += ' AND u.id = $1';
       params.push(parseInt(user_id));
+      whereExtra = ` AND u.id = $${params.length}`;
     }
 
-    sql += ' ORDER BY u.name';
-    const assignments = await query(sql, params);
-    res.json(assignments);
+    const cards = await query(
+      `SELECT c.id, c.title, c.due_on, c.priority, c.client_name,
+              b.title as board_title, col.title as column_title,
+              u.name as assignee_name, u.id as assignee_id
+       FROM cards c
+       JOIN boards b ON c.board_id = b.id
+       JOIN columns col ON c.column_id = col.id
+       JOIN card_assignees ca ON ca.card_id = c.id
+       JOIN users u ON ca.user_id = u.id
+       WHERE c.archived_at IS NULL AND c.completed_at IS NULL${whereExtra}
+       ORDER BY u.name ASC, c.due_on ASC NULLS LAST`,
+      params
+    );
+    res.json(cards);
   } catch (err) {
     console.error('Reports assignments error:', err.message);
     res.status(500).json({ error: 'Internal server error' });

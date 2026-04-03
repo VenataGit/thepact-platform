@@ -1712,6 +1712,37 @@ function showMoreComments() {
 }
 
 // ==================== ACTIVITY ====================
+let _activityItems = [];
+function filterActivity(board, btn) {
+  document.querySelectorAll('.activity-filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const toShow = board === 'all' ? _activityItems : _activityItems.filter(a => a.board_title === board);
+  const container = document.getElementById('activityList');
+  if (!container) return;
+  const campColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+  const getAvatarColor = (name) => campColors[(name||'').length % campColors.length];
+  const grouped = {};
+  toShow.forEach(a => {
+    const d = new Date(a.created_at);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
+    const dateKey = d >= today ? 'ДНЕС' : d >= yesterday ? 'ВЧЕРА' : d.toLocaleDateString('bg', { month: 'long', day: 'numeric', year: 'numeric' });
+    if (!grouped[dateKey]) grouped[dateKey] = [];
+    grouped[dateKey].push(a);
+  });
+  container.innerHTML = toShow.length === 0 ? '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма активност</div>' :
+    Object.entries(grouped).map(([date, entries]) =>
+      '<div style="margin-bottom:24px"><div style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px">' + date + '</div>' +
+      entries.map(a =>
+        '<div class="activity-entry"><div class="activity-avatar" style="background:' + getAvatarColor(a.user_name) + '">' + initials(a.user_name||'') + '</div>' +
+        '<div class="activity-body"><div class="activity-text"><strong>' + esc(a.user_name||'') + '</strong> ' +
+        (a.action==='created'?'създаде':a.action==='commented'?'коментира':a.action==='moved'?'премести':a.action==='completed'?'завърши':a.action==='checked_off'?'отметна стъпка на':a.action) + ' ' +
+        (a.target_type==='card' ? '<a href="#/card/' + a.target_id + '">' + esc(a.target_title||'') + '</a>' : esc(a.target_title||'')) + '</div>' +
+        (a.excerpt ? '<div class="activity-excerpt">' + esc(a.excerpt).substring(0,150) + '</div>' : '') +
+        '<div class="activity-meta">' + (a.board_title ? esc(a.board_title) + ' · ' : '') + timeAgo(a.created_at) + '</div></div></div>'
+      ).join('') + '</div>'
+    ).join('');
+}
 async function renderActivity(el) {
   setBreadcrumb(null); el.className = '';
   try {
@@ -1721,6 +1752,7 @@ async function renderActivity(el) {
     const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
     const getAvatarColor = (name) => avatarColors[(name||'').length % avatarColors.length];
 
+    _activityItems = items;
     // Group by date
     const grouped = {};
     items.forEach(a => {
@@ -1743,12 +1775,11 @@ async function renderActivity(el) {
 
     el.innerHTML = `
       <div class="page-header"><h1>Последна активност</h1></div>
-      <div style="display:flex;justify-content:center;gap:8px;margin-bottom:24px">
-        <button class="btn btn-sm" style="background:var(--accent-dim);color:var(--accent);border-color:var(--accent)">Всичко</button>
-        <button class="btn btn-sm">Филтрирай по проекти</button>
-        <button class="btn btn-sm">Филтрирай по хора</button>
+      <div style="display:flex;justify-content:center;gap:8px;margin-bottom:24px;flex-wrap:wrap">
+        <button class="btn btn-sm activity-filter-btn active" style="background:var(--accent-dim);color:var(--accent);border-color:var(--accent)" onclick="filterActivity('all',this)">Всичко</button>
+        ${[...new Set(items.filter(a=>a.board_title).map(a=>a.board_title))].slice(0,6).map(b=>`<button class="btn btn-sm activity-filter-btn" onclick="filterActivity('${b.replace(/'/g,'')}',this)">${esc(b)}</button>`).join('')}
       </div>
-      <div style="max-width:700px;margin:0 auto">
+      <div id="activityList" style="max-width:700px;margin:0 auto">
         ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма активност все още</div>':
           Object.entries(grouped).map(([date, entries]) => `
             <div style="margin-bottom:24px">
@@ -1990,7 +2021,29 @@ function parseCampfireMarkdown(text) {
 }
 async function sendCampfireMsg(roomId) {
   const i = document.getElementById('campfireInput'), c = i?.value?.trim(); if(!c) return;
-  try { await fetch(`/api/campfire/rooms/${roomId}/messages`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})}); i.value=''; router(); } catch {}
+  i.value = '';
+  try {
+    const res = await fetch(`/api/campfire/rooms/${roomId}/messages`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})});
+    const msg = await res.json();
+    if (msg && msg.id) appendCampfireMsg(msg);
+  } catch {}
+}
+function appendCampfireMsg(msg) {
+  const msgs = document.getElementById('campfireMessages');
+  if (!msgs) return;
+  const campColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+  const isSystem = !msg.user_id;
+  const mc = isSystem ? '#1a3040' : campColors[(msg.user_name||'').length % campColors.length];
+  const avatarContent = isSystem ? '📊' : initials(msg.user_name);
+  const msgContent = parseCampfireMarkdown(msg.content || '');
+  const div = document.createElement('div');
+  div.className = 'chat-msg' + (isSystem ? ' campfire-system-msg' : '');
+  div.innerHTML = '<div class="chat-msg-avatar" style="background:' + mc + ';color:#fff">' + avatarContent + '</div>' +
+    '<div class="chat-msg-body"><div class="chat-msg-name">' + esc(msg.user_name || 'Система') +
+    ' <span class="hint">' + new Date(msg.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'}) + '</span></div>' +
+    '<div class="chat-msg-text">' + msgContent + '</div></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
 }
 function sendTypingIndicator(type, id) {
   if (!ws || ws.readyState !== 1) return;
@@ -2467,6 +2520,31 @@ async function testDailyReport(btn) {
 }
 
 // ==================== REPORTS ====================
+function renderReportRow(c, tab) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const isOver = c.due_on && new Date(c.due_on+'T00:00:00') < now;
+  return '<a class="task-row ' + (isOver ? 'overdue' : '') + '" href="#/card/' + c.id + '">' +
+    '<span class="task-title">' + esc(c.title) + '</span>' +
+    '<span class="task-meta">' +
+      (c.client_name ? '<span style="color:var(--accent);font-weight:600">' + esc(c.client_name) + '</span>' : '') +
+      (c.board_title ? '<span class="task-board">' + esc(c.board_title) + '</span>' : '') +
+      (c.column_title ? '<span style="opacity:.6;font-size:11px">' + esc(c.column_title) + '</span>' : '') +
+      (tab !== 'assignments' && c.assignee_name ? '<span style="color:var(--green)">' + esc(c.assignee_name) + '</span>' : '') +
+      (c.due_on ? '<span class="task-due">' + formatDate(c.due_on) + '</span>' : '') +
+    '</span></a>';
+}
+function renderReportRows(data, tab) {
+  if (data.length === 0) return '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма резултати</div>';
+  if (tab === 'assignments') {
+    const byPerson = {};
+    data.forEach(c => { const k = c.assignee_name || 'Без отговорник'; if (!byPerson[k]) byPerson[k] = []; byPerson[k].push(c); });
+    return Object.entries(byPerson).sort(([a],[b]) => a.localeCompare(b)).map(([name, cards]) =>
+      '<div class="task-section-label" style="color:var(--accent)">' + esc(name) + ' (' + cards.length + ')</div>' +
+      cards.map(c => renderReportRow(c, tab)).join('')
+    ).join('');
+  }
+  return data.map(c => renderReportRow(c, tab)).join('');
+}
 async function renderReports(el) {
   setBreadcrumb(null); el.className = '';
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
@@ -2481,7 +2559,7 @@ async function renderReports(el) {
 
     el.innerHTML = `
       <div style="max-width:800px;margin:0 auto">
-        <div class="page-header"><h1>📊 Отчети</h1></div>
+        <div class="page-header"><h1>📊 Отчети</h1><div class="page-subtitle">${data.length} резултата</div></div>
         <div style="display:flex;gap:8px;justify-content:center;margin-bottom:24px">
           <a href="#/reports?tab=overdue" class="btn btn-sm ${tab==='overdue'?'btn-primary':''}">🔴 Просрочени</a>
           <a href="#/reports?tab=upcoming" class="btn btn-sm ${tab==='upcoming'?'btn-primary':''}">🟡 Предстоящи</a>
@@ -2489,16 +2567,7 @@ async function renderReports(el) {
           <a href="#/reports?tab=unassigned" class="btn btn-sm ${tab==='unassigned'?'btn-primary':''}">❓ Невъзложени</a>
         </div>
         <div class="task-list">
-          ${data.length === 0 ? '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма резултати</div>' :
-            data.map(c => `
-              <a class="task-row ${c.due_on && new Date(c.due_on) < new Date() ? 'overdue' : ''}" href="#/card/${c.id}">
-                <span class="task-title">${esc(c.title)}</span>
-                <span class="task-meta">
-                  ${c.due_on ? `<span class="task-due">${formatDate(c.due_on)}</span>` : ''}
-                  ${c.board_title ? `<span class="task-board">${esc(c.board_title)}</span>` : ''}
-                  ${c.assignee_name ? `<span style="color:var(--accent)">${esc(c.assignee_name)}</span>` : ''}
-                </span>
-              </a>`).join('')}
+          ${renderReportRows(data, tab)}
         </div>
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
@@ -3091,7 +3160,7 @@ function handleWSEvent(ev) {
   // Core data events — re-render current page
   if (t.startsWith('card:') || t.startsWith('board:') || t.startsWith('column:') || t.startsWith('step:') || t.startsWith('comment:')) wsRouter();
   if (t === 'chat:message' && location.hash.startsWith(`#/chat/${ev.channelId}`)) wsRouter();
-  if (t === 'campfire:message' && location.hash.startsWith('#/campfire/')) wsRouter();
+  if (t === 'campfire:message' && location.hash.startsWith('#/campfire/')) { if (ev.message) appendCampfireMsg(ev.message); return; }
   if (t === 'checkin:reminder') wsRouter();
   // Presence
   if (t === 'presence:online') { onlineUsers.add(ev.userId); updatePresenceDots(); }
