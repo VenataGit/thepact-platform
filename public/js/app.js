@@ -1759,7 +1759,7 @@ function updateCreateColumns() {
 }
 async function submitCreateCard() {
   const title = document.getElementById('createTitle').value.trim();
-  if (!title) return alert('Заглавието е задължително');
+  if (!title) return showToast('Заглавието е задължително', 'warn');
   const data = {
     title, board_id: parseInt(document.getElementById('createBoard').value),
     column_id: parseInt(document.getElementById('createColumn').value),
@@ -1827,9 +1827,9 @@ async function addComment(cardId) {
   if (btn) { btn.disabled = true; btn.textContent = 'Изпращане…'; }
   try {
     var r = await fetch('/api/cards/' + cardId + '/comments', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:c,mentions:mIds}) });
-    if (!r.ok) { var d = await r.json(); alert(d.error || 'Грешка'); if(btn){btn.disabled=false;btn.textContent='Добави коментар';} return; }
+    if (!r.ok) { var d = await r.json(); showToast(d.error || 'Грешка', 'error'); if(btn){btn.disabled=false;btn.textContent='Добави коментар';} return; }
     router();
-  } catch(e) { alert('Грешка при изпращане'); if(btn){btn.disabled=false;btn.textContent='Добави коментар';} }
+  } catch(e) { showToast('Грешка при изпращане', 'error'); if(btn){btn.disabled=false;btn.textContent='Добави коментар';} }
 }
 
 function showMoreComments() {
@@ -2717,11 +2717,11 @@ async function testDailyReport(btn) {
       if (btn) { btn.textContent = '✅ Изпратено!'; }
       setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '📤 Изпрати сега'; } }, 3000);
     } else {
-      alert('Грешка: ' + (data.error || 'Неизвестна'));
+      showToast('Грешка: ' + (data.error || 'Неизвестна'), 'error');
       if (btn) { btn.disabled = false; btn.textContent = '📤 Изпрати сега'; }
     }
   } catch(e) {
-    alert('Грешка: ' + e.message);
+    showToast('Грешка: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '📤 Изпрати сега'; }
   }
 }
@@ -2974,12 +2974,12 @@ async function editKpClientForm(id) {
     var clients = await (await fetch('/api/kp/clients')).json();
     var client = clients.find(function(c) { return c.id === id; });
     if (client) showKpClientForm(client);
-  } catch (err) { alert('Грешка: ' + err.message); }
+  } catch (err) { showToast('Грешка: ' + err.message, 'error'); }
 }
 
 async function saveKpClient(id) {
   var name = document.getElementById('kpName').value.trim();
-  if (!name) return alert('Въведи име на клиент');
+  if (!name) return showToast('Въведи име на клиент', 'warn');
   var data = {
     name: name,
     videos_per_month: parseInt(document.getElementById('kpVideos').value) || 10,
@@ -2995,7 +2995,7 @@ async function saveKpClient(id) {
     var method = id ? 'PUT' : 'POST';
     var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
     var json = await res.json();
-    if (!res.ok) return alert('Грешка: ' + (json.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'));
+    if (!res.ok) return showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + (json.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'), 'error');
     document.getElementById('kpClientFormWrap').style.display = 'none';
     var el = document.getElementById('pageContent');
     if (el) await loadKpAuto(el);
@@ -3034,8 +3034,8 @@ async function deleteKpClientNow(clientId, clientName) {
     var res = await fetch('/api/kp/clients/' + clientId, { method: 'DELETE' });
     var data = await res.json();
     if (data.ok) { var el = document.getElementById('pageContent'); if (el) await loadKpAuto(el); }
-    else alert('Грешка: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'));
-  } catch (err) { alert('Грешка: ' + err.message); }
+    else showToast('Грешка: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'), 'error');
+  } catch (err) { showToast('Грешка: ' + err.message, 'error'); }
 }
 
 // ==================== BOOKMARKS ====================
@@ -3135,7 +3135,7 @@ async function promptSetWipLimit(bid,cid) {
   try { await fetch('/api/boards/' + bid + '/columns/' + cid, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({wip_limit: limit || null})}); allBoards=await(await fetch('/api/boards')).json(); router(); } catch {}
 }
 async function promptRenameColumn(bid,cid) { const t=prompt('Ново име:'); if(!t?.trim())return; try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
-async function deleteColumn(bid,cid) { if(!confirm('Изтрий колона и всички карти в нея?'))return; try{const r=await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'DELETE'}); if(!r.ok){const d=await r.json();alert(d.error||'Грешка');return;} allBoards=await(await fetch('/api/boards')).json(); router();}catch{alert('Грешка при изтриване');} }
+async function deleteColumn(bid,cid) { if(!confirm('\u0418\u0437\u0442\u0440\u0438\u0439 \u043a\u043e\u043b\u043e\u043d\u0430 \u0438 \u0432\u0441\u0438\u0447\u043a\u0438 \u043a\u0430\u0440\u0442\u0438 \u0432 \u043d\u0435\u044f?'))return; try{const r=await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'DELETE'}); if(!r.ok){const d=await r.json();showToast(d.error||'\u0413\u0440\u0435\u0448\u043a\u0430','error');return;} allBoards=await(await fetch('/api/boards')).json(); router();}catch{showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0438\u0437\u0442\u0440\u0438\u0432\u0430\u043d\u0435','error');} }
 function toggleBoardMenu(e, bid) {
   e.stopPropagation();
   document.querySelectorAll('.board-context-menu').forEach(m => m.remove());
@@ -3162,11 +3162,11 @@ async function deleteBoardConfirm(bid) {
   if (!confirm('Изтрий борд "' + (board ? board.title : '') + '"?\nВсички карти и колони ще бъдат изтрити!')) return;
   try {
     const r = await fetch('/api/boards/' + bid, { method: 'DELETE' });
-    if (!r.ok) { const d = await r.json(); alert(d.error || 'Грешка'); return; }
+    if (!r.ok) { const d = await r.json(); showToast(d.error || 'Грешка', 'error'); return; }
     allBoards = await (await fetch('/api/boards')).json();
     location.hash = '#/home';
     router();
-  } catch { alert('Грешка при изтриване'); }
+  } catch { showToast('Грешка при изтриване', 'error'); }
 }
 
 // ==================== DRAG & DROP ====================
@@ -3678,7 +3678,7 @@ function openSosModal(cardId, cardTitle) {
       });
     });
     modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
-  }).catch(function() { alert('Грешка при зареждане на потребителите'); });
+  }).catch(function() { showToast('Грешка при зареждане', 'error'); });
 }
 
 async function sendSos(cardId) {
@@ -3690,7 +3690,7 @@ async function sendSos(cardId) {
     document.querySelectorAll('#sosUserList input:checked').forEach(function(cb) {
       targetUserIds.push(parseInt(cb.value));
     });
-    if (targetUserIds.length === 0) return alert('Избери поне един човек');
+    if (targetUserIds.length === 0) return showToast('Избери поне един човек', 'warn');
   }
   try {
     var res = await fetch('/api/sos', {
@@ -3701,9 +3701,9 @@ async function sendSos(cardId) {
     if (data.ok) {
       document.getElementById('sosModal').remove();
     } else {
-      alert('Грешка: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'));
+      showToast('Грешка: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'), 'error');
     }
-  } catch (err) { alert('Грешка: ' + err.message); }
+  } catch (err) { showToast('Грешка: ' + err.message, 'error'); }
 }
 
 function showSosAlert(ev) {
