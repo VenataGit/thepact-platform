@@ -240,8 +240,10 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
     const client = await queryOne('SELECT * FROM kp_clients WHERE id = $1', [req.params.clientId]);
     if (!client) return res.status(404).json({ error: 'Client not found' });
 
-    const firstPublishDate = req.body.firstPublishDate || client.next_kp_date || client.first_publish_date;
-    if (!firstPublishDate) return res.status(400).json({ error: 'Няма зададена дата за публикуване' });
+    const rawDate = req.body.firstPublishDate || client.next_kp_date || client.first_publish_date;
+    if (!rawDate) return res.status(400).json({ error: 'Няма зададена дата за публикуване' });
+    // Normalize: pg DATE columns return as JS Date objects; stringify + strip time part
+    const firstPublishDate = (rawDate instanceof Date ? rawDate.toISOString() : String(rawDate)).split('T')[0];
 
     const videoCount = client.videos_per_month || 10;
     const interval = client.publish_interval_days || 3;
