@@ -1772,11 +1772,27 @@ async function renderMyStuff(el) {
   setBreadcrumb(null); el.className = '';
   try {
     const cards = await (await fetch(`/api/cards?assignee_id=${currentUser.id}`)).json();
+    const now = new Date(); now.setHours(0,0,0,0);
+    const overdue  = cards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
+    const upcoming = cards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') >= now);
+    const noDate   = cards.filter(c => !c.due_on);
+    const renderCard = c => `<a class="task-row ${getCardColorClass(c)}" href="#/card/${c.id}">
+      <span class="task-title">${esc(c.title)}</span>
+      <span class="task-meta">
+        ${c.client_name ? `<span class="task-board" style="color:var(--accent)">${esc(c.client_name)}</span>` : ''}
+        ${c.board_title ? `<span class="task-board">${esc(c.board_title)}</span>` : ''}
+        ${c.column_title ? `<span class="task-board" style="opacity:0.6">${esc(c.column_title)}</span>` : ''}
+        ${c.steps_total > 0 ? `<span style="font-size:10px;color:var(--green)">✓ ${c.steps_done}/${c.steps_total}</span>` : ''}
+        ${c.due_on ? `<span class="task-due">${formatDate(c.due_on)}</span>` : ''}
+      </span>
+    </a>`;
     el.innerHTML = `
-      <div class="page-header"><h1>Моите задачи</h1></div>
-      <div class="task-list" style="max-width:700px;margin:0 auto">
-        ${cards.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)"><div style="font-size:48px;opacity:0.3;margin-bottom:8px">✓</div>Нямаш задачи в момента</div>':
-          cards.map(c=>`<a class="task-row ${getCardColorClass(c)}" href="#/card/${c.id}"><span class="task-title">${esc(c.title)}</span><span class="task-meta">${c.due_on?`<span class="task-due">${formatDate(c.due_on)}</span>`:''} ${c.board_title?`<span class="task-board">${esc(c.board_title)}</span>`:''}</span></a>`).join('')}
+      <div class="page-header"><h1>Моите задачи</h1><div class="page-subtitle">${cards.length} задачи</div></div>
+      <div class="task-list" style="max-width:760px;margin:0 auto">
+        ${cards.length===0 ? '<div style="text-align:center;padding:40px;color:var(--text-dim)"><div style="font-size:48px;opacity:0.3;margin-bottom:8px">✓</div>Нямаш задачи в момента</div>' : ''}
+        ${overdue.length  > 0 ? `<div class="task-section-label" style="color:var(--red)">🔴 Просрочени (${overdue.length})</div>${overdue.map(renderCard).join('')}` : ''}
+        ${upcoming.length > 0 ? `<div class="task-section-label">📅 Предстоящи (${upcoming.length})</div>${upcoming.map(renderCard).join('')}` : ''}
+        ${noDate.length   > 0 ? `<div class="task-section-label" style="opacity:0.6">Без дата (${noDate.length})</div>${noDate.map(renderCard).join('')}` : ''}
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
@@ -1877,7 +1893,7 @@ async function sendChatMsg(chId) {
 
 // ==================== MESSAGE BOARD ====================
 async function renderMessageBoard(el) {
-  setBreadcrumb([{label:'Video Production',href:'#/project/1'},{label:'Съобщения',href:'#/messages'}]); el.className='';
+  setBreadcrumb([{label:'Съобщения'}]); el.className='';
   try {
     const msgs = await (await fetch('/api/messageboard')).json();
     el.innerHTML = `
@@ -1903,7 +1919,7 @@ async function generateDailyReport() {
 
 // ==================== VAULT ====================
 async function renderVault(el, folderId) {
-  setBreadcrumb([{label:'Video Production',href:'#/project/1'},{label:'Документи',href:'#/vault'}]); el.className='';
+  setBreadcrumb([{label:'Документи'}]); el.className='';
   try {
     const url = folderId ? `/api/vault/folders?parent_id=${folderId}` : '/api/vault/folders';
     const { folders, files } = await (await fetch(url)).json();
@@ -1928,7 +1944,7 @@ function formatFileSize(b) { if(!b)return''; if(b<1024)return b+' B'; if(b<10485
 
 // ==================== CAMPFIRE (Group Chat) ====================
 async function renderCampfire(el, roomId) {
-  setBreadcrumb([{label:'Video Production',href:'#/project/1'},{label:'Campfire',href:`#/campfire/${roomId}`}]);
+  setBreadcrumb([{label:'Campfire',href:`#/campfire/${roomId}`}]);
   el.className = '';
   try {
     const msgs = await (await fetch(`/api/campfire/rooms/${roomId}/messages?limit=100`)).json();
@@ -1988,7 +2004,7 @@ function sendTypingIndicator(type, id) {
 
 // ==================== SCHEDULE / CALENDAR ====================
 async function renderSchedule(el) {
-  setBreadcrumb([{label:'Video Production',href:'#/project/1'},{label:'График',href:'#/schedule'}]);
+  setBreadcrumb([{label:'График',href:'#/schedule'}]);
   el.className = '';
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   const now = new Date();
@@ -2049,7 +2065,7 @@ async function createScheduleEvent() {
 
 // ==================== PRODUCTION CALENDAR ====================
 async function renderCalendar(el) {
-  setBreadcrumb([{label:'Video Production',href:'#/project/1'},{label:'Производствен Календар',href:'#/calendar'}]);
+  setBreadcrumb([{label:'Производствен Календар',href:'#/calendar'}]);
   el.className = '';
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   const now = new Date();
@@ -2193,7 +2209,7 @@ function toggleCalDay(dateStr) {
 
 // ==================== AUTOMATIC CHECK-INS ====================
 async function renderCheckins(el) {
-  setBreadcrumb([{label:'Video Production',href:'#/project/1'},{label:'Check-ins',href:'#/checkins'}]);
+  setBreadcrumb([{label:'Check-ins'}]);
   el.className = '';
   try {
     const [questions, pending] = await Promise.all([
