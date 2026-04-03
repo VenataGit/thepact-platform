@@ -18,6 +18,7 @@ async function checkAuth() {
   } catch { window.location.href = '/login.html'; return false; }
 }
 function canManage() { return currentUser?.role === 'admin' || currentUser?.role === 'moderator'; }
+function canEdit() { return !!currentUser; }
 async function logout() { await fetch('/auth/logout', { method: 'POST' }); window.location.href = '/login.html'; }
 function initials(name) { return name?.split(' ').map(n => n[0]).join('').substring(0, 2) || '?'; }
 
@@ -532,6 +533,7 @@ async function renderBoard(el, boardId) {
     ]);
 
     const manage = canManage();
+    const edit = canEdit();
     const visibleCols = board.columns.filter(c => !c.is_done_column);
     const doneCol = board.columns.find(c => c.is_done_column);
     const doneCards = doneCol ? cards.filter(c => c.column_id === doneCol.id) : [];
@@ -546,7 +548,7 @@ async function renderBoard(el, boardId) {
               ${allUsers.slice(0,6).map((u,i) => `<div class="board-page-header__watcher-av" style="background:${wColors[i%wColors.length]}" title="${esc(u.name)}">${initials(u.name)}</div>`).join('')}
             </div>
           </div>
-          ${manage ? `<a class="btn btn-sm" href="#/card/0/new?board=${boardId}">+ Нова карта</a>` : ''}
+          ${edit ? `<a class="btn btn-sm" href="#/card/0/new?board=${boardId}">+ Нова карта</a>` : ''}
           ${manage ? `<button class="btn btn-sm btn-ghost" onclick="showAddColumnModal(${boardId})">+ Колона</button>` : ''}
           <button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>
         </div>
@@ -586,7 +588,7 @@ async function renderBoard(el, boardId) {
                       ${holdCards.map(c => renderKanbanCard(c, colColor)).join('')}
                     </div>
                   </div>` : ''}
-                ${manage ? `<a class="add-card-btn" href="#/card/0/new?board=${boardId}&column=${col.id}">+ Добави карта</a>` : ''}
+                ${edit ? `<a class="add-card-btn" href="#/card/0/new?board=${boardId}&column=${col.id}">+ Добави карта</a>` : ''}
               </div>
             </div>`;
         }).join('')}
@@ -663,7 +665,7 @@ async function renderCardPage(el, cardId) {
     ]);
 
     var manage = canManage();
-    var editing = _cardEditMode && manage;
+    var editing = _cardEditMode && canEdit();
     var creatorName = card.creator_name || (allUsers.find(function(u) { return u.id === card.creator_id; }) || {}).name || '';
     var createdAgo = card.created_at ? timeAgo(card.created_at) : '';
     var avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
@@ -674,7 +676,7 @@ async function renderCardPage(el, cardId) {
 
     // ===== ASSIGNED TO =====
     var assigneesHtml = '';
-    if (manage) {
+    if (canEdit()) {
       if (card.assignees && card.assignees.length > 0) {
         assigneesHtml = card.assignees.map(function(a) {
           return '<span class="bc-assignee">' + esc(a.name) + '<button class="bc-assignee__remove" onclick="event.stopPropagation();removeAssignee(' + cardId + ',' + a.id + ')" title="Remove">\u2715</button></span>';
@@ -697,7 +699,7 @@ async function renderCardPage(el, cardId) {
 
     // ===== DUE DATE =====
     var dueHtml = '';
-    if (manage) {
+    if (canEdit()) {
       var noDueChecked = !card.due_on ? ' checked' : '';
       var specificChecked = card.due_on ? ' checked' : '';
       var dateHidden = !card.due_on ? ' bc-date-input--hidden' : '';
@@ -735,7 +737,7 @@ async function renderCardPage(el, cardId) {
       stepsHtml += card.steps.map(function(s) {
         var doneClass = s.completed ? ' bc-checklist__item--done' : '';
         var assigneeName = s.assignee_id ? (allUsers.find(function(u) { return u.id === s.assignee_id; }) || {}).name || '' : '';
-        var stepClick = manage ? ' onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'))"' : '';
+        var stepClick = canEdit() ? ' onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'))"' : '';
         return '<li class="bc-checklist__item' + doneClass + '" data-step-id="' + s.id + '">' +
           '<input type="checkbox" ' + (s.completed ? 'checked' : '') + ' onclick="event.stopPropagation();toggleStep(' + cardId + ',' + s.id + ',this.checked)">' +
           '<span' + stepClick + '>' + esc(s.title) + '</span>' +
@@ -745,7 +747,7 @@ async function renderCardPage(el, cardId) {
       }).join('');
       stepsHtml += '</ul>';
     }
-    if (manage) {
+    if (canEdit()) {
       stepsHtml += '<button class="bc-add-step-link" onclick="showAddStepForm(' + cardId + ')">Add a new step</button>';
       stepsHtml += '<div class="bc-add-step" id="addStepForm_' + cardId + '">' +
         '<div class="bc-add-step__row"><label>Step</label><input id="newStepInput" type="text" placeholder="Describe this step\u2026" onkeydown="if(event.key===\'Enter\')addStepFromPage(' + cardId + ')"></div>' +
@@ -762,7 +764,7 @@ async function renderCardPage(el, cardId) {
 
     // ===== COLUMN (always show Move along to dropdown) =====
     var colOptionsHtml = '';
-    if (manage && board && board.columns) {
+    if (canEdit() && board && board.columns) {
       var otherCols = board.columns.filter(function(c) { return c.id !== card.column_id; });
       colOptionsHtml = '<select class="bc-select-inline" onchange="moveCard(' + cardId + ', this.value)">' +
         '<option value="">Move along to\u2026</option>' +
@@ -825,7 +827,7 @@ async function renderCardPage(el, cardId) {
     var wrapperEnd = pinnedSidebarHtml ? pinnedSidebarHtml + '</div>' : '';
 
     var titleEsc = esc(card.title).replace(/'/g, "\\'");
-    var editBtnHtml = manage && !editing ? '<button class="bc-card__edit-btn" onclick="enterCardEditMode(' + cardId + ')" title="Edit">Edit card</button>' : '';
+    var editBtnHtml = canEdit() && !editing ? '<button class="bc-card__edit-btn" onclick="enterCardEditMode(' + cardId + ')" title="Edit">Edit card</button>' : '';
 
     // Populate editing presence from API response (only if it's someone else)
     if (card.editing_by && currentUser && card.editing_by.userId !== currentUser.id) {
