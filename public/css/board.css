@@ -79,7 +79,7 @@
 .board-watching__avatar:first-child { margin-left: 0; }
 
 /* ==================== KANBAN BOARD ==================== */
-.board-kanban { display: flex; gap: 0; overflow-x: auto; min-height: calc(100vh - 180px); align-items: stretch; }
+.board-kanban { display: flex; gap: 10px; overflow-x: auto; min-height: calc(100vh - 180px); align-items: stretch; padding: 16px; background: #0d1a22; }
 
 /* Board page header */
 .board-page-header {
@@ -96,11 +96,12 @@
 
 /* Column color bar — driven by --col-color CSS variable */
 .kanban-column {
-  flex: 1; min-width: 280px; border-right: 1px solid var(--border);
+  flex: 1; min-width: 280px;
   display: flex; flex-direction: column; position: relative;
-  background: linear-gradient(180deg, #1e3040 0%, #182835 60%, #14222e 100%);
+  background: #1a2e3d;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.07);
 }
-.kanban-column:last-of-type { border-right: none; }
 .kanban-column__inner { display: flex; flex-direction: column; flex: 1; padding: 0 14px; }
 
 
@@ -668,7 +669,7 @@ trix-toolbar .trix-button-group--file-tools { }
 /* ==================== RESPONSIVE (Mobile) ==================== */
 @media (max-width: 768px) {
   .board-kanban { flex-direction: column; overflow-x: visible; }
-  .kanban-column { min-width: 100%; max-width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 0 8px; }
+  .kanban-column { min-width: 100%; max-width: 100%; }
   .schedule-day { min-height: 60px; padding: 4px; }
   .schedule-day__num { font-size: 11px; }
   .schedule-event { font-size: 9px; }
