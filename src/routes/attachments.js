@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
+const upload = multer({ storage }); // no size limit
 
 // GET /api/cards/:cardId/attachments — list attachments for a card
 router.get('/:cardId/attachments', requireAuth, async (req, res) => {
