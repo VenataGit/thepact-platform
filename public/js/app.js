@@ -783,15 +783,17 @@ async function renderCardPage(el, cardId) {
       '</div>' +
       '</div></div>';
 
+    var COMMENTS_INITIAL = 5, COMMENTS_PAGE = 10;
     var commentsListHtml = '';
     if (comments.length) {
-      commentsListHtml = '<div class="bc-comments-list">';
-      for (var i = 0; i < comments.length; i++) {
-        var c = comments[i];
+      commentsListHtml = '<div class="bc-comments-list" id="commentsList">';
+      var shown = comments.slice(0, COMMENTS_INITIAL);
+      var remaining = comments.slice(COMMENTS_INITIAL);
+      var renderComment = function(c) {
         var cc = getAC(c.user_name);
         var isOwn = currentUser && (c.user_id === currentUser.id || currentUser.role === 'admin' || currentUser.role === 'moderator');
         var isPinned = _cardPinnedComment && _cardPinnedComment.id === c.id;
-        commentsListHtml += '<div class="bc-comment" data-comment-id="' + c.id + '">' +
+        return '<div class="bc-comment" data-comment-id="' + c.id + '">' +
           '<div class="bc-comment-avatar" style="background:' + cc + '">' + initials(c.user_name) + '</div>' +
           '<div class="bc-comment-body">' +
           '<div class="bc-comment-meta"><strong>' + esc(c.user_name) + '</strong> <span>' + timeAgo(c.created_at) + '</span></div>' +
@@ -799,8 +801,13 @@ async function renderCardPage(el, cardId) {
           '<div class="bc-comment-actions">' +
           (isOwn ? '<button class="bc-comment-action" onclick="editComment(' + cardId + ',' + c.id + ',this)">Edit</button>' : '') +
           (isOwn ? '<button class="bc-comment-action bc-comment-action--danger" onclick="deleteComment(' + cardId + ',' + c.id + ')">Delete</button>' : '') +
-          '<button class="bc-comment-action bc-comment-action--pin" onclick="pinComment(' + cardId + ',' + c.id + ')">' + (isPinned ? 'Unpin' : '\ud83d\udccc Pin') + '</button>' +
+          (canManage() ? '<button class="bc-comment-action bc-comment-action--pin" onclick="pinComment(' + cardId + ',' + c.id + ')">' + (isPinned ? 'Unpin' : '\ud83d\udccc Pin') + '</button>' : '') +
           '</div></div></div>';
+      };
+      commentsListHtml += shown.map(renderComment).join('');
+      if (remaining.length > 0) {
+        commentsListHtml += '<div id="hiddenComments" style="display:none">' + remaining.map(renderComment).join('') + '</div>';
+        commentsListHtml += '<button class="bc-show-more-comments" id="showMoreCommentsBtn" onclick="showMoreComments()">Покажи по-стари (' + remaining.length + ')</button>';
       }
       commentsListHtml += '</div>';
     }
@@ -1478,15 +1485,44 @@ async function addStepFromPage(cardId) {
 async function addComment(cardId) {
   var input = document.getElementById('newCommentInput');
   var c = input ? input.value.trim() : '';
-  if (!c || c === '<div><br></div>') return;
+  if (!c || c === '<div><br></div>' || c === '<div></div>') return;
   var textContent = c.replace(/<[^>]*>/g, '');
+  if (!textContent.trim()) return;
   var mentions = [];
   var mentionMatches = textContent.match(/@(\S+)/g);
   if (mentionMatches) {
     mentions = mentionMatches.map(function(m) { return m.substring(1).toLowerCase(); });
   }
   var mIds = allUsers.filter(function(u) { return mentions.some(function(n) { return u.name.toLowerCase().includes(n); }); }).map(function(u) { return u.id; });
-  try { await fetch('/api/cards/' + cardId + '/comments', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:c,mentions:mIds}) }); router(); } catch(e) {}
+  var btn = document.querySelector('.bc-btn-add-comment');
+  if (btn) { btn.disabled = true; btn.textContent = 'Изпращане…'; }
+  try {
+    var r = await fetch('/api/cards/' + cardId + '/comments', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:c,mentions:mIds}) });
+    if (!r.ok) { var d = await r.json(); alert(d.error || 'Грешка'); if(btn){btn.disabled=false;btn.textContent='Добави коментар';} return; }
+    router();
+  } catch(e) { alert('Грешка при изпращане'); if(btn){btn.disabled=false;btn.textContent='Добави коментар';} }
+}
+
+function showMoreComments() {
+  var hidden = document.getElementById('hiddenComments');
+  var btn = document.getElementById('showMoreCommentsBtn');
+  if (!hidden || !btn) return;
+  var BATCH = 10;
+  var items = hidden.querySelectorAll('.bc-comment');
+  var showing = 0;
+  for (var i = 0; i < items.length && showing < BATCH; i++) {
+    if (items[i].style.display === 'none' || items[i].parentElement === hidden) {
+      items[i].style.display = '';
+      hidden.parentElement.insertBefore(items[i], btn);
+      showing++;
+    }
+  }
+  if (hidden.querySelectorAll('.bc-comment').length === 0) {
+    btn.style.display = 'none';
+    hidden.remove();
+  } else {
+    btn.textContent = 'Покажи по-стари (' + hidden.querySelectorAll('.bc-comment').length + ')';
+  }
 }
 
 // ==================== ACTIVITY ====================

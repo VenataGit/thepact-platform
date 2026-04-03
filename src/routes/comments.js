@@ -10,7 +10,7 @@ router.get('/:cardId/comments', requireAuth, async (req, res) => {
     const comments = await query(
       `SELECT c.*, u.name as user_name, u.avatar_url as user_avatar
        FROM card_comments c JOIN users u ON c.user_id = u.id
-       WHERE c.card_id = $1 ORDER BY c.created_at ASC`,
+       WHERE c.card_id = $1 ORDER BY c.created_at DESC`,
       [req.params.cardId]
     );
     res.json(comments);

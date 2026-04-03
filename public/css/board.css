@@ -372,6 +372,8 @@
 .bc-comment:hover .bc-comment-actions { display: flex; }
 .bc-comment-action { background: none; border: none; color: var(--text-dim); font-size: 12px; cursor: pointer; padding: 2px 6px; font-family: inherit; border-radius: 4px; }
 .bc-comment-action:hover { background: var(--bg-hover); color: var(--text); }
+.bc-show-more-comments { display: block; width: 100%; padding: 10px; margin: 8px 0; background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); font-size: 13px; cursor: pointer; text-align: center; transition: background 0.15s, color 0.15s; }
+.bc-show-more-comments:hover { background: var(--bg-hover); color: var(--text); }
 .bc-comment-action--danger:hover { color: var(--red); }
 .bc-comment-action--pin { color: var(--accent); }
 
