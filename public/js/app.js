@@ -734,10 +734,10 @@ async function loadProjectActivity() {
   } catch {}
 }
 
-async function promptCreateBoard() {
-  const title = prompt('Име на нов борд:');
-  if (!title?.trim()) return;
-  try { await fetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim() }) }); router(); } catch {}
+function promptCreateBoard() {
+  showPromptModal('\u041d\u043e\u0432 \u0431\u043e\u0440\u0434', '\u0412\u044a\u0432\u0435\u0434\u0438 \u0437\u0430\u0433\u043b\u0430\u0432\u0438\u0435\u2026', '', async function(title) {
+    try { await fetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title }) }); router(); } catch {}
+  });
 }
 
 // ==================== BOARD (CARD TABLE) ====================
@@ -1225,7 +1225,12 @@ function updateCardEditingBanner(cardId) {
 function enterCardEditMode(cardId) {
   var editor = cardEditingPresence.get(parseInt(cardId));
   if (editor && currentUser && editor.userId !== currentUser.id) {
-    if (!confirm(editor.userName + ' редактира тази задача в момента.\n\nАко продължиш, промените им може да бъдат изгубени.\n\nИскаш ли все пак да редактираш?')) return;
+    showConfirmModal(editor.userName + ' \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0430 \u0442\u0430\u0437\u0438 \u0437\u0430\u0434\u0430\u0447\u0430 \u0432 \u043c\u043e\u043c\u0435\u043d\u0442\u0430. \u0410\u043a\u043e \u043f\u0440\u043e\u0434\u044a\u043b\u0436\u0438\u0448, \u043f\u0440\u043e\u043c\u0435\u043d\u0438\u0442\u0435 \u0438\u043c \u043c\u043e\u0436\u0435 \u0434\u0430 \u0431\u044a\u0434\u0430\u0442 \u0438\u0437\u0433\u0443\u0431\u0435\u043d\u0438. \u0418\u0441\u043a\u0430\u0448 \u043b\u0438 \u0432\u0441\u0435 \u043f\u0430\u043a \u0434\u0430 \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0430\u0448?', function() {
+      _cardEditMode = true;
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'card:editing', cardId }));
+      router();
+    }, false, '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0430\u0439');
+    return;
   }
   _cardEditMode = true;
   if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'card:editing', cardId }));
@@ -1496,21 +1501,31 @@ function toggleCardOptionsMenu(e, cardId, cardTitle) {
   }, 10);
 }
 
-// Move card picker (simple prompt for now)
+// Move card picker - proper modal with dropdowns
 function showMoveCardPicker(cardId) {
-  var boardNames = allBoards.map(function(b, i) { return (i + 1) + '. ' + b.title; }).join('\n');
-  var choice = prompt('Премести в кой борд?\n' + boardNames);
-  if (!choice) return;
-  var idx = parseInt(choice) - 1;
-  var board = allBoards[idx];
-  if (!board) return;
-  var colNames = (board.columns || []).map(function(c, i) { return (i + 1) + '. ' + c.title; }).join('\n');
-  var colChoice = prompt('Коя колона?\n' + colNames);
-  if (!colChoice) return;
-  var colIdx = parseInt(colChoice) - 1;
-  var col = (board.columns || [])[colIdx];
-  if (!col) return;
-  moveCard(cardId, col.id);
+  var ov = document.createElement('div'); ov.className = 'modal-overlay';
+  var boardOpts = allBoards.map(function(b) { return '<option value="' + b.id + '">' + esc(b.title) + '</option>'; }).join('');
+  ov.innerHTML = '<div class="confirm-modal-box"><p class="confirm-modal-msg">\u041f\u0440\u0435\u043c\u0435\u0441\u0442\u0438 \u043a\u0430\u0440\u0442\u0430</p>' +
+    '<select class="confirm-modal-input" id="mcBoard">' + boardOpts + '</select>' +
+    '<select class="confirm-modal-input" id="mcCol"></select>' +
+    '<div class="confirm-modal-actions"><button class="btn btn-primary" id="mcOk">\u041f\u0440\u0435\u043c\u0435\u0441\u0442\u0438</button><button class="btn btn-ghost" id="mcCancel">\u041e\u0442\u043a\u0430\u0437</button></div></div>';
+  document.body.appendChild(ov);
+  function updateCols() {
+    var bid = parseInt(ov.querySelector('#mcBoard').value);
+    var board = allBoards.find(function(b) { return b.id === bid; });
+    var cols = (board && board.columns) ? board.columns.filter(function(c) { return !c.is_done_column; }) : [];
+    ov.querySelector('#mcCol').innerHTML = cols.map(function(c) { return '<option value="' + c.id + '">' + esc(c.title) + '</option>'; }).join('');
+  }
+  updateCols();
+  ov.querySelector('#mcBoard').onchange = updateCols;
+  ov.querySelector('#mcOk').onclick = function() {
+    var colId = parseInt(ov.querySelector('#mcCol').value);
+    if (!colId) return;
+    ov.remove();
+    moveCard(cardId, colId);
+  };
+  ov.querySelector('#mcCancel').onclick = function() { ov.remove(); };
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
 }
 
 // Copy card link
@@ -1526,21 +1541,23 @@ function copyCardLink(cardId) {
 }
 
 // Archive card (DELETE)
-async function archiveCard(cardId) {
-  if (!confirm('Архивирай тази карта?')) return;
-  try {
-    await fetch('/api/cards/' + cardId, { method: 'DELETE' });
-    history.back();
-  } catch(e) {}
+function archiveCard(cardId) {
+  showConfirmModal('\u0410\u0440\u0445\u0438\u0432\u0438\u0440\u0430\u0439 \u0442\u0430\u0437\u0438 \u043a\u0430\u0440\u0442\u0430?', async function() {
+    try {
+      await fetch('/api/cards/' + cardId, { method: 'DELETE' });
+      history.back();
+    } catch(e) {}
+  }, true);
 }
 
 // Trash card (same as archive for now)
-async function trashCard(cardId) {
-  if (!confirm('Архивирай тази карта?')) return;
-  try {
-    await fetch('/api/cards/' + cardId, { method: 'DELETE' });
-    history.back();
-  } catch(e) {}
+function trashCard(cardId) {
+  showConfirmModal('\u0410\u0440\u0445\u0438\u0432\u0438\u0440\u0430\u0439 \u0442\u0430\u0437\u0438 \u043a\u0430\u0440\u0442\u0430?', async function() {
+    try {
+      await fetch('/api/cards/' + cardId, { method: 'DELETE' });
+      history.back();
+    } catch(e) {}
+  }, true);
 }
 
 // Remove assignee
@@ -1635,12 +1652,13 @@ async function saveStepEdit(cardId, stepId) {
   } catch(e) {}
 }
 
-async function deleteStep(cardId, stepId) {
-  if (!confirm('Изтрий тази стъпка?')) return;
-  try {
-    await fetch('/api/cards/' + cardId + '/steps/' + stepId, { method: 'DELETE' });
-    router();
-  } catch(e) {}
+function deleteStep(cardId, stepId) {
+  showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u0442\u0430\u0437\u0438 \u0441\u0442\u044a\u043f\u043a\u0430?', async function() {
+    try {
+      await fetch('/api/cards/' + cardId + '/steps/' + stepId, { method: 'DELETE' });
+      router();
+    } catch(e) {}
+  }, true);
 }
 
 // Show/hide add step form
@@ -1679,12 +1697,13 @@ async function saveCommentEdit(cardId, commentId) {
 }
 
 // Comment: delete
-async function deleteComment(cardId, commentId) {
-  if (!confirm('Изтрий коментара?')) return;
-  try {
-    await fetch('/api/cards/' + cardId + '/comments/' + commentId, { method: 'DELETE' });
-    router();
-  } catch(e) {}
+function deleteComment(cardId, commentId) {
+  showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u043a\u043e\u043c\u0435\u043d\u0442\u0430\u0440\u0430?', async function() {
+    try {
+      await fetch('/api/cards/' + cardId + '/comments/' + commentId, { method: 'DELETE' });
+      router();
+    } catch(e) {}
+  }, true);
 }
 
 // Comment: pin/unpin (persisted via API)
@@ -1735,9 +1754,10 @@ async function uploadCardFile(input, cardId) {
   const f = new FormData(); f.append('file', input.files[0]);
   try { await fetch(`/api/cards/${cardId}/attachments`, {method:'POST',body:f}); loadCardAttachments(cardId); } catch {}
 }
-async function deleteAttachment(cardId, attachId) {
-  if (!confirm('Изтрий файла?')) return;
-  try { await fetch(`/api/cards/${cardId}/attachments/${attachId}`, {method:'DELETE'}); loadCardAttachments(cardId); } catch {}
+function deleteAttachment(cardId, attachId) {
+  showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u0444\u0430\u0439\u043b\u0430?', async function() {
+    try { await fetch(`/api/cards/${cardId}/attachments/${attachId}`, {method:'DELETE'}); loadCardAttachments(cardId); } catch {}
+  }, true);
 }
 
 // ==================== CARD CREATE ====================
@@ -2126,10 +2146,23 @@ async function renderMessageBoard(el) {
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
-async function createMessage() {
-  const t=prompt('Заглавие:'); if(!t?.trim())return;
-  const c=prompt('Съдържание:');
-  try { await fetch('/api/messageboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,content:c})}); router(); } catch {}
+function createMessage() {
+  var ov = document.createElement('div'); ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box"><p class="confirm-modal-msg">\u041d\u043e\u0432\u043e \u0441\u044a\u043e\u0431\u0449\u0435\u043d\u0438\u0435</p>' +
+    '<input class="confirm-modal-input" id="msgTitle" placeholder="\u0417\u0430\u0433\u043b\u0430\u0432\u0438\u0435\u2026">' +
+    '<textarea class="confirm-modal-input" id="msgContent" rows="4" placeholder="\u0421\u044a\u0434\u044a\u0440\u0436\u0430\u043d\u0438\u0435 (\u043d\u0435\u0437\u0430\u0434\u044a\u043b\u0436\u0438\u0442\u0435\u043b\u043d\u043e)\u2026" style="resize:vertical"></textarea>' +
+    '<div class="confirm-modal-actions"><button class="btn btn-primary" id="msgOk">\u0421\u044a\u0437\u0434\u0430\u0439</button><button class="btn btn-ghost" id="msgCancel">\u041e\u0442\u043a\u0430\u0437</button></div></div>';
+  document.body.appendChild(ov);
+  var inp = ov.querySelector('#msgTitle'); setTimeout(function(){ inp.focus(); }, 50);
+  ov.querySelector('#msgOk').onclick = async function() {
+    var t = ov.querySelector('#msgTitle').value.trim(); if (!t) { ov.querySelector('#msgTitle').focus(); return; }
+    var c = ov.querySelector('#msgContent').value;
+    ov.remove();
+    try { await fetch('/api/messageboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,content:c})}); router(); } catch {}
+  };
+  ov.querySelector('#msgCancel').onclick = function() { ov.remove(); };
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  ov.querySelector('#msgTitle').onkeydown = function(e) { if (e.key === 'Escape') ov.remove(); };
 }
 async function generateDailyReport() {
   try { await fetch('/api/messageboard/daily-report',{method:'POST'}); router(); } catch {}
@@ -2169,10 +2202,10 @@ async function renderVault(el, folderId) {
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
-async function createVaultFolder(pid) { const n=prompt('Име на папка:'); if(!n?.trim())return; try { await fetch('/api/vault/folders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,parent_id:pid})}); router(); } catch {} }
+function createVaultFolder(pid) { showPromptModal('\u041d\u043e\u0432\u0430 \u043f\u0430\u043f\u043a\u0430', '\u0412\u044a\u0432\u0435\u0434\u0438 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435\u2026', '', async function(n) { try { await fetch('/api/vault/folders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,parent_id:pid})}); router(); } catch {} }); }
 async function uploadVaultFile(input,fid) { if(!input.files[0])return; const f=new FormData(); f.append('file',input.files[0]); if(fid)f.append('folder_id',fid); try { await fetch('/api/vault/upload',{method:'POST',body:f}); router(); } catch {} }
-async function deleteVaultFile(id) { if(!confirm('Изтрий файла?'))return; try{ await fetch('/api/vault/files/'+id,{method:'DELETE'}); router(); }catch{} }
-async function deleteVaultFolder(id) { if(!confirm('Изтрий папката и всичко в нея?'))return; try{ await fetch('/api/vault/folders/'+id,{method:'DELETE'}); router(); }catch{} }
+function deleteVaultFile(id) { showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u0444\u0430\u0439\u043b\u0430?', async function() { try{ await fetch('/api/vault/files/'+id,{method:'DELETE'}); router(); }catch{} }, true); }
+function deleteVaultFolder(id) { showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u043f\u0430\u043f\u043a\u0430\u0442\u0430 \u0438 \u0432\u0441\u0438\u0447\u043a\u043e \u0432 \u043d\u0435\u044f?', async function() { try{ await fetch('/api/vault/folders/'+id,{method:'DELETE'}); router(); }catch{} }, true); }
 function getFileIcon(m) { if(m?.startsWith('image/'))return'🖼️'; if(m?.startsWith('video/'))return'🎬'; if(m?.includes('pdf'))return'📄'; return'📎'; }
 function formatFileSize(b) { if(!b)return''; if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; return(b/1048576).toFixed(1)+' MB'; }
 
@@ -2313,10 +2346,24 @@ async function renderSchedule(el) {
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
-async function createScheduleEvent() {
-  const title = prompt('Заглавие на събитието:'); if(!title?.trim()) return;
-  const dateStr = prompt('Дата (YYYY-MM-DD):', new Date().toISOString().split('T')[0]); if(!dateStr) return;
-  try { await fetch('/api/schedule', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:title.trim(),starts_at:dateStr+'T09:00:00',all_day:true})}); router(); } catch {}
+function createScheduleEvent() {
+  var today = new Date().toISOString().split('T')[0];
+  var ov = document.createElement('div'); ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box"><p class="confirm-modal-msg">\u041d\u043e\u0432\u043e \u0441\u044a\u0431\u0438\u0442\u0438\u0435</p>' +
+    '<input class="confirm-modal-input" id="evTitle" placeholder="\u0417\u0430\u0433\u043b\u0430\u0432\u0438\u0435\u2026">' +
+    '<input class="confirm-modal-input" type="date" id="evDate" value="' + today + '">' +
+    '<div class="confirm-modal-actions"><button class="btn btn-primary" id="evOk">\u0421\u044a\u0437\u0434\u0430\u0439</button><button class="btn btn-ghost" id="evCancel">\u041e\u0442\u043a\u0430\u0437</button></div></div>';
+  document.body.appendChild(ov);
+  setTimeout(function(){ ov.querySelector('#evTitle').focus(); }, 50);
+  ov.querySelector('#evOk').onclick = async function() {
+    var t = ov.querySelector('#evTitle').value.trim(); if (!t) { ov.querySelector('#evTitle').focus(); return; }
+    var d = ov.querySelector('#evDate').value; if (!d) { ov.querySelector('#evDate').focus(); return; }
+    ov.remove();
+    try { await fetch('/api/schedule', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,starts_at:d+'T09:00:00',all_day:true})}); router(); } catch {}
+  };
+  ov.querySelector('#evCancel').onclick = function() { ov.remove(); };
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  ov.querySelector('#evTitle').onkeydown = function(e) { if (e.key === 'Escape') ov.remove(); };
 }
 
 // ==================== PRODUCTION CALENDAR ====================
@@ -2515,10 +2562,24 @@ async function submitCheckinResponse(questionId) {
   const c = document.getElementById(`checkinResponse${questionId}`)?.value?.trim(); if(!c) return;
   try { await fetch(`/api/checkins/questions/${questionId}/responses`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})}); router(); } catch {}
 }
-async function createCheckinQuestion() {
-  const q = prompt('Въпрос (напр. "Какво свърши днес?"):'); if(!q?.trim()) return;
-  const cron = prompt('Cron израз (по подразбиране: всеки делничен ден в 9:00):', '0 9 * * 1-5');
-  try { await fetch('/api/checkins/questions', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q.trim(),schedule_cron:cron||'0 9 * * 1-5'})}); router(); } catch {}
+function createCheckinQuestion() {
+  var ov = document.createElement('div'); ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box"><p class="confirm-modal-msg">\u041d\u043e\u0432 \u0447\u0435\u043a-\u0438\u043d \u0432\u044a\u043f\u0440\u043e\u0441</p>' +
+    '<input class="confirm-modal-input" id="ciQ" placeholder="\u041d\u0430\u043f\u0440. \u201e\u041a\u0430\u043a\u0432\u043e \u0441\u0432\u044a\u0440\u0448\u0438 \u0434\u043d\u0435\u0441?\u201c">' +
+    '<input class="confirm-modal-input" id="ciCron" value="0 9 * * 1-5" placeholder="Cron \u0438\u0437\u0440\u0430\u0437\u2026">' +
+    '<div style="font-size:11px;color:var(--text-dim);margin:-10px 0 14px">\u041f\u043e \u043f\u043e\u0434\u0440\u0430\u0437\u0431\u0438\u0440\u0430\u043d\u0435: \u0432\u0441\u0435\u043a\u0438 \u0434\u0435\u043b\u043d\u0438\u0447\u0435\u043d \u0434\u0435\u043d \u0432 9:00</div>' +
+    '<div class="confirm-modal-actions"><button class="btn btn-primary" id="ciOk">\u0421\u044a\u0437\u0434\u0430\u0439</button><button class="btn btn-ghost" id="ciCancel">\u041e\u0442\u043a\u0430\u0437</button></div></div>';
+  document.body.appendChild(ov);
+  setTimeout(function(){ ov.querySelector('#ciQ').focus(); }, 50);
+  ov.querySelector('#ciOk').onclick = async function() {
+    var q = ov.querySelector('#ciQ').value.trim(); if (!q) { ov.querySelector('#ciQ').focus(); return; }
+    var cron = ov.querySelector('#ciCron').value || '0 9 * * 1-5';
+    ov.remove();
+    try { await fetch('/api/checkins/questions', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,schedule_cron:cron})}); router(); } catch {}
+  };
+  ov.querySelector('#ciCancel').onclick = function() { ov.remove(); };
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  ov.querySelector('#ciQ').onkeydown = function(e) { if (e.key === 'Escape') ov.remove(); };
 }
 async function viewCheckinResponses(questionId) {
   try {
@@ -2616,11 +2677,25 @@ function showAdminTab(tab, btn) {
   });
   if (tab === 'settings') loadAdminSettings();
 }
-async function createNewUser() {
-  const name = prompt('Име:'); if(!name?.trim()) return;
-  const email = prompt('\u0418\u043c\u0435\u0439\u043b:'); if(!email?.trim()) return;
-  const password = prompt('Парола:'); if(!password?.trim()) return;
-  try { await fetch('/api/users', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),email:email.trim(),password})}); router(); } catch {}
+function createNewUser() {
+  var ov = document.createElement('div'); ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box"><p class="confirm-modal-msg">\u041d\u043e\u0432 \u043f\u043e\u0442\u0440\u0435\u0431\u0438\u0442\u0435\u043b</p>' +
+    '<input class="confirm-modal-input" id="nuName" placeholder="\u0418\u043c\u0435\u2026">' +
+    '<input class="confirm-modal-input" type="email" id="nuEmail" placeholder="\u0418\u043c\u0435\u0439\u043b\u2026">' +
+    '<input class="confirm-modal-input" type="password" id="nuPass" placeholder="\u041f\u0430\u0440\u043e\u043b\u0430\u2026">' +
+    '<div class="confirm-modal-actions"><button class="btn btn-primary" id="nuOk">\u0421\u044a\u0437\u0434\u0430\u0439</button><button class="btn btn-ghost" id="nuCancel">\u041e\u0442\u043a\u0430\u0437</button></div></div>';
+  document.body.appendChild(ov);
+  setTimeout(function(){ ov.querySelector('#nuName').focus(); }, 50);
+  ov.querySelector('#nuOk').onclick = async function() {
+    var name = ov.querySelector('#nuName').value.trim(); if (!name) { ov.querySelector('#nuName').focus(); return; }
+    var email = ov.querySelector('#nuEmail').value.trim(); if (!email) { ov.querySelector('#nuEmail').focus(); return; }
+    var password = ov.querySelector('#nuPass').value; if (!password) { ov.querySelector('#nuPass').focus(); return; }
+    ov.remove();
+    try { await fetch('/api/users', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password})}); router(); } catch {}
+  };
+  ov.querySelector('#nuCancel').onclick = function() { ov.remove(); };
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  ov.querySelector('#nuName').onkeydown = function(e) { if (e.key === 'Escape') ov.remove(); };
 }
 async function changeUserRole(userId, role) {
   try { await fetch(`/api/users/${userId}/role`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})}); } catch {}
@@ -3032,29 +3107,31 @@ async function saveKpClient(id) {
   } catch (err) { showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error'); }
 }
 
-async function createKpCardNow(clientId, clientName) {
-  if (!confirm('Създай нов контент план за ' + clientName + ' в платформата?')) return;
-  try {
-    var res = await fetch('/api/kp/create-card/' + clientId, { method: 'POST', headers: {'Content-Type':'application/json'} });
-    var data = await res.json();
-    if (data.ok) {
-      showToast('\u2705 \u0421\u044a\u0437\u0434\u0430\u0434\u0435\u043d\u043e: ' + data.title, 'success');
-      var el = document.getElementById('pageContent');
-      if (el) await loadKpAuto(el);
-    } else {
-      showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'), 'error');
-    }
-  } catch (err) { showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error'); }
+function createKpCardNow(clientId, clientName) {
+  showConfirmModal('\u0421\u044a\u0437\u0434\u0430\u0439 \u043d\u043e\u0432 \u043a\u043e\u043d\u0442\u0435\u043d\u0442 \u043f\u043b\u0430\u043d \u0437\u0430 ' + clientName + ' \u0432 \u043f\u043b\u0430\u0442\u0444\u043e\u0440\u043c\u0430\u0442\u0430?', async function() {
+    try {
+      var res = await fetch('/api/kp/create-card/' + clientId, { method: 'POST', headers: {'Content-Type':'application/json'} });
+      var data = await res.json();
+      if (data.ok) {
+        showToast('\u2705 \u0421\u044a\u0437\u0434\u0430\u0434\u0435\u043d\u043e: ' + data.title, 'success');
+        var el = document.getElementById('pageContent');
+        if (el) await loadKpAuto(el);
+      } else {
+        showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'), 'error');
+      }
+    } catch (err) { showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error'); }
+  });
 }
 
-async function deleteKpClientNow(clientId, clientName) {
-  if (!confirm('Изтрий клиент "' + clientName + '"?\n\nТова ще скрие записа от автоматизацията.')) return;
-  try {
-    var res = await fetch('/api/kp/clients/' + clientId, { method: 'DELETE' });
-    var data = await res.json();
-    if (data.ok) { var el = document.getElementById('pageContent'); if (el) await loadKpAuto(el); }
-    else showToast('Грешка: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'), 'error');
-  } catch (err) { showToast('Грешка: ' + err.message, 'error'); }
+function deleteKpClientNow(clientId, clientName) {
+  showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u043a\u043b\u0438\u0435\u043d\u0442 "' + clientName + '"?\u0422\u043e\u0432\u0430 \u0449\u0435 \u0441\u043a\u0440\u0438\u0435 \u0437\u0430\u043f\u0438\u0441\u0430 \u043e\u0442 \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0437\u0430\u0446\u0438\u044f\u0442\u0430.', async function() {
+    try {
+      var res = await fetch('/api/kp/clients/' + clientId, { method: 'DELETE' });
+      var data = await res.json();
+      if (data.ok) { var el = document.getElementById('pageContent'); if (el) await loadKpAuto(el); }
+      else showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'), 'error');
+    } catch (err) { showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error'); }
+  }, true);
 }
 
 // ==================== BOOKMARKS ====================
@@ -3144,17 +3221,17 @@ function showColMenu(e,bid,cid) {
   e.target.closest('.column-header-right').appendChild(menu);
   setTimeout(()=>document.addEventListener('click',()=>menu.remove(),{once:true}),10);
 }
-async function promptSetWipLimit(bid,cid) {
+function promptSetWipLimit(bid,cid) {
   const board = allBoards.find(b=>b.id===bid);
   const col = board && board.columns ? board.columns.find(c=>c.id===cid) : null;
-  const current = col && col.wip_limit ? col.wip_limit : '';
-  const val = prompt('WIP лимит (0 = без лимит):', current);
-  if (val === null) return;
-  const limit = parseInt(val) || 0;
-  try { await fetch('/api/boards/' + bid + '/columns/' + cid, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({wip_limit: limit || null})}); allBoards=await(await fetch('/api/boards')).json(); router(); } catch {}
+  const current = col && col.wip_limit ? String(col.wip_limit) : '';
+  showPromptModal('WIP \u043b\u0438\u043c\u0438\u0442 (0 = \u0431\u0435\u0437 \u043b\u0438\u043c\u0438\u0442)', '\u041d\u0430\u043f\u0440. 3', current, async function(val) {
+    const limit = parseInt(val) || 0;
+    try { await fetch('/api/boards/' + bid + '/columns/' + cid, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({wip_limit: limit || null})}); allBoards=await(await fetch('/api/boards')).json(); router(); } catch {}
+  }, 'number');
 }
-async function promptRenameColumn(bid,cid) { const t=prompt('Ново име:'); if(!t?.trim())return; try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
-async function deleteColumn(bid,cid) { if(!confirm('\u0418\u0437\u0442\u0440\u0438\u0439 \u043a\u043e\u043b\u043e\u043d\u0430 \u0438 \u0432\u0441\u0438\u0447\u043a\u0438 \u043a\u0430\u0440\u0442\u0438 \u0432 \u043d\u0435\u044f?'))return; try{const r=await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'DELETE'}); if(!r.ok){const d=await r.json();showToast(d.error||'\u0413\u0440\u0435\u0448\u043a\u0430','error');return;} allBoards=await(await fetch('/api/boards')).json(); router();}catch{showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0438\u0437\u0442\u0440\u0438\u0432\u0430\u043d\u0435','error');} }
+function promptRenameColumn(bid,cid) { showPromptModal('\u041f\u0440\u0435\u0438\u043c\u0435\u043d\u0443\u0432\u0430\u0439 \u043a\u043e\u043b\u043e\u043d\u0430', '\u041d\u043e\u0432\u043e \u0438\u043c\u0435\u2026', '', async function(t) { try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }); }
+function deleteColumn(bid,cid) { showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u043a\u043e\u043b\u043e\u043d\u0430 \u0438 \u0432\u0441\u0438\u0447\u043a\u0438 \u043a\u0430\u0440\u0442\u0438 \u0432 \u043d\u0435\u044f?', async function() { try{const r=await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'DELETE'}); if(!r.ok){const d=await r.json();showToast(d.error||'\u0413\u0440\u0435\u0448\u043a\u0430','error');return;} allBoards=await(await fetch('/api/boards')).json(); router();}catch{showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0438\u0437\u0442\u0440\u0438\u0432\u0430\u043d\u0435','error');} }, true); }
 function toggleBoardMenu(e, bid) {
   e.stopPropagation();
   document.querySelectorAll('.board-context-menu').forEach(m => m.remove());
@@ -3170,22 +3247,23 @@ function toggleBoardMenu(e, bid) {
   e.target.closest('.board-page-header__actions').appendChild(menu);
   setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
 }
-async function promptRenameBoard(bid) {
+function promptRenameBoard(bid) {
   const board = allBoards.find(b => b.id === bid);
-  const t = prompt('Ново име на борда:', board ? board.title : '');
-  if (!t || !t.trim()) return;
-  try { await fetch('/api/boards/' + bid, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.trim()})}); allBoards = await (await fetch('/api/boards')).json(); router(); } catch {}
+  showPromptModal('\u041f\u0440\u0435\u0438\u043c\u0435\u043d\u0443\u0432\u0430\u0439 \u0431\u043e\u0440\u0434', '\u041d\u043e\u0432\u043e \u0438\u043c\u0435\u2026', board ? board.title : '', async function(t) {
+    try { await fetch('/api/boards/' + bid, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})}); allBoards = await (await fetch('/api/boards')).json(); router(); } catch {}
+  });
 }
-async function deleteBoardConfirm(bid) {
+function deleteBoardConfirm(bid) {
   const board = allBoards.find(b => b.id === bid);
-  if (!confirm('Изтрий борд "' + (board ? board.title : '') + '"?\nВсички карти и колони ще бъдат изтрити!')) return;
-  try {
-    const r = await fetch('/api/boards/' + bid, { method: 'DELETE' });
-    if (!r.ok) { const d = await r.json(); showToast(d.error || 'Грешка', 'error'); return; }
-    allBoards = await (await fetch('/api/boards')).json();
-    location.hash = '#/home';
-    router();
-  } catch { showToast('Грешка при изтриване', 'error'); }
+  showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u0431\u043e\u0440\u0434 "' + (board ? board.title : '') + '"?\n\u0412\u0441\u0438\u0447\u043a\u0438 \u043a\u0430\u0440\u0442\u0438 \u0438 \u043a\u043e\u043b\u043e\u043d\u0438 \u0449\u0435 \u0431\u044a\u0434\u0430\u0442 \u0438\u0437\u0442\u0440\u0438\u0442\u0438!', async function() {
+    try {
+      const r = await fetch('/api/boards/' + bid, { method: 'DELETE' });
+      if (!r.ok) { const d = await r.json(); showToast(d.error || '\u0413\u0440\u0435\u0448\u043a\u0430', 'error'); return; }
+      allBoards = await (await fetch('/api/boards')).json();
+      location.hash = '#/home';
+      router();
+    } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0438\u0437\u0442\u0440\u0438\u0432\u0430\u043d\u0435', 'error'); }
+  }, true);
 }
 
 // ==================== DRAG & DROP ====================
@@ -3508,6 +3586,44 @@ function showToast(msg, type) {
   }, 3500);
 }
 
+// ==================== CONFIRM/PROMPT MODALS ====================
+function showConfirmModal(msg, onConfirm, danger, okLabel) {
+  var ov = document.createElement('div');
+  ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box">' +
+    '<p class="confirm-modal-msg">' + esc(msg) + '</p>' +
+    '<div class="confirm-modal-actions">' +
+    '<button class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" id="cmOkBtn">' + esc(okLabel || (danger ? '\u0418\u0437\u0442\u0440\u0438\u0439' : '\u041f\u043e\u0442\u0432\u044a\u0440\u0434\u0438')) + '</button>' +
+    '<button class="btn btn-ghost" id="cmCancelBtn">\u041e\u0442\u043a\u0430\u0437</button>' +
+    '</div></div>';
+  document.body.appendChild(ov);
+  function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  ov.querySelector('#cmOkBtn').onclick = function() { close(); onConfirm(); };
+  ov.querySelector('#cmCancelBtn').onclick = close;
+  ov.onclick = function(e) { if (e.target === ov) close(); };
+  document.addEventListener('keydown', onKey);
+}
+function showPromptModal(title, placeholder, defaultVal, onConfirm, inputType) {
+  var ov = document.createElement('div');
+  ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box">' +
+    '<p class="confirm-modal-msg">' + esc(title) + '</p>' +
+    '<input class="confirm-modal-input" type="' + (inputType || 'text') + '" id="pmInput" value="' + esc(defaultVal || '') + '" placeholder="' + esc(placeholder || '') + '">' +
+    '<div class="confirm-modal-actions">' +
+    '<button class="btn btn-primary" id="pmOkBtn">OK</button>' +
+    '<button class="btn btn-ghost" id="pmCancelBtn">\u041e\u0442\u043a\u0430\u0437</button>' +
+    '</div></div>';
+  document.body.appendChild(ov);
+  var inp = ov.querySelector('#pmInput');
+  setTimeout(function() { inp.focus(); inp.select(); }, 50);
+  function submit() { var v = inp.value.trim(); if (!v) { inp.focus(); return; } ov.remove(); onConfirm(v); }
+  inp.onkeydown = function(e) { if (e.key === 'Enter') submit(); if (e.key === 'Escape') ov.remove(); };
+  ov.querySelector('#pmOkBtn').onclick = submit;
+  ov.querySelector('#pmCancelBtn').onclick = function() { ov.remove(); };
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+}
+
 // ==================== UTILS ====================
 function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(d) { if(!d)return''; const s=d.split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}.${m}.${y}`; }
@@ -3639,22 +3755,23 @@ function openPresentation(cardId) {
   window.open('/present/' + cardId, '_blank');
 }
 
-async function generateVideoCards(cardId, cardTitle, btn) {
-  if (!confirm('Ще бъдат генерирани видео задачи за "' + cardTitle + '".\n\nКартите ще бъдат създадени в колона "Разпределение".\n\nПродължаваш?')) return;
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Генериране...'; }
-  try {
-    var res = await fetch('/api/kp/generate-video-cards/' + cardId, { method: 'POST' });
-    var data = await res.json();
-    if (data.ok) {
-      showToast('\u2705 \u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u043d\u0438 ' + data.count + ' \u0432\u0438\u0434\u0435\u043e \u0437\u0430\u0434\u0430\u0447\u0438 \u0443\u0441\u043f\u0435\u0448\u043d\u043e!', 'success');
-    } else {
-      showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430 \u0433\u0440\u0435\u0448\u043a\u0430'), 'error');
+function generateVideoCards(cardId, cardTitle, btn) {
+  showConfirmModal('\u0429\u0435 \u0431\u044a\u0434\u0430\u0442 \u0433\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u043d\u0438 \u0432\u0438\u0434\u0435\u043e \u0437\u0430\u0434\u0430\u0447\u0438 \u0437\u0430 "' + cardTitle + '".\n\u041a\u0430\u0440\u0442\u0438\u0442\u0435 \u0449\u0435 \u0431\u044a\u0434\u0430\u0442 \u0441\u044a\u0437\u0434\u0430\u0434\u0435\u043d\u0438 \u0432 \u043a\u043e\u043b\u043e\u043d\u0430 "\u0420\u0430\u0437\u043f\u0440\u0435\u0434\u0435\u043b\u0435\u043d\u0438\u0435". \u041f\u0440\u043e\u0434\u044a\u043b\u0436\u0430\u0432\u0430\u0448?', async function() {
+    if (btn) { btn.disabled = true; btn.textContent = '\u23f3 \u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u043d\u0435...'; }
+    try {
+      var res = await fetch('/api/kp/generate-video-cards/' + cardId, { method: 'POST' });
+      var data = await res.json();
+      if (data.ok) {
+        showToast('\u2705 \u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u043d\u0438 ' + data.count + ' \u0432\u0438\u0434\u0435\u043e \u0437\u0430\u0434\u0430\u0447\u0438 \u0443\u0441\u043f\u0435\u0448\u043d\u043e!', 'success');
+      } else {
+        showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430 \u0433\u0440\u0435\u0448\u043a\u0430'), 'error');
+      }
+    } catch (err) {
+      showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '\u2699\ufe0f \u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u0439 \u0437\u0430\u0434\u0430\u0447\u0438'; }
     }
-  } catch (err) {
-    showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '\u2699\ufe0f \u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u0439 \u0437\u0430\u0434\u0430\u0447\u0438'; }
-  }
+  });
 }
 
 // ==================== SOS СИСТЕМА ====================

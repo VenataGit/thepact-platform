@@ -1092,3 +1092,14 @@ trix-toolbar .trix-button-group--file-tools { }
 .app-toast--success { border-color: var(--green); color: var(--green); }
 .app-toast--error { border-color: var(--red); color: var(--red); }
 .app-toast--warn { border-color: var(--yellow); color: var(--yellow); }
+
+/* ==================== CONFIRM/PROMPT MODALS ==================== */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+.confirm-modal-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; max-width: 440px; width: 100%; box-shadow: 0 8px 40px rgba(0,0,0,0.5); }
+.confirm-modal-msg { color: var(--text); font-size: 15px; line-height: 1.55; margin: 0 0 20px; white-space: pre-line; }
+.confirm-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.confirm-modal-input { display: block; width: 100%; box-sizing: border-box; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: var(--text); font-size: 14px; outline: none; margin-bottom: 12px; font-family: inherit; }
+.confirm-modal-input:focus { border-color: var(--accent); }
+textarea.confirm-modal-input { resize: vertical; min-height: 80px; }
+.btn-danger { background: var(--red); color: #fff; border: none; padding: 8px 20px; border-radius: 20px; font-weight: 700; cursor: pointer; font-size: 13px; transition: background 0.15s; }
+.btn-danger:hover { background: #dc2626; }
