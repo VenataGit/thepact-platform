@@ -114,6 +114,7 @@
 .column-title-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--col-color, var(--accent)); flex-shrink: 0; }
 .column-title-link { font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
 .column-title-link .col-count { font-weight: 500; color: var(--text-dim); font-size: 11px; background: var(--bg-hover); padding: 2px 8px; border-radius: 9999px; }
+.column-title-link .col-count--wip { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
 .column-header-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .col-menu-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; padding: 2px 6px; border-radius: 4px; opacity: 0; transition: opacity var(--transition-fast); line-height: 1; }
 .kanban-column:hover .col-menu-btn { opacity: 1; }
@@ -189,6 +190,7 @@
 /* Card badges */
 .kanban-card__badges { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; justify-content: flex-end; }
 .kanban-card__due { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: var(--text-secondary); background: var(--bg-hover); padding: 2px 7px; border-radius: 4px; }
+.kanban-card__publish { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: var(--accent); background: var(--accent-dim); padding: 2px 7px; border-radius: 4px; }
 .kanban-card__comments { display: inline-flex; align-items: center; gap: 3px; background: var(--bg-hover); color: var(--text-secondary); border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 600; }
 .kanban-card__steps { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: var(--green); background: var(--green-dim); padding: 2px 7px; border-radius: 4px; font-weight: 600; }
 .kanban-card__client { display: inline-flex; align-items: center; font-size: 10px; color: var(--text-dim); background: var(--bg-hover); padding: 2px 7px; border-radius: 4px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -271,6 +273,7 @@
 .bc-field__hint { color: var(--text-dim); font-size: 13px; }
 .bc-field--light { opacity: 0.7; }
 .bc-field__placeholder { color: var(--text-dim); font-style: normal; }
+.bc-client-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(28,176,246,0.2); border-radius: 6px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
 
 /* Edit card button */
 .bc-card__edit-btn {

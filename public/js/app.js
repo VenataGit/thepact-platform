@@ -672,8 +672,7 @@ async function renderBoard(el, boardId) {
     if (!board) { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Бордът не е намерен</div>'; return; }
 
     setBreadcrumb([
-      { label: 'Video Production', href: '#/project/1' },
-      { label: board.title, href: `#/board/${boardId}` }
+      { label: board.title }
     ]);
 
     const manage = canManage();
@@ -713,7 +712,7 @@ async function renderBoard(el, boardId) {
                     <span class="column-title-dot"></span>
                     <h2 class="column-title-link">
                       <span ${manage ? `ondblclick="editColumnTitle(${boardId}, ${col.id}, this)"` : ''}>${esc(col.title)}</span>
-                      <span class="col-count">${colCards.length + holdCards.length}</span>
+                      <span class="col-count${col.wip_limit && (colCards.length + holdCards.length) >= col.wip_limit ? ' col-count--wip' : ''}">${colCards.length + holdCards.length}${col.wip_limit ? `/${col.wip_limit}` : ''}</span>
                     </h2>
                   </div>
                   <div class="column-header-right">
@@ -759,6 +758,7 @@ async function renderBoard(el, boardId) {
 function renderKanbanCard(card, colColor) {
   const color = getCardColorClass(card);
   const dueStr = card.due_on ? formatDate(card.due_on) : '';
+  const publishStr = card.publish_date ? formatDate(card.publish_date) : '';
   const stepsStr = card.steps_total > 0 ? `${card.steps_done}/${card.steps_total}` : '';
   const avColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
   const getAC = n => avColors[(n||'').length % avColors.length];
@@ -785,7 +785,7 @@ function renderKanbanCard(card, colColor) {
             <div class="kanban-card__badges">
               ${card.client_name ? `<span class="kanban-card__client">${esc(card.client_name)}</span>` : ''}
               ${stepsStr ? `<span class="kanban-card__steps">✓ ${stepsStr}</span>` : ''}
-              ${dueStr ? `<span class="kanban-card__due">${dueStr}</span>` : ''}
+              ${publishStr ? `<span class="kanban-card__publish">📅 ${publishStr}</span>` : dueStr ? `<span class="kanban-card__due">${dueStr}</span>` : ''}
               ${card.comment_count ? `<span class="kanban-card__comments">💬 ${card.comment_count}</span>` : ''}
             </div>
           </div>
@@ -815,9 +815,9 @@ async function renderCardPage(el, cardId) {
     var col = board && board.columns ? board.columns.find(function(c) { return c.id === card.column_id; }) : null;
 
     setBreadcrumb([
-      { label: 'Video Production', href: '#/project/1' },
-      { label: board ? board.title : '\u2014', href: '#/board/' + card.board_id },
-      { label: col ? col.title : '\u2014', href: '#/board/' + card.board_id }
+      { label: board ? board.title : 'Борд', href: '#/board/' + card.board_id },
+      { label: col ? col.title : '\u2014', href: '#/board/' + card.board_id },
+      { label: card.title.substring(0, 40) + (card.title.length > 40 ? '…' : '') }
     ]);
 
     var manage = canManage();
@@ -1011,8 +1011,10 @@ async function renderCardPage(el, cardId) {
           '</header>' +
           '<div class="bc-card__fields">' +
             '<div class="bc-field"><span class="bc-field__label">Колона</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
+            (card.client_name ? '<div class="bc-field"><span class="bc-field__label">Клиент</span><div class="bc-field__value"><span class="bc-client-badge">' + esc(card.client_name) + (card.kp_number ? ' \u00b7 \u041a\u041f-' + card.kp_number : '') + '</span></div></div>' : '') +
             '<div class="bc-field"><span class="bc-field__label">Отговорник</span><div class="bc-field__value">' + assigneesHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Краен срок</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
+            (card.publish_date ? '<div class="bc-field"><span class="bc-field__label">Публикуване</span><div class="bc-field__value"><span style="color:var(--accent)">\ud83d\udcc5 ' + formatDate(card.publish_date) + '</span></div></div>' : '') +
             '<div class="bc-field"><span class="bc-field__label">Бележки</span><div class="bc-field__value bc-field__value--full">' + notesHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Стъпки</span><div class="bc-field__value bc-field__value--full">' + stepsHtml + '</div></div>' +
             '<div class="bc-field bc-field--light"><span class="bc-field__label">Добавено от</span><div class="bc-field__value"><span>' + esc(creatorName) + '</span><span class="bc-field__hint">' + createdAgo + '</span></div></div>' +
@@ -1584,9 +1586,8 @@ async function renderCardCreate(el) {
   const board = allBoards.find(b => b.id === boardId);
 
   setBreadcrumb([
-    { label: 'Video Production', href: '#/project/1' },
     { label: board?.title || '—', href: `#/board/${boardId}` },
-    { label: 'Нова карта', href: '#' }
+    { label: 'Нова карта' }
   ]);
   el.className = '';
 
