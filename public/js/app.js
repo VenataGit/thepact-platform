@@ -758,7 +758,7 @@ async function renderCardPage(el, cardId) {
       '<div class="bc-comment-avatar" style="background:' + getAC(currentUser ? currentUser.name : '') + '">' + initials(currentUser ? currentUser.name : '') + '</div>' +
       '<div class="bc-comment-input-wrap">' +
       '<div class="bc-editor"><input id="newCommentInput" type="hidden" value=""><trix-editor input="newCommentInput" class="trix-dark" placeholder="Type your comment here\u2026" style="min-height:80px"></trix-editor></div>' +
-      '<button class="bc-btn-save" onclick="addComment(' + cardId + ')" style="margin-top:8px">Add this comment</button>' +
+      '<button class="bc-btn-save bc-btn-add-comment" onclick="addComment(' + cardId + ')">Add this comment</button>' +
       '</div></div>';
 
     var commentsListHtml = '';
@@ -814,7 +814,7 @@ async function renderCardPage(el, cardId) {
             '<h1 class="bc-card__title"' + (editing ? ' onclick="editCardTitle(this,' + cardId + ')"' : '') + '>' + esc(card.title) + '</h1>' +
           '</header>' +
           '<div class="bc-card__fields">' +
-            '<div class="bc-field"><span class="bc-field__label">Column</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Колона</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Assigned to</span><div class="bc-field__value">' + assigneesHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Due on</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Notes</span><div class="bc-field__value bc-field__value--full">' + notesHtml + '</div></div>' +
@@ -864,7 +864,7 @@ async function saveCardEdits(cardId) {
   if (notesInput) {
     var content = notesInput.value;
     var textContent = content ? content.replace(/<[^>]*>/g, '').trim() : '';
-    await fetch('/api/cards/' + cardId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: textContent ? content : null }) });
+    await fetch('/api/cards/' + cardId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: textContent ? content : '' }) });
   }
   _cardEditMode = false;
   router();
@@ -1272,7 +1272,9 @@ async function addComment(cardId) {
 async function renderActivity(el) {
   setBreadcrumb(null); el.className = '';
   try {
-    const items = await (await fetch('/api/activity?limit=50')).json();
+    const _actRes = await fetch('/api/activity?limit=50');
+    const _actData = await _actRes.json();
+    const items = Array.isArray(_actData) ? _actData : [];
     const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
     const getAvatarColor = (name) => avatarColors[(name||'').length % avatarColors.length];
 

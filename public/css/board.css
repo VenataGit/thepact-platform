@@ -178,11 +178,11 @@
   padding-top: 2px;
 }
 .bc-field__value {
-  flex: 1; font-size: 14px; color: var(--text-secondary);
+  flex: 1; min-width: 0; font-size: 14px; color: var(--text-secondary);
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
 }
 .bc-field__value--vertical { flex-direction: column; align-items: flex-start; gap: 6px; }
-.bc-field__value--full { flex-direction: column; align-items: stretch; }
+.bc-field__value--full { flex-direction: column; align-items: stretch; overflow: hidden; }
 .bc-field__hint { color: var(--text-dim); font-size: 13px; }
 .bc-field--light { opacity: 0.7; }
 .bc-field__placeholder { color: var(--text-dim); font-style: normal; }
@@ -228,9 +228,10 @@
 .bc-date-input--hidden { display: none; }
 
 /* Editor — Basecamp Trix style */
-.bc-editor { border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.2); overflow: hidden; width: 100%; }
+.bc-editor { border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.2); overflow: hidden; width: 100%; max-width: 100%; box-sizing: border-box; }
 .bc-editor trix-toolbar { border: none; border-bottom: 1px solid rgba(255,255,255,0.1); background: transparent; border-radius: 0; padding: 6px 4px; }
-.bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; padding: 14px; color: var(--text); font-size: 14px; line-height: 1.6; }
+.bc-editor trix-toolbar .trix-button-group { flex-wrap: wrap; }
+.bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; padding: 14px; color: var(--text); font-size: 14px; line-height: 1.6; min-width: 0; box-sizing: border-box; }
 
 /* Steps — expandable items */
 .bc-checklist { list-style: none; padding: 0; margin: 0 0 8px; }
@@ -284,11 +285,16 @@
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
 }
-.bc-comment-input-wrap { flex: 1; }
+.bc-comment-input-wrap { flex: 1; min-width: 0; }
 .bc-comment-input-wrap .bc-editor { min-height: auto; }
 .bc-comment-input-wrap .bc-editor trix-editor.trix-dark { min-height: 60px; }
+
+/* Hide "Add this comment" button until user focuses the editor */
+.bc-btn-add-comment { display: none; margin-top: 8px; }
+.bc-comment-input-wrap:focus-within .bc-btn-add-comment { display: inline-block; }
+
 .bc-comments-list { }
-.bc-comment { display: flex; gap: 12px; padding: 16px 0; border-top: 1px solid var(--border); position: relative; }
+.bc-comment { display: flex; gap: 12px; padding: 20px 0; border-top: 2px solid var(--border); position: relative; }
 .bc-comment-body { flex: 1; min-width: 0; }
 .bc-comment-meta { font-size: 13px; margin-bottom: 4px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
 .bc-comment-meta strong { color: var(--text); }
