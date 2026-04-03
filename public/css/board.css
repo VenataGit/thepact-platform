@@ -148,7 +148,7 @@
 .card-page-main { flex: 1; min-width: 0; max-width: 960px; margin: 0 auto; }
 
 /* Card: framed container — options button absolutely positioned inside */
-.bc-card { background: var(--bg-card, #182830); border: 1px solid var(--border, #2a3f4d); border-radius: 10px; padding: 36px 44px; max-width: 960px; margin: 0 auto; position: relative; }
+.bc-card { background: var(--bg-card, #182830); border: 1px solid var(--border, #2a3f4d); border-radius: 10px; padding: 36px 64px; max-width: 960px; margin: 0 auto; position: relative; }
 .bc-card-options { position: absolute; top: 14px; right: 14px; display: flex; gap: 4px; align-items: center; }
 .bc-card-options__dots { font-size: 18px; padding: 2px 8px; line-height: 1; }
 
