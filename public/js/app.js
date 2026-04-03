@@ -624,156 +624,478 @@ function renderKanbanCard(card) {
 }
 
 // ==================== CARD PAGE ====================
+var _cardPinnedComment = null;
+
 async function renderCardPage(el, cardId) {
   el.className = '';
   try {
-    const card = await (await fetch(`/api/cards/${cardId}`)).json();
-    let comments = [];
-    try { comments = await (await fetch(`/api/cards/${cardId}/comments`)).json(); } catch {}
+    const card = await (await fetch('/api/cards/' + cardId)).json();
+    var comments = [];
+    try { comments = await (await fetch('/api/cards/' + cardId + '/comments')).json(); } catch(e) {}
 
-    const board = allBoards.find(b => b.id === card.board_id);
-    const col = board?.columns?.find(c => c.id === card.column_id);
+    // Load pinned comment from API
+    _cardPinnedComment = card.pinned_comment || null;
+
+    var board = allBoards.find(function(b) { return b.id === card.board_id; });
+    var col = board && board.columns ? board.columns.find(function(c) { return c.id === card.column_id; }) : null;
 
     setBreadcrumb([
       { label: 'Video Production', href: '#/project/1' },
-      { label: board?.title || '—', href: `#/board/${card.board_id}` },
-      { label: col?.title || '—', href: `#/board/${card.board_id}` }
+      { label: board ? board.title : '\u2014', href: '#/board/' + card.board_id },
+      { label: col ? col.title : '\u2014', href: '#/board/' + card.board_id }
     ]);
 
-    const manage = canManage();
+    var manage = canManage();
+    var creatorName = card.creator_name || (allUsers.find(function(u) { return u.id === card.creator_id; }) || {}).name || '';
+    var createdAgo = card.created_at ? timeAgo(card.created_at) : '';
+    var avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+    var getAC = function(name) { return avatarColors[(name||'').length % avatarColors.length]; };
 
-    const creatorName = card.creator_name || allUsers.find(u => u.id === card.creator_id)?.name || '';
-    const createdAgo = card.created_at ? timeAgo(card.created_at) : '';
-    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
-    const getAC = (name) => avatarColors[(name||'').length % avatarColors.length];
+    // Envelope SVG icon
+    var envelopeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>';
 
-    el.innerHTML = `
-      <div class="card-page">
-        <div class="bc-card-options">
-          <button class="btn btn-sm btn-ghost" onclick="toggleBookmark('card',${cardId},'${esc(card.title)}')" title="Запази в отметки">⚑</button>
-          <button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${card.board_id}, ${cardId})">⋯</button>
-        </div>
+    // Build assignees HTML
+    var assigneesHtml = '';
+    if (card.assignees && card.assignees.length > 0) {
+      assigneesHtml = card.assignees.map(function(a) {
+        if (manage) {
+          return '<span class="bc-assignee">' + esc(a.name) + '<button class="bc-assignee__remove" onclick="event.stopPropagation();removeAssignee(' + cardId + ',' + a.id + ')" title="Remove">\u2715</button></span>';
+        }
+        return '<span class="bc-assignee">' + esc(a.name) + '</span>';
+      }).join(' ');
+    }
+    var addAssigneeHtml = '';
+    if (manage) {
+      var availableUsers = allUsers.filter(function(u) { return !(card.assignees || []).some(function(a) { return a.id === u.id; }); });
+      addAssigneeHtml = '<select class="bc-select-inline" onchange="addAssignee(' + cardId + ', this.value)">' +
+        '<option value="">' + (card.assignees && card.assignees.length ? '+ Add...' : 'Type names to assign\u2026') + '</option>' +
+        availableUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') +
+        '</select>';
+    }
 
-        <article class="bc-card">
-          <header class="bc-card__header">
-            <span class="bc-card__icon">📋</span>
-            <h1 class="bc-card__title">${esc(card.title)}</h1>
-          </header>
+    // Build due date HTML
+    var dueHtml = '';
+    if (manage) {
+      var noDueChecked = !card.due_on ? ' checked' : '';
+      var specificChecked = card.due_on ? ' checked' : '';
+      var dateHidden = !card.due_on ? ' bc-date-input--hidden' : '';
+      dueHtml = '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + noDueChecked + ' onchange="handleNoDueDate(' + cardId + ')"> No due date</label>' +
+        '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + specificChecked + ' onchange="handleSpecificDate(' + cardId + ')"> A specific day ' +
+        '<input type="date" id="dueDateInput_' + cardId + '" class="bc-date-input' + dateHidden + '" value="' + (card.due_on || '') + '" onchange="updateField(' + cardId + ',\'due_on\',this.value||null)">' +
+        '</label>';
+    } else {
+      dueHtml = '<span>' + (card.due_on ? formatDate(card.due_on) : 'No due date') + '</span>';
+    }
 
-          <div class="bc-card__fields">
-            <div class="bc-field">
-              <span class="bc-field__label">Column</span>
-              <div class="bc-field__value">
-                <span>${esc(col?.title || '—')}</span>
-                ${manage ? `<select class="bc-select-inline" onchange="moveCard(${cardId}, this.value)">
-                  <option value="">Move along to…</option>
-                  ${(board?.columns || []).filter(c => c.id !== card.column_id).map(c => `<option value="${c.id}">${esc(c.title)}</option>`).join('')}
-                </select>` : ''}
-              </div>
-            </div>
-            <div class="bc-field">
-              <span class="bc-field__label">Assigned to</span>
-              <div class="bc-field__value">
-                ${card.assignees?.length > 0
-                  ? card.assignees.map(a => `<span class="bc-assignee">${esc(a.name)}</span>`).join(', ')
-                  : ''}
-                ${manage ? `<select class="bc-select-inline" onchange="addAssignee(${cardId}, this.value)">
-                  <option value="">${card.assignees?.length ? '+ Добави...' : 'Type names to assign…'}</option>
-                  ${allUsers.filter(u => !card.assignees?.some(a => a.id === u.id)).map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}
-                </select>` : ''}
-              </div>
-            </div>
-            <div class="bc-field">
-              <span class="bc-field__label">Due on</span>
-              <div class="bc-field__value bc-field__value--vertical">
-                ${manage ? `
-                  <label class="bc-radio"><input type="radio" name="due_${cardId}" ${!card.due_on ? 'checked' : ''} onchange="updateField(${cardId},'due_on',null)"> No due date</label>
-                  <label class="bc-radio"><input type="radio" name="due_${cardId}" ${card.due_on ? 'checked' : ''}> A specific day
-                    <input type="date" class="bc-date-input" value="${card.due_on || ''}" onchange="updateField(${cardId},'due_on',this.value||null);this.closest('.bc-field__value').querySelector('input[type=radio]:nth-of-type(2)').checked=true">
-                  </label>
-                ` : `<span>${card.due_on ? formatDate(card.due_on) : 'No due date'}</span>`}
-              </div>
-            </div>
-            <div class="bc-field">
-              <span class="bc-field__label">Notes</span>
-              <div class="bc-field__value bc-field__value--full">
-                <div class="bc-editor">
-                  ${manage ? `
-                    <input id="cardNotesInput" type="hidden" value="${esc(card.content || '')}">
-                    <trix-editor input="cardNotesInput" class="trix-dark" placeholder="Describe your card here…"></trix-editor>
-                  ` : (card.content ? `<div class="rich-content">${card.content}</div>` : '<div style="color:var(--text-dim);padding:12px">Describe your card here…</div>')}
-                </div>
-              </div>
-            </div>
-            <div class="bc-field bc-field--light">
-              <span class="bc-field__label">Added by</span>
-              <div class="bc-field__value">
-                <span>${esc(creatorName)}</span>
-                <span class="bc-field__hint">${createdAgo}</span>
-              </div>
-            </div>
-            <div class="bc-field">
-              <span class="bc-field__label"><strong>Steps</strong></span>
-              <div class="bc-field__value bc-field__value--full">
-                ${card.steps?.length ? `
-                  <div class="bc-steps-progress">
-                    <span>${card.steps.filter(s=>s.completed).length} от ${card.steps.length} завършени</span>
-                    <div class="bc-steps-bar"><div class="bc-steps-bar__fill" style="width:${Math.round((card.steps.filter(s=>s.completed).length/card.steps.length)*100)}%"></div></div>
-                  </div>
-                  <ul class="bc-checklist">
-                    ${card.steps.map(s => `
-                      <li class="bc-checklist__item ${s.completed ? 'bc-checklist__item--done' : ''}">
-                        <input type="checkbox" ${s.completed?'checked':''} onchange="toggleStep(${cardId},${s.id},this.checked)">
-                        <span>${esc(s.title)}</span>
-                        ${s.assignee_id ? `<span class="bc-step-meta">${esc(allUsers.find(u=>u.id===s.assignee_id)?.name||'')}</span>` : ''}
-                        ${s.due_on ? `<span class="bc-step-meta">${formatDate(s.due_on)}</span>` : ''}
-                      </li>`).join('')}
-                  </ul>
-                ` : ''}
-                <div class="bc-add-step">
-                  <input id="newStepInput" type="text" placeholder="Add steps to this card" onkeydown="if(event.key==='Enter')addStepFromPage(${cardId})">
-                  <select id="newStepAssignee"><option value="">Възложи...</option>${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
-                  <input type="date" id="newStepDue">
-                  <button class="btn btn-sm" onclick="addStepFromPage(${cardId})">+</button>
-                </div>
-              </div>
-            </div>
-          </div>
+    // Build steps HTML
+    var stepsHtml = '';
+    if (card.steps && card.steps.length) {
+      stepsHtml += '<ul class="bc-checklist">';
+      stepsHtml += card.steps.map(function(s) {
+        var doneClass = s.completed ? ' bc-checklist__item--done' : '';
+        var assigneeName = s.assignee_id ? (allUsers.find(function(u) { return u.id === s.assignee_id; }) || {}).name || '' : '';
+        return '<li class="bc-checklist__item' + doneClass + '" data-step-id="' + s.id + '">' +
+          '<input type="checkbox" ' + (s.completed ? 'checked' : '') + ' onclick="event.stopPropagation();toggleStep(' + cardId + ',' + s.id + ',this.checked)">' +
+          '<span onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'))">' + esc(s.title) + '</span>' +
+          (assigneeName ? '<span class="bc-step-meta">' + esc(assigneeName) + '</span>' : '') +
+          (s.due_on ? '<span class="bc-step-meta">' + formatDate(s.due_on) + '</span>' : '') +
+          '</li>';
+      }).join('');
+      stepsHtml += '</ul>';
+    }
+    // "Add a new step" link
+    if (manage) {
+      stepsHtml += '<button class="bc-add-step-link" onclick="showAddStepForm(' + cardId + ')">+ Add a new step</button>';
+      stepsHtml += '<div class="bc-add-step" id="addStepForm_' + cardId + '">' +
+        '<div class="bc-add-step__row"><label>Step</label><input id="newStepInput" type="text" placeholder="Describe this step\u2026" onkeydown="if(event.key===\'Enter\')addStepFromPage(' + cardId + ')"></div>' +
+        '<div class="bc-add-step__row"><label>Assign to</label><select id="newStepAssignee"><option value="">Nobody</option>' + allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="bc-add-step__row"><label>Due on</label>' +
+        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" checked onchange="document.getElementById(\'newStepDue\').classList.add(\'bc-date-input--hidden\')"> No date</label>' +
+        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" onchange="var d=document.getElementById(\'newStepDue\');d.classList.remove(\'bc-date-input--hidden\');d.focus()"> Date</label>' +
+        '<input type="date" id="newStepDue" class="bc-date-input bc-date-input--hidden">' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save" onclick="addStepFromPage(' + cardId + ')">Add this step</button><button class="bc-btn-discard" onclick="hideAddStepForm(' + cardId + ')">Cancel</button></div>' +
+        '</div>';
+    }
 
-          ${manage ? `<div class="bc-card__actions">
-            <button class="bc-btn-save" onclick="saveCardNotes(${cardId})">Save changes</button>
-            <button class="bc-btn-discard" onclick="router()">Discard changes</button>
-          </div>` : ''}
+    // Build notes HTML
+    var notesHtml = '';
+    if (manage) {
+      notesHtml = '<div class="bc-editor">' +
+        '<input id="cardNotesInput" type="hidden" value="' + esc(card.content || '') + '">' +
+        '<trix-editor input="cardNotesInput" class="trix-dark" placeholder="Describe your card here\u2026"></trix-editor>' +
+        '</div>';
+    } else {
+      notesHtml = card.content ? '<div class="rich-content">' + card.content + '</div>' : '<div style="color:var(--text-dim);padding:12px">Describe your card here\u2026</div>';
+    }
 
-          <!-- Attachments -->
-          <section class="card-attachments" id="cardAttachments"></section>
+    // Build column move options
+    var colOptionsHtml = '';
+    if (manage && board && board.columns) {
+      var otherCols = board.columns.filter(function(c) { return c.id !== card.column_id; });
+      colOptionsHtml = '<select class="bc-select-inline" onchange="moveCard(' + cardId + ', this.value)">' +
+        '<option value="">Move along to\u2026</option>' +
+        otherCols.map(function(c) { return '<option value="' + c.id + '">' + esc(c.title) + '</option>'; }).join('') +
+        '</select>';
+    }
 
-          <!-- Comments -->
-          <div class="bc-comments">
-            <div class="bc-comment-add">
-              <div class="bc-comment-avatar" style="background:${getAC(currentUser?.name)}">${initials(currentUser?.name)}</div>
-              <div class="bc-comment-input-wrap">
-                <textarea id="newComment" placeholder="Add a comment here…" rows="2"></textarea>
-                <button class="bc-btn-save" onclick="addComment(${cardId})" style="margin-top:8px">Add this comment</button>
-              </div>
-            </div>
-            ${comments.length ? '<div class="bc-comments-list">' + comments.map(c => {
-              const cc = getAC(c.user_name);
-              return `<div class="bc-comment">
-                <div class="bc-comment-avatar" style="background:${cc}">${initials(c.user_name)}</div>
-                <div class="bc-comment-body">
-                  <div class="bc-comment-meta"><strong>${esc(c.user_name)}</strong> <span>${timeAgo(c.created_at)}</span></div>
-                  <div class="bc-comment-text">${esc(c.content).replace(/\n/g,'<br>')}</div>
-                </div>
-              </div>`;
-            }).join('') + '</div>' : ''}
-          </div>
-        </article>
-      </div>
-    `;
+    // Build comments HTML with Trix editor
+    var commentAddHtml = '<div class="bc-comment-add">' +
+      '<div class="bc-comment-avatar" style="background:' + getAC(currentUser ? currentUser.name : '') + '">' + initials(currentUser ? currentUser.name : '') + '</div>' +
+      '<div class="bc-comment-input-wrap">' +
+      '<div class="bc-editor"><input id="newCommentInput" type="hidden" value=""><trix-editor input="newCommentInput" class="trix-dark" placeholder="Add a comment here\u2026" style="min-height:60px"></trix-editor></div>' +
+      '<button class="bc-btn-save" onclick="addComment(' + cardId + ')" style="margin-top:8px">Add this comment</button>' +
+      '</div></div>';
+
+    var commentsListHtml = '';
+    if (comments.length) {
+      commentsListHtml = '<div class="bc-comments-list">';
+      for (var i = 0; i < comments.length; i++) {
+        var c = comments[i];
+        var cc = getAC(c.user_name);
+        var isOwn = currentUser && (c.user_id === currentUser.id || currentUser.role === 'admin' || currentUser.role === 'moderator');
+        var isPinned = _cardPinnedComment && _cardPinnedComment.id === c.id;
+        commentsListHtml += '<div class="bc-comment" data-comment-id="' + c.id + '">' +
+          '<div class="bc-comment-avatar" style="background:' + cc + '">' + initials(c.user_name) + '</div>' +
+          '<div class="bc-comment-body">' +
+          '<div class="bc-comment-meta"><strong>' + esc(c.user_name) + '</strong> <span>' + timeAgo(c.created_at) + '</span></div>' +
+          '<div class="bc-comment-text">' + (c.content || '').replace(/\n/g, '<br>') + '</div>' +
+          '<div class="bc-comment-actions">' +
+          (isOwn ? '<button class="bc-comment-action" onclick="editComment(' + cardId + ',' + c.id + ',this)">Edit</button>' : '') +
+          (isOwn ? '<button class="bc-comment-action bc-comment-action--danger" onclick="deleteComment(' + cardId + ',' + c.id + ')">Delete</button>' : '') +
+          '<button class="bc-comment-action bc-comment-action--pin" onclick="pinComment(' + cardId + ',' + c.id + ')">' + (isPinned ? 'Unpin' : '\ud83d\udccc Pin') + '</button>' +
+          '</div></div></div>';
+      }
+      commentsListHtml += '</div>';
+    }
+
+    // Pinned comment sidebar
+    var pinnedSidebarHtml = '';
+    if (_cardPinnedComment) {
+      var pc = _cardPinnedComment;
+      pinnedSidebarHtml = '<div class="bc-pinned-sidebar">' +
+        '<div class="bc-pinned-sidebar__title">\ud83d\udccc Pinned</div>' +
+        '<div class="bc-pinned-sidebar__content">' + (pc.content || '').replace(/\n/g, '<br>') + '</div>' +
+        '<div class="bc-pinned-sidebar__meta">\u2014 ' + esc(pc.user_name) + ', ' + timeAgo(pc.created_at) + '</div>' +
+        '<button class="bc-pinned-sidebar__unpin" onclick="unpinComment(' + cardId + ')">Unpin</button>' +
+        '</div>';
+    }
+
+    // Build full page
+    var wrapperStart = pinnedSidebarHtml ? '<div class="card-page-wrapper">' : '';
+    var wrapperEnd = pinnedSidebarHtml ? pinnedSidebarHtml + '</div>' : '';
+
+    el.innerHTML = wrapperStart +
+      '<div class="' + (pinnedSidebarHtml ? 'card-page-main' : 'card-page') + '">' +
+        '<div class="bc-card-options">' +
+          '<button class="btn btn-sm btn-ghost" onclick="toggleCardOptionsMenu(event,' + cardId + ',\'' + esc(card.title).replace(/'/g, "\\'") + '\')" title="Options">\u22ef</button>' +
+        '</div>' +
+        '<article class="bc-card">' +
+          '<header class="bc-card__header">' +
+            '<span class="bc-card__icon">' + envelopeIcon + '</span>' +
+            '<h1 class="bc-card__title" onclick="editCardTitle(this,' + cardId + ')">' + esc(card.title) + '</h1>' +
+          '</header>' +
+          '<div class="bc-card__fields">' +
+            '<div class="bc-field"><span class="bc-field__label">Column</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Assigned to</span><div class="bc-field__value">' + assigneesHtml + addAssigneeHtml + '</div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Due on</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Notes</span><div class="bc-field__value bc-field__value--full">' + notesHtml + '</div></div>' +
+            '<div class="bc-field bc-field--light"><span class="bc-field__label">Added by</span><div class="bc-field__value"><span>' + esc(creatorName) + '</span><span class="bc-field__hint">' + createdAgo + '</span></div></div>' +
+            '<div class="bc-field"><span class="bc-field__label">Steps</span><div class="bc-field__value bc-field__value--full">' + stepsHtml + '</div></div>' +
+          '</div>' +
+          (manage ? '<div class="bc-card__actions"><button class="bc-btn-save" onclick="saveCardNotes(' + cardId + ')">Save changes</button><button class="bc-btn-discard" onclick="router()">Discard changes</button></div>' : '') +
+          '<section class="card-attachments" id="cardAttachments"></section>' +
+          '<div class="bc-comments">' + commentAddHtml + commentsListHtml + '</div>' +
+        '</article>' +
+      '</div>' + wrapperEnd;
+
     // Load attachments async
     loadCardAttachments(cardId);
-  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Картата не е намерена</div>'; }
+
+    // Setup Trix file attachment for notes editor
+    setTimeout(function() {
+      var notesEditor = document.querySelector('trix-editor[input="cardNotesInput"]');
+      if (notesEditor) {
+        notesEditor.addEventListener('trix-attachment-add', function(e) {
+          var attachment = e.attachment;
+          if (attachment.file) {
+            uploadTrixAttachment(cardId, attachment);
+          }
+        });
+      }
+      var commentEditor = document.querySelector('trix-editor[input="newCommentInput"]');
+      if (commentEditor) {
+        commentEditor.addEventListener('trix-attachment-add', function(e) {
+          var attachment = e.attachment;
+          if (attachment.file) {
+            uploadTrixAttachment(cardId, attachment);
+          }
+        });
+      }
+    }, 200);
+
+  } catch(e) { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">\u041a\u0430\u0440\u0442\u0430\u0442\u0430 \u043d\u0435 \u0435 \u043d\u0430\u043c\u0435\u0440\u0435\u043d\u0430</div>'; }
+}
+
+// ==================== CARD PAGE HELPERS ====================
+
+// Upload file via Trix attachment
+async function uploadTrixAttachment(cardId, attachment) {
+  var fd = new FormData();
+  fd.append('file', attachment.file);
+  try {
+    var res = await fetch('/api/cards/' + cardId + '/attachments', { method: 'POST', body: fd });
+    var data = await res.json();
+    if (data.storage_path) {
+      attachment.setAttributes({ url: data.storage_path, href: data.storage_path });
+    }
+  } catch(e) {}
+}
+
+// Click-to-edit title
+function editCardTitle(el, cardId) {
+  var current = el.textContent;
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'bc-card__title-input';
+  input.value = current;
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+  var saving = false;
+  var save = function() {
+    if (saving) return;
+    saving = true;
+    var val = input.value.trim();
+    if (val && val !== current) {
+      updateField(cardId, 'title', val);
+    }
+    var h1 = document.createElement('h1');
+    h1.className = 'bc-card__title';
+    h1.textContent = val || current;
+    h1.onclick = function() { editCardTitle(h1, cardId); };
+    input.replaceWith(h1);
+  };
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = current; input.blur(); }
+  });
+}
+
+// Options "..." dropdown menu
+function toggleCardOptionsMenu(e, cardId, cardTitle) {
+  e.stopPropagation();
+  var existing = document.querySelector('.bc-options-menu');
+  if (existing) { existing.remove(); return; }
+
+  var menu = document.createElement('div');
+  menu.className = 'bc-options-menu';
+  menu.innerHTML =
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();document.querySelector(\'.bc-card__title\').click()">\u270f\ufe0f Edit</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();showMoveCardPicker(' + cardId + ')">\u2197\ufe0f Move</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();copyCardLink(' + cardId + ')">\ud83d\udccb Copy link</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();archiveCard(' + cardId + ')">\ud83d\udce6 Archive</button>' +
+    '<button class="bc-options-menu__item bc-options-menu__item--danger" onclick="document.querySelector(\'.bc-options-menu\').remove();trashCard(' + cardId + ')">\ud83d\uddd1\ufe0f Put in the trash</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();toggleBookmark(\'card\',' + cardId + ',\'' + cardTitle.replace(/'/g, "\\'") + '\')">\ud83d\udd16 Bookmark</button>' +
+    '<div class="bc-options-menu__sep"></div>' +
+    '<div class="bc-options-menu__heading">History</div>' +
+    '<button class="bc-options-menu__item" style="opacity:0.5;cursor:default">\ud83d\udd50 View change log</button>' +
+    '<button class="bc-options-menu__item" style="opacity:0.5;cursor:default">\ud83d\udc65 Notified people</button>';
+
+  var optionsDiv = document.querySelector('.bc-card-options');
+  if (optionsDiv) { optionsDiv.appendChild(menu); }
+
+  setTimeout(function() {
+    document.addEventListener('click', function handler() {
+      var m = document.querySelector('.bc-options-menu');
+      if (m) m.remove();
+      document.removeEventListener('click', handler);
+    });
+  }, 10);
+}
+
+// Move card picker (simple prompt for now)
+function showMoveCardPicker(cardId) {
+  var boardNames = allBoards.map(function(b, i) { return (i + 1) + '. ' + b.title; }).join('\n');
+  var choice = prompt('Move to which board?\n' + boardNames);
+  if (!choice) return;
+  var idx = parseInt(choice) - 1;
+  var board = allBoards[idx];
+  if (!board) return;
+  var colNames = (board.columns || []).map(function(c, i) { return (i + 1) + '. ' + c.title; }).join('\n');
+  var colChoice = prompt('Which column?\n' + colNames);
+  if (!colChoice) return;
+  var colIdx = parseInt(colChoice) - 1;
+  var col = (board.columns || [])[colIdx];
+  if (!col) return;
+  moveCard(cardId, col.id);
+}
+
+// Copy card link
+function copyCardLink(cardId) {
+  var url = location.origin + '/#/card/' + cardId;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url);
+  }
+}
+
+// Archive card (DELETE)
+async function archiveCard(cardId) {
+  if (!confirm('Archive this card?')) return;
+  try {
+    await fetch('/api/cards/' + cardId, { method: 'DELETE' });
+    history.back();
+  } catch(e) {}
+}
+
+// Trash card (same as archive for now)
+async function trashCard(cardId) {
+  if (!confirm('Put this card in the trash?')) return;
+  try {
+    await fetch('/api/cards/' + cardId, { method: 'DELETE' });
+    history.back();
+  } catch(e) {}
+}
+
+// Remove assignee
+async function removeAssignee(cardId, userId) {
+  try {
+    var card = await (await fetch('/api/cards/' + cardId)).json();
+    var ids = (card.assignees || []).map(function(a) { return a.id; }).filter(function(id) { return id !== parseInt(userId); });
+    await fetch('/api/cards/' + cardId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignee_ids: ids }) });
+    router();
+  } catch(e) {}
+}
+
+// Due date radio handlers
+function handleNoDueDate(cardId) {
+  var dateInput = document.getElementById('dueDateInput_' + cardId);
+  if (dateInput) {
+    dateInput.value = '';
+    dateInput.classList.add('bc-date-input--hidden');
+  }
+  updateField(cardId, 'due_on', null);
+}
+
+function handleSpecificDate(cardId) {
+  var dateInput = document.getElementById('dueDateInput_' + cardId);
+  if (dateInput) {
+    dateInput.classList.remove('bc-date-input--hidden');
+    dateInput.focus();
+  }
+}
+
+// Steps: expand on click
+function expandStep(cardId, stepId, li) {
+  // If already expanded, collapse
+  var existingForm = li.querySelector('.bc-step-expand');
+  if (existingForm) { existingForm.remove(); return; }
+  // Collapse any other expanded step
+  document.querySelectorAll('.bc-step-expand').forEach(function(f) { f.remove(); });
+
+  var stepText = li.querySelector('span').textContent;
+  var form = document.createElement('div');
+  form.className = 'bc-step-expand';
+  form.onclick = function(e) { e.stopPropagation(); };
+  form.innerHTML =
+    '<div class="bc-step-expand__row"><label>Title</label><input type="text" id="editStepTitle_' + stepId + '" value="' + esc(stepText) + '"></div>' +
+    '<div class="bc-step-expand__row"><label>Assign to</label><select id="editStepAssignee_' + stepId + '"><option value="">Nobody</option>' +
+    allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="bc-step-expand__row"><label>Due on</label><input type="date" id="editStepDue_' + stepId + '" class="bc-date-input"></div>' +
+    '<div class="bc-step-expand__actions">' +
+    '<div style="display:flex;gap:8px"><button class="bc-btn-save" onclick="saveStepEdit(' + cardId + ',' + stepId + ')">Save</button>' +
+    '<button class="bc-btn-discard" onclick="this.closest(\'.bc-step-expand\').remove()">Cancel</button></div>' +
+    '<button class="bc-step-expand__delete" onclick="deleteStep(' + cardId + ',' + stepId + ')">Delete step</button>' +
+    '</div>';
+  li.appendChild(form);
+}
+
+async function saveStepEdit(cardId, stepId) {
+  var title = document.getElementById('editStepTitle_' + stepId);
+  var assignee = document.getElementById('editStepAssignee_' + stepId);
+  var due = document.getElementById('editStepDue_' + stepId);
+  var data = {};
+  if (title) data.title = title.value.trim();
+  if (assignee && assignee.value) data.assignee_id = parseInt(assignee.value);
+  if (due && due.value) data.due_on = due.value;
+  try {
+    await fetch('/api/cards/' + cardId + '/steps/' + stepId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    router();
+  } catch(e) {}
+}
+
+async function deleteStep(cardId, stepId) {
+  if (!confirm('Delete this step?')) return;
+  try {
+    await fetch('/api/cards/' + cardId + '/steps/' + stepId, { method: 'DELETE' });
+    router();
+  } catch(e) {}
+}
+
+// Show/hide add step form
+function showAddStepForm(cardId) {
+  var form = document.getElementById('addStepForm_' + cardId);
+  if (form) {
+    form.classList.add('bc-add-step--visible');
+    var input = document.getElementById('newStepInput');
+    if (input) input.focus();
+  }
+}
+function hideAddStepForm(cardId) {
+  var form = document.getElementById('addStepForm_' + cardId);
+  if (form) form.classList.remove('bc-add-step--visible');
+}
+
+// Comment: edit
+function editComment(cardId, commentId, btn) {
+  var commentDiv = btn.closest('.bc-comment');
+  var textDiv = commentDiv.querySelector('.bc-comment-text');
+  var currentHtml = textDiv.innerHTML;
+  var currentText = textDiv.textContent;
+
+  textDiv.innerHTML = '<div class="bc-editor"><input id="editCommentInput_' + commentId + '" type="hidden" value="' + esc(currentHtml) + '"><trix-editor input="editCommentInput_' + commentId + '" class="trix-dark" style="min-height:60px"></trix-editor></div>' +
+    '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save" onclick="saveCommentEdit(' + cardId + ',' + commentId + ')">Save</button><button class="bc-btn-discard" onclick="router()">Cancel</button></div>';
+}
+
+async function saveCommentEdit(cardId, commentId) {
+  var input = document.getElementById('editCommentInput_' + commentId);
+  if (!input) return;
+  var content = input.value;
+  try {
+    await fetch('/api/cards/' + cardId + '/comments/' + commentId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: content }) });
+    router();
+  } catch(e) {}
+}
+
+// Comment: delete
+async function deleteComment(cardId, commentId) {
+  if (!confirm('Delete this comment?')) return;
+  try {
+    await fetch('/api/cards/' + cardId + '/comments/' + commentId, { method: 'DELETE' });
+    router();
+  } catch(e) {}
+}
+
+// Comment: pin/unpin (persisted via API)
+async function pinComment(cardId, commentId) {
+  var newId = (_cardPinnedComment && _cardPinnedComment.id === commentId) ? null : commentId;
+  try {
+    await fetch('/api/cards/' + cardId + '/pin-comment', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commentId: newId })
+    });
+  } catch(e) {}
+  router();
+}
+async function unpinComment(cardId) {
+  try {
+    await fetch('/api/cards/' + cardId + '/pin-comment', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commentId: null })
+    });
+  } catch(e) {}
+  router();
 }
 async function loadCardAttachments(cardId) {
   try {
@@ -900,10 +1222,17 @@ async function addStepFromPage(cardId) {
   try { await fetch(`/api/cards/${cardId}/steps`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:t, assignee_id:a?parseInt(a):null, due_on:d}) }); document.getElementById('newStepInput').value=''; router(); } catch {}
 }
 async function addComment(cardId) {
-  const c = document.getElementById('newComment')?.value?.trim(); if (!c) return;
-  const mentions = [...c.matchAll(/@(\S+)/g)].map(m=>m[1].toLowerCase());
-  const mIds = allUsers.filter(u=>mentions.some(n=>u.name.toLowerCase().includes(n))).map(u=>u.id);
-  try { await fetch(`/api/cards/${cardId}/comments`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:c,mentions:mIds}) }); document.getElementById('newComment').value=''; router(); } catch {}
+  var input = document.getElementById('newCommentInput');
+  var c = input ? input.value.trim() : '';
+  if (!c || c === '<div><br></div>') return;
+  var textContent = c.replace(/<[^>]*>/g, '');
+  var mentions = [];
+  var mentionMatches = textContent.match(/@(\S+)/g);
+  if (mentionMatches) {
+    mentions = mentionMatches.map(function(m) { return m.substring(1).toLowerCase(); });
+  }
+  var mIds = allUsers.filter(function(u) { return mentions.some(function(n) { return u.name.toLowerCase().includes(n); }); }).map(function(u) { return u.id; });
+  try { await fetch('/api/cards/' + cardId + '/comments', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:c,mentions:mIds}) }); router(); } catch(e) {}
 }
 
 // ==================== ACTIVITY ====================

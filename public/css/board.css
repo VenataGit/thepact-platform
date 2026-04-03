@@ -144,17 +144,34 @@
 
 /* ==================== CARD PAGE (Basecamp Style) ==================== */
 .card-page { max-width: 760px; margin: 0 auto; position: relative; }
-.bc-card-options { display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 4px; }
+.card-page-wrapper { display: flex; gap: 20px; align-items: flex-start; max-width: 960px; margin: 0 auto; position: relative; }
+.card-page-main { flex: 1; min-width: 0; max-width: 760px; margin: 0 auto; }
 
-.bc-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 32px 40px; }
+.bc-card-options { display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 4px; position: relative; }
 
-.bc-card__header { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
-.bc-card__icon { font-size: 24px; color: var(--text-dim); flex-shrink: 0; }
-.bc-card__title { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -0.02em; line-height: 1.2; margin: 0; }
+/* Card: no border/background — content directly on page */
+.bc-card { background: transparent; border: none; border-radius: 0; padding: 0 0 32px; }
 
-/* Fields — Basecamp layout: label right-aligned, value left */
+.bc-card__header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+.bc-card__icon { flex-shrink: 0; color: var(--text-dim); display: flex; align-items: center; }
+.bc-card__icon svg { width: 22px; height: 22px; }
+.bc-card__title { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -0.02em; line-height: 1.2; margin: 0; cursor: pointer; border-bottom: 1px solid transparent; transition: border-color 0.15s; }
+.bc-card__title:hover { border-bottom-color: var(--border); }
+.bc-card__title-input { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -0.02em; line-height: 1.2; margin: 0; background: transparent; border: none; border-bottom: 2px solid var(--accent); outline: none; width: 100%; font-family: inherit; padding: 0 0 2px; }
+
+/* Options dropdown menu */
+.bc-options-menu { position: absolute; right: 0; top: 100%; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); z-index: 200; min-width: 220px; padding: 6px 0; }
+.bc-options-menu__item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 16px; background: none; border: none; color: var(--text); font-size: 13px; cursor: pointer; font-family: inherit; transition: background 0.1s; }
+.bc-options-menu__item:hover { background: var(--bg-hover); }
+.bc-options-menu__item--danger { color: var(--red); }
+.bc-options-menu__item--danger:hover { background: rgba(239,68,68,0.08); }
+.bc-options-menu__sep { height: 1px; background: var(--border); margin: 4px 0; }
+.bc-options-menu__heading { padding: 6px 16px 4px; font-size: 10px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Fields — Basecamp layout: label bold right-aligned, value left */
 .bc-card__fields { }
-.bc-field { display: flex; align-items: flex-start; gap: 16px; padding: 10px 0; }
+.bc-field { display: flex; align-items: flex-start; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.bc-field:last-child { border-bottom: none; }
 .bc-field__label {
   min-width: 100px; text-align: right; flex-shrink: 0;
   font-size: 14px; font-weight: 700; color: var(--text);
@@ -169,7 +186,14 @@
 .bc-field__hint { color: var(--text-dim); font-size: 13px; }
 .bc-field--light { opacity: 0.7; }
 
-.bc-assignee { color: var(--text); }
+/* Assignee with remove on hover */
+.bc-assignee { color: var(--text); position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px; transition: background 0.1s; }
+.bc-assignee:hover { background: var(--bg-hover); }
+.bc-assignee__remove { display: none; background: none; border: none; color: var(--red); font-size: 14px; cursor: pointer; padding: 0 2px; line-height: 1; font-weight: 700; }
+.bc-assignee:hover .bc-assignee__remove { display: inline; }
+
+.bc-add-assignee-link { color: var(--accent); font-size: 13px; cursor: pointer; background: none; border: none; font-family: inherit; padding: 2px 4px; }
+.bc-add-assignee-link:hover { text-decoration: underline; }
 
 .bc-select-inline {
   background: var(--bg-elevated); border: 1px solid var(--border-hover); border-radius: 20px;
@@ -178,7 +202,7 @@
 }
 .bc-select-inline:hover { border-color: var(--accent); }
 
-/* Radio buttons — vertical like Basecamp */
+/* Radio buttons — vertical like Basecamp, one per line */
 .bc-radio {
   display: flex; align-items: center; gap: 8px;
   font-size: 14px; color: var(--text-secondary); cursor: pointer;
@@ -190,32 +214,41 @@
   margin-left: 8px; outline: none;
 }
 .bc-date-input:focus { border-color: var(--accent); }
+.bc-date-input--hidden { display: none; }
 
 /* Editor — Basecamp Trix style */
 .bc-editor { border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.15); overflow: hidden; width: 100%; }
 .bc-editor trix-toolbar { border: none; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.03); }
 .bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; padding: 12px; color: var(--text); }
 
-/* Steps — inline like Basecamp */
-.bc-steps-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; color: var(--text-dim); }
-.bc-steps-bar { flex: 1; height: 4px; background: var(--bg-hover); border-radius: 2px; overflow: hidden; }
-.bc-steps-bar__fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
-
+/* Steps — expandable items */
 .bc-checklist { list-style: none; padding: 0; margin: 0 0 8px; }
-.bc-checklist__item { display: flex; align-items: center; gap: 8px; padding: 6px 0; transition: background 0.15s; border-radius: 4px; }
-.bc-checklist__item:hover { background: var(--bg-hover); padding-left: 4px; padding-right: 4px; }
+.bc-checklist__item { display: flex; align-items: center; gap: 8px; padding: 8px 4px; transition: background 0.15s; border-radius: 4px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.bc-checklist__item:last-child { border-bottom: none; }
+.bc-checklist__item:hover { background: var(--bg-hover); }
 .bc-checklist__item input[type="checkbox"] { accent-color: var(--green); width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
 .bc-checklist__item--done span:first-of-type { text-decoration: line-through; color: var(--text-dim); }
 .bc-step-meta { font-size: 11px; color: var(--text-dim); margin-left: auto; }
 
-.bc-add-step { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
-.bc-add-step input[type="text"] {
-  flex: 1; background: transparent; border: none; border-bottom: 1px solid var(--border);
-  color: var(--text); font-size: 13px; padding: 6px 0; outline: none; font-family: inherit;
-}
-.bc-add-step input[type="text"]::placeholder { color: var(--text-dim); }
-.bc-add-step select { font-size: 12px; max-width: 120px; }
-.bc-add-step input[type="date"] { font-size: 12px; max-width: 130px; }
+/* Step expanded edit form */
+.bc-step-expand { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin: 6px 0; }
+.bc-step-expand__row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.bc-step-expand__row label { font-size: 12px; color: var(--text-dim); min-width: 80px; }
+.bc-step-expand__row input, .bc-step-expand__row select { flex: 1; }
+.bc-step-expand__actions { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.bc-step-expand__delete { background: none; border: none; color: var(--red); font-size: 12px; cursor: pointer; font-family: inherit; padding: 4px 8px; }
+.bc-step-expand__delete:hover { text-decoration: underline; }
+
+/* "Add a new step" link */
+.bc-add-step-link { color: var(--accent); font-size: 13px; cursor: pointer; background: none; border: none; padding: 8px 4px; font-family: inherit; display: flex; align-items: center; gap: 6px; }
+.bc-add-step-link:hover { text-decoration: underline; }
+
+/* Add step form (hidden by default) */
+.bc-add-step { display: none; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 8px; }
+.bc-add-step.bc-add-step--visible { display: block; }
+.bc-add-step__row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.bc-add-step__row label { font-size: 12px; color: var(--text-dim); min-width: 80px; }
+.bc-add-step__row input, .bc-add-step__row select { flex: 1; }
 
 /* Save/Discard — Basecamp style green buttons */
 .bc-card__actions { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 24px; padding-top: 20px; }
@@ -241,18 +274,30 @@
   font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
 }
 .bc-comment-input-wrap { flex: 1; }
-.bc-comment-input-wrap textarea {
-  width: 100%; min-height: 50px; resize: vertical;
-  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-  color: var(--text); padding: 10px 12px; font-size: 13px; font-family: inherit; outline: none;
-}
-.bc-comment-input-wrap textarea:focus { border-color: var(--accent); }
+.bc-comment-input-wrap .bc-editor { min-height: auto; }
+.bc-comment-input-wrap .bc-editor trix-editor.trix-dark { min-height: 60px; }
 .bc-comments-list { }
-.bc-comment { display: flex; gap: 12px; padding: 16px 0; border-top: 1px solid var(--border); }
+.bc-comment { display: flex; gap: 12px; padding: 16px 0; border-top: 1px solid var(--border); position: relative; }
 .bc-comment-body { flex: 1; min-width: 0; }
-.bc-comment-meta { font-size: 13px; margin-bottom: 4px; color: var(--text-dim); }
+.bc-comment-meta { font-size: 13px; margin-bottom: 4px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
 .bc-comment-meta strong { color: var(--text); }
 .bc-comment-text { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+
+/* Comment actions (edit/delete/pin) */
+.bc-comment-actions { display: none; gap: 8px; margin-top: 6px; }
+.bc-comment:hover .bc-comment-actions { display: flex; }
+.bc-comment-action { background: none; border: none; color: var(--text-dim); font-size: 12px; cursor: pointer; padding: 2px 6px; font-family: inherit; border-radius: 4px; }
+.bc-comment-action:hover { background: var(--bg-hover); color: var(--text); }
+.bc-comment-action--danger:hover { color: var(--red); }
+.bc-comment-action--pin { color: var(--accent); }
+
+/* Pinned comment sidebar */
+.bc-pinned-sidebar { position: sticky; top: 20px; width: 260px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.bc-pinned-sidebar__title { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.bc-pinned-sidebar__content { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.bc-pinned-sidebar__meta { font-size: 11px; color: var(--text-dim); margin-top: 8px; }
+.bc-pinned-sidebar__unpin { background: none; border: none; color: var(--accent); font-size: 11px; cursor: pointer; padding: 4px 0; font-family: inherit; margin-top: 6px; }
+.bc-pinned-sidebar__unpin:hover { text-decoration: underline; }
 
 /* Attachments */
 .card-attachments { margin-top: 20px; }
@@ -368,8 +413,8 @@ trix-toolbar .trix-button:hover { background: var(--bg-hover, #2a4454); color: #
 trix-toolbar .trix-button.trix-active { background: var(--accent-dim, rgba(28,176,246,0.12)); color: var(--accent, #1cb0f6); }
 trix-toolbar .trix-button-group:not(:first-child) { margin-left: 4px; }
 
-/* Hide attachment button (not needed for notes) */
-trix-toolbar .trix-button-group--file-tools { display: none; }
+/* Show attachment button for file uploads */
+trix-toolbar .trix-button-group--file-tools { }
 
 /* Rich content display for non-edit mode */
 .rich-content { font-size: 14px; line-height: 1.6; color: var(--text-secondary); }

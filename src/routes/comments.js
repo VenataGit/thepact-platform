@@ -66,4 +66,97 @@ router.post('/:cardId/comments', requireAuth, async (req, res) => {
   }
 });
 
+// PUT /api/cards/:cardId/comments/:commentId — edit comment
+router.put('/:cardId/comments/:commentId', requireAuth, async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ error: 'Content required' });
+
+    const comment = await queryOne(
+      'SELECT * FROM card_comments WHERE id = $1 AND card_id = $2',
+      [req.params.commentId, req.params.cardId]
+    );
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    // Check permission: author or moderator/admin
+    const isAuthor = comment.user_id === req.user.userId;
+    const isModerator = req.user.role === 'admin' || req.user.role === 'moderator';
+    if (!isAuthor && !isModerator) {
+      return res.status(403).json({ error: 'Not allowed to edit this comment' });
+    }
+
+    // Check time window (only for non-moderators)
+    if (isAuthor && !isModerator) {
+      const setting = await queryOne("SELECT value FROM settings WHERE key = 'comment_edit_window_minutes'");
+      const windowMinutes = setting ? parseInt(setting.value, 10) : 10;
+      const elapsed = (Date.now() - new Date(comment.created_at).getTime()) / 60000;
+      if (elapsed > windowMinutes) {
+        return res.status(403).json({ error: `Edit window expired (${windowMinutes} minutes)` });
+      }
+    }
+
+    const updated = await queryOne(
+      `UPDATE card_comments SET content = $1, updated_at = NOW()
+       WHERE id = $2 AND card_id = $3 RETURNING *`,
+      [content.trim(), req.params.commentId, req.params.cardId]
+    );
+
+    // Attach user info for broadcast
+    const user = await queryOne('SELECT name, avatar_url FROM users WHERE id = $1', [updated.user_id]);
+    updated.user_name = user.name;
+    updated.user_avatar = user.avatar_url;
+
+    broadcast({ type: 'comment:updated', cardId: parseInt(req.params.cardId), comment: updated });
+    res.json(updated);
+  } catch (err) {
+    console.error('Comment edit error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/cards/:cardId/comments/:commentId — delete comment
+router.delete('/:cardId/comments/:commentId', requireAuth, async (req, res) => {
+  try {
+    const comment = await queryOne(
+      'SELECT * FROM card_comments WHERE id = $1 AND card_id = $2',
+      [req.params.commentId, req.params.cardId]
+    );
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    // Check permission: author or moderator/admin
+    const isAuthor = comment.user_id === req.user.userId;
+    const isModerator = req.user.role === 'admin' || req.user.role === 'moderator';
+    if (!isAuthor && !isModerator) {
+      return res.status(403).json({ error: 'Not allowed to delete this comment' });
+    }
+
+    // Check time window (only for non-moderators)
+    if (isAuthor && !isModerator) {
+      const setting = await queryOne("SELECT value FROM settings WHERE key = 'comment_edit_window_minutes'");
+      const windowMinutes = setting ? parseInt(setting.value, 10) : 10;
+      const elapsed = (Date.now() - new Date(comment.created_at).getTime()) / 60000;
+      if (elapsed > windowMinutes) {
+        return res.status(403).json({ error: `Delete window expired (${windowMinutes} minutes)` });
+      }
+    }
+
+    // Clear pinned_comment_id if this comment was pinned
+    await execute(
+      'UPDATE cards SET pinned_comment_id = NULL WHERE id = $1 AND pinned_comment_id = $2',
+      [req.params.cardId, req.params.commentId]
+    );
+
+    await execute(
+      'DELETE FROM card_comments WHERE id = $1 AND card_id = $2',
+      [req.params.commentId, req.params.cardId]
+    );
+
+    broadcast({ type: 'comment:deleted', cardId: parseInt(req.params.cardId), commentId: parseInt(req.params.commentId) });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Comment delete error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

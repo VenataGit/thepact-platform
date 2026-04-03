@@ -57,7 +57,18 @@ router.get('/:id', requireAuth, async (req, res) => {
       query('SELECT cn.*, u.name as author_name FROM card_notes cn LEFT JOIN users u ON cn.user_id = u.id WHERE cn.card_id = $1 ORDER BY cn.created_at DESC', [card.id])
     ]);
 
-    res.json({ ...card, steps, assignees, notes });
+    // Fetch pinned comment if set
+    let pinned_comment = null;
+    if (card.pinned_comment_id) {
+      pinned_comment = await queryOne(
+        `SELECT c.*, u.name as user_name, u.avatar_url as user_avatar
+         FROM card_comments c JOIN users u ON c.user_id = u.id
+         WHERE c.id = $1`,
+        [card.pinned_comment_id]
+      );
+    }
+
+    res.json({ ...card, steps, assignees, notes, pinned_comment });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -219,6 +230,47 @@ router.delete('/:id', requireAuth, async (req, res) => {
     broadcast({ type: 'card:deleted', cardId: card.id });
     res.json({ ok: true });
   } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/cards/:id/pin-comment — pin/unpin a comment
+router.post('/:id/pin-comment', requireAuth, async (req, res) => {
+  try {
+    const { commentId } = req.body;
+    const cardId = req.params.id;
+
+    // Verify card exists
+    const card = await queryOne('SELECT * FROM cards WHERE id = $1 AND archived_at IS NULL', [cardId]);
+    if (!card) return res.status(404).json({ error: 'Card not found' });
+
+    if (commentId) {
+      // Verify comment exists and belongs to this card
+      const comment = await queryOne('SELECT * FROM card_comments WHERE id = $1 AND card_id = $2', [commentId, cardId]);
+      if (!comment) return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    // Set or clear pinned comment (null to unpin)
+    const updated = await queryOne(
+      'UPDATE cards SET pinned_comment_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [commentId || null, cardId]
+    );
+
+    // If pinning, return the pinned comment data
+    let pinnedComment = null;
+    if (commentId) {
+      pinnedComment = await queryOne(
+        `SELECT c.*, u.name as user_name, u.avatar_url as user_avatar
+         FROM card_comments c JOIN users u ON c.user_id = u.id
+         WHERE c.id = $1`,
+        [commentId]
+      );
+    }
+
+    broadcast({ type: 'card:comment-pinned', cardId: parseInt(cardId), pinnedComment, pinnedCommentId: commentId || null });
+    res.json({ ...updated, pinned_comment: pinnedComment });
+  } catch (err) {
+    console.error('Pin comment error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

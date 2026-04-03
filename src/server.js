@@ -108,6 +108,7 @@ app.use('/api/search', require('./routes/search'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/messageboard', require('./routes/messageboard'));
 app.use('/api/vault', require('./routes/vault'));
+app.use('/api/settings', require('./routes/admin'));
 // Routes — Phase 2+
 app.use('/api/campfire', require('./routes/campfire'));
 app.use('/api/schedule', require('./routes/schedule'));
