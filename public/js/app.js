@@ -2849,26 +2849,51 @@ async function handleDashDrop(e) {
   const boardId = parseInt(e.currentTarget.dataset.boardId);
   const cardId  = dragCardId;
   dragCardId = null;
+
+  // --- Optimistic DOM move (instant, no flicker) ---
+  const cardEl   = document.querySelector('.dash-card[data-card-id="' + cardId + '"]');
+  const targetZone = e.currentTarget;
+  const sourceZone = cardEl ? cardEl.closest('.dash-subcol-cards') : null;
+  if (cardEl) targetZone.appendChild(cardEl);
+
+  // Update column counts in headers
+  function updateSubcolCount(zone) {
+    if (!zone) return;
+    const header = zone.closest('.dash-subcol')?.querySelector('.dash-subcol-count');
+    if (header) header.textContent = zone.querySelectorAll('.dash-card').length;
+  }
+  updateSubcolCount(sourceZone);
+  updateSubcolCount(targetZone);
+
   try {
     await fetch('/api/cards/' + cardId + '/move', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ column_id: colId, board_id: boardId })
     });
-    // Refresh dashboard data in-place (no full page reload)
+    // Silent data sync — no re-render, DOM is already correct
     const [boards, cards] = await Promise.all([
       fetch('/api/boards').then(r => r.json()),
       fetch('/api/cards').then(r => r.json())
     ]);
     _dashBoards = boards; _dashCards = cards;
-    // Sync timers
     try {
       const timerRows = await (await fetch('/api/timers/boards')).json();
       _dashTimers = {};
       timerRows.forEach(function(t) { _dashTimers[t.board_id] = t; });
     } catch {}
-    renderDashboardBoard(boards, cards, _dashStageColors);
-  } catch(err) { console.error('Dashboard drop error:', err); }
+  } catch(err) {
+    console.error('Dashboard drop error:', err);
+    // On API error — full re-render to restore correct state
+    try {
+      const [boards, cards] = await Promise.all([
+        fetch('/api/boards').then(r => r.json()),
+        fetch('/api/cards').then(r => r.json())
+      ]);
+      _dashBoards = boards; _dashCards = cards;
+      renderDashboardBoard(boards, cards, _dashStageColors);
+    } catch {}
+  }
 }
 
 // ==================== ON HOLD ====================
