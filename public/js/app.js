@@ -506,7 +506,7 @@ function renderDashboardBoard(boards, cards, stageColors) {
 
         var holdHtml = '';
         if (holdCards.length > 0) {
-          holdHtml = '<div class="dash-on-hold-sep"><span>\u23f8 On Hold (' + holdCards.length + ')</span></div>' +
+          holdHtml = '<div class="dash-on-hold-sep"><span>\u23f8 \u041d\u0430 \u0438\u0437\u0447\u0430\u043a\u0432\u0430\u043d\u0435 (' + holdCards.length + ')</span></div>' +
             holdCards.map(function(c) { return renderDashCard(c); }).join('');
         }
 
@@ -558,6 +558,7 @@ function renderDashCard(card) {
 
   return '<a class="dash-card ' + colorClass + holdClass + '" href="#/card/' + card.id + '" draggable="true" data-card-id="' + card.id + '" ondragstart="handleDragStart(event)" ondragend="handleDashDragEnd(event)">' +
     '<div class="dash-card__title">' + (card.is_on_hold ? '\u23f8 ' : '') + esc(card.title) + '</div>' +
+    (card.client_name ? '<div class="dash-card__client">' + esc(card.client_name) + '</div>' : '') +
     '<div class="dash-card__footer">' +
       (dueStr ? '<span class="dash-card__date">\ud83d\udcc5 ' + dueStr + '</span>' : '<span></span>') +
       '<div class="dash-card__right">' +
@@ -709,7 +710,7 @@ async function loadProjectActivity() {
           <div class="activity-entry" style="text-align:left">
             <div class="activity-avatar" style="background:${getAC(a.user_name)};width:28px;height:28px;font-size:10px">${initials(a.user_name || '')}</div>
             <div class="activity-body">
-              <div class="activity-text"><strong>${esc(a.user_name || '')}</strong> ${a.action === 'created' ? 'създаде' : a.action === 'commented' ? 'коментира' : a.action === 'moved' ? 'премести' : a.action === 'completed' ? 'завърши' : a.action === 'checked_off' ? 'отметна стъпка на' : a.action} ${a.target_type === 'card' ? `<a href="#/card/${a.target_id}">${esc(a.target_title || '')}</a>` : esc(a.target_title || '')}</div>
+              <div class="activity-text"><strong>${esc(a.user_name || '')}</strong> ${a.action === 'created' ? 'създаде' : a.action === 'commented' ? 'коментира' : a.action === 'moved' ? 'премести' : a.action === 'completed' ? 'завърши' : a.action === 'checked_off' ? 'отметна стъпка на' : a.action === 'archived' ? 'архивира' : a.action === 'updated' ? 'обнови' : a.action} ${a.target_type === 'card' ? `<a href="#/card/${a.target_id}">${esc(a.target_title || '')}</a>` : esc(a.target_title || '')}</div>
               <div class="activity-meta">${timeAgo(a.created_at)}</div>
             </div>
           </div>
@@ -1037,7 +1038,7 @@ async function renderCardPage(el, cardId) {
           '<div class="bc-comment-actions">' +
           (isOwn ? '<button class="bc-comment-action" onclick="editComment(' + cardId + ',' + c.id + ',this)">Редактирай</button>' : '') +
           (isOwn ? '<button class="bc-comment-action bc-comment-action--danger" onclick="deleteComment(' + cardId + ',' + c.id + ')">Изтрий</button>' : '') +
-          (canManage() ? '<button class="bc-comment-action bc-comment-action--pin" onclick="pinComment(' + cardId + ',' + c.id + ')">' + (isPinned ? 'Откачи' : '\ud83d\udccc Pin') + '</button>' : '') +
+          (canManage() ? '<button class="bc-comment-action bc-comment-action--pin" onclick="pinComment(' + cardId + ',' + c.id + ')">' + (isPinned ? 'Откачи' : '\ud83d\udccc Закачи') + '</button>' : '') +
           '</div></div></div>';
       };
       commentsListHtml += shown.map(renderComment).join('');
@@ -1053,7 +1054,7 @@ async function renderCardPage(el, cardId) {
     if (_cardPinnedComment) {
       var pc = _cardPinnedComment;
       pinnedSidebarHtml = '<div class="bc-pinned-sidebar">' +
-        '<div class="bc-pinned-sidebar__title">\ud83d\udccc Pinned</div>' +
+        '<div class="bc-pinned-sidebar__title">\ud83d\udccc \u0417\u0430\u043a\u0430\u0447\u0435\u043d\u043e</div>' +
         '<div class="bc-pinned-sidebar__content">' + (pc.content || '').replace(/\n/g, '<br>') + '</div>' +
         '<div class="bc-pinned-sidebar__meta">\u2014 ' + esc(pc.user_name) + ', ' + timeAgo(pc.created_at) + '</div>' +
         '<button class="bc-pinned-sidebar__unpin" onclick="unpinComment(' + cardId + ')">Откачи</button>' +
@@ -1819,7 +1820,7 @@ function filterActivity(board, btn) {
       entries.map(a =>
         '<div class="activity-entry"><div class="activity-avatar" style="background:' + getAvatarColor(a.user_name) + '">' + initials(a.user_name||'') + '</div>' +
         '<div class="activity-body"><div class="activity-text"><strong>' + esc(a.user_name||'') + '</strong> ' +
-        (a.action==='created'?'създаде':a.action==='commented'?'коментира':a.action==='moved'?'премести':a.action==='completed'?'завърши':a.action==='checked_off'?'отметна стъпка на':a.action) + ' ' +
+        (a.action==='created'?'създаде':a.action==='commented'?'коментира':a.action==='moved'?'премести':a.action==='completed'?'завърши':a.action==='checked_off'?'отметна стъпка на':a.action==='archived'?'архивира':a.action==='updated'?'обнови':a.action) + ' ' +
         (a.target_type==='card' ? '<a href="#/card/' + a.target_id + '">' + esc(a.target_title||'') + '</a>' : esc(a.target_title||'')) + '</div>' +
         (a.excerpt ? '<div class="activity-excerpt">' + esc(a.excerpt).substring(0,150) + '</div>' : '') +
         '<div class="activity-meta">' + (a.board_title ? esc(a.board_title) + ' · ' : '') + timeAgo(a.created_at) + '</div></div></div>'
@@ -1853,6 +1854,8 @@ async function renderActivity(el) {
       if (a.action === 'moved') return 'премести';
       if (a.action === 'completed') return 'завърши';
       if (a.action === 'checked_off') return 'отметна стъпка на';
+      if (a.action === 'archived') return 'архивира';
+      if (a.action === 'updated') return 'обнови';
       return a.action;
     };
 
@@ -2905,7 +2908,7 @@ async function saveKpClient(id) {
     var method = id ? 'PUT' : 'POST';
     var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
     var json = await res.json();
-    if (!res.ok) return alert('Грешка: ' + (json.error || 'Unknown'));
+    if (!res.ok) return alert('Грешка: ' + (json.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'));
     document.getElementById('kpClientFormWrap').style.display = 'none';
     var el = document.getElementById('pageContent');
     if (el) await loadKpAuto(el);
@@ -2933,7 +2936,7 @@ async function createKpCardNow(clientId, clientName) {
       var el = document.getElementById('pageContent');
       if (el) await loadKpAuto(el);
     } else {
-      alert('Грешка: ' + (data.error || 'Unknown'));
+      alert('Грешка: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'));
     }
   } catch (err) { alert('Грешка: ' + err.message); }
 }
@@ -2944,7 +2947,7 @@ async function deleteKpClientNow(clientId, clientName) {
     var res = await fetch('/api/kp/clients/' + clientId, { method: 'DELETE' });
     var data = await res.json();
     if (data.ok) { var el = document.getElementById('pageContent'); if (el) await loadKpAuto(el); }
-    else alert('Грешка: ' + (data.error || 'Unknown'));
+    else alert('Грешка: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'));
   } catch (err) { alert('Грешка: ' + err.message); }
 }
 
@@ -3585,7 +3588,7 @@ async function sendSos(cardId) {
     if (data.ok) {
       document.getElementById('sosModal').remove();
     } else {
-      alert('Грешка: ' + (data.error || 'Unknown'));
+      alert('Грешка: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'));
     }
   } catch (err) { alert('Грешка: ' + err.message); }
 }
