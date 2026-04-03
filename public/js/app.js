@@ -826,9 +826,10 @@ async function renderCardPage(el, cardId) {
       var noDueChecked = !card.due_on ? ' checked' : '';
       var specificChecked = card.due_on ? ' checked' : '';
       var dateHidden = !card.due_on ? ' bc-date-input--hidden' : '';
-      dueHtml = '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + noDueChecked + ' onchange="handleNoDueDate(' + cardId + ')"> No due date</label>' +
-        '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + specificChecked + ' onchange="handleSpecificDate(' + cardId + ')"> A specific day</label>' +
-        '<input type="date" id="dueDateInput_' + cardId + '" class="bc-date-input' + dateHidden + '" value="' + (card.due_on || '') + '" onchange="saveDueDateField(' + cardId + ', this.value)">';
+      dueHtml = '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + noDueChecked + ' onclick="handleNoDueDate(' + cardId + ')"> No due date</label>' +
+        '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + specificChecked + ' onclick="handleSpecificDate(' + cardId + ')"> A specific day' +
+        '<input type="date" id="dueDateInput_' + cardId + '" class="bc-date-input' + dateHidden + '" value="' + (card.due_on || '') + '" onchange="saveDueDateField(' + cardId + ', this.value)" onclick="event.stopPropagation()"></label>' +
+        '<span id="dueSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 Запазено</span>';
     } else {
       dueHtml = '<span>' + (card.due_on ? formatDate(card.due_on) : '<span class="bc-field__placeholder">Select a due date</span>') + '</span>';
     }
@@ -1368,9 +1369,13 @@ function handleSpecificDate(cardId) {
   try { dateInput.showPicker(); } catch(e) { dateInput.click(); }
 }
 
-function saveDueDateField(cardId, value) {
+async function saveDueDateField(cardId, value) {
   if (!value) return;
-  updateField(cardId, 'due_on', value);
+  // Suppress WS re-render for 2s so the user sees the saved state clearly
+  _suppressWsRerender = Date.now() + 2000;
+  await updateField(cardId, 'due_on', value);
+  var lbl = document.getElementById('dueSavedLabel_' + cardId);
+  if (lbl) { lbl.style.display = 'inline'; setTimeout(function() { lbl.style.display = 'none'; }, 2000); }
 }
 
 // Steps: expand on click
@@ -2376,8 +2381,9 @@ document.getElementById('profileModal')?.addEventListener('click',e=>{if(e.targe
 // ==================== WEBSOCKET ====================
 function connectWS() { const p=location.protocol==='https:'?'wss':'ws'; ws=new WebSocket(`${p}://${location.host}/ws`); ws.onopen=()=>{wsReconnectDelay=1000;document.getElementById('wsStatusDot').className='status-dot online';document.getElementById('wsStatus').textContent='live'}; ws.onmessage=e=>{try{handleWSEvent(JSON.parse(e.data))}catch{}}; ws.onclose=()=>{document.getElementById('wsStatusDot').className='status-dot offline';document.getElementById('wsStatus').textContent='';setTimeout(connectWS,wsReconnectDelay);wsReconnectDelay=Math.min(wsReconnectDelay*2,30000)}; ws.onerror=()=>ws.close(); }
 let _wsRouterTimeout = null;
+let _suppressWsRerender = 0;
 function wsRouter() {
-  // Debounce WS-triggered re-renders to avoid double refresh
+  if (Date.now() < _suppressWsRerender) return;
   clearTimeout(_wsRouterTimeout);
   _wsRouterTimeout = setTimeout(router, 150);
 }

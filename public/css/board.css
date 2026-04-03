@@ -301,10 +301,11 @@
 .bc-date-input {
   background: transparent; border: 1px solid var(--border); border-radius: 6px;
   color: var(--text); padding: 4px 8px; font-size: 13px; font-family: inherit;
-  margin-left: 24px; margin-top: 4px; outline: none; display: block;
+  margin-left: 8px; outline: none;
 }
 .bc-date-input:focus { border-color: var(--accent); }
 .bc-date-input--hidden { display: none; }
+.bc-due-saved { font-size: 12px; color: var(--green); margin-left: 8px; font-weight: 600; }
 
 /* Editor — Basecamp Trix style */
 .bc-editor { border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.2); overflow-x: hidden; overflow-y: visible; width: 100%; max-width: 100%; box-sizing: border-box; }
