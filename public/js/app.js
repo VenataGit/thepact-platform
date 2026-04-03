@@ -558,10 +558,12 @@ async function renderBoard(el, boardId) {
           const colCards = cards.filter(c => c.column_id === col.id && !c.is_on_hold);
           const holdCards = cards.filter(c => c.column_id === col.id && c.is_on_hold);
           return `
-            <div class="kanban-column" data-col-id="${col.id}" style="--col-color:${colColor}">
+            <div class="kanban-column" data-col-id="${col.id}" style="--col-color:${colColor}"
+                 ${manage ? `draggable="true" ondragstart="handleColDragStart(event)" ondragend="handleColDragEnd(event)" ondragover="handleColDragOver(event)" ondrop="handleColDrop(event,${boardId})"` : ''}>
               <div class="kanban-column__inner">
                 <div class="column-header">
                   <div class="column-title-wrap">
+                    ${manage ? `<span class="col-drag-handle" title="Премести колона">⠿</span>` : ''}
                     <span class="column-title-dot"></span>
                     <h2 class="column-title-link">
                       <span ${manage ? `ondblclick="editColumnTitle(${boardId}, ${col.id}, this)"` : ''}>${esc(col.title)}</span>
@@ -2003,9 +2005,50 @@ function toggleBoardMenu(e,bid,cid) { /* TODO: full board menu */ }
 let dragCardId = null;
 function handleDragStart(e) { dragCardId=e.currentTarget.dataset.cardId; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; }
 function handleDragEnd(e) { e.currentTarget.classList.remove('dragging'); dragCardId=null; }
-function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function handleDragOver(e) { if(!dragCardId)return; e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
 function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
-async function handleDrop(e) { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); if(!dragCardId)return; try{await fetch(`/api/cards/${dragCardId}/move`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({column_id:parseInt(e.currentTarget.dataset.columnId),board_id:parseInt(e.currentTarget.dataset.boardId)})}); router();}catch{} }
+async function handleDrop(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('drag-over'); if(!dragCardId)return; try{await fetch(`/api/cards/${dragCardId}/move`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({column_id:parseInt(e.currentTarget.dataset.columnId),board_id:parseInt(e.currentTarget.dataset.boardId)})}); router();}catch{} }
+
+// ==================== COLUMN DRAG ====================
+let dragColId = null, dragColEl = null;
+function handleColDragStart(e) {
+  if(dragCardId) return;
+  dragColId = parseInt(e.currentTarget.dataset.colId);
+  dragColEl = e.currentTarget;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('col-drag', dragColId);
+  setTimeout(() => e.currentTarget.classList.add('col-dragging'), 0);
+}
+function handleColDragEnd(e) {
+  e.currentTarget.classList.remove('col-dragging');
+  document.querySelectorAll('.kanban-column').forEach(el => el.classList.remove('col-drag-over'));
+  dragColId = null; dragColEl = null;
+}
+function handleColDragOver(e) {
+  if(!dragColId || !dragColEl) return;
+  e.preventDefault(); e.stopPropagation();
+  const target = e.currentTarget;
+  if(target === dragColEl) return;
+  document.querySelectorAll('.kanban-column').forEach(el => el.classList.remove('col-drag-over'));
+  target.classList.add('col-drag-over');
+  const board = target.closest('.board-kanban');
+  const cols = [...board.querySelectorAll('.kanban-column')];
+  const fromIdx = cols.indexOf(dragColEl);
+  const toIdx = cols.indexOf(target);
+  if(fromIdx < toIdx) board.insertBefore(dragColEl, target.nextSibling);
+  else board.insertBefore(dragColEl, target);
+}
+async function handleColDrop(e, boardId) {
+  if(!dragColId) return;
+  e.preventDefault(); e.stopPropagation();
+  const board = e.currentTarget.closest('.board-kanban');
+  const cols = [...board.querySelectorAll('.kanban-column')];
+  try {
+    await Promise.all(cols.map((el, i) => fetch(`/api/boards/${boardId}/columns/${parseInt(el.dataset.colId)}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({position: i})
+    })));
+  } catch(err) { console.error(err); }
+}
 
 // ==================== PROFILE ====================
 async function openProfile() { const m=document.getElementById('profileModal'); m.style.display='flex'; try{ const u=await(await fetch('/api/profile')).json(); const av=document.getElementById('profileAvatar'); if(u.avatar_url)av.innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`; else av.textContent=initials(u.name); document.getElementById('profileName').textContent=u.name; document.getElementById('profileEmail').textContent=u.email; document.getElementById('profileRole').innerHTML=u.role==='admin'?'<span class="badge badge-accent">АДМИН</span>':u.role==='moderator'?'<span class="badge badge-blue">МОДЕРАТОР</span>':'<span class="badge">ЧЛЕН</span>'; document.getElementById('profileNameInput').value=u.name; }catch{} }
