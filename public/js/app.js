@@ -874,10 +874,7 @@ async function renderCardPage(el, cardId) {
         '<input id="cardNotesInput" type="hidden" value="' + esc(card.content || '') + '">' +
         '<trix-editor input="cardNotesInput" class="trix-dark" placeholder="Add notes\u2026"></trix-editor>' +
         '</div>' +
-        '<div class="bc-attach-row">' +
-        '<button class="bc-attach-btn" onclick="document.getElementById(\'notesFileInput_' + cardId + '\').click()">&#128206; Прикачи файл</button>' +
-        '<input type="file" id="notesFileInput_' + cardId + '" style="display:none" onchange="attachNotesFile(' + cardId + ',this)" accept="*/*">' +
-        '</div>';
+        '';
     } else {
       if (card.content && card.content.replace(/<[^>]*>/g, '').trim()) {
         notesHtml = '<div class="rich-content">' + card.content + '</div>';
