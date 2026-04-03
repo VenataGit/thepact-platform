@@ -418,11 +418,50 @@
 .bc-lightbox__close:hover { background: rgba(255,255,255,0.22); }
 .bc-lightbox__img { max-width: 90vw; max-height: 85vh; object-fit: contain; border-radius: 4px; position: relative; z-index: 1; box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
 
-/* Trix color picker */
-.bc-color-picker { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.35); z-index: 9000; width: 184px; }
-.bc-color-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.1s, border-color 0.1s; padding: 0; }
-.bc-color-swatch:hover { transform: scale(1.2); border-color: rgba(255,255,255,0.5); }
-.bc-color-swatch--reset { background: transparent !important; border: 2px solid var(--border) !important; color: var(--text); font-size: 12px; font-weight: 700; font-family: inherit; display: flex; align-items: center; justify-content: center; }
+/* Trix color picker — Basecamp style */
+.bc-color-picker {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 4px;
+  padding: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.45);
+  z-index: 9000;
+  width: 270px;
+}
+.bc-color-swatch {
+  height: 26px;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s, border-color 0.1s;
+}
+.bc-color-swatch:hover { transform: scale(1.1); border-color: rgba(255,255,255,0.6); }
+.bc-color-swatch--reset {
+  grid-column: 1 / -1;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 6px 0;
+  margin-top: 4px;
+  width: 100%;
+  text-align: center;
+  transition: background var(--transition-fast);
+}
+.bc-color-swatch--reset:hover { background: var(--bg-hover); color: var(--text); }
 .bc-trix-color-btn { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; border: none; background: none; border-radius: 4px; }
 .bc-trix-color-btn:hover { background: var(--bg-hover); }
 

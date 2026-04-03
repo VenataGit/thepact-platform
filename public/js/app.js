@@ -980,9 +980,9 @@ async function renderCardPage(el, cardId) {
         '</div>';
     }
 
-    // Register Trix foreground color attribute (idempotent)
-    if (window.Trix && !Trix.config.textAttributes.foregroundColor) {
-      Trix.config.textAttributes.foregroundColor = { styleProperty: 'color', inheritable: true };
+    // Register Trix highlight (background) color attribute (idempotent)
+    if (window.Trix && !Trix.config.textAttributes.backgroundColor) {
+      Trix.config.textAttributes.backgroundColor = { styleProperty: 'background-color', inheritable: true };
     }
 
     // ===== BUILD PAGE =====
@@ -1170,14 +1170,14 @@ function showLightbox(src) {
 function injectTrixColorButton(trixEl) {
   var toolbar = trixEl.previousElementSibling;
   if (!toolbar || toolbar.tagName !== 'TRIX-TOOLBAR') return;
-  if (toolbar.querySelector('.bc-trix-color-btn')) return; // already injected
+  if (toolbar.querySelector('.bc-trix-color-btn')) return;
   var group = toolbar.querySelector('.trix-button-group--text-tools');
   if (!group) return;
   var btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'trix-button bc-trix-color-btn';
-  btn.title = 'Цвят на текст';
-  btn.innerHTML = '<span style="background:#ef4444;border-radius:50%;width:12px;height:12px;display:inline-block;border:1px solid rgba(255,255,255,0.35)"></span>';
+  btn.title = 'Маркиране';
+  btn.innerHTML = '<span style="display:inline-block;width:14px;height:10px;background:linear-gradient(90deg,#fde047 50%,#4ade80 50%);border-radius:2px;vertical-align:middle"></span>';
   btn.addEventListener('click', function(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -1185,52 +1185,84 @@ function injectTrixColorButton(trixEl) {
   });
   group.appendChild(btn);
 }
+
 function showTrixColorPicker(e, trixEl) {
   var existing = document.querySelector('.bc-color-picker');
   if (existing) { existing.remove(); return; }
+
+  // 2 rows × 9 — matching Basecamp exactly
   var COLORS = [
-    { name: 'Червено', value: '#ef4444' },
-    { name: 'Оранжево', value: '#f97316' },
-    { name: 'Жълто', value: '#fbbf24' },
-    { name: 'Зелено', value: '#22c55e' },
-    { name: 'Тюркоаз', value: '#14b8a6' },
-    { name: 'Синьо', value: '#3b82f6' },
-    { name: 'Индиго', value: '#6366f1' },
-    { name: 'Лилаво', value: '#a855f7' },
-    { name: 'Розово', value: '#ec4899' }
+    // Row 1 — lighter
+    { name: 'Жълто',    bg: '#fde047', fg: '#1a1a1a' },
+    { name: 'Оранжево', bg: '#fb923c', fg: '#fff' },
+    { name: 'Червено',  bg: '#f87171', fg: '#fff' },
+    { name: 'Розово',   bg: '#f472b6', fg: '#fff' },
+    { name: 'Лилаво',   bg: '#c084fc', fg: '#fff' },
+    { name: 'Индиго',   bg: '#818cf8', fg: '#fff' },
+    { name: 'Синьо',    bg: '#38bdf8', fg: '#1a1a1a' },
+    { name: 'Тюркоаз',  bg: '#2dd4bf', fg: '#1a1a1a' },
+    { name: 'Зелено',   bg: '#4ade80', fg: '#1a1a1a' },
+    // Row 2 — darker
+    { name: 'Кехлибар',      bg: '#a16207', fg: '#fff' },
+    { name: 'Тъмно оранжево',bg: '#c2410c', fg: '#fff' },
+    { name: 'Тъмно червено', bg: '#b91c1c', fg: '#fff' },
+    { name: 'Малиново',      bg: '#9d174d', fg: '#fff' },
+    { name: 'Тъмно лилаво',  bg: '#7e22ce', fg: '#fff' },
+    { name: 'Тъмно индиго',  bg: '#1e40af', fg: '#fff' },
+    { name: 'Тъмно синьо',   bg: '#0369a1', fg: '#fff' },
+    { name: 'Тъмно тюркоаз', bg: '#0f766e', fg: '#fff' },
+    { name: 'Тъмно зелено',  bg: '#15803d', fg: '#fff' },
   ];
+
+  // Find the active color if any
+  var activeColor = '';
+  try {
+    var sel = trixEl.editor.getSelectedRange();
+    if (sel[0] !== sel[1]) {
+      var attrs = trixEl.editor.getDocument().getCommonAttributesAtRange(sel);
+      activeColor = attrs.backgroundColor || '';
+    }
+  } catch(ex) {}
+
   var picker = document.createElement('div');
   picker.className = 'bc-color-picker';
+
   COLORS.forEach(function(c) {
     var swatch = document.createElement('button');
     swatch.type = 'button';
     swatch.className = 'bc-color-swatch';
-    swatch.style.background = c.value;
+    swatch.style.background = c.bg;
+    swatch.style.color = c.fg;
     swatch.title = c.name;
+    swatch.innerHTML = activeColor === c.bg
+      ? '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : 'Ab';
     swatch.addEventListener('click', function(ev) {
       ev.stopPropagation();
-      if (window.Trix && Trix.config.textAttributes.foregroundColor) {
-        trixEl.editor.activateAttribute('foregroundColor', c.value);
+      if (window.Trix && Trix.config.textAttributes.backgroundColor) {
+        trixEl.editor.activateAttribute('backgroundColor', c.bg);
       }
       picker.remove();
       trixEl.focus();
     });
     picker.appendChild(swatch);
   });
+
+  // Full-width "Remove all coloring" button
   var resetBtn = document.createElement('button');
   resetBtn.type = 'button';
-  resetBtn.className = 'bc-color-swatch bc-color-swatch--reset';
-  resetBtn.title = 'Без цвят';
-  resetBtn.textContent = 'A';
+  resetBtn.className = 'bc-color-swatch--reset';
+  resetBtn.textContent = 'Remove all coloring';
   resetBtn.addEventListener('click', function(ev) {
     ev.stopPropagation();
-    if (window.Trix && Trix.config.textAttributes.foregroundColor) {
-      trixEl.editor.deactivateAttribute('foregroundColor');
+    if (window.Trix && Trix.config.textAttributes.backgroundColor) {
+      trixEl.editor.deactivateAttribute('backgroundColor');
     }
     picker.remove();
     trixEl.focus();
   });
   picker.appendChild(resetBtn);
+
   var rect = e.currentTarget.getBoundingClientRect();
   picker.style.position = 'fixed';
   picker.style.top = (rect.bottom + 4) + 'px';
