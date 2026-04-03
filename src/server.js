@@ -118,6 +118,7 @@ app.use('/api/bookmarks', require('./routes/bookmarks'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/timers', require('./routes/timers'));
 app.use('/api/kp', require('./routes/kp'));
+app.use('/api/sos', require('./routes/sos'));
 // Online users endpoint
 app.get('/api/users/online', require('./middleware/auth').requireAuth, (req, res) => {
   const { getOnlineUserIds } = require('./ws/broadcast');
