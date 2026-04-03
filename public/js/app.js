@@ -743,9 +743,9 @@ async function renderCardPage(el, cardId) {
         '</div>';
     }
 
-    // ===== COLUMN =====
+    // ===== COLUMN (always show Move along to dropdown) =====
     var colOptionsHtml = '';
-    if (editing && board && board.columns) {
+    if (manage && board && board.columns) {
       var otherCols = board.columns.filter(function(c) { return c.id !== card.column_id; });
       colOptionsHtml = '<select class="bc-select-inline" onchange="moveCard(' + cardId + ', this.value)">' +
         '<option value="">Move along to\u2026</option>' +
