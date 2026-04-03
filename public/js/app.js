@@ -2505,9 +2505,32 @@ async function viewCheckinResponses(questionId) {
   try {
     const responses = await (await fetch(`/api/checkins/questions/${questionId}/responses`)).json();
     const campColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308'];
-    alert(responses.length === 0 ? 'Няма отговори все още.' :
-      responses.map(r => `${r.user_name}: ${r.content}`).join('\n\n'));
-  } catch {}
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    var inner = document.createElement('div');
+    inner.style.cssText = 'background:var(--bg-card);border:1px solid var(--border);border-radius:12px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto;padding:24px';
+    inner.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+      '<h3 style="font-size:16px;font-weight:700;color:#fff">\u041e\u0442\u0433\u043e\u0432\u043e\u0440\u0438 (' + responses.length + ')</h3>' +
+      '<button onclick="this.closest(\'.modal-overlay\').remove()" style="background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1">\u2715</button>' +
+      '</div>' +
+      (responses.length === 0
+        ? '<div style="text-align:center;color:var(--text-dim);padding:24px">\u041d\u044f\u043c\u0430 \u043e\u0442\u0433\u043e\u0432\u043e\u0440\u0438 \u0432\u0441\u0435 \u043e\u0449\u0435</div>'
+        : responses.map(function(r) {
+            var col = campColors[(r.user_name||'').length % campColors.length];
+            return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
+              '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+              '<div style="width:28px;height:28px;border-radius:50%;background:' + col + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">' + initials(r.user_name||'') + '</div>' +
+              '<strong style="font-size:13px;color:#fff">' + esc(r.user_name||'') + '</strong>' +
+              '<span style="font-size:11px;color:var(--text-dim);margin-left:6px">' + timeAgo(r.created_at) + '</span>' +
+              '</div>' +
+              '<div style="font-size:13px;color:var(--text-secondary);padding-left:36px">' + esc(r.content||'') + '</div>' +
+              '</div>';
+          }).join(''));
+    overlay.appendChild(inner);
+    document.body.appendChild(overlay);
+  } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0437\u0430\u0440\u0435\u0436\u0434\u0430\u043d\u0435', 'error'); }
 }
 
 // ==================== ADMIN PANEL ====================
@@ -2983,11 +3006,11 @@ async function saveKpClient(id) {
         body: JSON.stringify({ firstPublishDate: data.first_publish_date })
       });
       var cardData = await cardRes.json();
-      if (cardData.ok) alert('✅ Клиентът е добавен и КП картата е създадена:\n' + cardData.title);
-      else alert('⚠️ Клиентът е добавен, но КП картата не се създаде:\n' + (cardData.error || 'Грешка'));
+      if (cardData.ok) showToast('\u2705 \u041a\u043b\u0438\u0435\u043d\u0442\u044a\u0442 \u0435 \u0434\u043e\u0431\u0430\u0432\u0435\u043d \u0438 \u041a\u041f \u043a\u0430\u0440\u0442\u0430\u0442\u0430 \u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435\u043d\u0430: ' + cardData.title, 'success');
+      else showToast('\u26a0\ufe0f \u041a\u043b\u0438\u0435\u043d\u0442\u044a\u0442 \u0435 \u0434\u043e\u0431\u0430\u0432\u0435\u043d, \u043d\u043e \u041a\u041f \u043a\u0430\u0440\u0442\u0430\u0442\u0430 \u043d\u0435 \u0441\u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435: ' + (cardData.error || '\u0413\u0440\u0435\u0448\u043a\u0430'), 'warn');
       if (el) await loadKpAuto(el);
     }
-  } catch (err) { alert('Грешка: ' + err.message); }
+  } catch (err) { showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error'); }
 }
 
 async function createKpCardNow(clientId, clientName) {
@@ -2996,13 +3019,13 @@ async function createKpCardNow(clientId, clientName) {
     var res = await fetch('/api/kp/create-card/' + clientId, { method: 'POST', headers: {'Content-Type':'application/json'} });
     var data = await res.json();
     if (data.ok) {
-      alert('✅ Създадено: ' + data.title);
+      showToast('\u2705 \u0421\u044a\u0437\u0434\u0430\u0434\u0435\u043d\u043e: ' + data.title, 'success');
       var el = document.getElementById('pageContent');
       if (el) await loadKpAuto(el);
     } else {
-      alert('Грешка: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'));
+      showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'), 'error');
     }
-  } catch (err) { alert('Грешка: ' + err.message); }
+  } catch (err) { showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error'); }
 }
 
 async function deleteKpClientNow(clientId, clientName) {
@@ -3452,6 +3475,20 @@ function hideTypingIndicator(ev) {
   if (el) el.textContent = '';
 }
 
+// ==================== TOAST NOTIFICATIONS ====================
+function showToast(msg, type) {
+  var t = type || 'info';
+  var toast = document.createElement('div');
+  toast.className = 'app-toast app-toast--' + t;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  requestAnimationFrame(function() { toast.classList.add('app-toast--visible'); });
+  setTimeout(function() {
+    toast.classList.remove('app-toast--visible');
+    setTimeout(function() { toast.remove(); }, 300);
+  }, 3500);
+}
+
 // ==================== UTILS ====================
 function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(d) { if(!d)return''; const s=d.split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}.${m}.${y}`; }
@@ -3587,14 +3624,14 @@ async function generateVideoCards(cardId, cardTitle, btn) {
     var res = await fetch('/api/kp/generate-video-cards/' + cardId, { method: 'POST' });
     var data = await res.json();
     if (data.ok) {
-      alert('✅ Генерирани ' + data.count + ' видео задачи успешно!\n\nВиж ги в колона "Разпределение".');
+      showToast('\u2705 \u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u043d\u0438 ' + data.count + ' \u0432\u0438\u0434\u0435\u043e \u0437\u0430\u0434\u0430\u0447\u0438 \u0443\u0441\u043f\u0435\u0448\u043d\u043e!', 'success');
     } else {
-      alert('Грешка: ' + (data.error || 'Неизвестна грешка'));
+      showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + (data.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430 \u0433\u0440\u0435\u0448\u043a\u0430'), 'error');
     }
   } catch (err) {
-    alert('Грешка: ' + err.message);
+    showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '⚙️ Генерирай задачи'; }
+    if (btn) { btn.disabled = false; btn.textContent = '\u2699\ufe0f \u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u0439 \u0437\u0430\u0434\u0430\u0447\u0438'; }
   }
 }
 

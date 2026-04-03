@@ -1078,3 +1078,17 @@ trix-toolbar .trix-button-group--file-tools { }
   }
   .dash-stats-bar { flex-wrap: wrap; }
 }
+
+/* ==================== TOAST NOTIFICATIONS ==================== */
+.app-toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-size: 14px; font-weight: 500; padding: 10px 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4); z-index: 99999;
+  opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none;
+  max-width: 420px; text-align: center;
+}
+.app-toast--visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+.app-toast--success { border-color: var(--green); color: var(--green); }
+.app-toast--error { border-color: var(--red); color: var(--red); }
+.app-toast--warn { border-color: var(--yellow); color: var(--yellow); }
