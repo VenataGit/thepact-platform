@@ -852,6 +852,8 @@ trix-toolbar .trix-button-group--file-tools { }
 .dash-stat__num { font-size: 14px; font-weight: 800; color: #fff; }
 .dash-stat__label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
 .dash-stat--warn .dash-stat__num { color: var(--red); }
+.dash-stat--clickable { cursor: pointer; transition: background 0.15s, outline 0.15s; }
+.dash-stat--clickable:hover { background: rgba(239,68,68,0.1); border-color: var(--red); }
 .dash-settings-btn { margin-left: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); font-size: 12px; font-weight: 600; padding: 4px 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: color 0.15s, border-color 0.15s; }
 .dash-settings-btn:hover { color: var(--text); border-color: var(--border-hover); }
 .dash-settings-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 280px; max-height: 420px; overflow-y: auto; }

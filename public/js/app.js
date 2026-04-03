@@ -32,10 +32,11 @@ async function updateHeyBadge() {
 
 // ==================== NAV DROPDOWNS ====================
 let openDropdownId = null;
-function toggleDropdown(id, btn) {
-  closeAllDropdowns();
+function toggleDropdown(id, btn, e) {
+  if (e) e.stopPropagation();
   const dd = document.getElementById(id);
-  if (openDropdownId === id) { openDropdownId = null; return; }
+  if (openDropdownId === id) { closeAllDropdowns(); return; }
+  closeAllDropdowns();
   // Populate content
   if (id === 'heyDropdown') populateHey(dd);
   else if (id === 'myStuffDropdown') populateMyStuff(dd);
@@ -443,14 +444,15 @@ async function renderDashboard(el) {
 
     initDashDefaults(boards);
 
+    const _nowMidnight = new Date(); _nowMidnight.setHours(0,0,0,0);
     const totalActive = cards.filter(c => !c.completed_at && !c.archived_at).length;
     const totalOnHold = cards.filter(c => c.is_on_hold).length;
-    const totalOverdue = cards.filter(c => c.due_on && !c.is_on_hold && !c.completed_at && new Date(c.due_on) < new Date()).length;
+    const totalOverdue = cards.filter(c => c.due_on && !c.is_on_hold && !c.completed_at && new Date(c.due_on+'T00:00:00') < _nowMidnight).length;
 
     el.innerHTML = '<div class="dash-wrap">' +
       '<div class="dash-stats-bar">' +
         '<div class="dash-stat"><span class="dash-stat__num">' + totalActive + '</span><span class="dash-stat__label">Активни</span></div>' +
-        '<div class="dash-stat dash-stat--warn"><span class="dash-stat__num">' + totalOverdue + '</span><span class="dash-stat__label">Просрочени</span></div>' +
+        '<div class="dash-stat dash-stat--warn' + (totalOverdue > 0 ? ' dash-stat--clickable' : '') + '" id="dashOverdueStat" onclick="toggleDashOverdueFilter()" title="\u0424\u0438\u043b\u0442\u0440\u0438\u0440\u0430\u0439 \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438"><span class="dash-stat__num">' + totalOverdue + '</span><span class="dash-stat__label">\u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438</span></div>' +
         '<div class="dash-stat"><span class="dash-stat__num">' + totalOnHold + '</span><span class="dash-stat__label">Изчакване</span></div>' +
         '<div class="dash-stat"><span class="dash-stat__num">' + boards.length + '</span><span class="dash-stat__label">Борда</span></div>' +
         '<button class="dash-settings-btn" onclick="showDashSettings()" title="Настройки на Dashboard">⚙ Настройки</button>' +
@@ -543,6 +545,31 @@ function toggleDashColVisibility(colId, visible) {
 // Keep old alias for compatibility
 function toggleDashCol2(colId, visible) { toggleDashColVisibility(colId, visible); }
 
+function toggleDashOverdueFilter() {
+  var stat = document.getElementById('dashOverdueStat');
+  if (!stat) return;
+  var active = stat.dataset.active === '1';
+  active = !active;
+  stat.dataset.active = active ? '1' : '';
+  stat.style.cssText = active ? 'cursor:pointer;background:rgba(239,68,68,0.18);border-radius:8px;padding:4px 8px;outline:2px solid var(--red)' : 'cursor:pointer';
+  document.querySelectorAll('#dashBoard .dash-card').forEach(function(card) {
+    var isOver = card.classList.contains('dash-card--overdue') || card.classList.contains('dash-card--today');
+    card.style.display = active ? (isOver ? '' : 'none') : '';
+  });
+  document.querySelectorAll('#dashBoard .dash-subcol').forEach(function(sc) {
+    var countEl = sc.querySelector('.dash-subcol-count');
+    if (!countEl) return;
+    if (active) {
+      if (!countEl.dataset.origCount) countEl.dataset.origCount = countEl.textContent;
+      var vis = sc.querySelectorAll('.dash-card:not([style*="display: none"]):not([style*="display:none"])').length;
+      countEl.textContent = vis + '/' + countEl.dataset.origCount;
+    } else if (countEl.dataset.origCount) {
+      countEl.textContent = countEl.dataset.origCount;
+      delete countEl.dataset.origCount;
+    }
+  });
+}
+
 function renderDashboardBoard(boards, cards, stageColors) {
   const container = document.getElementById('dashBoard');
   if (!container) return;
@@ -628,17 +655,24 @@ function renderDashboardBoard(boards, cards, stageColors) {
 
 function renderDashCard(card) {
   var colorClass = getDashCardColor(card);
-  var dueStr = card.due_on ? formatDate(card.due_on) : '';
   var assignee = card.assignees && card.assignees[0] ? card.assignees[0].name.split(' ')[0] : '';
   var stepsStr = card.steps_total > 0 ? card.steps_done + '/' + card.steps_total : '';
   var holdClass = card.is_on_hold ? ' dash-card--hold' : '';
+
+  var nowDC = new Date(); nowDC.setHours(0,0,0,0);
+  var dueDateDC = card.due_on ? new Date(card.due_on + 'T00:00:00') : null;
+  var isDCOverdue = dueDateDC && dueDateDC < nowDC && !card.completed_at;
+  var isDCToday = dueDateDC && dueDateDC.getTime() === nowDC.getTime();
+  var dueStyle = isDCOverdue ? ' style="color:var(--red);font-weight:600"' : isDCToday ? ' style="color:var(--yellow);font-weight:600"' : '';
+  var dueIcon = isDCOverdue ? '\u26a0 ' : isDCToday ? '\u23f0 ' : '\ud83d\udcc5 ';
+  var dueStr = card.due_on ? formatDate(card.due_on) : '';
 
   var priIcon = card.priority === 'urgent' ? '\ud83d\udd34 ' : card.priority === 'high' ? '\u2191 ' : '';
   return '<a class="dash-card ' + colorClass + holdClass + '" href="#/card/' + card.id + '" draggable="true" data-card-id="' + card.id + '" ondragstart="handleDragStart(event)" ondragend="handleDashDragEnd(event)">' +
     '<div class="dash-card__title">' + (card.is_on_hold ? '\u23f8 ' : priIcon) + esc(card.title) + '</div>' +
     (card.client_name ? '<div class="dash-card__client">' + esc(card.client_name) + '</div>' : '') +
     '<div class="dash-card__footer">' +
-      (dueStr ? '<span class="dash-card__date">\ud83d\udcc5 ' + dueStr + '</span>' : '<span></span>') +
+      (dueStr ? '<span class="dash-card__date"' + dueStyle + '>' + dueIcon + dueStr + '</span>' : '<span></span>') +
       '<div class="dash-card__right">' +
         (stepsStr ? '<span class="dash-card__steps">\u2713 ' + stepsStr + '</span>' : '') +
         (assignee ? '<span class="dash-card__assignee">' + esc(assignee) + '</span>' : '') +
@@ -652,7 +686,7 @@ function getDashCardColor(card) {
   if (card.priority === 'urgent') return 'dash-card--priority';
   if (!card.due_on) return '';
   var now = new Date(); now.setHours(0,0,0,0);
-  var due = new Date(card.due_on); due.setHours(0,0,0,0);
+  var due = new Date(card.due_on + 'T00:00:00');
   var diff = Math.ceil((due - now) / 86400000);
   if (diff < 0) return 'dash-card--overdue';
   if (diff === 0) return 'dash-card--today';
