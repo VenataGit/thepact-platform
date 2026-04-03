@@ -329,7 +329,7 @@ async function renderHome(el) {
         </div>` : ''}
 
         <!-- Team -->
-        <div>
+        <div style="margin-bottom:32px">
           <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Екип</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             ${allUsers.map((u, i) => '<div style="display:flex;align-items:center;gap:8px;background:var(--card);border-radius:8px;padding:8px 12px">' +
@@ -338,9 +338,44 @@ async function renderHome(el) {
             '</div>').join('')}
           </div>
         </div>
+
+        <!-- Recent activity (lazy loaded) -->
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em">\u041f\u043e\u0441\u043b\u0435\u0434\u043d\u0430 \u0430\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442</div>
+            <a href="#/activity" style="font-size:12px;color:var(--accent);text-decoration:none">\u0412\u0438\u0436 \u0432\u0441\u0438\u0447\u043a\u043e \u2192</a>
+          </div>
+          <div id="homeActivityFeed" style="color:var(--text-dim);font-size:13px;padding:16px;text-align:center">\u0417\u0430\u0440\u0435\u0436\u0434\u0430\u043d\u0435\u2026</div>
+        </div>
       </div>
     `;
+    // Lazy-load home activity after render
+    setTimeout(loadHomeActivity, 0);
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
+}
+
+async function loadHomeActivity() {
+  const container = document.getElementById('homeActivityFeed');
+  if (!container) return;
+  try {
+    const items = await (await fetch('/api/activity?limit=6')).json();
+    if (!Array.isArray(items) || items.length === 0) { container.textContent = '\u041d\u044f\u043c\u0430 \u0430\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442 \u0432\u0441\u0435 \u043e\u0449\u0435'; return; }
+    const avColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+    const getAC = n => avColors[(n||'').length % avColors.length];
+    const actLabel = a => { if(a.action==='created')return'\u0441\u044a\u0437\u0434\u0430\u0434\u0435'; if(a.action==='commented')return'\u043a\u043e\u043c\u0435\u043d\u0442\u0438\u0440\u0430'; if(a.action==='moved')return'\u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0438'; if(a.action==='completed')return'\u0437\u0430\u0432\u044a\u0440\u0448\u0438'; if(a.action==='archived')return'\u0430\u0440\u0445\u0438\u0432\u0438\u0440\u0430'; return a.action; };
+    container.style.textAlign = '';
+    container.style.padding = '';
+    container.innerHTML = items.map(a =>
+      '<div class="activity-entry" style="margin-bottom:10px">' +
+      '<div class="activity-avatar" style="background:' + getAC(a.user_name) + ';width:26px;height:26px;font-size:9px">' + initials(a.user_name||'') + '</div>' +
+      '<div class="activity-body">' +
+      '<div class="activity-text" style="font-size:13px"><strong>' + esc(a.user_name||'') + '</strong> ' + actLabel(a) + ' ' +
+      (a.target_type==='card' ? '<a href="#/card/' + a.target_id + '">' + esc(a.target_title||'') + '</a>' : esc(a.target_title||'')) +
+      '</div>' +
+      '<div class="activity-meta">' + (a.board_title ? esc(a.board_title) + ' \u00b7 ' : '') + timeAgo(a.created_at) + '</div>' +
+      '</div></div>'
+    ).join('');
+  } catch { if (container) container.textContent = ''; }
 }
 
 function renderMiniCalendar() {
@@ -2047,6 +2082,7 @@ async function renderActivity(el) {
       return a.action;
     };
 
+    window._activityOffset = items.length;
     el.innerHTML = `
       <div class="page-header"><h1>Последна активност</h1></div>
       <div style="display:flex;justify-content:center;gap:8px;margin-bottom:24px;flex-wrap:wrap">
@@ -2069,8 +2105,39 @@ async function renderActivity(el) {
                   </div>
                 </div>`).join('')}
             </div>`).join('')}
-      </div>`;
+      </div>
+      ${items.length >= 50 ? `<div style="text-align:center;padding:24px"><button class="btn btn-sm btn-ghost" id="loadMoreActivityBtn" onclick="loadMoreActivity(this)">\u0417\u0430\u0440\u0435\u0434\u0438 \u043f\u043e\u0432\u0435\u0447\u0435</button></div>` : ''}
+      `;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
+}
+
+async function loadMoreActivity(btn) {
+  if (!btn) return;
+  btn.disabled = true; btn.textContent = '\u0417\u0430\u0440\u0435\u0436\u0434\u0430\u043d\u0435\u2026';
+  try {
+    const offset = window._activityOffset || 50;
+    const more = await (await fetch('/api/activity?limit=50&offset=' + offset)).json();
+    window._activityOffset = offset + more.length;
+    if (!Array.isArray(more) || more.length === 0) { btn.parentElement.remove(); return; }
+    _activityItems = (_activityItems || []).concat(more);
+    const list = document.getElementById('activityList');
+    if (!list) return;
+    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+    const getAC = n => avatarColors[(n||'').length % avatarColors.length];
+    const actionText = a => { if(a.action==='created')return'\u0441\u044a\u0437\u0434\u0430\u0434\u0435'; if(a.action==='commented')return'\u043a\u043e\u043c\u0435\u043d\u0442\u0438\u0440\u0430'; if(a.action==='moved')return'\u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0438'; if(a.action==='completed')return'\u0437\u0430\u0432\u044a\u0440\u0448\u0438'; if(a.action==='checked_off')return'\u043e\u0442\u043c\u0435\u0442\u043d\u0430 \u0441\u0442\u044a\u043f\u043a\u0430 \u043d\u0430'; if(a.action==='archived')return'\u0430\u0440\u0445\u0438\u0432\u0438\u0440\u0430'; if(a.action==='updated')return'\u043e\u0431\u043d\u043e\u0432\u0438'; return a.action; };
+    const frag = document.createDocumentFragment();
+    const div = document.createElement('div');
+    div.innerHTML = more.map(a => `<div class="activity-entry">
+      <div class="activity-avatar" style="background:${getAC(a.user_name)}">${initials(a.user_name||'')}</div>
+      <div class="activity-body">
+        <div class="activity-text"><strong>${esc(a.user_name||'')}</strong> ${actionText(a)} ${a.target_type==='card'?`<a href="#/card/${a.target_id}">${esc(a.target_title||'')}</a>`:esc(a.target_title||'')}</div>
+        ${a.excerpt ? `<div class="activity-excerpt">${esc(a.excerpt).substring(0,150)}</div>` : ''}
+        <div class="activity-meta">${a.board_title ? esc(a.board_title) + ' \u00b7 ' : ''}${timeAgo(a.created_at)}</div>
+      </div></div>`).join('');
+    list.appendChild(div);
+    if (more.length < 50) btn.parentElement.remove();
+    else { btn.disabled = false; btn.textContent = '\u0417\u0430\u0440\u0435\u0434\u0438 \u043f\u043e\u0432\u0435\u0447\u0435'; }
+  } catch { btn.disabled = false; btn.textContent = '\u0413\u0440\u0435\u0448\u043a\u0430 — \u043f\u0440\u043e\u0431\u0432\u0430\u0439 \u043f\u0430\u043a'; }
 }
 
 // ==================== MY STUFF ====================
@@ -2084,14 +2151,17 @@ async function renderMyStuff(el) {
     const noDate   = cards.filter(c => !c.due_on);
     const renderCard = c => {
       const pri = c.priority === 'urgent' ? '\ud83d\udd34 ' : c.priority === 'high' ? '\u2191 ' : '';
-      return `<a class="task-row ${getCardColorClass(c)}" href="#/card/${c.id}">
+      const cls = getCardColorClass(c);
+      const dueStyle = cls==='overdue' ? 'color:var(--red);font-weight:600' : cls==='deadline-today' ? 'color:var(--yellow);font-weight:600' : '';
+      const duePrefix = cls==='overdue' ? '\u26a0 ' : cls==='deadline-today' ? '\u23f0 ' : '';
+      return `<a class="task-row ${cls}" href="#/card/${c.id}">
         <span class="task-title">${pri}${esc(c.title)}</span>
         <span class="task-meta">
           ${c.client_name ? `<span class="task-board" style="color:var(--accent)">${esc(c.client_name)}</span>` : ''}
           ${c.board_title ? `<span class="task-board">${esc(c.board_title)}</span>` : ''}
           ${c.column_title ? `<span class="task-board" style="opacity:0.6">${esc(c.column_title)}</span>` : ''}
           ${c.steps_total > 0 ? `<span style="font-size:10px;color:var(--green)">✓ ${c.steps_done}/${c.steps_total}</span>` : ''}
-          ${c.due_on ? `<span class="task-due">${formatDate(c.due_on)}</span>` : ''}
+          ${c.due_on ? `<span class="task-due" style="${dueStyle}">${duePrefix}${formatDate(c.due_on)}</span>` : ''}
         </span>
       </a>`;
     };
