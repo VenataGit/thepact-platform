@@ -201,6 +201,8 @@
   font-family: inherit; outline: none;
 }
 .bc-select-inline:hover { border-color: var(--accent); }
+.bc-select-inline--ghost { border-color: transparent; background: transparent; color: var(--text-dim); padding-left: 0; }
+.bc-select-inline--ghost:hover { border-color: var(--border); background: var(--bg-elevated); color: var(--text-secondary); }
 
 /* Radio buttons — vertical like Basecamp, one per line */
 .bc-radio {
@@ -217,9 +219,9 @@
 .bc-date-input--hidden { display: none; }
 
 /* Editor — Basecamp Trix style */
-.bc-editor { border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.15); overflow: hidden; width: 100%; }
-.bc-editor trix-toolbar { border: none; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.03); border-radius: 0; padding: 4px 8px; }
-.bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; padding: 12px; color: var(--text); }
+.bc-editor { border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.2); overflow: hidden; width: 100%; }
+.bc-editor trix-toolbar { border: none; border-bottom: 1px solid rgba(255,255,255,0.1); background: transparent; border-radius: 0; padding: 6px 4px; }
+.bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; padding: 14px; color: var(--text); font-size: 14px; line-height: 1.6; }
 
 /* Steps — expandable items */
 .bc-checklist { list-style: none; padding: 0; margin: 0 0 8px; }
@@ -239,9 +241,9 @@
 .bc-step-expand__delete { background: none; border: none; color: var(--red); font-size: 12px; cursor: pointer; font-family: inherit; padding: 4px 8px; }
 .bc-step-expand__delete:hover { text-decoration: underline; }
 
-/* "Add a new step" link */
-.bc-add-step-link { color: var(--accent); font-size: 13px; cursor: pointer; background: none; border: none; padding: 8px 4px; font-family: inherit; display: flex; align-items: center; gap: 6px; }
-.bc-add-step-link:hover { text-decoration: underline; }
+/* "Add a new step" link — Basecamp: plain gray text */
+.bc-add-step-link { color: var(--text-dim); font-size: 14px; cursor: pointer; background: none; border: none; padding: 8px 0; font-family: inherit; display: block; }
+.bc-add-step-link:hover { color: var(--text-secondary); }
 
 /* Add step form (hidden by default) */
 .bc-add-step { display: none; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 8px; }
@@ -250,17 +252,17 @@
 .bc-add-step__row label { font-size: 12px; color: var(--text-dim); min-width: 80px; }
 .bc-add-step__row input, .bc-add-step__row select { flex: 1; }
 
-/* Save/Discard — Basecamp style green buttons */
-.bc-card__actions { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 24px; padding-top: 20px; }
+/* Save/Discard — Basecamp style compact green pill buttons */
+.bc-card__actions { display: flex; gap: 8px; align-items: center; justify-content: flex-start; margin-top: 20px; padding-top: 16px; }
 .bc-btn-save {
-  background: #46a374; color: #fff; border: none; padding: 8px 20px;
-  border-radius: 20px; font-weight: 700; font-size: 13px; font-family: inherit;
+  background: #46a374; color: #fff; border: none; padding: 6px 16px;
+  border-radius: 20px; font-weight: 700; font-size: 12px; font-family: inherit;
   cursor: pointer; transition: background 0.15s;
 }
 .bc-btn-save:hover { background: #3d9168; }
 .bc-btn-discard {
   background: transparent; color: #46a374; border: 1px solid #46a374;
-  padding: 8px 20px; border-radius: 20px; font-weight: 600; font-size: 13px;
+  padding: 5px 16px; border-radius: 20px; font-weight: 600; font-size: 12px;
   font-family: inherit; cursor: pointer; transition: all 0.15s;
 }
 .bc-btn-discard:hover { background: rgba(70,163,116,0.1); }
@@ -395,26 +397,26 @@ trix-editor.trix-dark:focus { border-color: var(--accent, #1cb0f6); outline: non
 trix-editor.trix-dark a { color: var(--accent, #1cb0f6); }
 
 trix-toolbar {
-  background: var(--bg-elevated, #243b48);
-  border: 1px solid var(--border, #2a3f4d);
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
-  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border, #2a3f4d);
+  border-radius: 0;
+  padding: 6px 4px;
 }
 
-trix-toolbar .trix-button-group { border-color: var(--border, #2a3f4d); margin-bottom: 0; border-radius: 4px; }
+trix-toolbar .trix-button-group { border: none; margin-bottom: 0; border-radius: 0; background: transparent; }
 trix-toolbar .trix-button {
   background: transparent;
+  border: none;
   color: var(--text-secondary, #8fa3b0);
-  border-color: var(--border, #2a3f4d);
-  padding: 4px 8px;
-  filter: invert(0.8);
+  padding: 4px 7px;
+  filter: invert(0.85);
+  border-radius: 3px;
+  width: 32px; height: 32px;
 }
-trix-toolbar .trix-button:hover { filter: invert(1); }
-trix-toolbar .trix-button.trix-active { filter: invert(1) sepia(1) saturate(5) hue-rotate(175deg); }
-trix-toolbar .trix-button:hover { background: var(--bg-hover, #2a4454); color: #fff; }
-trix-toolbar .trix-button.trix-active { background: var(--accent-dim, rgba(28,176,246,0.12)); color: var(--accent, #1cb0f6); }
-trix-toolbar .trix-button-group:not(:first-child) { margin-left: 4px; }
+trix-toolbar .trix-button:hover { filter: invert(1); background: rgba(255,255,255,0.06); }
+trix-toolbar .trix-button.trix-active { filter: invert(1); background: rgba(255,255,255,0.1); }
+trix-toolbar .trix-button-group:not(:first-child) { margin-left: 8px; }
 
 /* Show attachment button for file uploads */
 trix-toolbar .trix-button-group--file-tools { }

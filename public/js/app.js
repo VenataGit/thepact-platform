@@ -667,8 +667,10 @@ async function renderCardPage(el, cardId) {
     var addAssigneeHtml = '';
     if (manage) {
       var availableUsers = allUsers.filter(function(u) { return !(card.assignees || []).some(function(a) { return a.id === u.id; }); });
-      addAssigneeHtml = '<select class="bc-select-inline" onchange="addAssignee(' + cardId + ', this.value)">' +
-        '<option value="">' + (card.assignees && card.assignees.length ? '+ Add...' : 'Type names to assign\u2026') + '</option>' +
+      var assignPlaceholder = card.assignees && card.assignees.length ? '+ Add...' : 'Type names to assign\u2026';
+      var assignClass = card.assignees && card.assignees.length ? 'bc-select-inline' : 'bc-select-inline bc-select-inline--ghost';
+      addAssigneeHtml = '<select class="' + assignClass + '" onchange="addAssignee(' + cardId + ', this.value)">' +
+        '<option value="">' + assignPlaceholder + '</option>' +
         availableUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') +
         '</select>';
     }
@@ -705,7 +707,7 @@ async function renderCardPage(el, cardId) {
     }
     // "Add a new step" link
     if (manage) {
-      stepsHtml += '<button class="bc-add-step-link" onclick="showAddStepForm(' + cardId + ')">+ Add a new step</button>';
+      stepsHtml += '<button class="bc-add-step-link" onclick="showAddStepForm(' + cardId + ')">Add a new step</button>';
       stepsHtml += '<div class="bc-add-step" id="addStepForm_' + cardId + '">' +
         '<div class="bc-add-step__row"><label>Step</label><input id="newStepInput" type="text" placeholder="Describe this step\u2026" onkeydown="if(event.key===\'Enter\')addStepFromPage(' + cardId + ')"></div>' +
         '<div class="bc-add-step__row"><label>Assign to</label><select id="newStepAssignee"><option value="">Nobody</option>' + allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
@@ -804,13 +806,9 @@ async function renderCardPage(el, cardId) {
             '<div class="bc-field"><span class="bc-field__label">Steps</span><div class="bc-field__value bc-field__value--full">' + stepsHtml + '</div></div>' +
           '</div>' +
           (manage ? '<div class="bc-card__actions"><button class="bc-btn-save" onclick="saveCardNotes(' + cardId + ')">Save changes</button><button class="bc-btn-discard" onclick="router()">Discard changes</button></div>' : '') +
-          '<section class="card-attachments" id="cardAttachments"></section>' +
           '<div class="bc-comments">' + commentAddHtml + commentsListHtml + '</div>' +
         '</article>' +
       '</div>' + wrapperEnd;
-
-    // Load attachments async
-    loadCardAttachments(cardId);
 
     // Setup Trix file attachment for notes editor
     setTimeout(function() {
