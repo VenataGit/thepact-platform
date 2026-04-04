@@ -491,6 +491,22 @@
 .bc-pinned-sidebar__unpin { background: none; border: none; color: var(--accent); font-size: 11px; cursor: pointer; padding: 2px 0; font-family: inherit; }
 .bc-pinned-sidebar__unpin:hover { text-decoration: underline; }
 
+/* Pinned sidebar: stacks above card on narrow screens */
+@media (max-width: 1000px) {
+  .card-page-wrapper { flex-direction: column; gap: 16px; }
+  .bc-pinned-sidebar {
+    order: -1;
+    width: 100%;
+    flex-basis: auto;
+    flex-shrink: 1;
+    min-width: 0;
+    position: static;
+    max-height: 270px;
+    height: 270px;
+  }
+  .card-page-main { max-width: 100%; }
+}
+
 /* Image lightbox */
 .bc-lightbox { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; }
 .bc-lightbox__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.88); cursor: pointer; }
