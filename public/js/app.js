@@ -69,7 +69,8 @@ async function populateHey(el) {
       const senderName = n.sender_name || '';
       const av = senderName ? initials(senderName) : '?';
       const link = n.reference_type === 'card' ? `#/card/${n.reference_id}` : '#/notifications';
-      return `<a class="hey-item${n.is_read ? '' : ' unread'}" href="${link}" onclick="closeAllDropdowns()">
+      const scrollId = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
+      return `<a class="hey-item${n.is_read ? '' : ' unread'}" href="${link}" onclick="if(${scrollId}){_pendingScrollCommentId=${scrollId};}closeAllDropdowns()">
         <div class="hey-item__av">${av}</div>
         <div class="hey-item__content">
           <div class="hey-item__subject">${esc(n.title)}</div>
@@ -1040,6 +1041,7 @@ var _cardPinnedComment = null;
 var _commentSortOrder = 'desc';
 var _commentFilterUserId = null;
 var _replyToComment = null; // { id, userName }
+var _pendingScrollCommentId = null;
 
 var _cardEditMode = false;
 const cardEditingPresence = new Map(); // cardId -> { userId, userName }
@@ -1277,7 +1279,7 @@ async function renderCardPage(el, cardId) {
           '<div class="bc-comment-actions">' +
           (isOwn ? '<button class="bc-comment-action" onclick="editComment(' + cardId + ',' + c.id + ',this)">Редактирай</button>' : '') +
           (isOwn ? '<button class="bc-comment-action bc-comment-action--danger" onclick="deleteComment(' + cardId + ',' + c.id + ')">Изтрий</button>' : '') +
-          (canManage() ? '<button class="bc-comment-action bc-comment-action--pin" onclick="pinComment(' + cardId + ',' + c.id + ')">' + (isPinned ? 'Откачи' : '\ud83d\udccc Закачи') + '</button>' : '') +
+          '<button class="bc-comment-action bc-comment-action--pin" onclick="pinComment(' + cardId + ',' + c.id + ')">' + (isPinned ? 'Откачи' : '\ud83d\udccc Закачи') + '</button>' +
           '</div></div></div>';
       };
       commentsListHtml += shown.map(renderComment).join('');
@@ -1344,6 +1346,19 @@ async function renderCardPage(el, cardId) {
 
     // Populate card toolbar with action buttons
     setupCardPageToolbar(card, col, editing);
+
+    // Auto-scroll to comment from notification
+    if (_pendingScrollCommentId) {
+      var _scrollCid = _pendingScrollCommentId;
+      _pendingScrollCommentId = null;
+      var _hc = document.getElementById('hiddenComments');
+      if (_hc) { _hc.style.display = ''; var _sb = document.getElementById('showMoreCommentsBtn'); if (_sb) _sb.style.display = 'none'; }
+      setTimeout(function() {
+        var _cs = document.querySelector('.bc-comments');
+        if (_cs) _cs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setTimeout(function() { scrollToComment(_scrollCid); }, 400);
+      }, 200);
+    }
 
     // Setup image lightbox + process video/file attachments in view mode
     setTimeout(function() { processRichContent(); setupImageLightbox(); }, 100);
@@ -2458,7 +2473,8 @@ async function renderNotifications(el) {
           const senderName = n.sender_name || '';
           const av = senderName ? initials(senderName) : '?';
           const link = n.reference_type === 'card' ? `#/card/${n.reference_id}` : '#';
-          return `<a class="hey-item${n.is_read ? '' : ' unread'}" href="${link}">
+          const scrollId = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
+          return `<a class="hey-item${n.is_read ? '' : ' unread'}" href="${link}"${scrollId ? ` onclick="_pendingScrollCommentId=${scrollId}"` : ''}>
             <div class="hey-item__av">${av}</div>
             <div class="hey-item__content">
               <div class="hey-item__subject">${esc(n.title)}</div>

@@ -47,9 +47,9 @@ router.post('/:cardId/comments', requireAuth, async (req, res) => {
       const parentComment = await queryOne('SELECT user_id FROM card_comments WHERE id = $1', [reply_to_id]);
       if (parentComment && parentComment.user_id !== req.user.userId) {
         await execute(
-          `INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id, sender_name)
-           VALUES ($1, 'reply', $2, $3, 'card', $4, $5)`,
-          [parentComment.user_id, `${user.name} отговори на твой коментар`, card?.title || '', parseInt(req.params.cardId), user.name]
+          `INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id, sender_name, comment_id)
+           VALUES ($1, 'reply', $2, $3, 'card', $4, $5, $6)`,
+          [parentComment.user_id, `${user.name} отговори на твой коментар`, card?.title || '', parseInt(req.params.cardId), user.name, comment.id]
         );
       }
     }
@@ -59,9 +59,9 @@ router.post('/:cardId/comments', requireAuth, async (req, res) => {
       for (const userId of mentions) {
         if (userId !== req.user.userId) {
           await execute(
-            `INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id, sender_name)
-             VALUES ($1, 'mentioned', $2, $3, 'card', $4, $5)`,
-            [userId, `${user.name} те спомена в коментар`, card?.title || '', parseInt(req.params.cardId), user.name]
+            `INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id, sender_name, comment_id)
+             VALUES ($1, 'mentioned', $2, $3, 'card', $4, $5, $6)`,
+            [userId, `${user.name} те спомена в коментар`, card?.title || '', parseInt(req.params.cardId), user.name, comment.id]
           );
         }
       }
