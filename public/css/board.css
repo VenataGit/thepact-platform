@@ -228,7 +228,7 @@
 /* ==================== CARD PAGE (Basecamp Style) ==================== */
 .card-page { max-width: 760px; margin: 0 auto; position: relative; }
 .card-editing-banner { display: flex; align-items: center; gap: 10px; max-width: 760px; margin: 0 auto 12px; padding: 10px 16px; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 8px; color: #eab308; font-size: 14px; }
-.card-page__toolbar { display: flex; align-items: center; gap: 8px; max-width: 760px; margin: 0 auto 14px; flex-wrap: wrap; }
+.card-page__toolbar { display: flex; align-items: center; gap: 8px; max-width: 760px; margin: 0 auto 14px; flex-wrap: wrap; justify-content: space-between; }
 .kp-generate-btn { border-color: var(--accent) !important; color: var(--accent) !important; }
 .kp-generate-btn:hover { background: var(--accent) !important; color: #fff !important; }
 
@@ -242,10 +242,9 @@
 
 /* Card: no visual box — content flows directly on page background */
 .bc-card { max-width: 760px; margin: 0 auto; position: relative; padding: 0 0 8px; }
-.bc-card-options { position: absolute; top: 14px; right: 14px; display: flex; gap: 4px; align-items: center; }
 .bc-card-options__dots { font-size: 18px; padding: 2px 8px; line-height: 1; }
 
-.bc-card__header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 28px; padding-right: 92px; }
+.bc-card__header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 28px; }
 .bc-card__icon { flex-shrink: 0; color: var(--text-dim); display: flex; align-items: center; padding-top: 4px; }
 .bc-card__icon svg { width: 22px; height: 22px; }
 .bc-card__title { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -0.02em; line-height: 1.2; margin: 0; cursor: pointer; border-bottom: 1px solid transparent; transition: border-color 0.15s; word-break: break-word; }
@@ -409,8 +408,8 @@
 .bc-btn-discard:hover { background: rgba(70,163,116,0.1); }
 
 /* Comments — Basecamp style (outside the card frame) */
-.bc-comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); max-width: 760px; margin-left: auto; margin-right: auto; background: inherit; }
-.bc-comment-add { display: flex; gap: 12px; margin-bottom: 24px; }
+.bc-comments { margin-top: 32px; padding-top: 24px; border-top: 2px solid var(--border); max-width: 760px; margin-left: auto; margin-right: auto; background: inherit; }
+.bc-comment-add { display: flex; gap: 12px; margin-bottom: 28px; }
 .bc-comment-avatar {
   width: 36px; height: 36px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -419,6 +418,12 @@
 .bc-comment-input-wrap { flex: 1; min-width: 0; }
 .bc-comment-input-wrap .bc-editor { min-height: auto; }
 .bc-comment-input-wrap .bc-editor trix-editor.trix-dark { min-height: 60px; }
+
+/* Reply badge */
+.bc-reply-badge { display: flex; align-items: center; gap: 8px; background: var(--accent-dim); border: 1px solid rgba(28,176,246,0.25); border-radius: 6px; padding: 6px 10px; font-size: 13px; color: var(--accent); margin-bottom: 8px; }
+.bc-reply-badge__name { font-weight: 600; }
+.bc-reply-badge__cancel { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 14px; padding: 0 2px; margin-left: auto; line-height: 1; }
+.bc-reply-badge__cancel:hover { color: var(--text); }
 
 /* Comment box: collapsed by default, expand on click (Basecamp style) */
 .bc-comment-placeholder {
@@ -431,14 +436,34 @@
 .bc-comment-editor-wrap.expanded { display: block; }
 .bc-btn-add-comment { margin-top: 8px; }
 
-.bc-comments-list { }
-.bc-comment { display: flex; gap: 12px; padding: 20px 0; border-top: 2px solid var(--border); position: relative; }
+/* Filter bar */
+.bc-comments-filter { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.bc-filter-tabs { display: flex; gap: 2px; background: var(--bg-elevated); border-radius: 6px; padding: 2px; }
+.bc-filter-tab { background: none; border: none; padding: 5px 12px; border-radius: 4px; font-size: 12px; font-weight: 500; color: var(--text-dim); cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.bc-filter-tab.active { background: var(--bg-card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.bc-filter-user-select { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; padding: 5px 10px; font-family: inherit; outline: none; margin-left: auto; }
+
+/* Comments list */
+.bc-comments-list { display: flex; flex-direction: column; gap: 2px; }
+.bc-comment { display: flex; gap: 14px; padding: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; position: relative; transition: border-color 0.15s; }
+.bc-comment:hover { border-color: var(--border-hover); }
+.bc-comment--highlight { border-color: var(--accent) !important; box-shadow: 0 0 0 2px var(--accent-dim); }
 .bc-comment-body { flex: 1; min-width: 0; }
-.bc-comment-meta { font-size: 13px; margin-bottom: 4px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+.bc-comment-meta { font-size: 13px; margin-bottom: 6px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bc-comment-meta strong { color: var(--text); }
 .bc-comment-text { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
 
-/* Comment actions (edit/delete/pin) */
+/* Reply preview (quoted parent comment) */
+.bc-reply-preview { display: flex; align-items: flex-start; gap: 6px; background: var(--bg-elevated); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; padding: 6px 10px; margin-bottom: 8px; cursor: pointer; font-size: 12px; color: var(--text-dim); transition: background 0.15s; max-width: 100%; overflow: hidden; }
+.bc-reply-preview:hover { background: var(--bg-hover); color: var(--text); }
+.bc-reply-preview__author { color: var(--accent); font-weight: 600; flex-shrink: 0; }
+.bc-reply-preview__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+
+/* Reply button */
+.bc-reply-btn { background: none; border: none; color: var(--text-dim); font-size: 12px; cursor: pointer; padding: 2px 6px; font-family: inherit; border-radius: 4px; }
+.bc-reply-btn:hover { background: var(--bg-hover); color: var(--accent); }
+
+/* Comment actions (edit/delete/pin) — hover only */
 .bc-comment-actions { display: none; gap: 8px; margin-top: 6px; }
 .bc-comment:hover .bc-comment-actions { display: flex; }
 .bc-comment-action { background: none; border: none; color: var(--text-dim); font-size: 12px; cursor: pointer; padding: 2px 6px; font-family: inherit; border-radius: 4px; }

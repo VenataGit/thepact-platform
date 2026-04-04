@@ -1037,6 +1037,9 @@ function renderKanbanCard(card, colColor) {
 
 // ==================== CARD PAGE ====================
 var _cardPinnedComment = null;
+var _commentSortOrder = 'desc';
+var _commentFilterUserId = null;
+var _replyToComment = null; // { id, userName }
 
 var _cardEditMode = false;
 const cardEditingPresence = new Map(); // cardId -> { userId, userName }
@@ -1233,6 +1236,7 @@ async function renderCardPage(el, cardId) {
     var commentAddHtml = '<div class="bc-comment-add">' +
       '<div class="bc-comment-avatar" style="background:' + getAC(currentUser ? currentUser.name : '') + '">' + initials(currentUser ? currentUser.name : '') + '</div>' +
       '<div class="bc-comment-input-wrap">' +
+      '<div id="replyBadge" class="bc-reply-badge" style="display:none"><span>↩ Отговаряш на <strong class="bc-reply-badge__name"></strong></span><button class="bc-reply-badge__cancel" onclick="cancelReply()">✕</button></div>' +
       '<div class="bc-comment-placeholder" onclick="expandCommentInput()">Написвай коментар\u2026</div>' +
       '<div class="bc-comment-editor-wrap" id="commentEditorWrap">' +
       '<div class="bc-editor"><input id="newCommentInput" type="hidden" value=""><trix-editor input="newCommentInput" class="trix-dark" placeholder="Написвай коментар тук\u2026" style="min-height:80px"></trix-editor></div>' +
@@ -1243,6 +1247,20 @@ async function renderCardPage(el, cardId) {
     var COMMENTS_INITIAL = 5, COMMENTS_PAGE = 10;
     var commentsListHtml = '';
     if (comments.length) {
+            var uniqueUsers = {};
+      comments.forEach(function(cm) { uniqueUsers[cm.user_id] = cm.user_name; });
+      var userOpts = Object.keys(uniqueUsers).map(function(uid) {
+        return '<option value="' + uid + '">' + esc(uniqueUsers[uid]) + '</option>';
+      }).join('');
+      commentsListHtml += '<div class="bc-comments-filter">' +
+        '<div class="bc-filter-tabs">' +
+        '<button class="bc-filter-tab active" data-sort="desc" onclick="setCommentSort(\x27desc\x27)">↓ Нови</button>' +
+        '<button class="bc-filter-tab" data-sort="asc" onclick="setCommentSort(\x27asc\x27)">↑ Стари</button>' +
+        '</div>' +
+        '<select class="bc-filter-user-select" onchange="setCommentUser(this.value)">' +
+        '<option value="">Всички</option>' + userOpts +
+        '</select>' +
+        '</div>';
       commentsListHtml = '<div class="bc-comments-list" id="commentsList">';
       var shown = comments.slice(0, COMMENTS_INITIAL);
       var remaining = comments.slice(COMMENTS_INITIAL);
@@ -1250,10 +1268,11 @@ async function renderCardPage(el, cardId) {
         var cc = getAC(c.user_name);
         var isOwn = currentUser && (c.user_id === currentUser.id || currentUser.role === 'admin' || currentUser.role === 'moderator');
         var isPinned = _cardPinnedComment && _cardPinnedComment.id === c.id;
-        return '<div class="bc-comment" data-comment-id="' + c.id + '">' +
+        return '<div class="bc-comment" data-comment-id="' + c.id + '" data-user-id="' + c.user_id + '" data-timestamp="' + (c.created_at||'') + '">' +
           '<div class="bc-comment-avatar" style="background:' + cc + '">' + initials(c.user_name) + '</div>' +
           '<div class="bc-comment-body">' +
-          '<div class="bc-comment-meta"><strong>' + esc(c.user_name) + '</strong> <span>' + timeAgo(c.created_at) + '</span></div>' +
+          (c.reply_to_id && c.parent_user_name ? '<div class="bc-reply-preview" onclick="scrollToComment(' + c.reply_to_id + ')" title="Премини към оригиналния коментар"><span class="bc-reply-preview__author">↩ ' + esc(c.parent_user_name) + ':</span> <span class="bc-reply-preview__text">' + esc((c.parent_content||'').replace(/<[^>]*>/g,'').slice(0,120)) + ((c.parent_content||'').replace(/<[^>]*>/g,'').length>120?'…':'') + '</span></div>' : '') +
+          '<div class="bc-comment-meta"><strong>' + esc(c.user_name) + '</strong> <span>' + timeAgo(c.created_at) + '</span><button class="bc-reply-btn" onclick="replyToComment(' + cardId + ',' + c.id + ',\'' + esc(c.user_name) + '\')">↩ Отговори</button></div>' +
           '<div class="bc-comment-text">' + (c.content || '').replace(/\n/g, '<br>') + '</div>' +
           '<div class="bc-comment-actions">' +
           (isOwn ? '<button class="bc-comment-action" onclick="editComment(' + cardId + ',' + c.id + ',this)">Редактирай</button>' : '') +
@@ -1291,7 +1310,6 @@ async function renderCardPage(el, cardId) {
     var wrapperEnd = pinnedSidebarHtml ? pinnedSidebarHtml + '</div>' : '';
 
     var titleEsc = esc(card.title).replace(/'/g, "\\'");
-    var editBtnHtml = canEdit() && !editing ? '<button class="bc-card__edit-btn" onclick="enterCardEditMode(' + cardId + ')" title="Редактирай">Редактирай</button>' : '';
 
     // Populate editing presence from API response (only if it's someone else)
     if (card.editing_by && currentUser && card.editing_by.userId !== currentUser.id) {
@@ -1305,11 +1323,7 @@ async function renderCardPage(el, cardId) {
         '<div class="card-page__toolbar" id="cardPageToolbar_' + cardId + '"></div>' +
         '<div id="cardEditingBanner" class="card-editing-banner" style="display:none"></div>' +
         '<article class="bc-card">' +
-          '<div class="bc-card-options">' +
-            editBtnHtml +
-            '<button class="btn btn-sm btn-ghost bc-card-options__dots" onclick="toggleCardOptionsMenu(event,' + cardId + ',\'' + titleEsc + '\')" title="Опции">\u22ef</button>' +
-          '</div>' +
-          '<header class="bc-card__header">' +
+                    '<header class="bc-card__header">' +
             '<span class="bc-card__icon">' + envelopeIcon + '</span>' +
             '<h1 class="bc-card__title" onclick="' + (editing ? 'editCardTitle(this,' + cardId + ')' : 'enterCardEditMode(' + cardId + ')') + '">' + esc(card.title) + '</h1>' +
           '</header>' +
@@ -1329,7 +1343,7 @@ async function renderCardPage(el, cardId) {
       '</div>' + wrapperEnd;
 
     // Populate card toolbar with action buttons
-    setupCardPageToolbar(card, col);
+    setupCardPageToolbar(card, col, editing);
 
     // Setup image lightbox + process video/file attachments in view mode
     setTimeout(function() { processRichContent(); setupImageLightbox(); }, 100);
@@ -1450,6 +1464,7 @@ function collapseCommentInput() {
   var wrap = document.getElementById('commentEditorWrap');
   if (placeholder) placeholder.style.display = '';
   if (wrap) wrap.classList.remove('expanded');
+  cancelReply();
 }
 
 // ==================== IMAGE LIGHTBOX ====================
@@ -2128,6 +2143,71 @@ async function addStepFromPage(cardId) {
     router();
   } catch(e) { showToast('Грешка при добавяне', 'error'); }
 }
+function replyToComment(cardId, commentId, userName) {
+  _replyToComment = { id: commentId, userName: userName };
+  expandCommentInput();
+  var badge = document.getElementById('replyBadge');
+  if (badge) {
+    badge.style.display = 'flex';
+    var nameEl = badge.querySelector('.bc-reply-badge__name');
+    if (nameEl) nameEl.textContent = userName;
+  }
+  var wrap = document.getElementById('commentEditorWrap');
+  if (wrap) setTimeout(function() { wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
+}
+
+function cancelReply() {
+  _replyToComment = null;
+  var badge = document.getElementById('replyBadge');
+  if (badge) badge.style.display = 'none';
+}
+
+function scrollToComment(commentId) {
+  var el = document.querySelector('[data-comment-id="' + commentId + '"]');
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('bc-comment--highlight');
+  setTimeout(function() { el.classList.remove('bc-comment--highlight'); }, 2000);
+}
+
+function setCommentSort(order) {
+  _commentSortOrder = order;
+  document.querySelectorAll('.bc-filter-tab').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.sort === order);
+  });
+  applyCommentFilter();
+}
+
+function setCommentUser(userId) {
+  _commentFilterUserId = userId || null;
+  applyCommentFilter();
+}
+
+function applyCommentFilter() {
+  var list = document.getElementById('commentsList');
+  if (!list) return;
+  // Move any hidden comments into the list first
+  var hidden = document.getElementById('hiddenComments');
+  if (hidden) {
+    Array.from(hidden.querySelectorAll('.bc-comment')).forEach(function(el) { list.appendChild(el); });
+    hidden.remove();
+  }
+  var moreBtn = document.getElementById('showMoreCommentsBtn');
+  if (moreBtn) moreBtn.remove();
+  var comments = Array.from(list.querySelectorAll('.bc-comment'));
+  // Filter by user
+  comments.forEach(function(el) {
+    var show = !_commentFilterUserId || el.dataset.userId === String(_commentFilterUserId);
+    el.style.display = show ? '' : 'none';
+  });
+  // Sort
+  var visible = comments.filter(function(el) { return el.style.display !== 'none'; });
+  visible.sort(function(a, b) {
+    var ta = a.dataset.timestamp || '', tb = b.dataset.timestamp || '';
+    return _commentSortOrder === 'asc' ? ta.localeCompare(tb) : tb.localeCompare(ta);
+  });
+  visible.forEach(function(el) { list.appendChild(el); });
+}
 async function addComment(cardId) {
   var input = document.getElementById('newCommentInput');
   var c = input ? input.value.trim() : '';
@@ -2143,7 +2223,7 @@ async function addComment(cardId) {
   var btn = document.querySelector('.bc-btn-add-comment');
   if (btn) { btn.disabled = true; btn.textContent = 'Изпращане…'; }
   try {
-    var r = await fetch('/api/cards/' + cardId + '/comments', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:c,mentions:mIds}) });
+    var r = await fetch('/api/cards/' + cardId + '/comments', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:c,mentions:mIds,reply_to_id:_replyToComment?_replyToComment.id:null}) });
     if (!r.ok) { var d = await r.json(); showToast(d.error || 'Грешка', 'error'); if(btn){btn.disabled=false;btn.textContent='Добави коментар';} return; }
     router();
   } catch(e) { showToast('Грешка при изпращане', 'error'); if(btn){btn.disabled=false;btn.textContent='Добави коментар';} }
@@ -4182,7 +4262,7 @@ function showShortcutsHelp() {
 }
 
 // ==================== CARD PAGE TOOLBAR ====================
-function setupCardPageToolbar(card, col) {
+function setupCardPageToolbar(card, col, editing) {
   var cardId = card.id;
   var cardTitle = card.title;
   var toolbar = document.getElementById('cardPageToolbar_' + cardId);
@@ -4191,7 +4271,7 @@ function setupCardPageToolbar(card, col) {
   // SOS button
   var sosBtn = document.createElement('button');
   sosBtn.className = 'btn btn-sm sos-card-btn';
-  sosBtn.textContent = '🚨 SOS';
+  sosBtn.textContent = '🚨 Спешно';
   sosBtn.title = 'Спешен сигнал за тази карта';
   sosBtn.onclick = function() { openSosModal(cardId, cardTitle); };
   toolbar.appendChild(sosBtn);
@@ -4222,6 +4302,23 @@ function setupCardPageToolbar(card, col) {
     generateBtn.onclick = function() { generateVideoCards(cardId, cardTitle, generateBtn); };
     toolbar.appendChild(generateBtn);
   }
+  // Right group: Edit + Options (moved here from bc-card-options)
+  var rightGroup = document.createElement('div');
+  rightGroup.style.cssText = 'display:flex;align-items:center;gap:4px;margin-left:auto';
+  if (canEdit() && !editing) {
+    var editBtn2 = document.createElement('button');
+    editBtn2.className = 'btn btn-sm btn-ghost';
+    editBtn2.textContent = '✏️ Редактирай';
+    editBtn2.onclick = function() { enterCardEditMode(card.id); };
+    rightGroup.appendChild(editBtn2);
+  }
+  var dotsBtn2 = document.createElement('button');
+  dotsBtn2.className = 'btn btn-sm btn-ghost bc-card-options__dots';
+  dotsBtn2.title = 'Опции';
+  dotsBtn2.innerHTML = '⋯';
+  dotsBtn2.onclick = function(e) { toggleCardOptionsMenu(e, card.id, esc(card.title).replace(/'/g, "\\'")); };
+  rightGroup.appendChild(dotsBtn2);
+  toolbar.appendChild(rightGroup);
 }
 
 function openPresentation(cardId) {

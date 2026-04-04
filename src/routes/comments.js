@@ -8,8 +8,12 @@ const { broadcast } = require('../ws/broadcast');
 router.get('/:cardId/comments', requireAuth, async (req, res) => {
   try {
     const comments = await query(
-      `SELECT c.*, u.name as user_name, u.avatar_url as user_avatar
-       FROM card_comments c JOIN users u ON c.user_id = u.id
+      `SELECT c.*, u.name as user_name, u.avatar_url as user_avatar,
+              p.content as parent_content, pu.name as parent_user_name
+       FROM card_comments c
+       JOIN users u ON c.user_id = u.id
+       LEFT JOIN card_comments p ON c.reply_to_id = p.id
+       LEFT JOIN users pu ON p.user_id = pu.id
        WHERE c.card_id = $1 ORDER BY c.created_at DESC`,
       [req.params.cardId]
     );
@@ -22,13 +26,13 @@ router.get('/:cardId/comments', requireAuth, async (req, res) => {
 // POST /api/cards/:cardId/comments
 router.post('/:cardId/comments', requireAuth, async (req, res) => {
   try {
-    const { content, mentions } = req.body;
+    const { content, mentions, reply_to_id } = req.body;
     if (!content?.trim()) return res.status(400).json({ error: 'Content required' });
 
     const comment = await queryOne(
-      `INSERT INTO card_comments (card_id, user_id, content, mentions)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [req.params.cardId, req.user.userId, content.trim(), JSON.stringify(mentions || [])]
+      `INSERT INTO card_comments (card_id, user_id, content, mentions, reply_to_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [req.params.cardId, req.user.userId, content.trim(), JSON.stringify(mentions || []), reply_to_id || null]
     );
 
     // Get user info for broadcast
@@ -36,9 +40,22 @@ router.post('/:cardId/comments', requireAuth, async (req, res) => {
     comment.user_name = user.name;
     comment.user_avatar = user.avatar_url;
 
-    // Create notifications for mentions
+    const card = await queryOne('SELECT title FROM cards WHERE id = $1', [req.params.cardId]);
+
+    // Notify the author of the parent comment (reply notification)
+    if (reply_to_id) {
+      const parentComment = await queryOne('SELECT user_id FROM card_comments WHERE id = $1', [reply_to_id]);
+      if (parentComment && parentComment.user_id !== req.user.userId) {
+        await execute(
+          `INSERT INTO notifications (user_id, type, title, body, reference_type, reference_id, sender_name)
+           VALUES ($1, 'reply', $2, $3, 'card', $4, $5)`,
+          [parentComment.user_id, `${user.name} отговори на твой коментар`, card?.title || '', parseInt(req.params.cardId), user.name]
+        );
+      }
+    }
+
+    // Notify mentioned users
     if (mentions?.length > 0) {
-      const card = await queryOne('SELECT title FROM cards WHERE id = $1', [req.params.cardId]);
       for (const userId of mentions) {
         if (userId !== req.user.userId) {
           await execute(
@@ -51,7 +68,6 @@ router.post('/:cardId/comments', requireAuth, async (req, res) => {
     }
 
     // Log activity
-    const card = await queryOne('SELECT title, board_id FROM cards WHERE id = $1', [req.params.cardId]);
     await execute(
       `INSERT INTO activity_log (user_id, user_name, action, target_type, target_id, target_title)
        VALUES ($1, $2, 'commented', 'card', $3, $4)`,
@@ -78,14 +94,12 @@ router.put('/:cardId/comments/:commentId', requireAuth, async (req, res) => {
     );
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
-    // Check permission: author or moderator/admin
     const isAuthor = comment.user_id === req.user.userId;
     const isModerator = req.user.role === 'admin' || req.user.role === 'moderator';
     if (!isAuthor && !isModerator) {
       return res.status(403).json({ error: 'Not allowed to edit this comment' });
     }
 
-    // Check time window (only for non-moderators)
     if (isAuthor && !isModerator) {
       const setting = await queryOne("SELECT value FROM settings WHERE key = 'comment_edit_window_minutes'");
       const windowMinutes = setting ? parseInt(setting.value, 10) : 10;
@@ -101,7 +115,6 @@ router.put('/:cardId/comments/:commentId', requireAuth, async (req, res) => {
       [content.trim(), req.params.commentId, req.params.cardId]
     );
 
-    // Attach user info for broadcast
     const user = await queryOne('SELECT name, avatar_url FROM users WHERE id = $1', [updated.user_id]);
     updated.user_name = user.name;
     updated.user_avatar = user.avatar_url;
@@ -114,7 +127,7 @@ router.put('/:cardId/comments/:commentId', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/cards/:cardId/comments/:commentId — delete comment
+// DELETE /api/cards/:cardId/comments/:commentId
 router.delete('/:cardId/comments/:commentId', requireAuth, async (req, res) => {
   try {
     const comment = await queryOne(
@@ -123,14 +136,12 @@ router.delete('/:cardId/comments/:commentId', requireAuth, async (req, res) => {
     );
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
-    // Check permission: author or moderator/admin
     const isAuthor = comment.user_id === req.user.userId;
     const isModerator = req.user.role === 'admin' || req.user.role === 'moderator';
     if (!isAuthor && !isModerator) {
       return res.status(403).json({ error: 'Not allowed to delete this comment' });
     }
 
-    // Check time window (only for non-moderators)
     if (isAuthor && !isModerator) {
       const setting = await queryOne("SELECT value FROM settings WHERE key = 'comment_edit_window_minutes'");
       const windowMinutes = setting ? parseInt(setting.value, 10) : 10;
@@ -140,7 +151,6 @@ router.delete('/:cardId/comments/:commentId', requireAuth, async (req, res) => {
       }
     }
 
-    // Clear pinned_comment_id if this comment was pinned
     await execute(
       'UPDATE cards SET pinned_comment_id = NULL WHERE id = $1 AND pinned_comment_id = $2',
       [req.params.cardId, req.params.commentId]
