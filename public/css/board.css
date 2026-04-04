@@ -376,10 +376,10 @@
 .bc-checklist__item--done span:first-of-type { text-decoration: line-through; color: var(--text-dim); }
 .bc-step-meta { font-size: 11px; color: var(--text-dim); margin-left: auto; }
 
-/* Step expanded edit form */
-.bc-step-expand { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin: 6px 0; }
-.bc-step-expand__input { width: 100%; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; color: var(--text); font-size: 14px; font-family: inherit; outline: none; margin-bottom: 10px; transition: border-color 0.15s; display: block; }
-.bc-step-expand__input:focus { border-color: var(--accent); }
+/* Step inline editing */
+.bc-checklist__item--editing { align-items: flex-start; cursor: default; background: none !important; padding: 10px 4px; }
+.bc-step-edit-wrap { flex: 1; min-width: 0; }
+.bc-step-edit-input { width: 100%; background: transparent; border: none; border-bottom: 2px solid var(--accent); outline: none; color: var(--text); font-size: 14px; font-family: inherit; padding: 0 0 3px; line-height: 1.4; }
 .bc-step-expand__actions { display: flex; align-items: center; justify-content: space-between; }
 .bc-step-expand__delete { background: none; border: none; color: var(--red); font-size: 12px; cursor: pointer; font-family: inherit; padding: 4px 8px; }
 .bc-step-expand__delete:hover { text-decoration: underline; }

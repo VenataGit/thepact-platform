@@ -1199,7 +1199,7 @@ async function renderCardPage(el, cardId) {
       stepsHtml += card.steps.map(function(s) {
         var doneClass = s.completed ? ' bc-checklist__item--done' : '';
         var stepClick = canEdit() ? ' onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'))"' : '';
-        return '<li class="bc-checklist__item' + doneClass + '" data-step-id="' + s.id + '">' +
+        return '<li class="bc-checklist__item' + doneClass + '" data-step-id="' + s.id + '" data-card-id="' + cardId + '">' +
           '<input type="checkbox" ' + (s.completed ? 'checked' : '') + ' onclick="event.stopPropagation();toggleStep(' + cardId + ',' + s.id + ',this.checked)">' +
           '<span' + stepClick + '>' + esc(s.title) + '</span>' +
           '</li>';
@@ -1857,27 +1857,37 @@ async function saveClientNameField(cardId, value) {
 
 // Steps: expand on click
 function expandStep(cardId, stepId, li) {
-  var existingForm = li.querySelector('.bc-step-expand');
-  if (existingForm) { existingForm.remove(); return; }
-  document.querySelectorAll('.bc-step-expand').forEach(function(f) { f.remove(); });
-  var stepText = li.querySelector('span').textContent;
+  // If already editing this step, just focus the input
+  if (li.classList.contains('bc-checklist__item--editing')) {
+    var ex = li.querySelector('.bc-step-edit-input');
+    if (ex) ex.focus();
+    return;
+  }
+  // Collapse any other open inline editors
+  document.querySelectorAll('.bc-checklist__item--editing').forEach(function(item) {
+    collapseStepEditInline(item);
+  });
 
-  var form = document.createElement('div');
-  form.className = 'bc-step-expand';
-  form.addEventListener('click', function(e) { e.stopPropagation(); });
+  var textSpan = li.querySelector('span');
+  if (!textSpan) return;
+  var originalText = textSpan.textContent;
+
+  li.classList.add('bc-checklist__item--editing');
+
+  // Wrapper replaces the span — contains input + action buttons
+  var wrap = document.createElement('div');
+  wrap.className = 'bc-step-edit-wrap';
+  wrap.addEventListener('click', function(e) { e.stopPropagation(); });
 
   var inp = document.createElement('input');
   inp.type = 'text';
-  inp.className = 'bc-step-expand__input';
+  inp.className = 'bc-step-edit-input';
   inp.id = 'editStepTitle_' + stepId;
-  inp.value = stepText;
-  inp.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') { e.preventDefault(); saveStepEdit(cardId, stepId); }
-    if (e.key === 'Escape') { form.remove(); }
-  });
+  inp.value = originalText;
 
   var actions = document.createElement('div');
   actions.className = 'bc-step-expand__actions';
+  actions.style.marginTop = '8px';
 
   var btnRow = document.createElement('div');
   btnRow.style.cssText = 'display:flex;gap:8px';
@@ -1890,7 +1900,7 @@ function expandStep(cardId, stepId, li) {
   var cancelBtn = document.createElement('button');
   cancelBtn.className = 'bc-btn-discard';
   cancelBtn.textContent = 'Отказ';
-  cancelBtn.onclick = function() { form.remove(); };
+  cancelBtn.onclick = function() { collapseStepEditInline(li); };
 
   var delBtn = document.createElement('button');
   delBtn.className = 'bc-step-expand__delete';
@@ -1901,10 +1911,34 @@ function expandStep(cardId, stepId, li) {
   btnRow.appendChild(cancelBtn);
   actions.appendChild(btnRow);
   actions.appendChild(delBtn);
-  form.appendChild(inp);
-  form.appendChild(actions);
-  li.appendChild(form);
-  inp.focus(); inp.select();
+  wrap.appendChild(inp);
+  wrap.appendChild(actions);
+
+  textSpan.replaceWith(wrap);
+  inp.focus();
+  inp.select();
+
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); saveStepEdit(cardId, stepId); }
+    if (e.key === 'Escape') { collapseStepEditInline(li); }
+  });
+}
+
+function collapseStepEditInline(li) {
+  var wrap = li.querySelector('.bc-step-edit-wrap');
+  var inp  = li.querySelector('.bc-step-edit-input');
+  if (!wrap) return;
+  li.classList.remove('bc-checklist__item--editing');
+  var span = document.createElement('span');
+  span.textContent = inp ? (inp.value || '') : '';
+  var cId    = li.dataset.cardId;
+  var stepId = li.dataset.stepId;
+  if (cId && stepId) {
+    span.onclick = (function(ci, si) {
+      return function() { expandStep(parseInt(ci), parseInt(si), li); };
+    })(cId, stepId);
+  }
+  wrap.replaceWith(span);
 }
 async function saveStepEdit(cardId, stepId) {
   var titleEl = document.getElementById('editStepTitle_' + stepId);
