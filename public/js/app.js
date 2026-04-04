@@ -1240,10 +1240,10 @@ async function renderCardPage(el, cardId) {
       '<div class="bc-comment-avatar" style="background:' + getAC(currentUser ? currentUser.name : '') + '">' + initials(currentUser ? currentUser.name : '') + '</div>' +
       '<div class="bc-comment-input-wrap">' +
       '<div id="replyBadge" class="bc-reply-badge" style="display:none"><span>↩ Отговаряш на <strong class="bc-reply-badge__name"></strong></span><button class="bc-reply-badge__cancel" onclick="cancelReply()">✕</button></div>' +
-      '<div class="bc-comment-placeholder" onclick="expandCommentInput()">Написвай коментар\u2026</div>' +
+      '<div class="bc-comment-placeholder" onclick="expandCommentInput()">Добави коментар тук…</div>' +
       '<div class="bc-comment-editor-wrap" id="commentEditorWrap">' +
       '<div class="bc-editor"><input id="newCommentInput" type="hidden" value=""><trix-editor input="newCommentInput" class="trix-dark" placeholder="Написвай коментар тук\u2026" style="min-height:80px"></trix-editor></div>' +
-      '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save bc-btn-add-comment" onclick="addComment(' + cardId + ')">Добави коментар</button><button class="bc-btn-discard" onclick="collapseCommentInput()">Отказ</button></div>' +
+      '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save bc-btn-add-comment" onclick="addComment(' + cardId + ')">Добави този коментар</button><button class="bc-btn-discard" onclick="collapseCommentInput()">Отказ</button></div>' +
       '</div>' +
       '</div></div>';
 
@@ -1272,16 +1272,18 @@ async function renderCardPage(el, cardId) {
         var isOwn = currentUser && (c.user_id === currentUser.id || currentUser.role === 'admin' || currentUser.role === 'moderator');
         var isPinned = _cardPinnedComment && _cardPinnedComment.id === c.id;
         return '<div class="bc-comment" data-comment-id="' + c.id + '" data-user-id="' + c.user_id + '" data-timestamp="' + (c.created_at||'') + '">' +
+          '<div class="bc-comment-date">' + fmtDate(c.created_at) + '</div>' +
           '<div class="bc-comment-avatar" style="background:' + cc + '">' + initials(c.user_name) + '</div>' +
           '<div class="bc-comment-body">' +
+          '<div class="bc-comment-meta"><strong>' + esc(c.user_name) + '</strong></div>' +
           (c.reply_to_id && c.parent_user_name ? '<div class="bc-reply-preview" onclick="scrollToComment(' + c.reply_to_id + ')" title="Премини към оригиналния коментар"><span class="bc-reply-preview__author">↩ ' + esc(c.parent_user_name) + ':</span> <span class="bc-reply-preview__text">' + esc((c.parent_content||'').replace(/<[^>]*>/g,'').slice(0,120)) + ((c.parent_content||'').replace(/<[^>]*>/g,'').length>120?'…':'') + '</span></div>' : '') +
-          '<div class="bc-comment-meta"><strong>' + esc(c.user_name) + '</strong> <span>' + timeAgo(c.created_at) + '</span><button class="bc-reply-btn" onclick="replyToComment(' + cardId + ',' + c.id + ',\'' + esc(c.user_name) + '\')">↩ Отговори</button></div>' +
           '<div class="bc-comment-text">' + (c.content || '').replace(/\n/g, '<br>') + '</div>' +
-          '<div class="bc-comment-actions">' +
-          (isOwn ? '<button class="bc-comment-action" onclick="editComment(' + cardId + ',' + c.id + ',this)">Редактирай</button>' : '') +
-          (isOwn ? '<button class="bc-comment-action bc-comment-action--danger" onclick="deleteComment(' + cardId + ',' + c.id + ')">Изтрий</button>' : '') +
-          '<button class="bc-comment-action bc-comment-action--pin" onclick="pinComment(' + cardId + ',' + c.id + ')">' + (isPinned ? 'Откачи' : '\ud83d\udccc Закачи') + '</button>' +
-          '</div></div></div>';
+          '<button class="bc-reply-btn" onclick="replyToComment(' + cardId + ',' + c.id + ',\'' + esc(c.user_name) + '\')">\u21a9 Отговори</button>' +
+          '</div>' +
+          '<div class="bc-comment-dots">' +
+          '<button class="bc-comment-dots-btn" onclick="toggleCommentMenu(event,' + cardId + ',' + c.id + ',' + isOwn + ',' + isPinned + ')">\u22ef</button>' +
+          '</div>' +
+          '</div>';
       };
       commentsListHtml += shown.map(renderComment).join('');
       if (remaining.length > 0) {
@@ -2004,8 +2006,36 @@ function hideAddStepForm(cardId) {
 }
 
 // Comment: edit
+function toggleCommentMenu(e, cardId, commentId, isOwn, isPinned) {
+  e.stopPropagation();
+  document.querySelectorAll('.bc-comment-ctx-menu').forEach(function(m) { m.remove(); });
+  var menu = document.createElement('div');
+  menu.className = 'bc-comment-ctx-menu';
+  function addItem(label, fn, danger) {
+    var btn = document.createElement('button');
+    btn.className = 'bc-comment-ctx-item' + (danger ? ' bc-comment-ctx-item--danger' : '');
+    btn.textContent = label;
+    btn.onclick = function(ev) { ev.stopPropagation(); menu.remove(); fn(); };
+    menu.appendChild(btn);
+  }
+  addItem('↩ Отговори', function() { var nm = ''; var cd = document.querySelector('[data-comment-id="' + commentId + '"]'); if (cd) { var st = cd.querySelector('.bc-comment-meta strong'); if (st) nm = st.textContent; } replyToComment(cardId, commentId, nm); });
+  addItem('📌 ' + (isPinned ? 'Откачи' : 'Закачи'), function() { pinComment(cardId, commentId); });
+  if (isOwn) {
+    var sep = document.createElement('div'); sep.className = 'bc-comment-ctx-sep'; menu.appendChild(sep);
+    addItem('Редактирай', function() { editComment(cardId, commentId, null); });
+    addItem('Изтрий', function() { deleteComment(cardId, commentId); }, true);
+  }
+  document.body.appendChild(menu);
+  var rect = e.currentTarget.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.left = Math.max(8, rect.right - 180) + 'px';
+  menu.style.zIndex = '9999';
+  setTimeout(function() { document.addEventListener('click', function cl() { menu.remove(); document.removeEventListener('click', cl); }); }, 0);
+}
+
 function editComment(cardId, commentId, btn) {
-  var commentDiv = btn.closest('.bc-comment');
+  var commentDiv = (btn && btn.closest) ? btn.closest('.bc-comment') : document.querySelector('[data-comment-id="' + commentId + '"]');
   var textDiv = commentDiv.querySelector('.bc-comment-text');
   var currentHtml = textDiv.innerHTML;
   var currentText = textDiv.textContent;
@@ -4243,6 +4273,14 @@ function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace
 function formatDate(d) { if(!d)return''; const s=d.split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}.${m}.${y}`; }
 function getCardColorClass(c) { if(c.is_on_hold)return'on-hold'; if(c.priority==='urgent')return'priority'; if(!c.due_on)return''; const n=new Date();n.setHours(0,0,0,0); const due=new Date(c.due_on+'T00:00:00'); const diff=Math.ceil((due-n)/86400000); if(diff<0)return'overdue'; if(diff===0)return'deadline-today'; if(diff<=4)return'deadline-soon'; return'deadline-ok'; }
 function timeAgo(d) { const s=Math.floor((Date.now()-new Date(d))/1000); if(s<60)return'сега'; if(s<3600)return Math.floor(s/60)+'м'; if(s<86400)return Math.floor(s/3600)+'ч'; return Math.floor(s/86400)+'д назад'; }
+function fmtDate(d) {
+  if (!d) return '';
+  var dt = new Date(d);
+  var mo = ['Ян','Фев','Мар','Апр','Май','Юни','Юли','Авг','Сеп','Окт','Ное','Дек'];
+  var s = mo[dt.getMonth()] + ' ' + dt.getDate();
+  if (dt.getFullYear() !== new Date().getFullYear()) s += ', ' + dt.getFullYear();
+  return s;
+}
 
 // ==================== KEYBOARD SHORTCUTS ====================
 document.addEventListener('keydown', (e) => {
