@@ -474,7 +474,8 @@
 .bc-comment-action--pin { color: var(--accent); }
 
 /* Pinned comment sidebar */
-.bc-pinned-sidebar { position: sticky; top: 100px; width: 260px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.bc-pinned-sidebar { position: sticky; top: 100px; width: 260px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; max-height: calc(100vh - 140px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.bc-pinned-sidebar:hover { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 .bc-pinned-sidebar__title { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
 .bc-pinned-sidebar__content { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
 .bc-pinned-sidebar__meta { font-size: 11px; color: var(--text-dim); margin-top: 8px; }
