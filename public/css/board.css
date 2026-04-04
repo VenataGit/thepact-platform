@@ -91,7 +91,7 @@
   padding: 20px 24px 16px; border-bottom: 1px solid var(--border);
 }
 .board-page-header__title { font-size: 24px; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
-.board-page-header__actions { display: flex; align-items: center; gap: 10px; }
+.board-page-header__actions { display: flex; align-items: center; gap: 10px; position: relative; }
 .board-page-header__watchers { display: flex; align-items: center; gap: 8px; }
 .board-page-header__watcher-label { font-size: 11px; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 .board-page-header__watcher-avatars { display: flex; }

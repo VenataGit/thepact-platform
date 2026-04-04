@@ -4,10 +4,15 @@ const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth, requireModerator } = require('../middleware/auth');
 const { broadcast } = require('../ws/broadcast');
 
-// GET /api/boards — all boards with columns
+// GET /api/boards — all boards with columns (excludes archived unless ?archived=1)
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const boards = await query('SELECT * FROM boards ORDER BY position');
+    const showArchived = req.query.archived === '1';
+    const boards = await query(
+      showArchived
+        ? 'SELECT * FROM boards WHERE archived_at IS NOT NULL ORDER BY archived_at DESC'
+        : 'SELECT * FROM boards WHERE archived_at IS NULL ORDER BY position'
+    );
     const columns = await query('SELECT * FROM columns ORDER BY board_id, position');
 
     const result = boards.map(b => ({
@@ -75,6 +80,36 @@ router.put('/:id', requireAuth, requireModerator, async (req, res) => {
     if (!board) return res.status(404).json({ error: 'Board not found' });
     broadcast({ type: 'board:updated', board }, req.user.userId);
     res.json(board);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/boards/:id/archive — archive board
+router.put('/:id/archive', requireAuth, requireModerator, async (req, res) => {
+  try {
+    const board = await queryOne(
+      'UPDATE boards SET archived_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *',
+      [req.params.id]
+    );
+    if (!board) return res.status(404).json({ error: 'Board not found' });
+    broadcast({ type: 'board:archived', boardId: board.id }, req.user.userId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/boards/:id/unarchive — restore archived board
+router.put('/:id/unarchive', requireAuth, requireModerator, async (req, res) => {
+  try {
+    const board = await queryOne(
+      'UPDATE boards SET archived_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING *',
+      [req.params.id]
+    );
+    if (!board) return res.status(404).json({ error: 'Board not found' });
+    broadcast({ type: 'board:unarchived', boardId: board.id }, req.user.userId);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }

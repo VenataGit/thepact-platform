@@ -875,7 +875,7 @@ async function renderBoard(el, boardId) {
           ${boardOverdueCount > 0 ? `<button class="btn btn-sm btn-ghost" id="overdueFilterBtn" onclick="toggleOverdueFilter(this)" title="\u041f\u043e\u043a\u0430\u0436\u0438 \u0441\u0430\u043c\u043e \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438">\u26a0 ${boardOverdueCount}</button>` : ''}
           ${edit ? `<a class="btn btn-sm" href="#/card/0/new?board=${boardId}">+ Нова карта</a>` : ''}
           ${manage ? `<button class="btn btn-sm btn-ghost" onclick="showAddColumnModal(${boardId})">+ Колона</button>` : ''}
-          <button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>
+          ${manage ? `<button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>` : ''}
         </div>
       </div>
 
@@ -3758,17 +3758,31 @@ function deleteColumn(bid,cid) { showConfirmModal('\u0418\u0437\u0442\u0440\u043
 function toggleBoardMenu(e, bid) {
   e.stopPropagation();
   document.querySelectorAll('.board-context-menu').forEach(m => m.remove());
+  const isAdmin = currentUser && currentUser.role === 'admin';
   const menu = document.createElement('div');
   menu.className = 'col-context-menu board-context-menu';
-  menu.style.cssText = 'right:0;left:auto;min-width:180px';
-  const manage = canManage();
-  const isAdmin = currentUser && currentUser.role === 'admin';
-  let html = '<button onclick="promptRenameBoard(' + bid + ');this.parentElement.remove()">✏️ Преименувай борд</button>';
-  if (manage) html += '<button onclick="showAddColumnModal(' + bid + ');this.parentElement.remove()">+ Добави колона</button>';
-  if (isAdmin) html += '<button style="color:var(--red)" onclick="deleteBoardConfirm(' + bid + ');this.parentElement.remove()">\ud83d\uddd1 Изтрий борд</button>';
+  menu.style.cssText = 'right:0;left:auto;min-width:190px;top:100%';
+  let html = '';
+  html += '<button onclick="promptRenameBoard(' + bid + ');document.querySelectorAll(\'.board-context-menu\').forEach(m=>m.remove())">\u270f\ufe0f \u041f\u0440\u0435\u0438\u043c\u0435\u043d\u0443\u0432\u0430\u0439 \u0431\u043e\u0440\u0434</button>';
+  html += '<button onclick="archiveBoardConfirm(' + bid + ');document.querySelectorAll(\'.board-context-menu\').forEach(m=>m.remove())">\ud83d\udce6 \u0410\u0440\u0445\u0438\u0432\u0438\u0440\u0430\u0439</button>';
+  if (isAdmin) html += '<div style="border-top:1px solid var(--border);margin:4px 0"></div><button style="color:var(--red)" onclick="deleteBoardConfirm(' + bid + ');document.querySelectorAll(\'.board-context-menu\').forEach(m=>m.remove())">\ud83d\uddd1 \u0418\u0437\u0442\u0440\u0438\u0439 \u0431\u043e\u0440\u0434</button>';
   menu.innerHTML = html;
-  e.target.closest('.board-page-header__actions').appendChild(menu);
+  const anchor = e.target.closest('.board-page-header__actions');
+  if (anchor) anchor.appendChild(menu);
   setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+}
+function archiveBoardConfirm(bid) {
+  const board = allBoards.find(b => b.id === bid);
+  showConfirmModal('\u0410\u0440\u0445\u0438\u0432\u0438\u0440\u0430\u0439 \u0431\u043e\u0440\u0434 "' + (board ? esc(board.title) : '') + '"?\n\u0411\u043e\u0440\u0434\u044a\u0442 \u0449\u0435 \u0431\u044a\u0434\u0435 \u0441\u043a\u0440\u0438\u0442 \u043e\u0442 Dashboard \u0438 Home.', async function() {
+    try {
+      const r = await fetch('/api/boards/' + bid + '/archive', { method: 'PUT' });
+      if (!r.ok) { const d = await r.json(); showToast(d.error || '\u0413\u0440\u0435\u0448\u043a\u0430', 'error'); return; }
+      allBoards = await (await fetch('/api/boards')).json();
+      showToast('\u0411\u043e\u0440\u0434\u044a\u0442 \u0435 \u0430\u0440\u0445\u0438\u0432\u0438\u0440\u0430\u043d', 'success');
+      location.hash = '#/home';
+      router();
+    } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0430\u0440\u0445\u0438\u0432\u0438\u0440\u0430\u043d\u0435', 'error'); }
+  });
 }
 function promptRenameBoard(bid) {
   const board = allBoards.find(b => b.id === bid);
