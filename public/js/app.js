@@ -1212,7 +1212,9 @@ async function renderCardPage(el, cardId) {
     // ===== COLUMN (always show Move along to dropdown) =====
     var colOptionsHtml = '';
     if (canEdit() && board && board.columns) {
-      var otherCols = board.columns.filter(function(c) { return c.id !== card.column_id; });
+      var otherCols = board.columns
+        .filter(function(c) { return c.id !== card.column_id; })
+        .sort(function(a, b) { return (a.is_done_column ? 1 : 0) - (b.is_done_column ? 1 : 0); });
       colOptionsHtml = '<select class="bc-select-inline" onchange="moveCard(' + cardId + ', this.value)">' +
         '<option value="">Премести в\u2026</option>' +
         otherCols.map(function(c) { return '<option value="' + c.id + '">' + esc(c.title) + '</option>'; }).join('') +
@@ -1933,7 +1935,7 @@ async function renderCardCreate(el) {
         <div class="edit-row"><label>Борд</label><select id="createBoard" onchange="updateCreateColumns()">${allBoards.map(b=>`<option value="${b.id}" ${b.id===boardId?'selected':''}>${esc(b.title)}</option>`).join('')}</select></div>
         <div class="edit-row"><label>Колона</label><select id="createColumn">${(board?.columns||[]).filter(c=>!c.is_done_column).map(c=>`<option value="${c.id}" ${c.id===columnId?'selected':''}>${esc(c.title)}</option>`).join('')}</select></div>
         <div class="edit-row"><label>Бележки</label><input id="createContent" type="hidden"><trix-editor input="createContent" class="trix-dark" placeholder="Добави бележки..."></trix-editor></div>
-        <div class="edit-row"><label>Краен срок</label><input type="date" id="createDue" lang="bg" title="дд.мм.гггг"></div>
+        <div class="edit-row"><label>Краен срок</label><button class="bc-date-btn bc-date-btn--placeholder" id="createDueBtn" data-value="" onclick="event.stopPropagation();showDatePickerPopup(this,this.dataset.value,function(d){var b=document.getElementById('createDueBtn');b.dataset.value=d||'';b.textContent=d?formatDate(d):'\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';b.className=d?'bc-date-btn':'bc-date-btn bc-date-btn--placeholder';})">Избери дата\u2026</button></div>
         <div class="edit-row"><label>Клиент</label><input id="createClient" placeholder="Име на клиент"></div>
         <div class="edit-row"><label>Възложи на</label><select id="createAssignees" multiple style="min-height:80px">${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
         <div class="edit-row"><label>Приоритет</label><select id="createPriority"><option value="normal">Нормален</option><option value="high">Висок</option><option value="urgent">Спешен</option></select></div>
@@ -1955,7 +1957,7 @@ async function submitCreateCard() {
     title, board_id: parseInt(document.getElementById('createBoard').value),
     column_id: parseInt(document.getElementById('createColumn').value),
     content: document.getElementById('createContent').value || null,
-    due_on: document.getElementById('createDue').value || null,
+    due_on: document.getElementById('createDueBtn')?.dataset.value || null,
     client_name: document.getElementById('createClient').value || null,
     priority: document.getElementById('createPriority').value,
     assignee_ids: Array.from(document.getElementById('createAssignees').selectedOptions).map(o=>parseInt(o.value))
@@ -2545,13 +2547,13 @@ function createScheduleEvent() {
   var ov = document.createElement('div'); ov.className = 'modal-overlay';
   ov.innerHTML = '<div class="confirm-modal-box"><p class="confirm-modal-msg">\u041d\u043e\u0432\u043e \u0441\u044a\u0431\u0438\u0442\u0438\u0435</p>' +
     '<input class="confirm-modal-input" id="evTitle" placeholder="\u0417\u0430\u0433\u043b\u0430\u0432\u0438\u0435\u2026">' +
-    '<input class="confirm-modal-input" type="date" id="evDate" value="' + today + '">' +
+    '<button class="bc-date-btn" id="evDate" data-value="' + today + '" onclick="event.stopPropagation();showDatePickerPopup(this,this.dataset.value,function(d){var b=document.getElementById(\'evDate\');if(b){b.dataset.value=d||\'\';b.textContent=d?formatDate(d):\'Избери дата\u2026\';b.className=d?\'bc-date-btn\':\'bc-date-btn bc-date-btn--placeholder\';}})" style="margin-bottom:8px;width:100%;text-align:left">' + formatDate(today) + '</button>' +
     '<div class="confirm-modal-actions"><button class="btn btn-primary" id="evOk">\u0421\u044a\u0437\u0434\u0430\u0439</button><button class="btn btn-ghost" id="evCancel">\u041e\u0442\u043a\u0430\u0437</button></div></div>';
   document.body.appendChild(ov);
   setTimeout(function(){ ov.querySelector('#evTitle').focus(); }, 50);
   ov.querySelector('#evOk').onclick = async function() {
     var t = ov.querySelector('#evTitle').value.trim(); if (!t) { ov.querySelector('#evTitle').focus(); return; }
-    var d = ov.querySelector('#evDate').value; if (!d) { ov.querySelector('#evDate').focus(); return; }
+    var d = ov.querySelector('#evDate').dataset.value; if (!d) { showToast('\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430', 'warn'); return; }
     ov.remove();
     try { await fetch('/api/schedule', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,starts_at:d+'T09:00:00',all_day:true})}); router(); } catch {}
   };
@@ -3247,17 +3249,20 @@ function showKpClientForm(editData) {
   var wrap = document.getElementById('kpClientFormWrap');
   if (!wrap) return;
   var isEdit = !!editData;
+  var firstDateVal = isEdit ? (editData.first_publish_date || '').split('T')[0] : '';
+  var lastDateVal  = isEdit ? (editData.last_video_date  || '').split('T')[0] : '';
+  var nextDateVal  = isEdit ? (editData.next_kp_date     || '').split('T')[0] : '';
   wrap.style.display = 'block';
   wrap.innerHTML = '<div class="kp-form-box">' +
-    '<h4 style="margin:0 0 16px">' + (isEdit ? 'Редактиране' : 'Нов клиент') + '</h4>' +
+    '<h4 style="margin:0 0 16px">' + (isEdit ? '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0430\u043d\u0435' : '\u041d\u043e\u0432 \u043a\u043b\u0438\u0435\u043d\u0442') + '</h4>' +
     '<div class="kp-form-grid">' +
-      '<div><label class="kp-label">Клиент</label><input class="input" type="text" id="kpName" value="' + (isEdit ? esc(editData.name) : '') + '" placeholder="Име на клиент"></div>' +
-      '<div><label class="kp-label">Видеа в КП</label><input class="input" type="number" id="kpVideos" value="' + (isEdit ? (editData.videos_per_month || 10) : 10) + '" min="1" max="50" onchange="kpRecalcDates()"></div>' +
-      '<div><label class="kp-label">Интервал (дни)</label><input class="input" type="number" id="kpInterval" value="' + (isEdit ? (editData.publish_interval_days || 3) : 3) + '" min="1" max="30" onchange="kpRecalcDates()"></div>' +
-      '<div><label class="kp-label">Текущ КП №</label><input class="input" type="number" id="kpKpNum" value="' + (isEdit ? (editData.current_kp_number || 1) : 1) + '" min="1"></div>' +
-      '<div><label class="kp-label">Дата първо видео</label><input class="input" type="date" id="kpFirstDate" value="' + (isEdit ? (editData.first_publish_date || '').split('T')[0] : '') + '" onclick="this.showPicker?.()" onchange="kpRecalcDates()"></div>' +
-      '<div><label class="kp-label">Последно видео <span style="opacity:.5">(авто)</span></label><input class="input" type="date" id="kpLastDate" value="' + (isEdit ? (editData.last_video_date || '').split('T')[0] : '') + '" onclick="this.showPicker?.()"></div>' +
-      '<div><label class="kp-label">Следващ КП първо видео <span style="opacity:.5">(авто)</span></label><input class="input" type="date" id="kpNextDate" value="' + (isEdit ? (editData.next_kp_date || '').split('T')[0] : '') + '" onclick="this.showPicker?.()"></div>' +
+      '<div><label class="kp-label">\u041a\u043b\u0438\u0435\u043d\u0442</label><input class="input" type="text" id="kpName" value="' + (isEdit ? esc(editData.name) : '') + '" placeholder="\u0418\u043c\u0435 \u043d\u0430 \u043a\u043b\u0438\u0435\u043d\u0442"></div>' +
+      '<div><label class="kp-label">\u0412\u0438\u0434\u0435\u0430 \u0432 \u041a\u041f</label><input class="input" type="number" id="kpVideos" value="' + (isEdit ? (editData.videos_per_month || 10) : 10) + '" min="1" max="50" onchange="kpRecalcDates()"></div>' +
+      '<div><label class="kp-label">\u0418\u043d\u0442\u0435\u0440\u0432\u0430\u043b (\u0434\u043d\u0438)</label><input class="input" type="number" id="kpInterval" value="' + (isEdit ? (editData.publish_interval_days || 3) : 3) + '" min="1" max="30" onchange="kpRecalcDates()"></div>' +
+      '<div><label class="kp-label">\u0422\u0435\u043a\u0443\u0449 \u041a\u041f \u2116</label><input class="input" type="number" id="kpKpNum" value="' + (isEdit ? (editData.current_kp_number || 1) : 1) + '" min="1"></div>' +
+      '<div><label class="kp-label">\u0414\u0430\u0442\u0430 \u043f\u044a\u0440\u0432\u043e \u0432\u0438\u0434\u0435\u043e</label><button class="bc-date-btn ' + (firstDateVal ? '' : 'bc-date-btn--placeholder') + '" id="kpFirstDate" data-value="' + firstDateVal + '" onclick="event.stopPropagation();showDatePickerPopup(this,this.dataset.value,function(d){var b=document.getElementById(\'kpFirstDate\');if(b){b.dataset.value=d||\'\';b.textContent=d?formatDate(d):\'\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026\';b.className=d?\'bc-date-btn\':\'bc-date-btn bc-date-btn--placeholder\';}kpRecalcDates();})" style="width:100%;text-align:left">' + (firstDateVal ? formatDate(firstDateVal) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026') + '</button></div>' +
+      '<div><label class="kp-label">\u041f\u043e\u0441\u043b\u0435\u0434\u043d\u043e \u0432\u0438\u0434\u0435\u043e <span style="opacity:.5">(\u0430\u0432\u0442\u043e)</span></label><span class="input" id="kpLastDate" data-value="' + lastDateVal + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (lastDateVal ? formatDate(lastDateVal) : '\u2014') + '</span></div>' +
+      '<div><label class="kp-label">\u0421\u043b\u0435\u0434\u0432\u0430\u0449 \u041a\u041f \u043f\u044a\u0440\u0432\u043e \u0432\u0438\u0434\u0435\u043e <span style="opacity:.5">(\u0430\u0432\u0442\u043e)</span></label><span class="input" id="kpNextDate" data-value="' + nextDateVal + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (nextDateVal ? formatDate(nextDateVal) : '\u2014') + '</span></div>' +
     '</div>' +
     '<div style="margin-top:12px"><label class="kp-label">Бележки</label><textarea class="input" id="kpNotes" rows="2" style="width:100%;resize:vertical">' + (isEdit ? esc(editData.notes || '') : '') + '</textarea></div>' +
     '<div style="margin-top:16px;display:flex;gap:8px">' +
@@ -3268,15 +3273,18 @@ function showKpClientForm(editData) {
 }
 
 function kpRecalcDates() {
-  var firstDate = document.getElementById('kpFirstDate') && document.getElementById('kpFirstDate').value;
+  var firstEl = document.getElementById('kpFirstDate');
+  var firstDate = firstEl && firstEl.dataset.value;
   var videos = parseInt((document.getElementById('kpVideos') || {}).value) || 10;
   var interval = parseInt((document.getElementById('kpInterval') || {}).value) || 3;
   if (!firstDate) return;
   var first = new Date(firstDate + 'T12:00:00');
   var last = new Date(first); last.setDate(last.getDate() + (videos - 1) * interval);
   var nextFirst = new Date(last); nextFirst.setDate(nextFirst.getDate() + interval);
-  if (document.getElementById('kpLastDate')) document.getElementById('kpLastDate').value = last.toISOString().split('T')[0];
-  if (document.getElementById('kpNextDate')) document.getElementById('kpNextDate').value = nextFirst.toISOString().split('T')[0];
+  var lastEl = document.getElementById('kpLastDate');
+  if (lastEl) { var lastStr = last.toISOString().split('T')[0]; lastEl.dataset.value = lastStr; lastEl.textContent = formatDate(lastStr); }
+  var nextEl = document.getElementById('kpNextDate');
+  if (nextEl) { var nextStr = nextFirst.toISOString().split('T')[0]; nextEl.dataset.value = nextStr; nextEl.textContent = formatDate(nextStr); }
 }
 
 async function editKpClientForm(id) {
@@ -3295,9 +3303,9 @@ async function saveKpClient(id) {
     videos_per_month: parseInt(document.getElementById('kpVideos').value) || 10,
     publish_interval_days: parseInt(document.getElementById('kpInterval').value) || 3,
     current_kp_number: parseInt(document.getElementById('kpKpNum').value) || 1,
-    first_publish_date: document.getElementById('kpFirstDate').value || null,
-    last_video_date: document.getElementById('kpLastDate').value || null,
-    next_kp_date: document.getElementById('kpNextDate').value || null,
+    first_publish_date: (document.getElementById('kpFirstDate') && document.getElementById('kpFirstDate').dataset.value) || null,
+    last_video_date: (document.getElementById('kpLastDate') && document.getElementById('kpLastDate').dataset.value) || null,
+    next_kp_date: (document.getElementById('kpNextDate') && document.getElementById('kpNextDate').dataset.value) || null,
     notes: document.getElementById('kpNotes').value || null
   };
   try {
