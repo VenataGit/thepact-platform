@@ -3442,7 +3442,7 @@ async function renderColumnView(el, id) {
 // ==================== КП АВТОМАТИЗАЦИЯ ====================
 async function renderKpAuto(el) {
   setBreadcrumb([{ label: 'Инструменти' }, { label: 'КП-Автоматизация' }]);
-  el.className = '';
+  el.className = 'full-width';
   el.innerHTML = '<div class="home-content-box home-content-box--wide"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--text-dim)">Зареждане...</div></div></div>';
   await loadKpAuto(el);
 }
