@@ -231,10 +231,10 @@ async function renderHome(el) {
     const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
 
     el.innerHTML = `
+      <div style="text-align:center;margin-bottom:20px">
+        <img src="/img/logo-white.svg" alt="The Pact" style="height:48px">
+      </div>
       <div class="home-content-box">
-        <div style="text-align:center;margin-bottom:28px;padding-top:8px">
-          <img src="/img/logo-white.svg" alt="The Pact" style="height:44px;margin-bottom:6px">
-        </div>
 
         <!-- Stats bar -->
         <div style="display:flex;gap:12px;justify-content:center;margin-bottom:32px;flex-wrap:wrap">
@@ -279,7 +279,7 @@ async function renderHome(el) {
         <!-- Boards grid -->
         <div style="margin-bottom:32px">
           <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Проекти</div>
-          <div class="projects-home-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+          <div class="projects-home-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
             ${boards.map(b => {
               const bc = activeCards.filter(c => c.board_id === b.id);
               const bOver = bc.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now).length;
