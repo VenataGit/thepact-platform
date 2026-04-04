@@ -321,7 +321,7 @@ function _pcFullRender(el) {
 
 async function renderCalendar(el) {
   setBreadcrumb([{ label: 'Производствен Календар' }]);
-  el.className = '';
+  el.className = 'full-width';
 
   // init week to current Monday
   if (!_prodCal.weekStart) {
