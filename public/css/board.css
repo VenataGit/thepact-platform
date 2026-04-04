@@ -474,12 +474,13 @@
 .bc-comment-action--pin { color: var(--accent); }
 
 /* Pinned comment sidebar */
-.bc-pinned-sidebar { position: sticky; top: 100px; width: 260px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; max-height: calc(100vh - 140px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
-.bc-pinned-sidebar:hover { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-.bc-pinned-sidebar__title { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.bc-pinned-sidebar { position: sticky; top: 100px; width: 260px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; max-height: calc(100vh - 140px); display: flex; flex-direction: column; overflow: hidden; }
+.bc-pinned-sidebar__header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 10px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+.bc-pinned-sidebar__title { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 6px; }
+.bc-pinned-sidebar__body { flex: 1; overflow-y: auto; padding: 12px 16px 14px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border-hover) transparent; }
 .bc-pinned-sidebar__content { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
 .bc-pinned-sidebar__meta { font-size: 11px; color: var(--text-dim); margin-top: 8px; }
-.bc-pinned-sidebar__unpin { background: none; border: none; color: var(--accent); font-size: 11px; cursor: pointer; padding: 4px 0; font-family: inherit; margin-top: 6px; }
+.bc-pinned-sidebar__unpin { background: none; border: none; color: var(--accent); font-size: 11px; cursor: pointer; padding: 2px 0; font-family: inherit; }
 .bc-pinned-sidebar__unpin:hover { text-decoration: underline; }
 
 /* Image lightbox */

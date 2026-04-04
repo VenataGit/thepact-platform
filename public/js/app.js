@@ -1296,10 +1296,15 @@ async function renderCardPage(el, cardId) {
     if (_cardPinnedComment) {
       var pc = _cardPinnedComment;
       pinnedSidebarHtml = '<div class="bc-pinned-sidebar">' +
-        '<div class="bc-pinned-sidebar__title">\ud83d\udccc \u0417\u0430\u043a\u0430\u0447\u0435\u043d\u043e</div>' +
-        '<div class="bc-pinned-sidebar__content">' + (pc.content || '').replace(/\n/g, '<br>') + '</div>' +
-        '<div class="bc-pinned-sidebar__meta">\u2014 ' + esc(pc.user_name) + ', ' + timeAgo(pc.created_at) + '</div>' +
-        '<button class="bc-pinned-sidebar__unpin" onclick="unpinComment(' + cardId + ')">Откачи</button>' +
+        '<div class="bc-pinned-sidebar__header">' +
+          '<span class="bc-pinned-sidebar__title">\ud83d\udccc \u0417\u0430\u043a\u0430\u0447\u0435\u043d\u043e</span>' +
+          '<button class="bc-pinned-sidebar__unpin" onclick="unpinComment(' + cardId + ')">' +
+            '\u041e\u0442\u043a\u0430\u0447\u0438</button>' +
+        '</div>' +
+        '<div class="bc-pinned-sidebar__body" id="pinnedSidebarBody">' +
+          '<div class="bc-pinned-sidebar__content">' + (pc.content || '').replace(/\n/g, '<br>') + '</div>' +
+          '<div class="bc-pinned-sidebar__meta">\u2014 ' + esc(pc.user_name) + ', ' + timeAgo(pc.created_at) + '</div>' +
+        '</div>' +
         '</div>';
     }
 
@@ -1346,7 +1351,7 @@ async function renderCardPage(el, cardId) {
       '</div>' + wrapperEnd;
 
     // Restore pinned sidebar scroll position after re-render
-    var _psb = el.querySelector('.bc-pinned-sidebar');
+    var _psb = document.getElementById('pinnedSidebarBody');
     if (_psb) {
       _psb.scrollTop = _pinnedSidebarScrollTop;
       _psb.addEventListener('scroll', function() { _pinnedSidebarScrollTop = this.scrollTop; }, { passive: true });
