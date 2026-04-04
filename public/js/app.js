@@ -3561,30 +3561,37 @@ function deleteBoardConfirm(bid) {
 
 // ==================== DRAG & DROP ====================
 let dragCardId = null;
+function _clearAllDragOver() {
+  document.querySelectorAll('.drag-over, .col-drag-over, .dash-drop-over').forEach(function(el) {
+    el.classList.remove('drag-over', 'col-drag-over', 'dash-drop-over');
+  });
+}
 function handleDragStart(e) { dragCardId=e.currentTarget.dataset.cardId; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; }
-function handleDragEnd(e) { e.currentTarget.classList.remove('dragging'); dragCardId=null; }
+function handleDragEnd(e) { e.currentTarget.classList.remove('dragging'); dragCardId=null; _clearAllDragOver(); }
 function handleDragOver(e) { if(!dragCardId)return; e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
-function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function handleDragLeave(e) { if(!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drag-over'); }
 async function handleDrop(e) {
   e.preventDefault(); e.stopPropagation();
-  e.currentTarget.classList.remove('drag-over');
+  _clearAllDragOver();
   if(!dragCardId) return;
   const colId = parseInt(e.currentTarget.dataset.columnId);
   const boardId = parseInt(e.currentTarget.dataset.boardId);
   const isHold = e.currentTarget.dataset.isHold === 'true';
+  const cardId = dragCardId;
+  dragCardId = null;
+  _suppressWsRerender = Date.now() + 3000;
   try {
-    await fetch(`/api/cards/${dragCardId}/move`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({column_id:colId,board_id:boardId})});
-    await fetch(`/api/cards/${dragCardId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_on_hold:isHold})});
+    await fetch('/api/cards/'+cardId+'/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({column_id:colId,board_id:boardId})});
+    await fetch('/api/cards/'+cardId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_on_hold:isHold})});
     router();
-  } catch {}
+  } catch { router(); }
 }
 
 // ==================== DASHBOARD DRAG & DROP ====================
 function handleDashDragEnd(e) {
   e.currentTarget.classList.remove('dragging');
   dragCardId = null;
-  // Clear any lingering drop-over highlights
-  document.querySelectorAll('.dash-drop-over').forEach(el => el.classList.remove('dash-drop-over'));
+  _clearAllDragOver();
 }
 function handleDashDragOver(e) {
   if (!dragCardId) return;
@@ -3817,6 +3824,7 @@ let _wsRouterTimeout = null;
 let _suppressWsRerender = 0;
 function wsRouter() {
   if (Date.now() < _suppressWsRerender) return;
+  if (dragCardId) return; // never re-render while a drag is active
   clearTimeout(_wsRouterTimeout);
   _wsRouterTimeout = setTimeout(router, 150);
 }
