@@ -504,6 +504,9 @@
     max-height: 270px;
     height: 270px;
   }
+  .bc-pinned-sidebar__body {
+    overscroll-behavior: auto;
+  }
   .card-page-main { max-width: 100%; }
 }
 
