@@ -73,14 +73,18 @@ router.get('/:id', requireAuth, async (req, res) => {
       query('SELECT cn.*, u.name as author_name FROM card_notes cn LEFT JOIN users u ON cn.user_id = u.id WHERE cn.card_id = $1 ORDER BY cn.created_at DESC', [card.id])
     ]);
 
-    // Fetch pinned comment if set
+    // Fetch this user's personally pinned comment (per-user, not global)
     let pinned_comment = null;
-    if (card.pinned_comment_id) {
+    const userPin = await queryOne(
+      'SELECT comment_id FROM user_card_pins WHERE user_id = $1 AND card_id = $2',
+      [req.user.userId, card.id]
+    );
+    if (userPin?.comment_id) {
       pinned_comment = await queryOne(
         `SELECT c.*, u.name as user_name, u.avatar_url as user_avatar
          FROM card_comments c JOIN users u ON c.user_id = u.id
          WHERE c.id = $1`,
-        [card.pinned_comment_id]
+        [userPin.comment_id]
       );
     }
 
@@ -395,13 +399,22 @@ router.post('/:id/pin-comment', requireAuth, async (req, res) => {
       if (!comment) return res.status(404).json({ error: 'Comment not found' });
     }
 
-    // Set or clear pinned comment (null to unpin)
-    const updated = await queryOne(
-      'UPDATE cards SET pinned_comment_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-      [commentId || null, cardId]
-    );
+    // Save or clear this user's personal pin (not shared with others)
+    if (commentId) {
+      await execute(
+        `INSERT INTO user_card_pins (user_id, card_id, comment_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, card_id) DO UPDATE SET comment_id = $3, updated_at = NOW()`,
+        [req.user.userId, cardId, commentId]
+      );
+    } else {
+      await execute(
+        'DELETE FROM user_card_pins WHERE user_id = $1 AND card_id = $2',
+        [req.user.userId, cardId]
+      );
+    }
 
-    // If pinning, return the pinned comment data
+    // Return the pinned comment data so the frontend can re-render
     let pinnedComment = null;
     if (commentId) {
       pinnedComment = await queryOne(
@@ -412,8 +425,8 @@ router.post('/:id/pin-comment', requireAuth, async (req, res) => {
       );
     }
 
-    broadcast({ type: 'card:comment-pinned', cardId: parseInt(cardId), pinnedComment, pinnedCommentId: commentId || null });
-    res.json({ ...updated, pinned_comment: pinnedComment });
+    // No broadcast — pin is personal, only this user should see it
+    res.json({ ok: true, pinned_comment: pinnedComment });
   } catch (err) {
     console.error('Pin comment error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
