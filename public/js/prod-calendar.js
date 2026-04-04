@@ -20,6 +20,7 @@ var _pcResize = {
   entryId:  null,
   startY:   0,
   startDur: 0,
+  didResize: false,  // suppresses card click after a resize drag
 };
 
 var PC_PX_MIN   = 1;   // 1 pixel = 1 minute → 60px per hour
@@ -184,7 +185,7 @@ function _pcEventHtml(entry) {
     '<button class="pc-event__del" title="Върни в списъка" onclick="event.stopPropagation();pcDeleteEntry(' + entry.id + ')">↩</button>' +
     '<div class="pc-event__title">' + (entry.card_title || '') + '</div>' +
     (short ? '' : '<div class="pc-event__time">' + t0 + ' – ' + t1 + '</div>') +
-    '<div class="pc-event__resize" onmousedown="pcResizeStart(event,' + entry.id + ')" onclick="event.stopPropagation()"></div>' +
+    '<div class="pc-event__resize" title="Промени продължителност" onmousedown="pcResizeStart(event,' + entry.id + ')" onclick="event.stopPropagation()">⠿</div>' +
   '</div>';
 }
 
@@ -482,12 +483,14 @@ function pcResizeStart(e, entryId) {
   _pcResize.entryId  = entryId;
   _pcResize.startY   = e.clientY;
   _pcResize.startDur = entry ? entry.duration_minutes : 60;
+  _pcResize.didResize = false;
   document.addEventListener('mousemove', pcResizeMove);
   document.addEventListener('mouseup',   pcResizeEnd);
 }
 
 function pcResizeMove(e) {
   if (!_pcResize.entryId) return;
+  _pcResize.didResize = true;
   var dy     = e.clientY - _pcResize.startY;
   var newDur = Math.max(15, Math.round((_pcResize.startDur + dy) / PC_SNAP) * PC_SNAP);
   var el     = document.querySelector('.pc-event[data-entry-id="' + _pcResize.entryId + '"]');
@@ -543,6 +546,7 @@ function pcFilterCards(q) {
 // ─── open card ────────────────────────────────────────────────────────────────
 
 function pcOpenCard(e, cardId) {
-  // drag events cancel click automatically — this only fires on a plain click
+  // Suppress open if the user just finished a resize drag
+  if (_pcResize.didResize) { _pcResize.didResize = false; return; }
   location.hash = '#/card/' + cardId;
 }

@@ -1281,7 +1281,8 @@ textarea.confirm-modal-input { resize: vertical; min-height: 80px; }
 .pc-event__time { font-size: 10px; color: rgba(255,255,255,0.8); margin-top: 2px; }
 .pc-event__del { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.45); border: none; color: #fff; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; opacity: 0.7; transition: opacity 0.15s, background 0.15s; }
 .pc-event__del:hover { opacity: 1; background: rgba(180,30,30,0.8); }
-.pc-event__resize { position: absolute; bottom: 0; left: 0; right: 0; height: 6px; cursor: s-resize; background: rgba(0,0,0,0.2); border-radius: 0 0 5px 5px; }
+.pc-event__resize { position: absolute; bottom: 3px; right: 3px; width: 14px; height: 14px; cursor: s-resize; background: rgba(0,0,0,0.35); border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: rgba(255,255,255,0.75); user-select: none; flex-shrink: 0; }
+.pc-event__resize:hover { background: rgba(0,0,0,0.6); color: #fff; }
 
 /* Drag preview ghost */
 .pc-drag-preview { position: absolute; left: 2px; right: 2px; background: rgba(70,163,116,0.2); border: 2px dashed var(--accent); border-radius: 5px; pointer-events: none; z-index: 0; box-sizing: border-box; }
