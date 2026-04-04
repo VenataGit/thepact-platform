@@ -3443,7 +3443,7 @@ async function renderColumnView(el, id) {
 async function renderKpAuto(el) {
   setBreadcrumb([{ label: 'Инструменти' }, { label: 'КП-Автоматизация' }]);
   el.className = '';
-  el.innerHTML = '<div class="home-content-box"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--text-dim)">Зареждане...</div></div></div>';
+  el.innerHTML = '<div class="home-content-box home-content-box--wide"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--text-dim)">Зареждане...</div></div></div>';
   await loadKpAuto(el);
 }
 
@@ -3452,7 +3452,7 @@ async function loadKpAuto(el) {
     const res = await fetch('/api/kp/clients');
     const clients = await res.json();
     if (!res.ok || !Array.isArray(clients)) {
-      el.innerHTML = '<div class="home-content-box"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc((clients && clients.error) || 'Неуспешно зареждане') + '</div></div></div>';
+      el.innerHTML = '<div class="home-content-box home-content-box--wide"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc((clients && clients.error) || 'Неуспешно зареждане') + '</div></div></div>';
       return;
     }
 
@@ -3539,7 +3539,7 @@ async function loadKpAuto(el) {
           '<tbody>' + rowsHtml + '</tbody>' +
         '</table></div>';
 
-    el.innerHTML = '<div class="home-content-box"><div class="kp-auto-wrap">' +
+    el.innerHTML = '<div class="home-content-box home-content-box--wide"><div class="kp-auto-wrap">' +
       '<div class="kp-auto-header">' +
         '<h2 class="kp-auto-title">📋 КП-Автоматизация</h2>' +
         '<button class="btn btn-primary" onclick="showKpClientForm()">+ Нов клиент</button>' +
@@ -3549,7 +3549,7 @@ async function loadKpAuto(el) {
       tableHtml +
     '</div></div>';
   } catch (err) {
-    el.innerHTML = '<div class="home-content-box"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc(err.message) + '</div></div>';
+    el.innerHTML = '<div class="home-content-box home-content-box--wide"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc(err.message) + '</div></div>';
   }
 }
 
@@ -3565,8 +3565,8 @@ function showKpClientForm(editData) {
     '<h4 style="margin:0 0 16px">' + (isEdit ? '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0430\u043d\u0435' : '\u041d\u043e\u0432 \u043a\u043b\u0438\u0435\u043d\u0442') + '</h4>' +
     '<div class="kp-form-grid">' +
       '<div><label class="kp-label">\u041a\u043b\u0438\u0435\u043d\u0442</label><input class="input" type="text" id="kpName" value="' + (isEdit ? esc(editData.name) : '') + '" placeholder="\u0418\u043c\u0435 \u043d\u0430 \u043a\u043b\u0438\u0435\u043d\u0442"></div>' +
-      '<div><label class="kp-label">\u0412\u0438\u0434\u0435\u0430 \u0432 \u041a\u041f</label><input class="input" type="number" id="kpVideos" value="' + (isEdit ? (editData.videos_per_month || 10) : 10) + '" min="1" max="50" onchange="kpRecalcDates()"></div>' +
-      '<div><label class="kp-label">\u0418\u043d\u0442\u0435\u0440\u0432\u0430\u043b (\u0434\u043d\u0438)</label><input class="input" type="number" id="kpInterval" value="' + (isEdit ? (editData.publish_interval_days || 3) : 3) + '" min="1" max="30" onchange="kpRecalcDates()"></div>' +
+      '<div><label class="kp-label">\u0412\u0438\u0434\u0435\u0430 \u0432 \u041a\u041f</label><input class="input" type="number" id="kpVideos" value="' + (isEdit ? (editData.videos_per_month || 10) : 10) + '" min="1" max="50" onchange="kpAutoInterval()"></div>' +
+      '<div><label class="kp-label">\u0418\u043d\u0442\u0435\u0440\u0432\u0430\u043b (\u0434\u043d\u0438) <span style="opacity:.5;font-weight:400">\u0430\u0432\u0442\u043e</span></label><input class="input" type="number" id="kpInterval" value="' + (isEdit ? (editData.publish_interval_days || 3) : Math.max(1, Math.round(30 / 10))) + '" min="1" max="30" onchange="kpRecalcDates()"></div>' +
       '<div><label class="kp-label">\u0422\u0435\u043a\u0443\u0449 \u041a\u041f \u2116</label><input class="input" type="number" id="kpKpNum" value="' + (isEdit ? (editData.current_kp_number || 1) : 1) + '" min="1"></div>' +
       '<div><label class="kp-label">\u0414\u0430\u0442\u0430 \u043f\u044a\u0440\u0432\u043e \u0432\u0438\u0434\u0435\u043e</label><button class="bc-date-btn ' + (firstDateVal ? '' : 'bc-date-btn--placeholder') + '" id="kpFirstDate" data-value="' + firstDateVal + '" onclick="event.stopPropagation();showDatePickerPopup(this,this.dataset.value,function(d){var b=document.getElementById(\'kpFirstDate\');if(b){b.dataset.value=d||\'\';b.textContent=d?formatDate(d):\'\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026\';b.className=d?\'bc-date-btn\':\'bc-date-btn bc-date-btn--placeholder\';}kpRecalcDates();})" style="width:100%;text-align:left">' + (firstDateVal ? formatDate(firstDateVal) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026') + '</button></div>' +
       '<div><label class="kp-label">\u041f\u043e\u0441\u043b\u0435\u0434\u043d\u043e \u0432\u0438\u0434\u0435\u043e <span style="opacity:.5">(\u0430\u0432\u0442\u043e)</span></label><span class="input" id="kpLastDate" data-value="' + lastDateVal + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (lastDateVal ? formatDate(lastDateVal) : '\u2014') + '</span></div>' +
@@ -3593,6 +3593,14 @@ function kpRecalcDates() {
   if (lastEl) { var lastStr = last.toISOString().split('T')[0]; lastEl.dataset.value = lastStr; lastEl.textContent = formatDate(lastStr); }
   var nextEl = document.getElementById('kpNextDate');
   if (nextEl) { var nextStr = nextFirst.toISOString().split('T')[0]; nextEl.dataset.value = nextStr; nextEl.textContent = formatDate(nextStr); }
+}
+
+function kpAutoInterval() {
+  var videos = parseInt((document.getElementById('kpVideos') || {}).value) || 10;
+  var interval = Math.max(1, Math.round(30 / videos));
+  var intEl = document.getElementById('kpInterval');
+  if (intEl) intEl.value = interval;
+  kpRecalcDates();
 }
 
 async function editKpClientForm(id) {
