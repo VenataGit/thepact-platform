@@ -176,14 +176,15 @@ function _pcEventHtml(entry) {
   var t1     = _pcMinToTime(entry.start_minute + entry.duration_minutes);
   var title  = (entry.card_title || '').replace(/"/g, '&quot;');
   var short  = entry.duration_minutes < 30;
-  return '<div class="pc-event" data-entry-id="' + entry.id + '"' +
+  return '<div class="pc-event" data-entry-id="' + entry.id + '" data-card-id="' + entry.card_id + '"' +
     ' style="top:' + top + 'px;height:' + height + 'px;background:' + color + '"' +
     ' draggable="true"' +
+    ' onclick="pcOpenCard(event,' + entry.card_id + ')"' +
     ' ondragstart="pcEventDragStart(event,' + entry.id + ',' + entry.start_minute + ')">' +
     '<button class="pc-event__del" title="Върни в списъка" onclick="event.stopPropagation();pcDeleteEntry(' + entry.id + ')">↩</button>' +
     '<div class="pc-event__title">' + (entry.card_title || '') + '</div>' +
     (short ? '' : '<div class="pc-event__time">' + t0 + ' – ' + t1 + '</div>') +
-    '<div class="pc-event__resize" onmousedown="pcResizeStart(event,' + entry.id + ')"></div>' +
+    '<div class="pc-event__resize" onmousedown="pcResizeStart(event,' + entry.id + ')" onclick="event.stopPropagation()"></div>' +
   '</div>';
 }
 
@@ -532,4 +533,11 @@ function pcFilterCards(q) {
   var list = document.getElementById('pcSidebarList');
   if (!list) return;
   list.innerHTML = _pcSidebarHtml(q);
+}
+
+// ─── open card ────────────────────────────────────────────────────────────────
+
+function pcOpenCard(e, cardId) {
+  // drag events cancel click automatically — this only fires on a plain click
+  location.hash = '#/card/' + cardId;
 }
