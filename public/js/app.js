@@ -49,46 +49,54 @@ function closeAllDropdowns() {
   document.querySelectorAll('.nav-dropdown.open').forEach(d => d.classList.remove('open'));
   openDropdownId = null;
 }
-
+
 async function populateHey(el) {
   try {
     const items = await (await fetch('/api/notifications')).json();
+    _heyAllItems = items;
     const unreadCount = items.filter(n => !n.is_read).length;
-
     if (items.length === 0) {
       el.innerHTML = '<div class="nav-dropdown__empty" style="padding:24px 16px">Няма нищо ново за теб.</div>';
       return;
     }
-
-    const headerHtml = `<div class="hey-header">
-      <span class="hey-header__title">Ново за теб${unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
-      ${unreadCount > 0 ? `<button class="hey-header__action" onclick="markAllHeyRead(event)">Маркирай всички</button>` : ''}
-    </div>`;
-
-    const itemsHtml = items.slice(0, 15).map(n => {
-      const senderName = n.sender_name || '';
-      const av = senderName ? initials(senderName) : '?';
-      const link = n.reference_type === 'card' ? `#/card/${n.reference_id}` : '#/notifications';
-      const scrollId = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
-      return `<a class="hey-item${n.is_read ? '' : ' unread'}" href="${link}" onclick="if(${scrollId}){_pendingScrollCommentId=${scrollId};}closeAllDropdowns()">
-        <div class="hey-item__av">${av}</div>
-        <div class="hey-item__content">
-          <div class="hey-item__subject">${esc(n.title)}</div>
-          ${n.body ? `<div class="hey-item__preview">${esc(n.body)}</div>` : ''}
-          <div class="hey-item__meta">${timeAgo(n.created_at)}</div>
-        </div>
-        ${!n.is_read ? '<div class="hey-item__unread-dot"></div>' : ''}
-      </a>`;
-    }).join('');
-
-    const footerHtml = `<a class="hey-item" href="#/notifications" onclick="closeAllDropdowns()" style="justify-content:center">
-      <div class="hey-item__content" style="text-align:center;color:var(--accent);padding:2px 0;flex:unset">Виж всички известия →</div>
-    </a>`;
-
-    el.innerHTML = headerHtml + itemsHtml + footerHtml;
+    var headerHtml = '<div class="hey-header">' +
+      '<span class="hey-header__title">Ново за теб' + (unreadCount > 0 ? ' (' + unreadCount + ')' : '') + '</span>' +
+      (unreadCount > 0 ? '<button class="hey-header__action" onclick="markAllHeyRead(event)">Маркирай всички</button>' : '') +
+    '</div>';
+    var first30 = items.slice(0, 30);
+    var html = headerHtml + first30.map(_renderHeyItem).join('');
+    if (items.length > 30) {
+      html += '<div class="hey-load-more"><button class="hey-load-more__btn" onclick="heyExpandMore()">Виж всички останали известия ↓</button></div>';
+    }
+    el.innerHTML = html;
   } catch { el.innerHTML = '<div class="nav-dropdown__empty">Грешка</div>'; }
 }
-
+function _renderHeyItem(n) {
+  var sn = n.sender_name || '';
+  var av = sn ? initials(sn) : '?';
+  var link = n.reference_type === 'card' ? '#/card/' + n.reference_id : '#/notifications';
+  var sid = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
+  return '<a class="hey-item' + (n.is_read ? '' : ' unread') + '" href="' + link + '" onclick="if(' + sid + '){_pendingScrollCommentId=' + sid + ';}closeAllDropdowns()">' +
+    '<div class="hey-item__av">' + av + '</div>' +
+    '<div class="hey-item__content">' +
+      '<div class="hey-item__subject">' + esc(n.title) + '</div>' +
+      (n.body ? '<div class="hey-item__preview">' + esc(n.body) + '</div>' : '') +
+      '<div class="hey-item__meta">' + timeAgo(n.created_at) + '</div>' +
+    '</div>' +
+    (!n.is_read ? '<div class="hey-item__unread-dot"></div>' : '') +
+  '</a>';
+}
+function heyExpandMore() {
+  var el = document.getElementById('heyDropdown');
+  if (!el) return;
+  var btn = el.querySelector('.hey-load-more');
+  if (!btn) return;
+  var next15 = _heyAllItems.slice(30, 45);
+  var html = next15.map(_renderHeyItem).join('');
+  html += '<a class="hey-footer-link" href="#/notifications" onclick="closeAllDropdowns()">Виж всички прочетени известия →</a>';
+  btn.insertAdjacentHTML('afterend', html);
+  btn.remove();
+}
 async function markAllHeyRead(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   try {
@@ -1043,6 +1051,7 @@ var _commentFilterUserId = null;
 var _replyToComment = null; // { id, userName }
 var _pendingScrollCommentId = null;
 var _pinnedSidebarScrollTop = 0;
+var _heyAllItems = [];
 
 var _cardEditMode = false;
 const cardEditingPresence = new Map(); // cardId -> { userId, userName }
