@@ -147,10 +147,10 @@ function _pcRedrawCol(dateStr) {
 }
 
 function _pcRefreshSidebarCard(cardId) {
-  var el = document.querySelector('.pc-mini-card[data-card-id="' + cardId + '"]');
-  if (!el) return;
-  var scheduled = _prodCal.entries.some(function(e) { return e.card_id === cardId; });
-  el.classList.toggle('pc-scheduled', scheduled);
+  var list = document.getElementById('pcSidebarList');
+  if (!list) return;
+  var q = (document.getElementById('pcSearch') || {}).value || '';
+  list.innerHTML = _pcSidebarHtml(q);
 }
 
 // ─── HTML builders ────────────────────────────────────────────────────────────
@@ -180,9 +180,10 @@ function _pcSidebarHtml(searchQ) {
   _prodCal.boards.forEach(function(b) { boardMap[b.id] = b; });
   var scheduledIds = new Set(_prodCal.entries.map(function(e) { return e.card_id; }));
 
-  // Group by board
+  // Group by board — skip already-scheduled cards
   var byBoard = {};
   _prodCal.cards.forEach(function(c) {
+    if (scheduledIds.has(c.id)) return;
     if (q && !(c.title || '').toLowerCase().includes(q)) return;
     if (!byBoard[c.board_id]) byBoard[c.board_id] = [];
     byBoard[c.board_id].push(c);
@@ -194,9 +195,8 @@ function _pcSidebarHtml(searchQ) {
     var bName = board ? board.title : 'Борд';
     html += '<div class="pc-board-label">' + bName + '</div>';
     byBoard[bid].forEach(function(card) {
-      var sched = scheduledIds.has(card.id);
       html +=
-        '<div class="pc-mini-card' + (sched ? ' pc-scheduled' : '') + '"' +
+        '<div class="pc-mini-card"' +
         ' data-card-id="' + card.id + '"' +
         ' draggable="true"' +
         ' ondragstart="pcSidebarDragStart(event,' + card.id + ')">' +
@@ -204,11 +204,10 @@ function _pcSidebarHtml(searchQ) {
         (card.client_name
           ? '<div class="pc-mini-card__meta">' + card.client_name + '</div>'
           : '') +
-        (sched ? '<div class="pc-mini-card__meta pc-mini-card__meta--sched">📅 насрочена</div>' : '') +
         '</div>';
     });
   });
-  return html || '<div class="pc-empty-msg">Няма карти</div>';
+  return html || '<div class="pc-empty-msg">Всички карти са насрочени</div>';
 }
 
 function _pcWeekHtml() {
@@ -341,8 +340,15 @@ async function renderCalendar(el) {
       fetch('/api/cards').then(function(r) { return r.json(); }),
       fetch('/api/boards').then(function(r) { return r.json(); }),
     ]);
-    _prodCal.cards  = results[0].filter(function(c) { return !c.completed_at && !c.archived_at; });
-    _prodCal.boards = results[1];
+    // Only show cards from boards named "Production" (case-insensitive)
+    var allBoards = results[1];
+    _prodCal.boards = allBoards.filter(function(b) {
+      return (b.title || '').toLowerCase() === 'production';
+    });
+    var productionBoardIds = new Set(_prodCal.boards.map(function(b) { return b.id; }));
+    _prodCal.cards = results[0].filter(function(c) {
+      return !c.completed_at && !c.archived_at && productionBoardIds.has(c.board_id);
+    });
     await _pcLoadEntries();
     _pcFullRender(el);
   } catch (e) {
