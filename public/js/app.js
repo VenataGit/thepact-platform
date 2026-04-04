@@ -687,7 +687,6 @@ function renderDashCard(card) {
     : (dueStr ? '<span class="dash-card__date"' + dueStyle + '>' + dueIcon + dueStr + '</span>' : '<span></span>');
   return '<a class="dash-card ' + colorClass + ' ' + dlClass + holdClass + '" href="#/card/' + card.id + '" draggable="true" data-card-id="' + card.id + '" ondragstart="handleDragStart(event)" ondragend="handleDashDragEnd(event)">' +
     '<div class="dash-card__title">' + (card.is_on_hold ? '\u23f8 ' : priIcon) + esc(card.title) + '</div>' +
-    (card.client_name ? '<div class="dash-card__client">' + esc(card.client_name) + '</div>' : '') +
     '<div class="dash-card__footer">' +
       dateHtml +
       '<div class="dash-card__right">' +
