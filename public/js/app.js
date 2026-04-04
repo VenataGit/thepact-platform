@@ -1195,13 +1195,10 @@ async function renderCardPage(el, cardId) {
       stepsHtml += '<ul class="bc-checklist">';
       stepsHtml += card.steps.map(function(s) {
         var doneClass = s.completed ? ' bc-checklist__item--done' : '';
-        var assigneeName = s.assignee_id ? (allUsers.find(function(u) { return u.id === s.assignee_id; }) || {}).name || '' : '';
-        var stepClick = canEdit() ? ' onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'),\'' + (s.due_on || '') + '\')"' : '';
+        var stepClick = canEdit() ? ' onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'))"' : '';
         return '<li class="bc-checklist__item' + doneClass + '" data-step-id="' + s.id + '">' +
           '<input type="checkbox" ' + (s.completed ? 'checked' : '') + ' onclick="event.stopPropagation();toggleStep(' + cardId + ',' + s.id + ',this.checked)">' +
           '<span' + stepClick + '>' + esc(s.title) + '</span>' +
-          (assigneeName ? '<span class="bc-step-meta">' + esc(assigneeName) + '</span>' : '') +
-          (s.due_on ? '<span class="bc-step-meta">' + formatDate(s.due_on) + '</span>' : '') +
           '</li>';
       }).join('');
       stepsHtml += '</ul>';
@@ -1209,14 +1206,8 @@ async function renderCardPage(el, cardId) {
     if (canEdit()) {
       stepsHtml += '<button class="bc-add-step-link" onclick="showAddStepForm(' + cardId + ')">Добави стъпка</button>';
       stepsHtml += '<div class="bc-add-step" id="addStepForm_' + cardId + '">' +
-        '<div class="bc-add-step__row"><label>Стъпка</label><input id="newStepInput" type="text" placeholder="Опиши тази стъпка\u2026" onkeydown="if(event.key===\'Enter\')addStepFromPage(' + cardId + ')"></div>' +
-        '<div class="bc-add-step__row"><label>Отговорник</label><select id="newStepAssignee"><option value="">Никой</option>' + allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
-        '<div class="bc-add-step__row"><label>Краен срок</label>' +
-        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" checked onchange="var b=document.getElementById(\'newStepDateBtn\');b.style.display=\'none\';b.dataset.value=\'\'"> \u0411\u0435\u0437 \u0434\u0430\u0442\u0430</label>' +
-        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" onchange="var b=document.getElementById(\'newStepDateBtn\');b.style.display=\'\';openNewStepDatePicker(b)"> \u0414\u0430\u0442\u0430</label>' +
-        '<button class="bc-date-btn bc-date-btn--placeholder" id="newStepDateBtn" data-value="" style="display:none" onclick="event.stopPropagation();openNewStepDatePicker(this)">\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026</button>' +
-        '</div>' +
-        '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save" onclick="addStepFromPage(' + cardId + ')">Добави тази стъпка</button><button class="bc-btn-discard" onclick="hideAddStepForm(' + cardId + ')">Отказ</button></div>' +
+        '<input id="newStepInput" class="bc-step-expand__input" type="text" placeholder="Опиши тази стъпка…" onkeydown="if(event.key===\'Enter\')addStepFromPage(' + cardId + ')">' +
+        '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save" onclick="addStepFromPage(' + cardId + ')">Добави тази стъпка</button><button class="bc-btn-discard" onclick="hideAddStepForm(' + cardId + ')">Откажи</button></div>' +
         '</div>';
     }
 
@@ -1850,44 +1841,68 @@ async function saveClientNameField(cardId, value) {
 }
 
 // Steps: expand on click
-function expandStep(cardId, stepId, li, stepDueOn) {
-  // If already expanded, collapse
+function expandStep(cardId, stepId, li) {
   var existingForm = li.querySelector('.bc-step-expand');
   if (existingForm) { existingForm.remove(); return; }
-  // Collapse any other expanded step
   document.querySelectorAll('.bc-step-expand').forEach(function(f) { f.remove(); });
-
   var stepText = li.querySelector('span').textContent;
+
   var form = document.createElement('div');
   form.className = 'bc-step-expand';
-  form.onclick = function(e) { e.stopPropagation(); };
-  form.innerHTML =
-    '<div class="bc-step-expand__row"><label>Заглавие</label><input type="text" id="editStepTitle_' + stepId + '" value="' + esc(stepText) + '"></div>' +
-    '<div class="bc-step-expand__row"><label>Отговорник</label><select id="editStepAssignee_' + stepId + '"><option value="">\u041d\u0438\u043a\u043e\u0439</option>' +
-    allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
-    '<div class="bc-step-expand__row"><label>Краен срок</label><button class="' + (stepDueOn ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder') + '" id="editStepDue_' + stepId + '" data-value="' + (stepDueOn || '') + '" onclick="event.stopPropagation();openEditStepDatePicker(' + stepId + ',this)">' + (stepDueOn ? formatDate(stepDueOn) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026') + '</button></div>' +
-    '<div class="bc-step-expand__actions">' +
-    '<div style="display:flex;gap:8px"><button class="bc-btn-save" onclick="saveStepEdit(' + cardId + ',' + stepId + ')">Запази</button>' +
-    '<button class="bc-btn-discard" onclick="this.closest(\'.bc-step-expand\').remove()">Отказ</button></div>' +
-    '<button class="bc-step-expand__delete" onclick="deleteStep(' + cardId + ',' + stepId + ')">Изтрий стъпка</button>' +
-    '</div>';
-  li.appendChild(form);
-}
+  form.addEventListener('click', function(e) { e.stopPropagation(); });
 
+  var inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'bc-step-expand__input';
+  inp.id = 'editStepTitle_' + stepId;
+  inp.value = stepText;
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); saveStepEdit(cardId, stepId); }
+    if (e.key === 'Escape') { form.remove(); }
+  });
+
+  var actions = document.createElement('div');
+  actions.className = 'bc-step-expand__actions';
+
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px';
+
+  var saveBtn = document.createElement('button');
+  saveBtn.className = 'bc-btn-save';
+  saveBtn.textContent = 'Запази';
+  saveBtn.onclick = function() { saveStepEdit(cardId, stepId); };
+
+  var cancelBtn = document.createElement('button');
+  cancelBtn.className = 'bc-btn-discard';
+  cancelBtn.textContent = 'Отказ';
+  cancelBtn.onclick = function() { form.remove(); };
+
+  var delBtn = document.createElement('button');
+  delBtn.className = 'bc-step-expand__delete';
+  delBtn.textContent = 'Изтрий стъпка';
+  delBtn.onclick = function() { deleteStep(cardId, stepId); };
+
+  btnRow.appendChild(saveBtn);
+  btnRow.appendChild(cancelBtn);
+  actions.appendChild(btnRow);
+  actions.appendChild(delBtn);
+  form.appendChild(inp);
+  form.appendChild(actions);
+  li.appendChild(form);
+  inp.focus(); inp.select();
+}
 async function saveStepEdit(cardId, stepId) {
-  var title = document.getElementById('editStepTitle_' + stepId);
-  var assignee = document.getElementById('editStepAssignee_' + stepId);
-  var due = document.getElementById('editStepDue_' + stepId);
-  var data = {};
-  if (title) data.title = title.value.trim();
-  if (assignee && assignee.value) data.assignee_id = parseInt(assignee.value);
-  if (due && due.dataset.value) data.due_on = due.dataset.value;
+  var titleEl = document.getElementById('editStepTitle_' + stepId);
+  if (!titleEl || !titleEl.value.trim()) return;
+  var data = { title: titleEl.value.trim() };
   try {
-    await fetch('/api/cards/' + cardId + '/steps/' + stepId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    await fetch('/api/cards/' + cardId + '/steps/' + stepId, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
     router();
   } catch(e) {}
 }
-
 function deleteStep(cardId, stepId) {
   showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u0442\u0430\u0437\u0438 \u0441\u0442\u044a\u043f\u043a\u0430?', async function() {
     try {
@@ -2101,10 +2116,17 @@ async function toggleStep(cid, sid, done) {
   try { await fetch(`/api/cards/${cid}/steps/${sid}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({completed:done}) }); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043e\u0431\u043d\u043e\u0432\u044f\u0432\u0430\u043d\u0435', 'error'); }
 }
 async function addStepFromPage(cardId) {
-  const t = document.getElementById('newStepInput')?.value?.trim(); if (!t) return;
-  const a = document.getElementById('newStepAssignee')?.value || null;
-  const d = document.getElementById('newStepDateBtn')?.dataset.value || null;
-  try { await fetch(`/api/cards/${cardId}/steps`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:t, assignee_id:a?parseInt(a):null, due_on:d}) }); document.getElementById('newStepInput').value=''; router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0434\u043e\u0431\u0430\u0432\u044f\u043d\u0435', 'error'); }
+  var t = document.getElementById('newStepInput');
+  if (!t || !t.value.trim()) return;
+  var title = t.value.trim();
+  try {
+    await fetch('/api/cards/' + cardId + '/steps', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title })
+    });
+    t.value = '';
+    router();
+  } catch(e) { showToast('Грешка при добавяне', 'error'); }
 }
 async function addComment(cardId) {
   var input = document.getElementById('newCommentInput');

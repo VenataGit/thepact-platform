@@ -378,11 +378,10 @@
 .bc-step-meta { font-size: 11px; color: var(--text-dim); margin-left: auto; }
 
 /* Step expanded edit form */
-.bc-step-expand { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin: 6px 0; }
-.bc-step-expand__row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.bc-step-expand__row label { font-size: 12px; color: var(--text-dim); min-width: 80px; }
-.bc-step-expand__row input, .bc-step-expand__row select { flex: 1; }
-.bc-step-expand__actions { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.bc-step-expand { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin: 6px 0; }
+.bc-step-expand__input { width: 100%; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; color: var(--text); font-size: 14px; font-family: inherit; outline: none; margin-bottom: 10px; transition: border-color 0.15s; display: block; }
+.bc-step-expand__input:focus { border-color: var(--accent); }
+.bc-step-expand__actions { display: flex; align-items: center; justify-content: space-between; }
 .bc-step-expand__delete { background: none; border: none; color: var(--red); font-size: 12px; cursor: pointer; font-family: inherit; padding: 4px 8px; }
 .bc-step-expand__delete:hover { text-decoration: underline; }
 
@@ -391,11 +390,8 @@
 .bc-add-step-link:hover { color: var(--text-secondary); }
 
 /* Add step form (hidden by default) */
-.bc-add-step { display: none; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 8px; }
+.bc-add-step { display: none; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-top: 8px; }
 .bc-add-step.bc-add-step--visible { display: block; }
-.bc-add-step__row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.bc-add-step__row label { font-size: 12px; color: var(--text-dim); min-width: 80px; }
-.bc-add-step__row input, .bc-add-step__row select { flex: 1; }
 
 /* Save/Discard — Basecamp style compact green pill buttons */
 .bc-card__actions { display: flex; gap: 8px; align-items: center; justify-content: flex-start; margin-top: 20px; padding-top: 16px; }
