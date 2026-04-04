@@ -55,6 +55,10 @@ CREATE TABLE IF NOT EXISTS cards (
     content         TEXT,
     due_on          DATE,
     publish_date    DATE,
+    brainstorm_date DATE,
+    filming_date    DATE,
+    editing_date    DATE,
+    upload_date     DATE,
     priority        VARCHAR(20) DEFAULT 'normal' CHECK (priority IN ('normal', 'high', 'urgent')),
     is_on_hold      BOOLEAN DEFAULT FALSE,
     position        INTEGER DEFAULT 0,
@@ -178,6 +182,23 @@ CREATE TABLE IF NOT EXISTS kp_audit_log (
     details         TEXT,
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ============================================================
+-- CARD DATE CHANGE LOG
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS card_date_changes (
+    id              SERIAL PRIMARY KEY,
+    card_id         INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    field_name      TEXT NOT NULL,
+    old_value       DATE,
+    new_value       DATE,
+    changed_by      INTEGER REFERENCES users(id),
+    changed_by_name TEXT,
+    changed_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_card_date_changes_card ON card_date_changes(card_id);
+CREATE INDEX IF NOT EXISTS idx_card_date_changes_at   ON card_date_changes(changed_at);
 
 -- ============================================================
 -- VIDEO ARCHIVE

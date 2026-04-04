@@ -94,6 +94,21 @@ app.post('/migrate', async (req, res) => {
   }
 });
 
+// Auto-run pending DB migrations on startup
+(async () => {
+  try {
+    const { execSync } = require('child_process');
+    const out = execSync('node scripts/run-new-migrations.js', {
+      cwd: path.join(__dirname, '..'),
+      timeout: 30000,
+      env: { ...process.env }
+    }).toString();
+    if (!out.includes('Nothing to do')) console.log('[startup] migrations:', out.trim());
+  } catch (err) {
+    console.error('[startup] migration warning:', err.stderr?.toString() || err.message);
+  }
+})();
+
 // Routes — Core
 app.use('/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));

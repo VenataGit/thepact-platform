@@ -151,7 +151,15 @@ router.post('/', requireAuth, async (req, res) => {
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { assignee_ids } = req.body;
-    const allowedFields = ['title', 'content', 'due_on', 'publish_date', 'priority', 'is_on_hold', 'client_name', 'kp_number', 'video_number', 'video_title'];
+    const DATE_FIELDS = ['publish_date', 'brainstorm_date', 'filming_date', 'editing_date', 'upload_date'];
+    const allowedFields = ['title', 'content', 'due_on', 'priority', 'is_on_hold', 'client_name', 'kp_number', 'video_number', 'video_title', ...DATE_FIELDS];
+
+    // Fetch current card values for date change logging
+    const dateFieldsInRequest = DATE_FIELDS.filter(f => f in req.body);
+    let oldCard = null;
+    if (dateFieldsInRequest.length > 0) {
+      oldCard = await queryOne('SELECT ' + DATE_FIELDS.join(', ') + ' FROM cards WHERE id = $1', [req.params.id]);
+    }
 
     const setClauses = ['updated_at = NOW()'];
     const params = [];
@@ -171,6 +179,20 @@ router.put('/:id', requireAuth, async (req, res) => {
 
     if (!card) return res.status(404).json({ error: 'Card not found' });
 
+    // Log date field changes
+    if (oldCard && dateFieldsInRequest.length > 0) {
+      for (const field of dateFieldsInRequest) {
+        const oldVal = oldCard[field] ? (oldCard[field] instanceof Date ? oldCard[field].toISOString().split('T')[0] : String(oldCard[field]).split('T')[0]) : null;
+        const newVal = req.body[field] || null;
+        if (oldVal !== newVal) {
+          await execute(
+            'INSERT INTO card_date_changes (card_id, field_name, old_value, new_value, changed_by, changed_by_name) VALUES ($1, $2, $3, $4, $5, $6)',
+            [card.id, field, oldVal || null, newVal || null, req.user.userId, req.user.name]
+          );
+        }
+      }
+    }
+
     // Update assignees if provided
     if (assignee_ids !== undefined) {
       await execute('DELETE FROM card_assignees WHERE card_id = $1', [card.id]);
@@ -181,6 +203,19 @@ router.put('/:id', requireAuth, async (req, res) => {
 
     broadcast({ type: 'card:updated', cardId: card.id, changes: req.body });
     res.json(card);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/cards/:id/date-changes — date change audit log
+router.get('/:id/date-changes', requireAuth, async (req, res) => {
+  try {
+    const rows = await query(
+      'SELECT * FROM card_date_changes WHERE card_id = $1 ORDER BY changed_at DESC LIMIT 100',
+      [req.params.id]
+    );
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }

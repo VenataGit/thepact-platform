@@ -329,6 +329,27 @@
 .bc-date-input--hidden { display: none; }
 .bc-due-saved { font-size: 12px; color: var(--green); margin-left: 8px; font-weight: 600; }
 
+/* Production dates section */
+.bc-prod-dates { display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.bc-prod-date-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.bc-prod-date-row:last-child { border-bottom: none; }
+.bc-prod-date-row--publish { margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); border-bottom: none; }
+.bc-prod-date-label { font-size: 13px; color: var(--text-secondary); width: 110px; flex-shrink: 0; }
+.bc-prod-date-row--publish .bc-prod-date-label { color: var(--accent); font-weight: 600; }
+.bc-prod-date-value { font-size: 13px; color: var(--text); }
+.bc-prod-date-row--publish .bc-prod-date-value { color: var(--accent); font-weight: 600; }
+.bc-prod-date-hint { font-size: 11px; color: var(--text-dim); margin-left: 6px; }
+
+/* Date change changelog */
+.bc-date-changelog { margin-top: 12px; }
+.bc-date-changelog__title { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.bc-date-changelog__row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px; flex-wrap: wrap; }
+.bc-date-changelog__row:last-child { border-bottom: none; }
+.bc-date-changelog__time { color: var(--text-dim); white-space: nowrap; }
+.bc-date-changelog__user { color: var(--accent); font-weight: 600; }
+.bc-date-changelog__field { color: var(--text-secondary); }
+.bc-date-changelog__arrow { color: var(--text); }
+
 /* Editor — Basecamp Trix style */
 .bc-editor { border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.2); overflow-x: hidden; overflow-y: visible; width: 100%; max-width: 100%; box-sizing: border-box; }
 .bc-editor trix-toolbar { border: none; border-bottom: 1px solid rgba(255,255,255,0.1); background: transparent; border-radius: 0; padding: 6px 4px; }

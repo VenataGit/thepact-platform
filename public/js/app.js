@@ -1143,23 +1143,35 @@ async function renderCardPage(el, cardId) {
       priorityHtml = '<span>' + (pLabels[card.priority] || '\u041d\u043e\u0440\u043c\u0430\u043b\u0435\u043d') + '</span>';
     }
 
-    // ===== PUBLISH DATE =====
-    var publishHtml = '';
-    if (editing) {
-      var noPubChecked = !card.publish_date ? ' checked' : '';
-      var yesPubChecked = card.publish_date ? ' checked' : '';
-      var pubBtnText = card.publish_date ? formatDate(card.publish_date) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
-      var pubBtnCls = card.publish_date ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
-      var pubBtnStyle = card.publish_date ? '' : ' style="display:none"';
-      publishHtml = '<label class="bc-radio"><input type="radio" name="pub_' + cardId + '"' + noPubChecked + ' onclick="savePublishDateField(' + cardId + ',null)"> \u0411\u0435\u0437 \u0434\u0430\u0442\u0430</label>' +
-        '<label class="bc-radio"><input type="radio" name="pub_' + cardId + '"' + yesPubChecked + ' onclick="handlePublishDate(' + cardId + ')"> \u041a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u0430 \u0434\u0430\u0442\u0430 ' +
-        '<button class="' + pubBtnCls + '" id="publishDateBtn_' + cardId + '" data-value="' + ((card.publish_date || '').split('T')[0]) + '"' + pubBtnStyle + ' onclick="event.stopPropagation();openPublishDatePicker(' + cardId + ',this)">' + pubBtnText + '</button></label>' +
-        '<span id="pubSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 \u0417\u0430\u043f\u0430\u0437\u0435\u043d\u043e</span>';
-    } else {
-      publishHtml = card.publish_date
-        ? '<span style="color:var(--accent)">\ud83d\udcc5 ' + formatDate(card.publish_date) + '</span>'
-        : '<span class="bc-field__placeholder">\u2014</span>';
-    }
+    // ===== PRODUCTION DATES =====
+    var prodDateDefs = [
+      { key: 'brainstorm_date', label: '\u0418\u0437\u043c\u0438\u0441\u043b\u044f\u043d\u0435' },
+      { key: 'filming_date',    label: '\u0417\u0430\u0441\u043d\u0435\u043c\u0430\u043d\u0435' },
+      { key: 'editing_date',    label: '\u041c\u043e\u043d\u0442\u0430\u0436' },
+      { key: 'upload_date',     label: '\u041a\u0430\u0447\u0432\u0430\u043d\u0435' },
+      { key: 'publish_date',    label: '\u041f\u0443\u0431\u043b\u0438\u043a\u0443\u0432\u0430\u043d\u0435' }
+    ];
+    var prodDatesHtml = '<div class="bc-prod-dates">';
+    prodDateDefs.forEach(function(f) {
+      var val = (card[f.key] || '').split('T')[0];
+      var isPublish = f.key === 'publish_date';
+      if (editing) {
+        var btnCls = val ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
+        var btnTxt = val ? formatDate(val) : '\u0418\u0437\u0431\u0435\u0440\u0438\u2026';
+        prodDatesHtml += '<div class="bc-prod-date-row' + (isPublish ? ' bc-prod-date-row--publish' : '') + '">' +
+          '<span class="bc-prod-date-label">' + f.label + '</span>' +
+          '<button class="' + btnCls + '" id="prodDateBtn_' + f.key + '_' + cardId + '" data-value="' + val + '" ' +
+          'onclick="event.stopPropagation();openProductionDatePicker(' + cardId + ',\'' + f.key + '\',this)">' + btnTxt + '</button>' +
+          (isPublish ? '<span class="bc-prod-date-hint">\u2190 \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u043d\u043e \u0438\u0437\u0447\u0438\u0441\u043b\u044f\u0432\u0430 \u043e\u0441\u0442\u0430\u043d\u0430\u043b\u0438\u0442\u0435</span>' : '') +
+          '</div>';
+      } else {
+        prodDatesHtml += '<div class="bc-prod-date-row' + (isPublish ? ' bc-prod-date-row--publish' : '') + '">' +
+          '<span class="bc-prod-date-label">' + f.label + '</span>' +
+          '<span class="bc-prod-date-value">' + (val ? formatDate(val) : '<span class="bc-field__placeholder">\u2014</span>') + '</span>' +
+          '</div>';
+      }
+    });
+    prodDatesHtml += '</div>';
 
     // ===== NOTES =====
     var notesHtml = '';
@@ -1310,7 +1322,7 @@ async function renderCardPage(el, cardId) {
             '<div class="bc-field"><span class="bc-field__label">Отговорник</span><div class="bc-field__value">' + assigneesHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Приоритет</span><div class="bc-field__value">' + priorityHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Краен срок</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
-            '<div class="bc-field"><span class="bc-field__label">Публикуване</span><div class="bc-field__value bc-field__value--vertical">' + publishHtml + '</div></div>' +
+            '<div class="bc-field bc-field--dates"><span class="bc-field__label">\u0414\u0430\u0442\u0438</span><div class="bc-field__value bc-field__value--full">' + prodDatesHtml + '<div class="bc-date-changelog" id="dateChangelog_' + cardId + '"></div></div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Бележки</span><div class="bc-field__value bc-field__value--full">' + notesHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Стъпки</span><div class="bc-field__value bc-field__value--full">' + stepsHtml + '</div></div>' +
             '<div class="bc-field bc-field--light"><span class="bc-field__label">Добавено от</span><div class="bc-field__value"><span>' + esc(creatorName) + '</span><span class="bc-field__hint">' + createdAgo + '</span></div></div>' +
@@ -1324,7 +1336,7 @@ async function renderCardPage(el, cardId) {
     setupCardPageToolbar(card, col);
 
     // Setup image lightbox + process video/file attachments in view mode
-    setTimeout(function() { processRichContent(); setupImageLightbox(); }, 100);
+    setTimeout(function() { processRichContent(); setupImageLightbox(); loadDateChangelog(cardId); }, 100);
 
     // Setup Trix attachment handlers and color picker
     if (editing) {
@@ -1761,6 +1773,63 @@ async function savePublishDateField(cardId, value) {
   await updateField(cardId, 'publish_date', value || null);
   var lbl = document.getElementById('pubSavedLabel_' + cardId);
   if (lbl) { lbl.style.display = 'inline'; setTimeout(function() { lbl.style.display = 'none'; }, 2000); }
+}
+// ===== PRODUCTION DATE FIELDS =====
+function subtractWorkingDays(isoStr, n) {
+  var d = new Date(isoStr + 'T12:00:00');
+  var remaining = n;
+  while (remaining > 0) { d.setDate(d.getDate() - 1); if (d.getDay() !== 0 && d.getDay() !== 6) remaining--; }
+  return d.toISOString().split('T')[0];
+}
+function recalcProdDatesFromPublish(cardId, publishStr) {
+  if (!publishStr) return null;
+  var uploadStr     = subtractWorkingDays(publishStr, 1);
+  var editingStr    = subtractWorkingDays(uploadStr, 5);
+  var filmingStr    = subtractWorkingDays(editingStr, 5);
+  var brainstormStr = subtractWorkingDays(filmingStr, 5);
+  var map = { brainstorm_date: brainstormStr, filming_date: filmingStr, editing_date: editingStr, upload_date: uploadStr };
+  Object.keys(map).forEach(function(key) {
+    var btn = document.getElementById('prodDateBtn_' + key + '_' + cardId);
+    if (btn) { btn.dataset.value = map[key]; btn.textContent = formatDate(map[key]); btn.className = 'bc-date-btn'; }
+  });
+  return map;
+}
+function openProductionDatePicker(cardId, field, btn) {
+  showDatePickerPopup(btn, btn.dataset.value || '', function(dateStr) {
+    if (!dateStr) return;
+    btn.dataset.value = dateStr;
+    btn.textContent = formatDate(dateStr);
+    btn.className = 'bc-date-btn';
+    if (field === 'publish_date') {
+      var map = recalcProdDatesFromPublish(cardId, dateStr);
+      var body = { publish_date: dateStr };
+      if (map) Object.assign(body, map);
+      _suppressWsRerender = Date.now() + 4000;
+      fetch('/api/cards/' + cardId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function() { loadDateChangelog(cardId); });
+    } else {
+      _suppressWsRerender = Date.now() + 2000;
+      updateField(cardId, field, dateStr).then(function() { loadDateChangelog(cardId); });
+    }
+  });
+}
+async function loadDateChangelog(cardId) {
+  var container = document.getElementById('dateChangelog_' + cardId);
+  if (!container) return;
+  try {
+    var rows = await (await fetch('/api/cards/' + cardId + '/date-changes')).json();
+    if (!rows || !rows.length) { container.innerHTML = ''; return; }
+    var labels = { publish_date: '\u041f\u0443\u0431\u043b\u0438\u043a\u0443\u0432\u0430\u043d\u0435', upload_date: '\u041a\u0430\u0447\u0432\u0430\u043d\u0435', editing_date: '\u041c\u043e\u043d\u0442\u0430\u0436', filming_date: '\u0417\u0430\u0441\u043d\u0435\u043c\u0430\u043d\u0435', brainstorm_date: '\u0418\u0437\u043c\u0438\u0441\u043b\u044f\u043d\u0435' };
+    var html = '<div class="bc-date-changelog__title">\u0418\u0441\u0442\u043e\u0440\u0438\u044f \u043d\u0430 \u043f\u0440\u043e\u043c\u0435\u043d\u0438</div>';
+    rows.forEach(function(r) {
+      var dt = new Date(r.changed_at);
+      var dtStr = String(dt.getDate()).padStart(2,'0') + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + dt.getFullYear() + ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+      var oldStr = r.old_value ? formatDate(r.old_value) : '\u2014';
+      var newStr = r.new_value ? formatDate(r.new_value) : '\u2014';
+      html += '<div class="bc-date-changelog__row"><span class="bc-date-changelog__time">' + dtStr + '</span><span class="bc-date-changelog__user">' + esc(r.changed_by_name || '') + '</span><span class="bc-date-changelog__field">' + (labels[r.field_name] || r.field_name) + '</span><span class="bc-date-changelog__arrow">' + oldStr + ' \u2192 ' + newStr + '</span></div>';
+    });
+    container.innerHTML = html;
+  } catch(e) { container.innerHTML = ''; }
 }
 async function saveClientNameField(cardId, value) {
   _suppressWsRerender = Date.now() + 2000;
