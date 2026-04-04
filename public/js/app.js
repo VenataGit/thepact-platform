@@ -3617,6 +3617,8 @@ function handleDashDragEnd(e) {
 }
 function handleDashDragOver(e) {
   if (!dragCardId) return;
+  // Block drop on the on-hold section — only card page button can set on-hold
+  if (e.target.closest && e.target.closest('.dash-on-hold-sep, .dash-card--hold, .dash-card--on-hold')) return;
   e.preventDefault();
   e.currentTarget.classList.add('dash-drop-over');
 }
@@ -3630,6 +3632,8 @@ async function handleDashDrop(e) {
   e.preventDefault(); e.stopPropagation();
   _clearAllDragOver(); // clean all highlighted zones, not just this one
   if (!dragCardId) return;
+  // Block drop on the on-hold section
+  if (e.target.closest && e.target.closest('.dash-on-hold-sep, .dash-card--hold, .dash-card--on-hold')) return;
   const colId   = parseInt(e.currentTarget.dataset.columnId);
   const boardId = parseInt(e.currentTarget.dataset.boardId);
   const cardId  = dragCardId;
@@ -3642,7 +3646,12 @@ async function handleDashDrop(e) {
   const cardEl   = document.querySelector('.dash-card[data-card-id="' + cardId + '"]');
   const targetZone = e.currentTarget;
   const sourceZone = cardEl ? cardEl.closest('.dash-subcol-cards') : null;
-  if (cardEl) targetZone.appendChild(cardEl);
+  if (cardEl) {
+    // Insert BEFORE the on-hold separator so card lands in the regular area
+    const holdSep = targetZone.querySelector('.dash-on-hold-sep');
+    if (holdSep) targetZone.insertBefore(cardEl, holdSep);
+    else targetZone.appendChild(cardEl);
+  }
 
   // Update column counts in headers
   function updateSubcolCount(zone) {
