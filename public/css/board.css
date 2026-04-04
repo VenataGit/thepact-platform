@@ -288,7 +288,7 @@
 .bc-card__title-input { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -0.02em; line-height: 1.2; margin: 0; background: transparent; border: none; border-bottom: 2px solid var(--accent); outline: none; width: 100%; font-family: inherit; padding: 0 0 2px; resize: none; overflow: hidden; display: block; }
 
 /* Options dropdown menu */
-.bc-options-menu { position: absolute; right: 0; top: 100%; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); z-index: 200; min-width: 220px; padding: 6px 0; }
+.bc-options-menu { position: fixed; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); z-index: 9999; min-width: 220px; padding: 6px 0; }
 .bc-options-menu__item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 16px; background: none; border: none; color: var(--text); font-size: 13px; cursor: pointer; font-family: inherit; transition: background 0.1s; }
 .bc-options-menu__item:hover { background: var(--bg-hover); }
 .bc-options-menu__item--danger { color: var(--red); }

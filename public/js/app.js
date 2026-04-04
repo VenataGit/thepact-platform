@@ -1724,8 +1724,11 @@ function toggleCardOptionsMenu(e, cardId, cardTitle) {
     '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();showCardHistory(' + cardId + ')">\ud83d\udd50 История на промените</button>' +
     '<button class="bc-options-menu__item" style="opacity:0.5;cursor:default">\ud83d\udc65 Уведомени хора</button>';
 
-  var optionsDiv = document.querySelector('.bc-card-options');
-  if (optionsDiv) { optionsDiv.appendChild(menu); }
+  // Position fixed near the button
+  var btn = e.currentTarget || e.target;
+  var rect = btn.getBoundingClientRect();
+  menu.style.cssText = 'position:fixed;right:' + (window.innerWidth - rect.right) + 'px;top:' + (rect.bottom + 4) + 'px;z-index:9999';
+  document.body.appendChild(menu);
 
   setTimeout(function() {
     document.addEventListener('click', function handler() {
