@@ -63,10 +63,10 @@ function pcYToMinute(clientY) {
 // ─── data / API ───────────────────────────────────────────────────────────────
 
 async function _pcLoadEntries() {
-  var end = new Date(_prodCal.weekStart);
-  end.setDate(end.getDate() + 6);
+  // Load ALL entries (not just current week) so the sidebar can correctly
+  // hide cards that are scheduled in any week, not only the one being viewed.
   try {
-    var res  = await fetch('/api/production-calendar?from=' + _pcDate(_prodCal.weekStart) + '&to=' + _pcDate(end));
+    var res  = await fetch('/api/production-calendar?from=2020-01-01&to=2035-12-31');
     var data = await res.json();
     _prodCal.entries = Array.isArray(data) ? data.map(function(e) {
       e.scheduled_date = (e.scheduled_date || '').toString().split('T')[0];
@@ -517,21 +517,10 @@ function pcNavWeek(dir) {
   _prodCal.weekStart.setDate(_prodCal.weekStart.getDate() + dir * 7);
   var el = document.getElementById('pageContent');
   if (!el) return;
-  el.querySelector('.pc-toolbar__title') && (el.querySelector('.pc-toolbar__title').textContent = '…');
-  _pcLoadEntries().then(function() {
-    // just rebuild week + toolbar, keep sidebar
-    var weekView = el.querySelector('.pc-week-view');
-    var toolbar  = el.querySelector('.pc-toolbar');
-    var end = new Date(_prodCal.weekStart); end.setDate(end.getDate() + 6);
-    var MONTHS = ['Яну','Фев','Мар','Апр','Май','Юни','Юли','Авг','Сеп','Окт','Ное','Дек'];
-    var s = _prodCal.weekStart;
-    var title = s.getDate()+' '+MONTHS[s.getMonth()]+' – '+end.getDate()+' '+MONTHS[end.getMonth()]+' '+end.getFullYear();
-    if (toolbar) toolbar.outerHTML = _pcToolbarHtml();
-    if (weekView) weekView.innerHTML = _pcWeekHtml();
-    // re-scroll
-    var body = el.querySelector('.pc-body');
-    if (body) body.scrollTop = (8 - PC_H0) * 60;
-  });
+  // All entries already in memory — just re-render toolbar + week view instantly
+  var toolbar = el.querySelector('.pc-toolbar');
+  if (toolbar) toolbar.outerHTML = _pcToolbarHtml();
+  _pcRefreshWeekView();
 }
 
 function pcNavToday() {
