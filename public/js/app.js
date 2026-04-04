@@ -3146,12 +3146,34 @@ async function loadKpAuto(el) {
       return;
     }
 
-    const needsKp = clients.filter(function(c) { return !c.has_kp_card; });
+    // Auto-create KP cards for clients that have no card in Измисляне but have a date configured
+    var toAutoCreate = clients.filter(function(c) {
+      return !c.has_kp_card && (c.next_kp_date || c.first_publish_date);
+    });
+    if (toAutoCreate.length > 0) {
+      el.querySelector('.kp-auto-wrap') && (el.querySelector('.kp-auto-wrap').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim)">🤖 Автоматично създаване на КП карти…</div>');
+      var autoResults = await Promise.all(toAutoCreate.map(function(c) {
+        return fetch('/api/kp/create-card/' + c.id, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) { return { clientName: c.name, ok: data.ok, title: data.title, error: data.error }; })
+          .catch(function(e) { return { clientName: c.name, ok: false, error: e.message }; });
+      }));
+      autoResults.forEach(function(r) {
+        if (r.ok) showToast('\u2705 \u0421\u044a\u0437\u0434\u0430\u0434\u0435\u043d: ' + r.title, 'success');
+        else showToast('\u26a0 ' + r.clientName + ': ' + (r.error || '\u0413\u0440\u0435\u0448\u043a\u0430'), 'error');
+      });
+      if (autoResults.some(function(r) { return r.ok; })) {
+        await loadKpAuto(el);
+        return;
+      }
+    }
+
+    const needsKp = clients.filter(function(c) { return !c.has_kp_card && !c.next_kp_date && !c.first_publish_date; });
     var warningHtml = '';
     if (needsKp.length > 0) {
       warningHtml = '<div class="kp-warning">' +
-        '<span>⚠️</span>' +
-        '<span>' + (needsKp.length === 1 ? esc(needsKp[0].name) + ' няма активна карта в Измисляне' : needsKp.length + ' клиента нямат активна карта в Измисляне') + ' — трябва да се пусне следващ КП</span>' +
+        '<span>\u26a0\ufe0f</span>' +
+        '<span>' + (needsKp.length === 1 ? esc(needsKp[0].name) + ' \u043d\u044f\u043c\u0430 \u0437\u0430\u0434\u0430\u0434\u0435\u043d\u0430 \u0434\u0430\u0442\u0430 \u2014 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u0442\u0435 \u0434\u0430\u0442\u0430 \u0437\u0430 \u043f\u0443\u0431\u043b\u0438\u043a\u0443\u0432\u0430\u043d\u0435 \u0437\u0430 \u0434\u0430 \u0441\u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435 \u041a\u041f' : needsKp.length + ' \u043a\u043b\u0438\u0435\u043d\u0442\u0430 \u043d\u044f\u043c\u0430\u0442 \u0437\u0430\u0434\u0430\u0434\u0435\u043d\u0430 \u0434\u0430\u0442\u0430') + '</span>' +
       '</div>';
     }
 
