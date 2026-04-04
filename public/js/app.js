@@ -1048,7 +1048,7 @@ var _cardEditMode = false;
 const cardEditingPresence = new Map(); // cardId -> { userId, userName }
 
 async function renderCardPage(el, cardId) {
-  el.className = 'page-tool';
+  el.className = '';
   try {
     const card = await (await fetch('/api/cards/' + cardId)).json();
     var comments = [];
