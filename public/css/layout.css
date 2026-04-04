@@ -350,6 +350,7 @@
 }
 #pageContent.wide { max-width: 1400px; }
 #pageContent.full-width { max-width: none; }
+#pageContent.card-sidebar { max-width: 1600px; }
 
 /* Tool pages (КП-Авто, бъдещи инструменти) — card style */
 #pageContent.page-tool {
