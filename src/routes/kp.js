@@ -69,7 +69,7 @@ function parseVideoSectionsFromHtml(htmlContent) {
     .replace(/&#39;/g, "'");
 
   const sections = [];
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = text.split('\n').map(l => l.trim());
   let currentSection = null;
   let currentLines = [];
 

@@ -1098,11 +1098,13 @@ async function renderCardPage(el, cardId) {
     if (canEdit()) {
       var noDueChecked = !card.due_on ? ' checked' : '';
       var specificChecked = card.due_on ? ' checked' : '';
-      var dateHidden = !card.due_on ? ' bc-date-input--hidden' : '';
-      dueHtml = '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + noDueChecked + ' onclick="handleNoDueDate(' + cardId + ')"> Без дата</label>' +
-        '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + specificChecked + ' onclick="handleSpecificDate(' + cardId + ')"> Конкретна дата' +
-        '<input type="date" id="dueDateInput_' + cardId + '" class="bc-date-input' + dateHidden + '" value="' + (card.due_on || '') + '" onchange="saveDueDateField(' + cardId + ', this.value)" onclick="event.stopPropagation()"></label>' +
-        '<span id="dueSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 Запазено</span>';
+      var dueBtnText = card.due_on ? formatDate(card.due_on) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
+      var dueBtnCls = card.due_on ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
+      var dueBtnStyle = card.due_on ? '' : ' style="display:none"';
+      dueHtml = '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + noDueChecked + ' onclick="handleNoDueDate(' + cardId + ')"> \u0411\u0435\u0437 \u0434\u0430\u0442\u0430</label>' +
+        '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + specificChecked + ' onclick="handleSpecificDate(' + cardId + ')"> \u041a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u0430 \u0434\u0430\u0442\u0430 ' +
+        '<button class="' + dueBtnCls + '" id="dueDateBtn_' + cardId + '" data-value="' + (card.due_on || '') + '"' + dueBtnStyle + ' onclick="event.stopPropagation();openDueDatePicker(' + cardId + ',this)">' + dueBtnText + '</button></label>' +
+        '<span id="dueSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 \u0417\u0430\u043f\u0430\u0437\u0435\u043d\u043e</span>';
     } else {
       var dueDateObj = card.due_on ? new Date(card.due_on+'T00:00:00') : null;
       var nowDay2 = new Date(); nowDay2.setHours(0,0,0,0);
@@ -1144,12 +1146,14 @@ async function renderCardPage(el, cardId) {
     // ===== PUBLISH DATE =====
     var publishHtml = '';
     if (editing) {
-      var pubHidden = !card.publish_date ? ' bc-date-input--hidden' : '';
       var noPubChecked = !card.publish_date ? ' checked' : '';
       var yesPubChecked = card.publish_date ? ' checked' : '';
+      var pubBtnText = card.publish_date ? formatDate(card.publish_date) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
+      var pubBtnCls = card.publish_date ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
+      var pubBtnStyle = card.publish_date ? '' : ' style="display:none"';
       publishHtml = '<label class="bc-radio"><input type="radio" name="pub_' + cardId + '"' + noPubChecked + ' onclick="savePublishDateField(' + cardId + ',null)"> \u0411\u0435\u0437 \u0434\u0430\u0442\u0430</label>' +
-        '<label class="bc-radio"><input type="radio" name="pub_' + cardId + '"' + yesPubChecked + ' onclick="handlePublishDate(' + cardId + ')"> \u041a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u0430 \u0434\u0430\u0442\u0430' +
-        '<input type="date" id="publishDateInput_' + cardId + '" class="bc-date-input' + pubHidden + '" value="' + (card.publish_date || '') + '" onchange="savePublishDateField(' + cardId + ',this.value)" onclick="event.stopPropagation()"></label>' +
+        '<label class="bc-radio"><input type="radio" name="pub_' + cardId + '"' + yesPubChecked + ' onclick="handlePublishDate(' + cardId + ')"> \u041a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u0430 \u0434\u0430\u0442\u0430 ' +
+        '<button class="' + pubBtnCls + '" id="publishDateBtn_' + cardId + '" data-value="' + (card.publish_date || '') + '"' + pubBtnStyle + ' onclick="event.stopPropagation();openPublishDatePicker(' + cardId + ',this)">' + pubBtnText + '</button></label>' +
         '<span id="pubSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 \u0417\u0430\u043f\u0430\u0437\u0435\u043d\u043e</span>';
     } else {
       publishHtml = card.publish_date
@@ -1180,7 +1184,7 @@ async function renderCardPage(el, cardId) {
       stepsHtml += card.steps.map(function(s) {
         var doneClass = s.completed ? ' bc-checklist__item--done' : '';
         var assigneeName = s.assignee_id ? (allUsers.find(function(u) { return u.id === s.assignee_id; }) || {}).name || '' : '';
-        var stepClick = canEdit() ? ' onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'))"' : '';
+        var stepClick = canEdit() ? ' onclick="expandStep(' + cardId + ',' + s.id + ',this.closest(\'li\'),\'' + (s.due_on || '') + '\')"' : '';
         return '<li class="bc-checklist__item' + doneClass + '" data-step-id="' + s.id + '">' +
           '<input type="checkbox" ' + (s.completed ? 'checked' : '') + ' onclick="event.stopPropagation();toggleStep(' + cardId + ',' + s.id + ',this.checked)">' +
           '<span' + stepClick + '>' + esc(s.title) + '</span>' +
@@ -1196,9 +1200,9 @@ async function renderCardPage(el, cardId) {
         '<div class="bc-add-step__row"><label>Стъпка</label><input id="newStepInput" type="text" placeholder="Опиши тази стъпка\u2026" onkeydown="if(event.key===\'Enter\')addStepFromPage(' + cardId + ')"></div>' +
         '<div class="bc-add-step__row"><label>Отговорник</label><select id="newStepAssignee"><option value="">Никой</option>' + allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
         '<div class="bc-add-step__row"><label>Краен срок</label>' +
-        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" checked onchange="document.getElementById(\'newStepDue\').classList.add(\'bc-date-input--hidden\')"> Без дата</label>' +
-        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" onchange="var d=document.getElementById(\'newStepDue\');d.classList.remove(\'bc-date-input--hidden\');d.focus()"> Дата</label>' +
-        '<input type="date" id="newStepDue" class="bc-date-input bc-date-input--hidden">' +
+        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" checked onchange="var b=document.getElementById(\'newStepDateBtn\');b.style.display=\'none\';b.dataset.value=\'\'"> \u0411\u0435\u0437 \u0434\u0430\u0442\u0430</label>' +
+        '<label class="bc-radio" style="flex:0"><input type="radio" name="newStepDueRadio" onchange="var b=document.getElementById(\'newStepDateBtn\');b.style.display=\'\';openNewStepDatePicker(b)"> \u0414\u0430\u0442\u0430</label>' +
+        '<button class="bc-date-btn bc-date-btn--placeholder" id="newStepDateBtn" data-value="" style="display:none" onclick="event.stopPropagation();openNewStepDatePicker(this)">\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026</button>' +
         '</div>' +
         '<div style="display:flex;gap:8px;margin-top:8px"><button class="bc-btn-save" onclick="addStepFromPage(' + cardId + ')">Добави тази стъпка</button><button class="bc-btn-discard" onclick="hideAddStepForm(' + cardId + ')">Отказ</button></div>' +
         '</div>';
@@ -1301,7 +1305,6 @@ async function renderCardPage(el, cardId) {
           '</header>' +
           '<div class="bc-card__fields">' +
             '<div class="bc-field"><span class="bc-field__label">Колона</span><div class="bc-field__value"><span>' + esc(col ? col.title : '\u2014') + '</span>' + colOptionsHtml + '</div></div>' +
-            '<div class="bc-field"><span class="bc-field__label">Клиент</span><div class="bc-field__value">' + clientHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Отговорник</span><div class="bc-field__value">' + assigneesHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Приоритет</span><div class="bc-field__value">' + priorityHtml + '</div></div>' +
             '<div class="bc-field"><span class="bc-field__label">Краен срок</span><div class="bc-field__value bc-field__value--vertical">' + dueHtml + '</div></div>' +
@@ -1723,19 +1726,17 @@ async function removeAssignee(cardId, userId) {
 
 // Due date radio handlers
 function handleNoDueDate(cardId) {
-  var dateInput = document.getElementById('dueDateInput_' + cardId);
-  if (dateInput) {
-    dateInput.value = '';
-    dateInput.classList.add('bc-date-input--hidden');
-  }
+  var btn = document.getElementById('dueDateBtn_' + cardId);
+  if (btn) { btn.style.display = 'none'; btn.dataset.value = ''; }
+  if (_dpCurrentPicker) { _dpCurrentPicker.remove(); _dpCurrentPicker = null; }
   updateField(cardId, 'due_on', null);
 }
 
 function handleSpecificDate(cardId) {
-  var dateInput = document.getElementById('dueDateInput_' + cardId);
-  if (!dateInput) return;
-  dateInput.classList.remove('bc-date-input--hidden');
-  try { dateInput.showPicker(); } catch(e) { dateInput.click(); }
+  var btn = document.getElementById('dueDateBtn_' + cardId);
+  if (!btn) return;
+  btn.style.display = '';
+  openDueDatePicker(cardId, btn);
 }
 
 async function saveDueDateField(cardId, value) {
@@ -1748,10 +1749,10 @@ async function saveDueDateField(cardId, value) {
 }
 
 function handlePublishDate(cardId) {
-  var dateInput = document.getElementById('publishDateInput_' + cardId);
-  if (!dateInput) return;
-  dateInput.classList.remove('bc-date-input--hidden');
-  try { dateInput.showPicker(); } catch(e) { dateInput.click(); }
+  var btn = document.getElementById('publishDateBtn_' + cardId);
+  if (!btn) return;
+  btn.style.display = '';
+  openPublishDatePicker(cardId, btn);
 }
 async function savePublishDateField(cardId, value) {
   _suppressWsRerender = Date.now() + 2000;
@@ -1765,7 +1766,7 @@ async function saveClientNameField(cardId, value) {
 }
 
 // Steps: expand on click
-function expandStep(cardId, stepId, li) {
+function expandStep(cardId, stepId, li, stepDueOn) {
   // If already expanded, collapse
   var existingForm = li.querySelector('.bc-step-expand');
   if (existingForm) { existingForm.remove(); return; }
@@ -1780,7 +1781,7 @@ function expandStep(cardId, stepId, li) {
     '<div class="bc-step-expand__row"><label>Заглавие</label><input type="text" id="editStepTitle_' + stepId + '" value="' + esc(stepText) + '"></div>' +
     '<div class="bc-step-expand__row"><label>Отговорник</label><select id="editStepAssignee_' + stepId + '"><option value="">\u041d\u0438\u043a\u043e\u0439</option>' +
     allUsers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
-    '<div class="bc-step-expand__row"><label>Краен срок</label><input type="date" id="editStepDue_' + stepId + '" class="bc-date-input"></div>' +
+    '<div class="bc-step-expand__row"><label>Краен срок</label><button class="' + (stepDueOn ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder') + '" id="editStepDue_' + stepId + '" data-value="' + (stepDueOn || '') + '" onclick="event.stopPropagation();openEditStepDatePicker(' + stepId + ',this)">' + (stepDueOn ? formatDate(stepDueOn) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026') + '</button></div>' +
     '<div class="bc-step-expand__actions">' +
     '<div style="display:flex;gap:8px"><button class="bc-btn-save" onclick="saveStepEdit(' + cardId + ',' + stepId + ')">Запази</button>' +
     '<button class="bc-btn-discard" onclick="this.closest(\'.bc-step-expand\').remove()">Отказ</button></div>' +
@@ -1796,7 +1797,7 @@ async function saveStepEdit(cardId, stepId) {
   var data = {};
   if (title) data.title = title.value.trim();
   if (assignee && assignee.value) data.assignee_id = parseInt(assignee.value);
-  if (due && due.value) data.due_on = due.value;
+  if (due && due.dataset.value) data.due_on = due.dataset.value;
   try {
     await fetch('/api/cards/' + cardId + '/steps/' + stepId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     router();
@@ -2005,7 +2006,7 @@ async function toggleStep(cid, sid, done) {
 async function addStepFromPage(cardId) {
   const t = document.getElementById('newStepInput')?.value?.trim(); if (!t) return;
   const a = document.getElementById('newStepAssignee')?.value || null;
-  const d = document.getElementById('newStepDue')?.value || null;
+  const d = document.getElementById('newStepDateBtn')?.dataset.value || null;
   try { await fetch(`/api/cards/${cardId}/steps`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:t, assignee_id:a?parseInt(a):null, due_on:d}) }); document.getElementById('newStepInput').value=''; router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0434\u043e\u0431\u0430\u0432\u044f\u043d\u0435', 'error'); }
 }
 async function addComment(cardId) {
@@ -3839,6 +3840,115 @@ function showPromptModal(title, placeholder, defaultVal, onConfirm, inputType) {
   ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
 }
 
+// ==================== CUSTOM DATE PICKER ====================
+var _dpCurrentPicker = null;
+function showDatePickerPopup(anchorEl, currentValue, onSelect) {
+  if (_dpCurrentPicker) { _dpCurrentPicker.remove(); _dpCurrentPicker = null; }
+  var today = new Date(); today.setHours(0,0,0,0);
+  var selDate = currentValue ? new Date(currentValue + 'T12:00:00') : null;
+  var viewYear = selDate ? selDate.getFullYear() : today.getFullYear();
+  var viewMonth = selDate ? selDate.getMonth() : today.getMonth();
+  var MN = ['\u042f\u043d\u0443\u0430\u0440\u0438','\u0424\u0435\u0432\u0440\u0443\u0430\u0440\u0438','\u041c\u0430\u0440\u0442','\u0410\u043f\u0440\u0438\u043b','\u041c\u0430\u0439','\u042e\u043d\u0438','\u042e\u043b\u0438','\u0410\u0432\u0433\u0443\u0441\u0442','\u0421\u0435\u043f\u0442\u0435\u043c\u0432\u0440\u0438','\u041e\u043a\u0442\u043e\u043c\u0432\u0440\u0438','\u041d\u043e\u0435\u043c\u0432\u0440\u0438','\u0414\u0435\u043a\u0435\u043c\u0432\u0440\u0438'];
+  var popup = document.createElement('div');
+  popup.className = 'date-picker-popup';
+  _dpCurrentPicker = popup;
+  function renderCal() {
+    var first = new Date(viewYear, viewMonth, 1);
+    var last = new Date(viewYear, viewMonth + 1, 0);
+    var startDow = (first.getDay() + 6) % 7;
+    var todayTs = today.getTime();
+    var selTs = selDate ? new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate()).getTime() : -1;
+    var html = '';
+    for (var i = 0; i < startDow; i++) html += '<div class="dp-day dp-day--empty"></div>';
+    for (var d = 1; d <= last.getDate(); d++) {
+      var ts = new Date(viewYear, viewMonth, d).getTime();
+      var ds = viewYear + '-' + String(viewMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+      var cls = 'dp-day' + (ts===todayTs?' dp-day--today':'') + (ts===selTs?' dp-day--selected':'');
+      html += '<div class="' + cls + '" data-date="' + ds + '">' + d + '</div>';
+    }
+    popup.innerHTML =
+      '<div class="dp-header">' +
+        '<button class="dp-nav" data-delta="-1">\u2039</button>' +
+        '<span class="dp-month-year">' + MN[viewMonth] + ' ' + viewYear + '</span>' +
+        '<button class="dp-nav" data-delta="1">\u203a</button>' +
+      '</div>' +
+      '<div class="dp-weekdays"><span>\u041f\u043d</span><span>\u0412\u0442</span><span>\u0421\u0440</span><span>\u0427\u0442</span><span>\u041f\u0442</span><span>\u0421\u0431</span><span>\u041d\u0434</span></div>' +
+      '<div class="dp-days">' + html + '</div>' +
+      '<div class="dp-footer"><button class="dp-clear">\u0418\u0437\u0447\u0438\u0441\u0442\u0438</button></div>';
+    popup.querySelectorAll('.dp-nav').forEach(function(btn) {
+      btn.onclick = function(e) {
+        e.stopPropagation();
+        viewMonth += parseInt(btn.dataset.delta);
+        if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+        if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+        renderCal();
+      };
+    });
+    popup.querySelectorAll('.dp-day:not(.dp-day--empty)').forEach(function(dayEl) {
+      dayEl.onclick = function(e) {
+        e.stopPropagation();
+        selDate = new Date(dayEl.dataset.date + 'T12:00:00');
+        onSelect(dayEl.dataset.date);
+        popup.remove(); _dpCurrentPicker = null;
+      };
+    });
+    popup.querySelector('.dp-clear').onclick = function(e) {
+      e.stopPropagation();
+      onSelect(null);
+      popup.remove(); _dpCurrentPicker = null;
+    };
+  }
+  renderCal();
+  document.body.appendChild(popup);
+  var rect = anchorEl.getBoundingClientRect();
+  var pw = 264;
+  var left = Math.min(rect.left, window.innerWidth - pw - 8);
+  var top = rect.bottom + 6;
+  if (top + 330 > window.innerHeight) top = Math.max(8, rect.top - 334);
+  popup.style.cssText = 'position:fixed;left:' + Math.max(8,left) + 'px;top:' + top + 'px;z-index:10001;width:' + pw + 'px';
+  setTimeout(function() {
+    function _dpClose(e) {
+      if (_dpCurrentPicker && !_dpCurrentPicker.contains(e.target)) {
+        _dpCurrentPicker.remove(); _dpCurrentPicker = null;
+        document.removeEventListener('click', _dpClose);
+      }
+    }
+    document.addEventListener('click', _dpClose);
+  }, 10);
+}
+function openDueDatePicker(cardId, btn) {
+  showDatePickerPopup(btn, btn.dataset.value || '', function(dateStr) {
+    btn.dataset.value = dateStr || '';
+    btn.textContent = dateStr ? formatDate(dateStr) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
+    btn.className = dateStr ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
+    if (dateStr) { saveDueDateField(cardId, dateStr); }
+    else { btn.style.display = 'none'; var r = document.querySelector('[name="due_' + cardId + '"]'); if (r) r.checked = true; updateField(cardId, 'due_on', null); }
+  });
+}
+function openPublishDatePicker(cardId, btn) {
+  showDatePickerPopup(btn, btn.dataset.value || '', function(dateStr) {
+    btn.dataset.value = dateStr || '';
+    btn.textContent = dateStr ? formatDate(dateStr) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
+    btn.className = dateStr ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
+    savePublishDateField(cardId, dateStr || null);
+    if (!dateStr) { btn.style.display = 'none'; var r = document.querySelectorAll('[name="pub_' + cardId + '"]')[0]; if (r) r.checked = true; }
+  });
+}
+function openNewStepDatePicker(btn) {
+  showDatePickerPopup(btn, btn.dataset.value || '', function(dateStr) {
+    btn.dataset.value = dateStr || '';
+    btn.textContent = dateStr ? formatDate(dateStr) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
+    btn.className = dateStr ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
+  });
+}
+function openEditStepDatePicker(stepId, btn) {
+  showDatePickerPopup(btn, btn.dataset.value || '', function(dateStr) {
+    btn.dataset.value = dateStr || '';
+    btn.textContent = dateStr ? formatDate(dateStr) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
+    btn.className = dateStr ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
+  });
+}
+
 // ==================== UTILS ====================
 function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(d) { if(!d)return''; const s=d.split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}.${m}.${y}`; }
@@ -3947,20 +4057,22 @@ function setupCardPageToolbar(card, col) {
   bookmarkBtn.onclick = function() { toggleBookmark('card', cardId, cardTitle); };
   toolbar.appendChild(bookmarkBtn);
 
-  // Presentation button — for cards with content
-  var presentBtn = document.createElement('button');
-  presentBtn.className = 'btn btn-sm btn-ghost';
-  presentBtn.textContent = '👁 Презентация';
-  presentBtn.title = 'Отвори като презентация за клиента';
-  presentBtn.onclick = function() { openPresentation(cardId); };
-  toolbar.appendChild(presentBtn);
+  // Presentation button — only for cards in "Към клиент" column
+  if (col && col.title && /\u043a\u044a\u043c \u043a\u043b\u0438\u0435\u043d\u0442/i.test(col.title)) {
+    var presentBtn = document.createElement('button');
+    presentBtn.className = 'btn btn-sm btn-ghost';
+    presentBtn.textContent = '\ud83d\udc41 \u041f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u044f';
+    presentBtn.title = '\u041e\u0442\u0432\u043e\u0440\u0438 \u043a\u0430\u0442\u043e \u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u044f \u0437\u0430 \u043a\u043b\u0438\u0435\u043d\u0442\u0430';
+    presentBtn.onclick = function() { openPresentation(cardId); };
+    toolbar.appendChild(presentBtn);
+  }
 
-  // Generate video tasks button — only for КП cards (have kp_number)
-  if (card.kp_number) {
+  // Generate video tasks button — only for КП cards in "В продукция" column
+  if (card.kp_number && col && col.title && /\u0432 \u043f\u0440\u043e\u0434\u0443\u043a\u0446\u0438\u044f/i.test(col.title)) {
     var generateBtn = document.createElement('button');
     generateBtn.className = 'btn btn-sm btn-ghost kp-generate-btn';
-    generateBtn.textContent = '⚙️ Генерирай задачи';
-    generateBtn.title = 'Генерирай видео задачи от съдържанието на картата';
+    generateBtn.textContent = '\u2699\ufe0f \u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u0439 \u0437\u0430\u0434\u0430\u0447\u0438';
+    generateBtn.title = '\u0413\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u0439 \u0432\u0438\u0434\u0435\u043e \u0437\u0430\u0434\u0430\u0447\u0438 \u043e\u0442 \u0441\u044a\u0434\u044a\u0440\u0436\u0430\u043d\u0438\u0435\u0442\u043e \u043d\u0430 \u043a\u0430\u0440\u0442\u0430\u0442\u0430';
     generateBtn.onclick = function() { generateVideoCards(cardId, cardTitle, generateBtn); };
     toolbar.appendChild(generateBtn);
   }
