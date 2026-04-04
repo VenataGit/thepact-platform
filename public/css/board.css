@@ -1167,7 +1167,7 @@ trix-toolbar .trix-button-group--file-tools { }
 .sos-card-btn { background: rgba(239,68,68,0.15) !important; color: var(--red) !important; border-color: rgba(239,68,68,0.3) !important; }
 
 /* ==================== КП АВТОМАТИЗАЦИЯ ==================== */
-.kp-auto-wrap { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+.kp-auto-wrap { }
 .kp-auto-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .kp-auto-title { font-size: 20px; font-weight: 700; color: #fff; margin: 0; }
 .kp-warning { background: rgba(220,120,0,0.12); border: 1px solid rgba(220,120,0,0.4); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; color: #e8a030; font-weight: 600; font-size: 14px; }

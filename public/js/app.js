@@ -2410,6 +2410,7 @@ async function renderActivity(el) {
 
     window._activityOffset = items.length;
     el.innerHTML = `
+      <div class="home-content-box">
       <div class="page-header"><h1>Последна активност</h1></div>
       <div style="display:flex;justify-content:center;gap:8px;margin-bottom:24px;flex-wrap:wrap">
         <button class="btn btn-sm activity-filter-btn active" style="background:var(--accent-dim);color:var(--accent);border-color:var(--accent)" onclick="filterActivity('all',this)">\u0412\u0441\u0438\u0447\u043a\u043e</button>
@@ -2433,6 +2434,7 @@ async function renderActivity(el) {
             </div>`).join('')}
       </div>
       ${items.length >= 50 ? `<div style="text-align:center;padding:24px"><button class="btn btn-sm btn-ghost" id="loadMoreActivityBtn" onclick="loadMoreActivity(this)">\u0417\u0430\u0440\u0435\u0434\u0438 \u043f\u043e\u0432\u0435\u0447\u0435</button></div>` : ''}
+      </div>
       `;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
@@ -2492,12 +2494,14 @@ async function renderMyStuff(el) {
       </a>`;
     };
     el.innerHTML = `
+      <div class="home-content-box">
       <div class="page-header"><h1>Моите задачи</h1><div class="page-subtitle">${cards.length} задачи</div></div>
-      <div class="task-list" style="max-width:760px;margin:0 auto">
+      <div class="task-list">
         ${cards.length===0 ? '<div style="text-align:center;padding:40px;color:var(--text-dim)"><div style="font-size:48px;opacity:0.3;margin-bottom:8px">✓</div>Нямаш задачи в момента</div>' : ''}
         ${overdue.length  > 0 ? `<div class="task-section-label" style="color:var(--red)">🔴 Просрочени (${overdue.length})</div>${overdue.map(renderCard).join('')}` : ''}
         ${upcoming.length > 0 ? `<div class="task-section-label">📅 Предстоящи (${upcoming.length})</div>${upcoming.map(renderCard).join('')}` : ''}
         ${noDate.length   > 0 ? `<div class="task-section-label" style="opacity:0.6">Без дата (${noDate.length})</div>${noDate.map(renderCard).join('')}` : ''}
+      </div>
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
@@ -2530,12 +2534,14 @@ async function renderNotifications(el) {
         }).join('');
 
     el.innerHTML = `
+      <div class="home-content-box">
       <div class="page-header">
         <h1>Hey!</h1>
         <div class="page-subtitle">Твоите известия</div>
       </div>
-      <div style="max-width:640px;margin:0 auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <div style="border-radius:8px;overflow:hidden;border:1px solid var(--border)">
         ${listHtml}
+      </div>
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
@@ -2547,6 +2553,7 @@ async function renderChatList(el) {
     const channels = await (await fetch('/api/chat/channels')).json();
     const colors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
     el.innerHTML = `
+      <div class="home-content-box">
       <div class="pings-page">
         <div class="pings-search-bar">
           <input id="pingSearchInput" placeholder="Започни личен чат с..." autocomplete="off" oninput="filterPingUsers()" onfocus="document.getElementById('pingSuggestions').style.display='block'">
@@ -2564,6 +2571,7 @@ async function renderChatList(el) {
           }).join('')}
           ${channels.length===0?'<div class="pings-empty"><p>Няма активни чатове</p><p class="hint">Напиши име горе за да започнеш</p></div>':''}
         </div>
+      </div>
       </div>`;
     document.addEventListener('click', e => { if (!e.target.closest('.pings-search-bar')) { const s=document.getElementById('pingSuggestions'); if(s)s.style.display='none'; } }, { once: true });
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
@@ -3425,8 +3433,8 @@ async function renderColumnView(el, id) {
 // ==================== КП АВТОМАТИЗАЦИЯ ====================
 async function renderKpAuto(el) {
   setBreadcrumb([{ label: 'Инструменти' }, { label: 'КП-Автоматизация' }]);
-  el.className = 'page-tool';
-  el.innerHTML = '<div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--text-dim)">Зареждане...</div></div>';
+  el.className = '';
+  el.innerHTML = '<div class="home-content-box"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--text-dim)">Зареждане...</div></div></div>';
   await loadKpAuto(el);
 }
 
@@ -3435,7 +3443,7 @@ async function loadKpAuto(el) {
     const res = await fetch('/api/kp/clients');
     const clients = await res.json();
     if (!res.ok || !Array.isArray(clients)) {
-      el.innerHTML = '<div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc((clients && clients.error) || 'Неуспешно зареждане') + '</div></div>';
+      el.innerHTML = '<div class="home-content-box"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc((clients && clients.error) || 'Неуспешно зареждане') + '</div></div></div>';
       return;
     }
 
@@ -3522,7 +3530,7 @@ async function loadKpAuto(el) {
           '<tbody>' + rowsHtml + '</tbody>' +
         '</table></div>';
 
-    el.innerHTML = '<div class="kp-auto-wrap">' +
+    el.innerHTML = '<div class="home-content-box"><div class="kp-auto-wrap">' +
       '<div class="kp-auto-header">' +
         '<h2 class="kp-auto-title">📋 КП-Автоматизация</h2>' +
         '<button class="btn btn-primary" onclick="showKpClientForm()">+ Нов клиент</button>' +
@@ -3530,9 +3538,9 @@ async function loadKpAuto(el) {
       warningHtml +
       '<div id="kpClientFormWrap" style="display:none"></div>' +
       tableHtml +
-    '</div>';
+    '</div></div>';
   } catch (err) {
-    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc(err.message) + '</div>';
+    el.innerHTML = '<div class="home-content-box"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc(err.message) + '</div></div>';
   }
 }
 
