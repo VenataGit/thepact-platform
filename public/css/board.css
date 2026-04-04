@@ -226,9 +226,9 @@
 .col-context-menu button:hover { background: var(--bg-hover); }
 
 /* ==================== CARD PAGE (Basecamp Style) ==================== */
-.card-page { max-width: 760px; margin: 0 auto; position: relative; }
-.card-editing-banner { display: flex; align-items: center; gap: 10px; max-width: 760px; margin: 0 auto 12px; padding: 10px 16px; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 8px; color: #eab308; font-size: 14px; }
-.card-page__toolbar { display: flex; align-items: center; gap: 8px; max-width: 760px; margin: 0 auto 14px; flex-wrap: wrap; justify-content: space-between; }
+.card-page { max-width: 760px; margin: 0 auto; position: relative; background: var(--bg-card); border-radius: 12px; padding: 20px 24px 28px; }
+.card-editing-banner { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 16px; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 8px; color: #eab308; font-size: 14px; }
+.card-page__toolbar { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; justify-content: space-between; }
 .kp-generate-btn { border-color: var(--accent) !important; color: var(--accent) !important; }
 .kp-generate-btn:hover { background: var(--accent) !important; color: #fff !important; }
 
@@ -238,10 +238,10 @@
 .mention-item:hover, .mention-item--active { background: var(--bg-hover); }
 .mention-av { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
 .card-page-wrapper { display: flex; gap: 24px; align-items: flex-start; max-width: 1200px; margin: 0 auto; position: relative; }
-.card-page-main { flex: 1; min-width: 0; max-width: 960px; margin: 0 auto; }
+.card-page-main { flex: 1; min-width: 0; max-width: 960px; margin: 0 auto; background: var(--bg-card); border-radius: 12px; padding: 20px 24px 28px; }
 
-/* Card: no visual box — content flows directly on page background */
-.bc-card { max-width: 760px; margin: 0 auto; position: relative; padding: 0 0 8px; }
+/* Card: no extra visual box — background comes from .card-page wrapper */
+.bc-card { max-width: 100%; margin: 0; position: relative; padding: 0 0 8px; }
 .bc-card-options__dots { font-size: 18px; padding: 2px 8px; line-height: 1; }
 
 .bc-card__header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 28px; }
@@ -389,7 +389,7 @@
 .bc-add-step-link:hover { color: var(--text-secondary); }
 
 /* Add step form (hidden by default) */
-.bc-add-step { display: none; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-top: 8px; }
+.bc-add-step { display: none; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-top: 8px; }
 .bc-add-step.bc-add-step--visible { display: block; }
 
 /* Save/Discard — Basecamp style compact green pill buttons */
@@ -408,7 +408,7 @@
 .bc-btn-discard:hover { background: rgba(70,163,116,0.1); }
 
 /* Comments — Basecamp style (outside the card frame) */
-.bc-comments { margin-top: 32px; padding-top: 24px; border-top: 2px solid var(--border); max-width: 760px; margin-left: auto; margin-right: auto; background: inherit; }
+.bc-comments { margin-top: 32px; padding-top: 24px; border-top: 2px solid var(--border); }
 .bc-comment-add { display: flex; gap: 12px; margin-bottom: 28px; }
 .bc-comment-avatar {
   width: 36px; height: 36px; border-radius: 50%;
@@ -445,7 +445,7 @@
 
 /* Comments list */
 .bc-comments-list { display: flex; flex-direction: column; gap: 2px; }
-.bc-comment { display: flex; gap: 14px; padding: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; position: relative; transition: border-color 0.15s; }
+.bc-comment { display: flex; gap: 14px; padding: 16px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; position: relative; transition: border-color 0.15s; }
 .bc-comment:hover { border-color: var(--border-hover); }
 .bc-comment--highlight { border-color: var(--accent) !important; box-shadow: 0 0 0 2px var(--accent-dim); }
 .bc-comment-body { flex: 1; min-width: 0; }
