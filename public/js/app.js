@@ -1221,15 +1221,20 @@ async function renderCardPage(el, cardId) {
     }
 
 
-    // ===== COLUMN (always show Move along to dropdown) =====
+    // ===== COLUMN (always show Move along to dropdown, incl. on-hold variants) =====
     var colOptionsHtml = '';
     if (canEdit() && board && board.columns) {
-      var otherCols = board.columns
-        .filter(function(c) { return c.id !== card.column_id; })
-        .sort(function(a, b) { return (a.is_done_column ? 1 : 0) - (b.is_done_column ? 1 : 0); });
-      colOptionsHtml = '<select class="bc-select-inline" onchange="moveCard(' + cardId + ', this.value)">' +
-        '<option value="">Премести в\u2026</option>' +
-        otherCols.map(function(c) { return '<option value="' + c.id + '">' + esc(c.title) + '</option>'; }).join('') +
+      var sortedCols = board.columns.slice().sort(function(a, b) { return (a.is_done_column ? 1 : 0) - (b.is_done_column ? 1 : 0); });
+      var colOptions = [];
+      sortedCols.forEach(function(c) {
+        var isCurrentRegular = (c.id === card.column_id && !card.is_on_hold);
+        var isCurrentHold    = (c.id === card.column_id && !!card.is_on_hold);
+        if (!isCurrentRegular) colOptions.push('<option value="' + c.id + ':0">' + esc(c.title) + '</option>');
+        if (!c.is_done_column && !isCurrentHold) colOptions.push('<option value="' + c.id + ':1">\u23f8 ' + esc(c.title) + ' (\u041d\u0430 \u0438\u0437\u0447\u0430\u043a\u0432\u0430\u043d\u0435)</option>');
+      });
+      colOptionsHtml = '<select class="bc-select-inline" onchange="moveCardTo(' + cardId + ',this.value,this)">' +
+        '<option value="">\u041f\u0440\u0435\u043c\u0435\u0441\u0442\u0438 \u0432\u2026</option>' +
+        colOptions.join('') +
         '</select>';
     }
 
@@ -2057,8 +2062,21 @@ async function saveCardNotes(cardId) {
 async function moveCard(cardId, columnId) {
   if (!columnId) return;
   try {
-    await fetch(`/api/cards/${cardId}/move`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({column_id:parseInt(columnId)}) });
+    await fetch('/api/cards/'+cardId+'/move', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({column_id:parseInt(columnId)}) });
     showToast('\u041a\u0430\u0440\u0442\u0430\u0442\u0430 \u0435 \u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0435\u043d\u0430', 'success');
+    router();
+  } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0432\u0430\u043d\u0435', 'error'); }
+}
+async function moveCardTo(cardId, value, sel) {
+  if (!value) return;
+  if (sel) sel.value = '';
+  var parts = value.split(':');
+  var columnId = parseInt(parts[0]);
+  var hold = parts[1] === '1';
+  try {
+    await fetch('/api/cards/'+cardId+'/move', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({column_id:columnId}) });
+    await fetch('/api/cards/'+cardId, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({is_on_hold:hold}) });
+    showToast(hold ? '\u041a\u0430\u0440\u0442\u0430\u0442\u0430 \u0435 \u043d\u0430 \u0438\u0437\u0447\u0430\u043a\u0432\u0430\u043d\u0435' : '\u041a\u0430\u0440\u0442\u0430\u0442\u0430 \u0435 \u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0435\u043d\u0430', 'success');
     router();
   } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0432\u0430\u043d\u0435', 'error'); }
 }
