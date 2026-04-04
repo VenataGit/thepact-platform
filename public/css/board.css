@@ -1279,8 +1279,8 @@ textarea.confirm-modal-input { resize: vertical; min-height: 80px; }
 .pc-event:active { cursor: grabbing; }
 .pc-event__title { font-size: 11px; font-weight: 600; color: #fff; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
 .pc-event__time { font-size: 10px; color: rgba(255,255,255,0.8); margin-top: 2px; }
-.pc-event__del { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 16px; height: 16px; border-radius: 50%; font-size: 12px; line-height: 1; cursor: pointer; display: none; align-items: center; justify-content: center; padding: 0; }
-.pc-event:hover .pc-event__del { display: flex; }
+.pc-event__del { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.45); border: none; color: #fff; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; opacity: 0.7; transition: opacity 0.15s, background 0.15s; }
+.pc-event__del:hover { opacity: 1; background: rgba(180,30,30,0.8); }
 .pc-event__resize { position: absolute; bottom: 0; left: 0; right: 0; height: 6px; cursor: s-resize; background: rgba(0,0,0,0.2); border-radius: 0 0 5px 5px; }
 
 /* Drag preview ghost */

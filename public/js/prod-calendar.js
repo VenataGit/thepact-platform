@@ -68,7 +68,10 @@ async function _pcLoadEntries() {
   try {
     var res  = await fetch('/api/production-calendar?from=' + _pcDate(_prodCal.weekStart) + '&to=' + _pcDate(end));
     var data = await res.json();
-    _prodCal.entries = Array.isArray(data) ? data : [];
+    _prodCal.entries = Array.isArray(data) ? data.map(function(e) {
+      e.scheduled_date = (e.scheduled_date || '').toString().split('T')[0];
+      return e;
+    }) : [];
   } catch (e) { _prodCal.entries = []; }
 }
 
@@ -81,8 +84,9 @@ async function pcCreateEntry(cardId, date, startMin, durMin) {
     });
     if (!res.ok) return;
     var entry = await res.json();
+    entry.scheduled_date = (entry.scheduled_date || '').toString().split('T')[0];
     _prodCal.entries.push(entry);
-    _pcRedrawCol(date);
+    _pcRefreshWeekView();
     _pcRefreshSidebarCard(cardId);
   } catch (e) {}
 }
@@ -102,8 +106,7 @@ async function pcMoveEntry(entryId, newDate, newStart) {
       _prodCal.entries[idx].scheduled_date = newDate;
       _prodCal.entries[idx].start_minute   = newStart;
     }
-    if (oldDate && oldDate !== newDate) _pcRedrawCol(oldDate);
-    _pcRedrawCol(newDate);
+    _pcRefreshWeekView();
   } catch (e) {}
 }
 
@@ -129,7 +132,7 @@ async function pcDeleteEntry(entryId) {
     var res = await fetch('/api/production-calendar/' + entryId, { method: 'DELETE' });
     if (!res.ok) return;
     _prodCal.entries = _prodCal.entries.filter(function(e) { return e.id !== entryId; });
-    _pcRedrawCol(date);
+    _pcRefreshWeekView();
     _pcRefreshSidebarCard(cardId);
   } catch (e) {}
 }
@@ -153,6 +156,16 @@ function _pcRefreshSidebarCard(cardId) {
   list.innerHTML = _pcSidebarHtml(q);
 }
 
+function _pcRefreshWeekView() {
+  var weekView = document.querySelector('.pc-week-view');
+  if (!weekView) return;
+  var body = weekView.querySelector('.pc-body');
+  var scrollTop = body ? body.scrollTop : (8 - PC_H0) * 60;
+  weekView.innerHTML = _pcWeekHtml();
+  var newBody = weekView.querySelector('.pc-body');
+  if (newBody) newBody.scrollTop = scrollTop;
+}
+
 // ─── HTML builders ────────────────────────────────────────────────────────────
 
 function _pcEventHtml(entry) {
@@ -167,7 +180,7 @@ function _pcEventHtml(entry) {
     ' style="top:' + top + 'px;height:' + height + 'px;background:' + color + '"' +
     ' draggable="true"' +
     ' ondragstart="pcEventDragStart(event,' + entry.id + ',' + entry.start_minute + ')">' +
-    '<button class="pc-event__del" onclick="event.stopPropagation();pcDeleteEntry(' + entry.id + ')">×</button>' +
+    '<button class="pc-event__del" title="Върни в списъка" onclick="event.stopPropagation();pcDeleteEntry(' + entry.id + ')">↩</button>' +
     '<div class="pc-event__title">' + (entry.card_title || '') + '</div>' +
     (short ? '' : '<div class="pc-event__time">' + t0 + ' – ' + t1 + '</div>') +
     '<div class="pc-event__resize" onmousedown="pcResizeStart(event,' + entry.id + ')"></div>' +
