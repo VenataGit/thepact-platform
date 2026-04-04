@@ -350,6 +350,18 @@
 .bc-date-changelog__field { color: var(--text-secondary); }
 .bc-date-changelog__arrow { color: var(--text); }
 
+/* Card history modal */
+.card-history-modal { max-width: 560px; max-height: 82vh; display: flex; flex-direction: column; }
+.card-history-body { flex: 1; overflow-y: auto; max-height: 60vh; margin-top: 8px; }
+.card-history-loading, .card-history-empty { text-align: center; padding: 24px; color: var(--text-dim); font-size: 14px; }
+.card-history-row { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: start; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
+.card-history-row:last-child { border-bottom: none; }
+.card-history-icon { font-size: 14px; line-height: 1.4; }
+.card-history-text { color: var(--text); line-height: 1.5; }
+.card-history-text b { color: var(--accent); font-weight: 600; }
+.card-history-text em { color: var(--text-secondary); font-style: normal; }
+.card-history-time { color: var(--text-dim); font-size: 11px; white-space: nowrap; line-height: 1.8; }
+
 /* Editor — Basecamp Trix style */
 .bc-editor { border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; background: rgba(0,0,0,0.2); overflow-x: hidden; overflow-y: visible; width: 100%; max-width: 100%; box-sizing: border-box; }
 .bc-editor trix-toolbar { border: none; border-bottom: 1px solid rgba(255,255,255,0.1); background: transparent; border-radius: 0; padding: 6px 4px; }

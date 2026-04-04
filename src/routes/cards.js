@@ -152,13 +152,25 @@ router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { assignee_ids } = req.body;
     const DATE_FIELDS = ['publish_date', 'brainstorm_date', 'filming_date', 'editing_date', 'upload_date'];
+    const LOG_FIELDS  = ['title', 'priority', 'is_on_hold', 'due_on'];
     const allowedFields = ['title', 'content', 'due_on', 'priority', 'is_on_hold', 'client_name', 'kp_number', 'video_number', 'video_title', ...DATE_FIELDS];
 
-    // Fetch current card values for date change logging
+    // Determine which fields need old-value fetching
     const dateFieldsInRequest = DATE_FIELDS.filter(f => f in req.body);
+    const logFieldsInRequest  = LOG_FIELDS.filter(f => f in req.body);
+    const needOldValues = dateFieldsInRequest.length > 0 || logFieldsInRequest.length > 0 || assignee_ids !== undefined;
+
     let oldCard = null;
-    if (dateFieldsInRequest.length > 0) {
-      oldCard = await queryOne('SELECT ' + DATE_FIELDS.join(', ') + ' FROM cards WHERE id = $1', [req.params.id]);
+    let oldAssigneeIds = [];
+    if (needOldValues) {
+      oldCard = await queryOne(
+        `SELECT ${[...DATE_FIELDS, ...LOG_FIELDS].join(', ')} FROM cards WHERE id = $1`,
+        [req.params.id]
+      );
+      if (assignee_ids !== undefined) {
+        const rows = await query('SELECT user_id FROM card_assignees WHERE card_id = $1', [req.params.id]);
+        oldAssigneeIds = rows.map(r => r.user_id);
+      }
     }
 
     const setClauses = ['updated_at = NOW()'];
@@ -179,10 +191,10 @@ router.put('/:id', requireAuth, async (req, res) => {
 
     if (!card) return res.status(404).json({ error: 'Card not found' });
 
-    // Log date field changes
+    // Log date field changes to card_date_changes
     if (oldCard && dateFieldsInRequest.length > 0) {
       for (const field of dateFieldsInRequest) {
-        const oldVal = oldCard[field] ? (oldCard[field] instanceof Date ? oldCard[field].toISOString().split('T')[0] : String(oldCard[field]).split('T')[0]) : null;
+        const oldVal = oldCard[field] ? String(oldCard[field]).split('T')[0] : null;
         const newVal = req.body[field] || null;
         if (oldVal !== newVal) {
           await execute(
@@ -193,11 +205,49 @@ router.put('/:id', requireAuth, async (req, res) => {
       }
     }
 
-    // Update assignees if provided
+    // Log general field changes to card_events (title, priority, is_on_hold, due_on)
+    if (oldCard && logFieldsInRequest.length > 0) {
+      for (const field of logFieldsInRequest) {
+        const oldVal = oldCard[field] !== undefined ? oldCard[field] : null;
+        const newVal = (req.body[field] === '' ? null : req.body[field]) ?? null;
+        const oldStr = oldVal === null || oldVal === undefined ? '' : String(oldVal);
+        const newStr = newVal === null || newVal === undefined ? '' : String(newVal);
+        if (oldStr !== newStr) {
+          await execute(
+            `INSERT INTO card_events (card_id, event_type, user_id, metadata)
+             VALUES ($1, 'field_changed', $2, $3)`,
+            [card.id, req.user.userId, JSON.stringify({ field, old_value: oldVal, new_value: newVal, user_name: req.user.name })]
+          );
+        }
+      }
+    }
+
+    // Update assignees + log changes
     if (assignee_ids !== undefined) {
       await execute('DELETE FROM card_assignees WHERE card_id = $1', [card.id]);
       for (const uid of (assignee_ids || [])) {
         await execute('INSERT INTO card_assignees (card_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [card.id, uid]);
+      }
+      const newIds = assignee_ids || [];
+      const added   = newIds.filter(id => !oldAssigneeIds.includes(id));
+      const removed = oldAssigneeIds.filter(id => !newIds.includes(id));
+      if (added.length > 0) {
+        const users = await query(`SELECT id, name FROM users WHERE id = ANY($1::int[])`, [added]);
+        for (const u of users) {
+          await execute(
+            `INSERT INTO card_events (card_id, event_type, user_id, metadata) VALUES ($1, 'assignee_added', $2, $3)`,
+            [card.id, req.user.userId, JSON.stringify({ assignee_name: u.name, user_name: req.user.name })]
+          );
+        }
+      }
+      if (removed.length > 0) {
+        const users = await query(`SELECT id, name FROM users WHERE id = ANY($1::int[])`, [removed]);
+        for (const u of users) {
+          await execute(
+            `INSERT INTO card_events (card_id, event_type, user_id, metadata) VALUES ($1, 'assignee_removed', $2, $3)`,
+            [card.id, req.user.userId, JSON.stringify({ assignee_name: u.name, user_name: req.user.name })]
+          );
+        }
       }
     }
 
@@ -216,6 +266,43 @@ router.get('/:id/date-changes', requireAuth, async (req, res) => {
       [req.params.id]
     );
     res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/cards/:id/history — unified activity log (events + date changes)
+router.get('/:id/history', requireAuth, async (req, res) => {
+  try {
+    const events = await query(
+      `SELECT ce.id, ce.event_type, ce.created_at AS ts, ce.metadata,
+              COALESCE(u.name, (ce.metadata->>'user_name')) AS user_name,
+              bf.title AS from_board_title, bt.title AS to_board_title,
+              cf.title AS from_col_title,   ct.title AS to_col_title
+       FROM card_events ce
+       LEFT JOIN users   u  ON ce.user_id         = u.id
+       LEFT JOIN boards  bf ON ce.from_board_id   = bf.id
+       LEFT JOIN boards  bt ON ce.to_board_id     = bt.id
+       LEFT JOIN columns cf ON ce.from_column_id  = cf.id
+       LEFT JOIN columns ct ON ce.to_column_id    = ct.id
+       WHERE ce.card_id = $1
+       ORDER BY ce.created_at DESC LIMIT 300`,
+      [req.params.id]
+    );
+
+    const dateChanges = await query(
+      `SELECT id, field_name, old_value::text AS old_value, new_value::text AS new_value,
+              changed_by_name AS user_name, changed_at AS ts
+       FROM card_date_changes WHERE card_id = $1 ORDER BY changed_at DESC LIMIT 300`,
+      [req.params.id]
+    );
+
+    const combined = [
+      ...events.map(e => ({ ...e, source: 'event' })),
+      ...dateChanges.map(d => ({ ...d, source: 'date_change' }))
+    ].sort((a, b) => new Date(b.ts) - new Date(a.ts));
+
+    res.json(combined);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
