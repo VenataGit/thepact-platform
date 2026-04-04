@@ -169,8 +169,10 @@ function _pcRefreshWeekView() {
 
 // ─── HTML builders ────────────────────────────────────────────────────────────
 
+var _PC_DL_COLORS = { 'dl-green': '#2a9d5c', 'dl-yellow': '#c4930a', 'dl-red': '#c0392b', 'dl-black': '#555' };
 function _pcEventHtml(entry) {
-  var color  = _pcColor(entry.board_id || 0);
+  var dlClass = (typeof getDeadlineClass === 'function') ? getDeadlineClass(entry) : '';
+  var color   = (_PC_DL_COLORS[dlClass]) || _pcColor(entry.board_id || 0);
   var top    = (entry.start_minute - PC_H0 * 60) * PC_PX_MIN;
   var height = Math.max(20, entry.duration_minutes * PC_PX_MIN);
   var t0     = _pcMinToTime(entry.start_minute);
@@ -195,33 +197,41 @@ function _pcSidebarHtml(searchQ) {
   _prodCal.boards.forEach(function(b) { boardMap[b.id] = b; });
   var scheduledIds = new Set(_prodCal.entries.map(function(e) { return e.card_id; }));
 
-  // Group by board — skip already-scheduled cards
-  var byBoard = {};
+  // Collect unscheduled cards that match search
+  var visible = [];
   _prodCal.cards.forEach(function(c) {
     if (scheduledIds.has(c.id)) return;
     if (q && !(c.title || '').toLowerCase().includes(q)) return;
-    if (!byBoard[c.board_id]) byBoard[c.board_id] = [];
-    byBoard[c.board_id].push(c);
+    visible.push(c);
+  });
+
+  // Sort by deadline date ascending, nulls last
+  visible.sort(function(a, b) {
+    var da = (typeof getCardDeadlineDate === 'function') ? getCardDeadlineDate(a) : null;
+    var db = (typeof getCardDeadlineDate === 'function') ? getCardDeadlineDate(b) : null;
+    if (!da && !db) return 0; if (!da) return 1; if (!db) return -1;
+    return da < db ? -1 : da > db ? 1 : 0;
   });
 
   var html = '';
-  Object.keys(byBoard).forEach(function(bid) {
-    var board = boardMap[bid];
-    var bName = board ? board.title : 'Борд';
-    html += '<div class="pc-board-label">' + bName + '</div>';
-    byBoard[bid].forEach(function(card) {
-      html +=
-        '<div class="pc-mini-card"' +
-        ' data-card-id="' + card.id + '"' +
-        ' draggable="true"' +
-        ' onclick="pcOpenCard(event,' + card.id + ')"' +
-        ' ondragstart="pcSidebarDragStart(event,' + card.id + ')">' +
-        '<div class="pc-mini-card__title">' + (card.title || '') + '</div>' +
-        (card.client_name
-          ? '<div class="pc-mini-card__meta">' + card.client_name + '</div>'
-          : '') +
-        '</div>';
-    });
+  visible.forEach(function(card) {
+    var dlClass = (typeof getDeadlineClass === 'function') ? getDeadlineClass(card) : '';
+    var dlDate  = (typeof getCardDeadlineDate === 'function') ? getCardDeadlineDate(card) : null;
+    var dlDateStr = dlDate ? (typeof formatDate === 'function' ? formatDate(dlDate) : dlDate) : '';
+    html +=
+      '<div class="pc-mini-card ' + dlClass + '"' +
+      ' data-card-id="' + card.id + '"' +
+      ' draggable="true"' +
+      ' onclick="pcOpenCard(event,' + card.id + ')"' +
+      ' ondragstart="pcSidebarDragStart(event,' + card.id + ')">' +
+      '<div class="pc-mini-card__title">' + (card.title || '') + '</div>' +
+      (card.client_name
+        ? '<div class="pc-mini-card__meta">' + card.client_name + '</div>'
+        : '') +
+      (dlDateStr
+        ? '<div class="pc-mini-card__dl ' + dlClass + '">' + dlDateStr + '</div>'
+        : '') +
+      '</div>';
   });
   return html || '<div class="pc-empty-msg">Всички карти са насрочени</div>';
 }

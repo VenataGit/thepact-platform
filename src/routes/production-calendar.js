@@ -12,6 +12,10 @@ router.get('/', requireAuth, async (req, res) => {
       SELECT pc.*,
              c.title  AS card_title,
              c.board_id,
+             c.brainstorm_date,
+             c.filming_date,
+             c.editing_date,
+             c.upload_date,
              b.title  AS board_title,
              b.color  AS board_color,
              col.title AS column_title
@@ -40,7 +44,9 @@ router.post('/', requireAuth, async (req, res) => {
     `, [card_id, scheduled_date, start_minute ?? 540, duration_minutes ?? 60, req.user.userId]);
     // Enrich with card/board info
     const info = await queryOne(`
-      SELECT c.title AS card_title, c.board_id, b.title AS board_title, b.color AS board_color, col.title AS column_title
+      SELECT c.title AS card_title, c.board_id,
+             c.brainstorm_date, c.filming_date, c.editing_date, c.upload_date,
+             b.title AS board_title, b.color AS board_color, col.title AS column_title
       FROM cards c
       JOIN columns col ON c.column_id = col.id
       JOIN boards  b   ON c.board_id  = b.id

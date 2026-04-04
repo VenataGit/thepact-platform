@@ -214,6 +214,37 @@
 .kanban-card.priority { border-left: 3px solid #fff; background: linear-gradient(135deg, rgba(255,255,255,0.06), var(--bg-card)); }
 .kanban-card.on-hold { opacity: 0.45; }
 
+/* Deadline color system (board-specific dates) — overrides generic states */
+.kanban-card.dl-green  { border-left: 3px solid var(--green); }
+.kanban-card.dl-yellow { border-left: 3px solid var(--yellow); }
+.kanban-card.dl-red    { border-left: 3px solid var(--red); }
+.kanban-card.dl-black  { border-left: 3px solid #555; }
+.kanban-card__dl-badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+.kanban-card__dl-badge.dl-green  { color: var(--green);  background: var(--green-dim); }
+.kanban-card__dl-badge.dl-yellow { color: var(--yellow); background: var(--yellow-dim); }
+.kanban-card__dl-badge.dl-red    { color: var(--red);    background: rgba(239,68,68,0.12); }
+.kanban-card__dl-badge.dl-black  { color: var(--text-dim); background: var(--bg-hover); }
+
+.dash-card.dl-green  { border-left: 3px solid var(--green); }
+.dash-card.dl-yellow { border-left: 3px solid var(--yellow); }
+.dash-card.dl-red    { border-left: 3px solid var(--red); }
+.dash-card.dl-black  { border-left: 3px solid #555; }
+.dash-card__dl-badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; padding: 2px 5px; border-radius: 4px; }
+.dash-card__dl-badge.dl-green  { color: var(--green);  background: var(--green-dim); }
+.dash-card__dl-badge.dl-yellow { color: var(--yellow); background: var(--yellow-dim); }
+.dash-card__dl-badge.dl-red    { color: var(--red);    background: rgba(239,68,68,0.12); }
+.dash-card__dl-badge.dl-black  { color: var(--text-dim); background: var(--bg-hover); }
+
+.pc-mini-card.dl-green  { border-left: 3px solid var(--green); }
+.pc-mini-card.dl-yellow { border-left: 3px solid var(--yellow); }
+.pc-mini-card.dl-red    { border-left: 3px solid var(--red); }
+.pc-mini-card.dl-black  { border-left: 3px solid #555; }
+.pc-mini-card__dl { font-size: 10px; font-weight: 600; margin-top: 4px; padding: 1px 5px; border-radius: 4px; display: inline-block; }
+.pc-mini-card__dl.dl-green  { color: var(--green);  background: var(--green-dim); }
+.pc-mini-card__dl.dl-yellow { color: var(--yellow); background: var(--yellow-dim); }
+.pc-mini-card__dl.dl-red    { color: var(--red);    background: rgba(239,68,68,0.12); }
+.pc-mini-card__dl.dl-black  { color: var(--text-dim); background: var(--bg-hover); }
+
 /* Add card button */
 .add-card-btn {
   display: flex; align-items: center; justify-content: center; gap: 6px;

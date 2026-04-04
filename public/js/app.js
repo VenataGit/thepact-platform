@@ -615,6 +615,9 @@ function renderDashboardBoard(boards, cards, stageColors) {
           '</div>';
         }
 
+        var _dashDlSort = function(a, b) { var da=getCardDeadlineDate(a),db=getCardDeadlineDate(b); if(!da&&!db)return 0; if(!da)return 1; if(!db)return -1; return da<db?-1:da>db?1:0; };
+        regularCards = regularCards.sort(_dashDlSort);
+        holdCards = holdCards.sort(_dashDlSort);
         var cardsHtml = regularCards.map(function(c) { return renderDashCard(c); }).join('');
 
         var holdHtml = '';
@@ -663,6 +666,9 @@ function renderDashboardBoard(boards, cards, stageColors) {
 
 function renderDashCard(card) {
   var colorClass = getDashCardColor(card);
+  var dlClass = getDeadlineClass(card);
+  var dlDate = getCardDeadlineDate(card);
+  var dlDateStr = dlDate ? formatDate(dlDate) : '';
   var assignee = card.assignees && card.assignees[0] ? card.assignees[0].name.split(' ')[0] : '';
   var stepsStr = card.steps_total > 0 ? card.steps_done + '/' + card.steps_total : '';
   var holdClass = card.is_on_hold ? ' dash-card--hold' : '';
@@ -676,11 +682,14 @@ function renderDashCard(card) {
   var dueStr = card.due_on ? formatDate(card.due_on) : '';
 
   var priIcon = card.priority === 'urgent' ? '\ud83d\udd34 ' : card.priority === 'high' ? '\u2191 ' : '';
-  return '<a class="dash-card ' + colorClass + holdClass + '" href="#/card/' + card.id + '" draggable="true" data-card-id="' + card.id + '" ondragstart="handleDragStart(event)" ondragend="handleDashDragEnd(event)">' +
+  var dateHtml = dlDateStr
+    ? '<span class="dash-card__dl-badge ' + dlClass + '">' + dlDateStr + '</span>'
+    : (dueStr ? '<span class="dash-card__date"' + dueStyle + '>' + dueIcon + dueStr + '</span>' : '<span></span>');
+  return '<a class="dash-card ' + colorClass + ' ' + dlClass + holdClass + '" href="#/card/' + card.id + '" draggable="true" data-card-id="' + card.id + '" ondragstart="handleDragStart(event)" ondragend="handleDashDragEnd(event)">' +
     '<div class="dash-card__title">' + (card.is_on_hold ? '\u23f8 ' : priIcon) + esc(card.title) + '</div>' +
     (card.client_name ? '<div class="dash-card__client">' + esc(card.client_name) + '</div>' : '') +
     '<div class="dash-card__footer">' +
-      (dueStr ? '<span class="dash-card__date"' + dueStyle + '>' + dueIcon + dueStr + '</span>' : '<span></span>') +
+      dateHtml +
       '<div class="dash-card__right">' +
         (stepsStr ? '<span class="dash-card__steps">\u2713 ' + stepsStr + '</span>' : '') +
         (assignee ? '<span class="dash-card__assignee">' + esc(assignee) + '</span>' : '') +
@@ -890,8 +899,9 @@ async function renderBoard(el, boardId) {
       <div class="board-kanban">
         ${visibleCols.map((col, i) => {
           const colColor = COLUMN_COLORS[i % COLUMN_COLORS.length];
-          const colCards = cards.filter(c => c.column_id === col.id && !c.is_on_hold);
-          const holdCards = cards.filter(c => c.column_id === col.id && c.is_on_hold);
+          const _dlSort = (a, b) => { var da=getCardDeadlineDate(a),db=getCardDeadlineDate(b); if(!da&&!db)return 0; if(!da)return 1; if(!db)return -1; return da<db?-1:da>db?1:0; };
+          const colCards = cards.filter(c => c.column_id === col.id && !c.is_on_hold).sort(_dlSort);
+          const holdCards = cards.filter(c => c.column_id === col.id && c.is_on_hold).sort(_dlSort);
           return `
             <div class="kanban-column" data-col-id="${col.id}" style="--col-color:${colColor}"
                  ${manage ? `draggable="true" ondragstart="handleColDragStart(event)" ondragend="handleColDragEnd(event)" ondragover="handleColDragOver(event)" ondrop="handleColDrop(event,${boardId})"` : ''}>
@@ -1000,6 +1010,9 @@ function toggleOverdueFilter(btn) {
 
 function renderKanbanCard(card, colColor) {
   const color = getCardColorClass(card);
+  const dlClass = getDeadlineClass(card);
+  const dlDate = getCardDeadlineDate(card);
+  const dlDateStr = dlDate ? formatDate(dlDate) : '';
   const nowDay = new Date(); nowDay.setHours(0,0,0,0);
   const dueDate = card.due_on ? new Date(card.due_on+'T00:00:00') : null;
   const isDueOverdue = dueDate && dueDate < nowDay;
@@ -1023,7 +1036,7 @@ function renderKanbanCard(card, colColor) {
   const priorityBadge = card.priority === 'urgent' ? '<span class="kanban-card__priority-badge kanban-card__priority-badge--urgent">\ud83d\udd34 \u0421\u043f\u0435\u0448\u043d\u043e</span>' : card.priority === 'high' ? '<span class="kanban-card__priority-badge kanban-card__priority-badge--high">\u2191 \u0412\u0438\u0441\u043e\u043a</span>' : '';
   return `
     <div class="kanban-card-wrap">
-      <a class="kanban-card ${color}" href="#/card/${card.id}" draggable="true" data-card-id="${card.id}"
+      <a class="kanban-card ${color} ${dlClass}" href="#/card/${card.id}" draggable="true" data-card-id="${card.id}"
          ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)"
          onauxclick="if(event.button===1){event.preventDefault();window.open('#/card/${card.id}','_blank')}">
         <div class="kanban-card__content">
@@ -1034,7 +1047,7 @@ function renderKanbanCard(card, colColor) {
             <div class="kanban-card__badges">
               ${card.client_name ? `<span class="kanban-card__client">${esc(card.client_name)}</span>` : ''}
               ${stepsStr ? `<span class="kanban-card__steps">✓ ${stepsStr}</span>` : ''}
-              ${publishStr ? `<span class="kanban-card__publish">📅 ${publishStr}</span>` : dueStr ? `<span class="kanban-card__due${dueClass}">${isDueOverdue ? '⚠ ' : isDueToday ? '⏰ ' : ''}${dueStr}</span>` : ''}
+              ${dlDateStr ? `<span class="kanban-card__dl-badge ${dlClass}">${dlDateStr}</span>` : publishStr ? `<span class="kanban-card__publish">📅 ${publishStr}</span>` : dueStr ? `<span class="kanban-card__due${dueClass}">${isDueOverdue ? '⚠ ' : isDueToday ? '⏰ ' : ''}${dueStr}</span>` : ''}
               ${card.comment_count ? `<span class="kanban-card__comments">💬 ${card.comment_count}</span>` : ''}
             </div>
           </div>
@@ -4312,6 +4325,35 @@ function openEditStepDatePicker(stepId, btn) {
 function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(d) { if(!d)return''; const s=d.split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}.${m}.${y}`; }
 function getCardColorClass(c) { if(c.is_on_hold)return'on-hold'; if(c.priority==='urgent')return'priority'; if(!c.due_on)return''; const n=new Date();n.setHours(0,0,0,0); const due=new Date(c.due_on+'T00:00:00'); const diff=Math.ceil((due-n)/86400000); if(diff<0)return'overdue'; if(diff===0)return'deadline-today'; if(diff<=4)return'deadline-soon'; return'deadline-ok'; }
+function workingDaysUntil(dateStr) {
+  if (!dateStr) return null;
+  var target = new Date(dateStr.toString().split('T')[0] + 'T00:00:00');
+  var today = new Date(); today.setHours(0,0,0,0);
+  if (target < today) return -1;
+  if (target.getTime() === today.getTime()) return 0;
+  var count = 0;
+  var d = new Date(today); d.setDate(d.getDate() + 1);
+  while (d <= target) { var dow = d.getDay(); if (dow !== 0 && dow !== 6) count++; d.setDate(d.getDate() + 1); }
+  return count;
+}
+function getCardDeadlineDate(card) {
+  var bt = (card.board_title || '').toLowerCase();
+  if (bt.indexOf('pre') !== -1) return card.brainstorm_date || null;
+  if (bt.indexOf('post') !== -1) return card.editing_date || null;
+  if (bt.indexOf('production') !== -1) return card.filming_date || null;
+  if (bt.indexOf('акаунт') !== -1 || bt.indexOf('account') !== -1) return card.upload_date || null;
+  return null;
+}
+function getDeadlineClass(card) {
+  var date = getCardDeadlineDate(card);
+  if (!date) return '';
+  var days = workingDaysUntil(date);
+  if (days === null) return '';
+  if (days < 0) return 'dl-black';
+  if (days === 0) return 'dl-red';
+  if (days <= 4) return 'dl-yellow';
+  return 'dl-green';
+}
 function timeAgo(d) { const s=Math.floor((Date.now()-new Date(d))/1000); if(s<60)return'сега'; if(s<3600)return Math.floor(s/60)+'м'; if(s<86400)return Math.floor(s/3600)+'ч'; return Math.floor(s/86400)+'д назад'; }
 function fmtDate(d) {
   if (!d) return '';
