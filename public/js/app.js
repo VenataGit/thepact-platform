@@ -1818,70 +1818,8 @@ function openProductionDatePicker(cardId, field, btn) {
     }
   });
 }
-async function showCardHistory(cardId) {
-  var ov = document.createElement('div');
-  ov.className = 'modal-overlay';
-  ov.innerHTML = '<div class="confirm-modal-box card-history-modal">' +
-    '<p class="confirm-modal-msg">\ud83d\udd50 \u0418\u0441\u0442\u043e\u0440\u0438\u044f \u043d\u0430 \u043f\u0440\u043e\u043c\u0435\u043d\u0438\u0442\u0435</p>' +
-    '<div id="cardHistoryBody" class="card-history-body"><div class="card-history-loading">\u0417\u0430\u0440\u0435\u0436\u0434\u0430\u043d\u0435\u2026</div></div>' +
-    '<div style="margin-top:16px;text-align:right"><button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">\u0417\u0430\u0442\u0432\u043e\u0440\u0438</button></div>' +
-    '</div>';
-  document.body.appendChild(ov);
-  ov.addEventListener('click', function(e) { if (e.target === ov) ov.remove(); });
-
-  var prioLabels = { normal: '\u041d\u043e\u0440\u043c\u0430\u043b\u0435\u043d', high: '\u0412\u0438\u0441\u043e\u043a', urgent: '\u0421\u043f\u0435\u0448\u043d\u043e' };
-  var dateFldLabels = { publish_date: '\u041f\u0443\u0431\u043b\u0438\u043a\u0443\u0432\u0430\u043d\u0435', upload_date: '\u041a\u0430\u0447\u0432\u0430\u043d\u0435', editing_date: '\u041c\u043e\u043d\u0442\u0430\u0436', filming_date: '\u0417\u0430\u0441\u043d\u0435\u043c\u0430\u043d\u0435', brainstorm_date: '\u0418\u0437\u043c\u0438\u0441\u043b\u044f\u043d\u0435' };
-  function fmtD(v) { if (!v) return '\u2014'; var s = String(v).split('T')[0]; var p = s.split('-'); return p.length === 3 ? p[2]+'.'+p[1]+'.'+p[0] : s; }
-  function fmtTs(ts) { var d = new Date(ts); return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
-
-  try {
-    var rows = await (await fetch('/api/cards/'+cardId+'/history')).json();
-    var body = document.getElementById('cardHistoryBody');
-    if (!rows || !rows.length) { body.innerHTML = '<div class="card-history-empty">\u041d\u044f\u043c\u0430 \u0437\u0430\u043f\u0438\u0441\u0430\u043d\u0438 \u043f\u0440\u043e\u043c\u0435\u043d\u0438</div>'; return; }
-    var html = '';
-    rows.forEach(function(r) {
-      var icon = '', text = '', userName = esc(r.user_name || '\u2014');
-      var meta = (r.source === 'event' && r.metadata) ? (typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata) : {};
-      if (r.source === 'date_change') {
-        icon = '\ud83d\udcc5';
-        var lbl = dateFldLabels[r.field_name] || r.field_name;
-        text = '<b>'+userName+'</b> \u043f\u0440\u043e\u043c\u0435\u043d\u0438 <em>'+esc(lbl)+'</em>: '+fmtD(r.old_value)+' \u2192 '+fmtD(r.new_value);
-      } else if (r.event_type === 'created') {
-        icon = '\ud83d\udfe2'; text = '<b>'+userName+'</b> \u0441\u044a\u0437\u0434\u0430\u0434\u0435 \u043a\u0430\u0440\u0442\u0430\u0442\u0430';
-      } else if (r.event_type === 'moved') {
-        icon = '\u2197\ufe0f';
-        var fromC = esc(r.from_col_title || '\u2014'), toC = esc(r.to_col_title || '\u2014');
-        text = '<b>'+userName+'</b> \u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0438: '+fromC+' \u2192 '+toC;
-      } else if (r.event_type === 'field_changed') {
-        var uName = esc(meta.user_name || r.user_name || '\u2014');
-        var f = meta.field || '', ov2 = meta.old_value, nv2 = meta.new_value;
-        if (f === 'title') {
-          icon = '\u270f\ufe0f'; text = '<b>'+uName+'</b> \u043f\u0440\u043e\u043c\u0435\u043d\u0438 \u0437\u0430\u0433\u043b\u0430\u0432\u0438\u0435\u0442\u043e: <em>'+esc(String(ov2||'\u2014'))+'</em> \u2192 <em>'+esc(String(nv2||'\u2014'))+'</em>';
-        } else if (f === 'priority') {
-          icon = '\u26a1'; text = '<b>'+uName+'</b> \u043f\u0440\u043e\u043c\u0435\u043d\u0438 \u043f\u0440\u0438\u043e\u0440\u0438\u0442\u0435\u0442\u0430: '+(prioLabels[ov2]||ov2||'\u2014')+' \u2192 '+(prioLabels[nv2]||nv2||'\u2014');
-        } else if (f === 'is_on_hold') {
-          icon = nv2 ? '\u23f8' : '\u25b6\ufe0f'; text = '<b>'+uName+'</b> '+(nv2 ? '\u043f\u043e\u0441\u0442\u0430\u0432\u0438 \u043d\u0430 \u0438\u0437\u0447\u0430\u043a\u0432\u0430\u043d\u0435' : '\u0441\u0432\u0430\u043b\u0438 \u043e\u0442 \u0438\u0437\u0447\u0430\u043a\u0432\u0430\u043d\u0435');
-        } else if (f === 'due_on') {
-          icon = '\ud83d\udcc5'; text = '<b>'+uName+'</b> \u043f\u0440\u043e\u043c\u0435\u043d\u0438 \u043a\u0440\u0430\u0435\u043d \u0441\u0440\u043e\u043a: '+fmtD(ov2)+' \u2192 '+fmtD(nv2);
-        } else {
-          icon = '\ud83d\udcdd'; text = '<b>'+uName+'</b> \u043f\u0440\u043e\u043c\u0435\u043d\u0438 '+esc(f);
-        }
-      } else if (r.event_type === 'assignee_added') {
-        icon = '\ud83d\udc64'; text = '<b>'+esc(meta.user_name||userName)+'</b> \u0434\u043e\u0431\u0430\u0432\u0438 \u043e\u0442\u0433\u043e\u0432\u043e\u0440\u043d\u0438\u043a: <b>'+esc(meta.assignee_name||'')+'</b>';
-      } else if (r.event_type === 'assignee_removed') {
-        icon = '\ud83d\udc64'; text = '<b>'+esc(meta.user_name||userName)+'</b> \u043f\u0440\u0435\u043c\u0430\u0445\u043d\u0430 \u043e\u0442\u0433\u043e\u0432\u043e\u0440\u043d\u0438\u043a: <b>'+esc(meta.assignee_name||'')+'</b>';
-      } else if (r.event_type === 'archived') {
-        icon = '\ud83d\udce6'; text = '<b>'+userName+'</b> \u0430\u0440\u0445\u0438\u0432\u0438\u0440\u0430 \u043a\u0430\u0440\u0442\u0430\u0442\u0430';
-      } else {
-        icon = '\ud83d\udcdd'; text = '<b>'+userName+'</b> '+esc(r.event_type||'');
-      }
-      html += '<div class="card-history-row"><span class="card-history-icon">'+icon+'</span><span class="card-history-text">'+text+'</span><span class="card-history-time">'+fmtTs(r.ts)+'</span></div>';
-    });
-    body.innerHTML = html;
-  } catch(e) {
-    var b2 = document.getElementById('cardHistoryBody');
-    if (b2) b2.innerHTML = '<div class="card-history-empty" style="color:var(--red)">\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0437\u0430\u0440\u0435\u0436\u0434\u0430\u043d\u0435</div>';
-  }
+function showCardHistory(cardId) {
+  window.open('/card-history/' + cardId, '_blank');
 }
 
 async function loadDateChangelog(cardId) {

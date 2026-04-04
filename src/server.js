@@ -157,6 +157,11 @@ app.get('/present/:id', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'present.html'));
 });
 
+// Serve card history page (standalone)
+app.get('/card-history/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'card-history.html'));
+});
+
 // Catch-all: serve index.html for SPA routes
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
