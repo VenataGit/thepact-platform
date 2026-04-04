@@ -1614,18 +1614,21 @@ function processRichContent() {
 // Click-to-edit title
 function editCardTitle(el, cardId) {
   var current = el.textContent;
-  var input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'bc-card__title-input';
-  input.value = current;
-  el.replaceWith(input);
-  input.focus();
-  input.select();
+  var ta = document.createElement('textarea');
+  ta.className = 'bc-card__title-input';
+  ta.value = current;
+  ta.rows = 1;
+  el.replaceWith(ta);
+  // Auto-size to content
+  function autosize() { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+  autosize();
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
   var saving = false;
   var save = function() {
     if (saving) return;
     saving = true;
-    var val = input.value.trim();
+    var val = ta.value.replace(/\n/g, ' ').trim();
     if (val && val !== current) {
       updateField(cardId, 'title', val);
     }
@@ -1633,12 +1636,13 @@ function editCardTitle(el, cardId) {
     h1.className = 'bc-card__title';
     h1.textContent = val || current;
     h1.onclick = function() { editCardTitle(h1, cardId); };
-    input.replaceWith(h1);
+    ta.replaceWith(h1);
   };
-  input.addEventListener('blur', save);
-  input.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { input.value = current; input.blur(); }
+  ta.addEventListener('input', autosize);
+  ta.addEventListener('blur', save);
+  ta.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); ta.blur(); }
+    if (e.key === 'Escape') { ta.value = current; ta.blur(); }
   });
 }
 
