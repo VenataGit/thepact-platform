@@ -372,16 +372,9 @@ async function renderCalendar(el) {
 
 // ─── drag ghost helper ────────────────────────────────────────────────────────
 
-function _pcMakeDragGhost(title, boardId) {
+function _pcMakeInvisibleGhost() {
   var ghost = document.createElement('div');
-  ghost.style.cssText =
-    'position:fixed;top:-9999px;left:-9999px;' +
-    'background:' + _pcColor(boardId) + ';color:#fff;' +
-    'font-size:12px;font-weight:600;padding:5px 10px;' +
-    'border-radius:5px;max-width:180px;white-space:nowrap;' +
-    'overflow:hidden;text-overflow:ellipsis;' +
-    'box-shadow:0 3px 10px rgba(0,0,0,0.5);pointer-events:none;';
-  ghost.textContent = title;
+  ghost.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
   document.body.appendChild(ghost);
   return ghost;
 }
@@ -395,9 +388,7 @@ function pcSidebarDragStart(e, cardId) {
   _pcDrag.cardId    = cardId;
   _pcDrag.offsetMin = 0;
   e.currentTarget.style.opacity = '0.4';
-  // Small pill ghost — top-left at cursor, matches preview top
-  var card  = _prodCal.cards.find(function(c) { return c.id === cardId; });
-  var ghost = _pcMakeDragGhost((card && card.title) || 'Карта', (card && card.board_id) || 0);
+  var ghost = _pcMakeInvisibleGhost();
   e.dataTransfer.setDragImage(ghost, 0, 0);
   setTimeout(function() { if (ghost.parentNode) ghost.parentNode.removeChild(ghost); }, 0);
 }
@@ -410,10 +401,11 @@ function pcEventDragStart(e, entryId, startMin) {
   e.dataTransfer.setData('text/plain', String(entryId));
   _pcDrag.type      = 'event';
   _pcDrag.entryId   = entryId;
-  _pcDrag.offsetMin = 0; // top of event lands at cursor — matches ghost top-left
-  // Small pill ghost — top-left at cursor, perfectly aligned with preview
-  var entry = _prodCal.entries.find(function(en) { return en.id === entryId; });
-  var ghost = _pcMakeDragGhost((entry && entry.card_title) || 'Карта', (entry && entry.board_id) || 0);
+  // Preserve grab point within the block (cursor stays at same relative position)
+  var offset = pcYToMinute(e.clientY) - startMin;
+  _pcDrag.offsetMin = Math.max(0, Math.min(45, offset));
+  // Invisible ghost — blue preview is the only visual indicator
+  var ghost = _pcMakeInvisibleGhost();
   e.dataTransfer.setDragImage(ghost, 0, 0);
   setTimeout(function() { if (ghost.parentNode) ghost.parentNode.removeChild(ghost); }, 0);
 }
