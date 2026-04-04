@@ -1042,6 +1042,7 @@ var _commentSortOrder = 'desc';
 var _commentFilterUserId = null;
 var _replyToComment = null; // { id, userName }
 var _pendingScrollCommentId = null;
+var _pinnedSidebarScrollTop = 0;
 
 var _cardEditMode = false;
 const cardEditingPresence = new Map(); // cardId -> { userId, userName }
@@ -1343,6 +1344,13 @@ async function renderCardPage(el, cardId) {
         '</article>' +
         '<div class="bc-comments">' + commentAddHtml + commentsListHtml + '</div>' +
       '</div>' + wrapperEnd;
+
+    // Restore pinned sidebar scroll position after re-render
+    var _psb = el.querySelector('.bc-pinned-sidebar');
+    if (_psb) {
+      _psb.scrollTop = _pinnedSidebarScrollTop;
+      _psb.addEventListener('scroll', function() { _pinnedSidebarScrollTop = this.scrollTop; }, { passive: true });
+    }
 
     // Populate card toolbar with action buttons
     setupCardPageToolbar(card, col, editing);
