@@ -1103,7 +1103,7 @@ async function renderCardPage(el, cardId) {
       var dueBtnStyle = card.due_on ? '' : ' style="display:none"';
       dueHtml = '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + noDueChecked + ' onclick="handleNoDueDate(' + cardId + ')"> \u0411\u0435\u0437 \u0434\u0430\u0442\u0430</label>' +
         '<label class="bc-radio"><input type="radio" name="due_' + cardId + '"' + specificChecked + ' onclick="handleSpecificDate(' + cardId + ')"> \u041a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u0430 \u0434\u0430\u0442\u0430 ' +
-        '<button class="' + dueBtnCls + '" id="dueDateBtn_' + cardId + '" data-value="' + (card.due_on || '') + '"' + dueBtnStyle + ' onclick="event.stopPropagation();openDueDatePicker(' + cardId + ',this)">' + dueBtnText + '</button></label>' +
+        '<button class="' + dueBtnCls + '" id="dueDateBtn_' + cardId + '" data-value="' + ((card.due_on || '').split('T')[0]) + '"' + dueBtnStyle + ' onclick="event.stopPropagation();openDueDatePicker(' + cardId + ',this)">' + dueBtnText + '</button></label>' +
         '<span id="dueSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 \u0417\u0430\u043f\u0430\u0437\u0435\u043d\u043e</span>';
     } else {
       var dueDateObj = card.due_on ? new Date(card.due_on+'T00:00:00') : null;
@@ -1153,7 +1153,7 @@ async function renderCardPage(el, cardId) {
       var pubBtnStyle = card.publish_date ? '' : ' style="display:none"';
       publishHtml = '<label class="bc-radio"><input type="radio" name="pub_' + cardId + '"' + noPubChecked + ' onclick="savePublishDateField(' + cardId + ',null)"> \u0411\u0435\u0437 \u0434\u0430\u0442\u0430</label>' +
         '<label class="bc-radio"><input type="radio" name="pub_' + cardId + '"' + yesPubChecked + ' onclick="handlePublishDate(' + cardId + ')"> \u041a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u0430 \u0434\u0430\u0442\u0430 ' +
-        '<button class="' + pubBtnCls + '" id="publishDateBtn_' + cardId + '" data-value="' + (card.publish_date || '') + '"' + pubBtnStyle + ' onclick="event.stopPropagation();openPublishDatePicker(' + cardId + ',this)">' + pubBtnText + '</button></label>' +
+        '<button class="' + pubBtnCls + '" id="publishDateBtn_' + cardId + '" data-value="' + ((card.publish_date || '').split('T')[0]) + '"' + pubBtnStyle + ' onclick="event.stopPropagation();openPublishDatePicker(' + cardId + ',this)">' + pubBtnText + '</button></label>' +
         '<span id="pubSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 \u0417\u0430\u043f\u0430\u0437\u0435\u043d\u043e</span>';
     } else {
       publishHtml = card.publish_date
@@ -3845,7 +3845,7 @@ var _dpCurrentPicker = null;
 function showDatePickerPopup(anchorEl, currentValue, onSelect) {
   if (_dpCurrentPicker) { _dpCurrentPicker.remove(); _dpCurrentPicker = null; }
   var today = new Date(); today.setHours(0,0,0,0);
-  var selDate = currentValue ? new Date(currentValue + 'T12:00:00') : null;
+  var selDate = currentValue ? new Date(currentValue.split('T')[0] + 'T12:00:00') : null;
   var viewYear = selDate ? selDate.getFullYear() : today.getFullYear();
   var viewMonth = selDate ? selDate.getMonth() : today.getMonth();
   var MN = ['\u042f\u043d\u0443\u0430\u0440\u0438','\u0424\u0435\u0432\u0440\u0443\u0430\u0440\u0438','\u041c\u0430\u0440\u0442','\u0410\u043f\u0440\u0438\u043b','\u041c\u0430\u0439','\u042e\u043d\u0438','\u042e\u043b\u0438','\u0410\u0432\u0433\u0443\u0441\u0442','\u0421\u0435\u043f\u0442\u0435\u043c\u0432\u0440\u0438','\u041e\u043a\u0442\u043e\u043c\u0432\u0440\u0438','\u041d\u043e\u0435\u043c\u0432\u0440\u0438','\u0414\u0435\u043a\u0435\u043c\u0432\u0440\u0438'];
