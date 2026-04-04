@@ -135,6 +135,7 @@ app.use('/api/timers', require('./routes/timers'));
 app.use('/api/kp', require('./routes/kp'));
 app.use('/api/sos', require('./routes/sos'));
 app.use('/api/production-calendar', require('./routes/production-calendar'));
+app.use('/api/trash', require('./routes/trash'));
 // Online users endpoint
 app.get('/api/users/online', require('./middleware/auth').requireAuth, (req, res) => {
   const { getOnlineUserIds } = require('./ws/broadcast');
@@ -197,3 +198,15 @@ setTimeout(() => {
   initEmail();
   initDailyReport();
 }, 2000);
+
+// Auto-cleanup: permanently delete cards that have been in trash for 30+ days
+async function purgeOldTrash() {
+  try {
+    const { execute } = require('./db/pool');
+    await execute(`DELETE FROM cards WHERE trashed_at IS NOT NULL AND trashed_at < NOW() - INTERVAL '30 days'`);
+  } catch (err) {
+    console.error('[trash] purge error:', err.message);
+  }
+}
+setTimeout(purgeOldTrash, 5000); // run shortly after startup
+setInterval(purgeOldTrash, 60 * 60 * 1000); // then every hour

@@ -19,7 +19,7 @@ router.get('/', requireAuth, async (req, res) => {
       FROM cards c
       JOIN boards b ON c.board_id = b.id
       JOIN columns col ON c.column_id = col.id
-      WHERE c.archived_at IS NULL
+      WHERE c.archived_at IS NULL AND c.trashed_at IS NULL
     `;
     const params = [];
     let i = 1;
@@ -362,18 +362,18 @@ router.post('/:id/move', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/cards/:id — archive card
+// DELETE /api/cards/:id — move card to trash (soft-delete with 30-day retention)
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const card = await queryOne(
-      'UPDATE cards SET archived_at = NOW() WHERE id = $1 AND archived_at IS NULL RETURNING *',
+      'UPDATE cards SET trashed_at = NOW() WHERE id = $1 AND archived_at IS NULL AND trashed_at IS NULL RETURNING *',
       [req.params.id]
     );
     if (!card) return res.status(404).json({ error: 'Card not found' });
 
     await execute(
       'INSERT INTO card_events (card_id, event_type, user_id) VALUES ($1, $2, $3)',
-      [card.id, 'archived', req.user.userId]
+      [card.id, 'trashed', req.user.userId]
     );
 
     broadcast({ type: 'card:deleted', cardId: card.id });

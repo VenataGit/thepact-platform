@@ -161,6 +161,7 @@
   color: var(--text-dim);
   font-size: 13px;
 }
+.nav-dropdown__divider { border-top: 1px solid var(--border); margin: 4px 0; }
 
 /* Search overlay */
 .search-overlay {

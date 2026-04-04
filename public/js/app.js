@@ -196,6 +196,7 @@ function router() {
     case 'kp-auto': return renderKpAuto(el);
     case 'calendar': return renderCalendar(el);
     case 'column': return id ? renderColumnView(el, id) : renderHome(el);
+    case 'trash': return renderTrash(el);
     default: return renderHome(el);
   }
 }
@@ -1350,10 +1351,22 @@ async function renderCardPage(el, cardId) {
       cardEditingPresence.delete(cardId);
     }
 
+    // Trash banner
+    var trashBannerHtml = '';
+    if (card.trashed_at) {
+      var _td = new Date(card.trashed_at);
+      var _dd = new Date(_td.getTime() + 30 * 24 * 60 * 60 * 1000);
+      var _dl = _dd.toLocaleDateString('bg-BG', { day: 'numeric', month: 'long', year: 'numeric' });
+      trashBannerHtml = '<div class="card-trash-banner">🗑️ Тази карта е в кошчето — ще бъде изтрита на <strong>' + _dl + '</strong>. ' +
+        '<button class="card-trash-banner__restore" onclick="restoreCard(' + cardId + ')">↩ Възстанови</button>' +
+      '</div>';
+    }
+
     el.innerHTML = wrapperStart +
       '<div class="' + (pinnedSidebarHtml ? 'card-page-main' : 'card-page') + '">' +
         '<div class="card-page__toolbar" id="cardPageToolbar_' + cardId + '"></div>' +
         '<div id="cardEditingBanner" class="card-editing-banner" style="display:none"></div>' +
+        trashBannerHtml +
         '<article class="bc-card">' +
                     '<header class="bc-card__header">' +
             '<span class="bc-card__icon">' + envelopeIcon + '</span>' +
@@ -1788,14 +1801,99 @@ function archiveCard(cardId) {
   }, true);
 }
 
-// Trash card (same as archive for now)
+// Trash card — moves to trash bin (30-day retention)
 function trashCard(cardId) {
-  showConfirmModal('\u0410\u0440\u0445\u0438\u0432\u0438\u0440\u0430\u0439 \u0442\u0430\u0437\u0438 \u043a\u0430\u0440\u0442\u0430?', async function() {
+  showConfirmModal('Премести тази карта в кошчето?', async function() {
     try {
-      await fetch('/api/cards/' + cardId, { method: 'DELETE' });
-      history.back();
-    } catch(e) {}
-  }, true);
+      var res = await fetch('/api/cards/' + cardId, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('Картата е преместена в кошчето', 'success');
+        setTimeout(function() { history.back(); }, 800);
+      } else {
+        showToast('Грешка при изтриване', 'error');
+      }
+    } catch(e) { showToast('Грешка при изтриване', 'error'); }
+  }, true, 'В кошчето');
+}
+
+// Restore card from trash
+async function restoreCard(cardId) {
+  try {
+    var res = await fetch('/api/trash/' + cardId + '/restore', { method: 'POST' });
+    if (res.ok) {
+      showToast('Картата е възстановена', 'success');
+      renderTrash(document.getElementById('pageContent'));
+    } else {
+      showToast('Грешка при възстановяване', 'error');
+    }
+  } catch(e) { showToast('Грешка при възстановяване', 'error'); }
+}
+
+// Permanently delete card from trash
+function permanentlyDeleteCard(cardId) {
+  showConfirmModal('Изтрий завинаги тази карта? Това не може да се върне назад.', async function() {
+    try {
+      var res = await fetch('/api/trash/' + cardId, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('Картата е изтрита завинаги', 'success');
+        renderTrash(document.getElementById('pageContent'));
+      } else {
+        showToast('Грешка при изтриване', 'error');
+      }
+    } catch(e) { showToast('Грешка при изтриване', 'error'); }
+  }, true, 'Изтрий завинаги');
+}
+
+// Render trash view
+async function renderTrash(el) {
+  setBreadcrumb([{ label: 'Кошче' }]);
+  el.className = '';
+  el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Зареждане...</div>';
+  try {
+    var cards = await (await fetch('/api/trash')).json();
+    if (!Array.isArray(cards)) cards = [];
+    var now = new Date();
+    var html = '<div class="trash-view">' +
+      '<div class="trash-view__header">' +
+        '<h2 class="trash-view__title">🗑️ Кошче</h2>' +
+        '<p class="trash-view__subtitle">Картите тук ще бъдат изтрити завинаги след 30 дни.</p>' +
+      '</div>';
+    if (cards.length === 0) {
+      html += '<div class="trash-view__empty">Кошчето е празно.</div>';
+    } else {
+      html += '<div class="trash-view__list">';
+      cards.forEach(function(c) {
+        var trashedDate = new Date(c.trashed_at);
+        var deleteDate = new Date(trashedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+        var daysLeft = Math.max(0, Math.ceil((deleteDate - now) / (1000 * 60 * 60 * 24)));
+        var urgentClass = daysLeft <= 3 ? ' trash-card--urgent' : daysLeft <= 7 ? ' trash-card--warning' : '';
+        var assigneesHtml = (c.assignees || []).map(function(a) { return '<span class="trash-card__assignee">' + esc(a.name) + '</span>'; }).join('');
+        html += '<div class="trash-card' + urgentClass + '">' +
+          '<div class="trash-card__main">' +
+            '<a class="trash-card__title" href="#/card/' + c.id + '">' + esc(c.title) + '</a>' +
+            '<div class="trash-card__meta">' +
+              '<span class="trash-card__board">' + esc(c.board_title || '') + '</span>' +
+              (c.column_title ? '<span class="trash-card__sep">›</span><span>' + esc(c.column_title) + '</span>' : '') +
+              (c.client_name ? '<span class="trash-card__sep">·</span><span>' + esc(c.client_name) + '</span>' : '') +
+              (assigneesHtml ? '<span class="trash-card__sep">·</span>' + assigneesHtml : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="trash-card__right">' +
+            '<span class="trash-card__days' + urgentClass + '">' + (daysLeft === 0 ? 'Изтрива се днес' : 'Изтрива се след ' + daysLeft + ' дни') + '</span>' +
+            '<div class="trash-card__actions">' +
+              '<button class="btn btn-sm btn-ghost" onclick="restoreCard(' + c.id + ')">↩ Възстанови</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="permanentlyDeleteCard(' + c.id + ')">Изтрий завинаги</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане на кошчето</div>';
+  }
 }
 
 // Remove assignee
