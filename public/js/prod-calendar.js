@@ -180,12 +180,12 @@ function _pcEventHtml(entry) {
   return '<div class="pc-event" data-entry-id="' + entry.id + '" data-card-id="' + entry.card_id + '"' +
     ' style="top:' + top + 'px;height:' + height + 'px;background:' + color + '"' +
     ' draggable="true"' +
-    ' onclick="pcOpenCard(event,' + entry.card_id + ')"' +
+    ' ondblclick="pcOpenCard(event,' + entry.card_id + ')"' +
     ' ondragstart="pcEventDragStart(event,' + entry.id + ',' + entry.start_minute + ')">' +
     '<button class="pc-event__del" title="Върни в списъка" onclick="event.stopPropagation();pcDeleteEntry(' + entry.id + ')">↩</button>' +
     '<div class="pc-event__title">' + (entry.card_title || '') + '</div>' +
     (short ? '' : '<div class="pc-event__time">' + t0 + ' – ' + t1 + '</div>') +
-    '<div class="pc-event__resize" title="Промени продължителност" onmousedown="pcResizeStart(event,' + entry.id + ')" onclick="event.stopPropagation()">⠿</div>' +
+    '<div class="pc-event__resize" onmousedown="pcResizeStart(event,' + entry.id + ')" onclick="event.stopPropagation()"></div>' +
   '</div>';
 }
 
@@ -214,6 +214,7 @@ function _pcSidebarHtml(searchQ) {
         '<div class="pc-mini-card"' +
         ' data-card-id="' + card.id + '"' +
         ' draggable="true"' +
+        ' onclick="pcOpenCard(event,' + card.id + ')"' +
         ' ondragstart="pcSidebarDragStart(event,' + card.id + ')">' +
         '<div class="pc-mini-card__title">' + (card.title || '') + '</div>' +
         (card.client_name
