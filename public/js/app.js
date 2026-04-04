@@ -648,7 +648,6 @@ function renderDashboardBoard(boards, cards, stageColors) {
       '</div>' +
       boardTimerHtml +
       '<div class="dash-col-body">' + subColsHtml + '</div>' +
-      (doneCol && !isCollapsed ? '<div class="dash-done-footer" onclick="toggleDashDone(' + board.id + ',' + doneCol.id + ')">\u2705 Готово (' + doneCount + ')</div>' : '') +
     '</div>';
   }).join('');
 }
