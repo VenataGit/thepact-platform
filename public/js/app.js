@@ -231,7 +231,7 @@ async function renderHome(el) {
     const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
 
     el.innerHTML = `
-      <div style="max-width:820px;margin:0 auto">
+      <div class="home-content-box">
         <div style="text-align:center;margin-bottom:28px;padding-top:8px">
           <img src="/img/logo-white.svg" alt="The Pact" style="height:44px;margin-bottom:6px">
         </div>
