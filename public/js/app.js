@@ -3586,7 +3586,7 @@ function _clearAllDragOver() {
   document.querySelectorAll('.dragging').forEach(function(el) {
     el.classList.remove('dragging');
   });
-  dragCardId = null;
+  // NOTE: does NOT clear dragCardId — callers manage that themselves
 }
 function handleDragStart(e) { dragCardId=e.currentTarget.dataset.cardId; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; }
 function handleDragEnd(e) { e.currentTarget.classList.remove('dragging'); dragCardId=null; _clearAllDragOver(); }
@@ -4366,15 +4366,15 @@ setInterval(function() {
 // the card-level ondragend doesn't fire (element removed mid-drag, tab blur, etc.)
 document.addEventListener('dragend', function() {
   if (dragCardId || document.querySelector('.dragging, .drag-over, .col-drag-over, .dash-drop-over')) {
+    dragCardId = null;
     _clearAllDragOver();
   }
 });
-// Secondary failsafe: mouseup/pointerup catches cancelled drags
+// Secondary failsafe: pointerup catches cancelled drags where dragend didn't fire
 document.addEventListener('pointerup', function() {
   if (!dragCardId) return;
   setTimeout(function() {
-    // If dragCardId is still set 200ms after pointerup, the dragend didn't fire
-    if (dragCardId) _clearAllDragOver();
+    if (dragCardId) { dragCardId = null; _clearAllDragOver(); }
   }, 200);
 });
 
