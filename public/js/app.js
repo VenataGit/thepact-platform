@@ -3024,6 +3024,7 @@ async function renderChatChannel(el, channelId) {
           '<button class="chat-input__btn" onclick="document.getElementById(\'chatFileInput\').click()" title="Прикачи файл">📎</button>' +
           '<input type="file" id="chatFileInput" multiple style="display:none" onchange="chatUploadFiles(this,'+channelId+')">' +
           '<div class="chat-emoji-picker" id="chatEmojiPicker"></div>' +
+          '<button class="chat-input__send" onclick="sendChatMsg('+channelId+')" title="Изпрати (Enter)">➤</button>' +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -3147,27 +3148,39 @@ async function sendChatMsg(chId) {
   var editor = document.getElementById('chatEditor');
   if (!editor) return;
   var html = editor.innerHTML.trim();
-  if (!html || html === '<br>') return;
-  // Convert HTML to plain text with markdown
+  if (!html || html === '<br>' || html === '<div><br></div>') return;
   var text = _htmlToMarkdown(html);
   if (!text.trim()) return;
+  var savedHtml = editor.innerHTML;
   editor.innerHTML = '';
   try {
     var res = await fetch('/api/chat/channels/'+chId+'/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:text})});
+    if (!res.ok) { editor.innerHTML = savedHtml; showToast('Грешка при изпращане','error'); return; }
     var msg = await res.json();
     if (msg && msg.id) appendChatMsg(msg);
-  } catch {}
+    else { editor.innerHTML = savedHtml; showToast('Грешка при изпращане','error'); }
+  } catch(err) { console.error('Chat send error:', err); editor.innerHTML = savedHtml; showToast('Грешка при изпращане','error'); }
 }
 function _htmlToMarkdown(html) {
   var tmp = document.createElement('div');
   tmp.innerHTML = html;
+  // Convert block elements (div, p) to newlines before inline processing
+  tmp.querySelectorAll('div, p').forEach(function(el){
+    el.insertAdjacentText('afterend', '\n');
+  });
+  tmp.querySelectorAll('li').forEach(function(el){
+    el.insertAdjacentText('beforebegin', '• ');
+    el.insertAdjacentText('afterend', '\n');
+  });
   // Convert basic formatting
   tmp.querySelectorAll('b,strong').forEach(function(el){ el.replaceWith('**'+el.textContent+'**'); });
   tmp.querySelectorAll('i,em').forEach(function(el){ el.replaceWith('*'+el.textContent+'*'); });
   tmp.querySelectorAll('s,del,strike').forEach(function(el){ el.replaceWith('~~'+el.textContent+'~~'); });
   tmp.querySelectorAll('code').forEach(function(el){ el.replaceWith('`'+el.textContent+'`'); });
   tmp.querySelectorAll('br').forEach(function(el){ el.replaceWith('\n'); });
-  return tmp.textContent || tmp.innerText || '';
+  // Clean up multiple consecutive newlines
+  var text = tmp.textContent || tmp.innerText || '';
+  return text.replace(/\n{3,}/g, '\n\n');
 }
 function appendChatMsg(msg) {
   var msgs = document.getElementById('chatMessages');

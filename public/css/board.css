@@ -803,6 +803,8 @@
 .chat-input__btn:hover { background: var(--bg-hover); color: var(--text); }
 .chat-input__btn--text { font-weight: 700; font-size: 16px; font-family: serif; }
 .chat-input__btn--text.active { color: var(--accent); }
+.chat-input__send { width: 36px; height: 36px; border: none; background: var(--accent); border-radius: 50%; cursor: pointer; font-size: 16px; color: #fff; display: flex; align-items: center; justify-content: center; margin-left: 4px; transition: background var(--transition-fast), transform 0.1s; flex-shrink: 0; }
+.chat-input__send:hover { background: var(--accent-hover, #3a9466); transform: scale(1.05); }
 
 /* Emoji picker — anchored above emoji button */
 .chat-emoji-picker { position: absolute; bottom: 44px; right: 0; z-index: 50; display: none; }
