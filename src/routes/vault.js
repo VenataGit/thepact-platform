@@ -78,6 +78,30 @@ router.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
   }
 });
 
+// GET /api/vault/files/:id/preview - inline preview / download
+router.get('/files/:id/preview', requireAuth, async (req, res) => {
+  try {
+    const file = await queryOne('SELECT * FROM vault_files WHERE id = $1', [req.params.id]);
+    if (!file) return res.status(404).json({ error: 'File not found' });
+
+    const mime = (file.mime_type || '').toLowerCase();
+
+    // Images and PDFs: serve inline
+    if (mime.startsWith('image/') || mime === 'application/pdf') {
+      const fullPath = path.join(__dirname, '..', '..', file.storage_path);
+      if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File missing from disk' });
+      res.setHeader('Content-Type', file.mime_type);
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.original_name)}"`);
+      return fs.createReadStream(fullPath).pipe(res);
+    }
+
+    // Everything else: redirect to storage path for download
+    res.redirect(file.storage_path);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // DELETE /api/vault/files/:id
 router.delete('/files/:id', requireAuth, async (req, res) => {
   try {

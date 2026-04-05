@@ -849,7 +849,7 @@ async function loadProjectActivity() {
 
 function promptCreateBoard() {
   showPromptModal('\u041d\u043e\u0432 \u0431\u043e\u0440\u0434', '\u0412\u044a\u0432\u0435\u0434\u0438 \u0437\u0430\u0433\u043b\u0430\u0432\u0438\u0435\u2026', '', async function(title) {
-    try { await fetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title }) }); router(); } catch {}
+    try { await fetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title }) }); showToast('\u0411\u043e\u0440\u0434\u044a\u0442 \u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435\u043d', 'success'); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0441\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435 \u043d\u0430 \u0431\u043e\u0440\u0434', 'error'); }
   });
 }
 
@@ -1508,7 +1508,7 @@ async function uploadTrixAttachment(cardId, attachment) {
     if (data.storage_path) {
       attachment.setAttributes({ url: data.storage_path, href: data.storage_path });
     }
-  } catch(e) {}
+  } catch(e) { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043a\u0430\u0447\u0432\u0430\u043d\u0435 \u043d\u0430 \u0444\u0430\u0439\u043b', 'error'); }
 }
 
 // ==================== COMMENT COLLAPSE ====================
@@ -2233,11 +2233,11 @@ async function loadCardAttachments(cardId) {
 async function uploadCardFile(input, cardId) {
   if (!input.files[0]) return;
   const f = new FormData(); f.append('file', input.files[0]);
-  try { await fetch(`/api/cards/${cardId}/attachments`, {method:'POST',body:f}); loadCardAttachments(cardId); } catch {}
+  try { await fetch(`/api/cards/${cardId}/attachments`, {method:'POST',body:f}); showToast('\u0424\u0430\u0439\u043b\u044a\u0442 \u0435 \u043a\u0430\u0447\u0435\u043d', 'success'); loadCardAttachments(cardId); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043a\u0430\u0447\u0432\u0430\u043d\u0435 \u043d\u0430 \u0444\u0430\u0439\u043b', 'error'); }
 }
 function deleteAttachment(cardId, attachId) {
   showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u0444\u0430\u0439\u043b\u0430?', async function() {
-    try { await fetch(`/api/cards/${cardId}/attachments/${attachId}`, {method:'DELETE'}); loadCardAttachments(cardId); } catch {}
+    try { await fetch(`/api/cards/${cardId}/attachments/${attachId}`, {method:'DELETE'}); showToast('\u0424\u0430\u0439\u043b\u044a\u0442 \u0435 \u0438\u0437\u0442\u0440\u0438\u0442', 'success'); loadCardAttachments(cardId); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0438\u0437\u0442\u0440\u0438\u0432\u0430\u043d\u0435', 'error'); }
   }, true);
 }
 
@@ -2291,8 +2291,9 @@ async function submitCreateCard() {
   };
   try {
     const card = await (await fetch('/api/cards', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })).json();
+    showToast('\u041a\u0430\u0440\u0442\u0430\u0442\u0430 \u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435\u043d\u0430', 'success');
     location.hash = `#/card/${card.id}`;
-  } catch {}
+  } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0441\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435 \u043d\u0430 \u043a\u0430\u0440\u0442\u0430', 'error'); }
 }
 
 // ==================== CARD ACTIONS ====================
@@ -2775,14 +2776,14 @@ function createMessage() {
     var t = ov.querySelector('#msgTitle').value.trim(); if (!t) { ov.querySelector('#msgTitle').focus(); return; }
     var c = ov.querySelector('#msgContent').value;
     ov.remove();
-    try { await fetch('/api/messageboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,content:c})}); router(); } catch {}
+    try { await fetch('/api/messageboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,content:c})}); showToast('\u0421\u044a\u043e\u0431\u0449\u0435\u043d\u0438\u0435\u0442\u043e \u0435 \u043f\u0443\u0431\u043b\u0438\u043a\u0443\u0432\u0430\u043d\u043e', 'success'); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043f\u0443\u0431\u043b\u0438\u043a\u0443\u0432\u0430\u043d\u0435', 'error'); }
   };
   ov.querySelector('#msgCancel').onclick = function() { ov.remove(); };
   ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
   ov.querySelector('#msgTitle').onkeydown = function(e) { if (e.key === 'Escape') ov.remove(); };
 }
 async function generateDailyReport() {
-  try { await fetch('/api/messageboard/daily-report',{method:'POST'}); router(); } catch {}
+  try { await fetch('/api/messageboard/daily-report',{method:'POST'}); showToast('\u0420\u0430\u043f\u043e\u0440\u0442\u044a\u0442 \u0435 \u0433\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u043d', 'success'); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0433\u0435\u043d\u0435\u0440\u0438\u0440\u0430\u043d\u0435 \u043d\u0430 \u0440\u0430\u043f\u043e\u0440\u0442', 'error'); }
 }
 
 // ==================== VAULT ====================
@@ -2809,22 +2810,74 @@ async function renderVault(el, folderId) {
           <a href="#/vault/${f.id}" style="display:contents"><span class="vault-icon">📁</span><span class="vault-name">${esc(f.name)}</span></a>
           ${canDel ? `<button onclick="deleteVaultFolder(${f.id})" style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;opacity:0;transition:opacity .15s" class="vault-del-btn" title="Изтрий папка">✕</button>` : ''}
         </div>`).join('')}
-        ${files.map(f=>`<div class="vault-item file" style="position:relative">
-          <a href="${f.storage_path}" target="_blank" class="vault-icon">${getFileIcon(f.mime_type)}</a>
+        ${files.map(f=>{
+          const mime = (f.mime_type||'').toLowerCase();
+          const isImage = mime.startsWith('image/');
+          const isVideo = mime.startsWith('video/');
+          const isPdf = mime.includes('pdf');
+          const canPreview = isImage || isPdf;
+          const thumbHtml = isImage
+            ? `<div class="vault-thumb"><img src="/api/vault/files/${f.id}/preview" alt="${esc(f.original_name)}" loading="lazy"></div>`
+            : isVideo
+              ? `<div class="vault-icon" style="position:relative">${getFileIcon(f.mime_type)}<span class="vault-play-badge">&#9654;</span></div>`
+              : `<span class="vault-icon">${getFileIcon(f.mime_type)}</span>`;
+          const clickAttr = canPreview
+            ? `onclick="openVaultPreview(${f.id},'${esc(f.original_name).replace(/'/g,"\\'")}','${f.storage_path}','${f.mime_type}')" style="cursor:pointer"`
+            : `onclick="window.open('${f.storage_path}','_blank')" style="cursor:pointer"`;
+          return `<div class="vault-item file" style="position:relative" ${clickAttr}>
+          ${thumbHtml}
           <span class="vault-name">${esc(f.original_name)}</span>
           <span class="hint">${formatFileSize(f.size_bytes)}</span>
-          ${canDel ? `<button onclick="deleteVaultFile(${f.id})" style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;opacity:0;transition:opacity .15s" class="vault-del-btn" title="Изтрий файл">✕</button>` : ''}
-        </div>`).join('')}
+          ${canDel ? `<button onclick="event.stopPropagation();deleteVaultFile(${f.id})" style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;opacity:0;transition:opacity .15s" class="vault-del-btn" title="Изтрий файл">✕</button>` : ''}
+        </div>`;}).join('')}
         ${folders.length===0&&files.length===0?'<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Празна папка</div>':''}
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
-function createVaultFolder(pid) { showPromptModal('\u041d\u043e\u0432\u0430 \u043f\u0430\u043f\u043a\u0430', '\u0412\u044a\u0432\u0435\u0434\u0438 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435\u2026', '', async function(n) { try { await fetch('/api/vault/folders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,parent_id:pid})}); router(); } catch {} }); }
-async function uploadVaultFile(input,fid) { if(!input.files[0])return; const f=new FormData(); f.append('file',input.files[0]); if(fid)f.append('folder_id',fid); try { await fetch('/api/vault/upload',{method:'POST',body:f}); router(); } catch {} }
-function deleteVaultFile(id) { showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u0444\u0430\u0439\u043b\u0430?', async function() { try{ await fetch('/api/vault/files/'+id,{method:'DELETE'}); router(); }catch{} }, true); }
-function deleteVaultFolder(id) { showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u043f\u0430\u043f\u043a\u0430\u0442\u0430 \u0438 \u0432\u0441\u0438\u0447\u043a\u043e \u0432 \u043d\u0435\u044f?', async function() { try{ await fetch('/api/vault/folders/'+id,{method:'DELETE'}); router(); }catch{} }, true); }
+function createVaultFolder(pid) { showPromptModal('\u041d\u043e\u0432\u0430 \u043f\u0430\u043f\u043a\u0430', '\u0412\u044a\u0432\u0435\u0434\u0438 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435\u2026', '', async function(n) { try { await fetch('/api/vault/folders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,parent_id:pid})}); showToast('\u041f\u0430\u043f\u043a\u0430\u0442\u0430 \u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435\u043d\u0430', 'success'); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0441\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435 \u043d\u0430 \u043f\u0430\u043f\u043a\u0430', 'error'); } }); }
+async function uploadVaultFile(input,fid) { if(!input.files[0])return; const f=new FormData(); f.append('file',input.files[0]); if(fid)f.append('folder_id',fid); try { await fetch('/api/vault/upload',{method:'POST',body:f}); showToast('\u0424\u0430\u0439\u043b\u044a\u0442 \u0435 \u043a\u0430\u0447\u0435\u043d', 'success'); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043a\u0430\u0447\u0432\u0430\u043d\u0435', 'error'); } }
+function deleteVaultFile(id) { showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u0444\u0430\u0439\u043b\u0430?', async function() { try{ await fetch('/api/vault/files/'+id,{method:'DELETE'}); showToast('\u0424\u0430\u0439\u043b\u044a\u0442 \u0435 \u0438\u0437\u0442\u0440\u0438\u0442', 'success'); router(); }catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0438\u0437\u0442\u0440\u0438\u0432\u0430\u043d\u0435', 'error'); } }, true); }
+function deleteVaultFolder(id) { showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u043f\u0430\u043f\u043a\u0430\u0442\u0430 \u0438 \u0432\u0441\u0438\u0447\u043a\u043e \u0432 \u043d\u0435\u044f?', async function() { try{ await fetch('/api/vault/folders/'+id,{method:'DELETE'}); showToast('\u041f\u0430\u043f\u043a\u0430\u0442\u0430 \u0435 \u0438\u0437\u0442\u0440\u0438\u0442\u0430', 'success'); router(); }catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0438\u0437\u0442\u0440\u0438\u0432\u0430\u043d\u0435', 'error'); } }, true); }
 function getFileIcon(m) { if(m?.startsWith('image/'))return'🖼️'; if(m?.startsWith('video/'))return'🎬'; if(m?.includes('pdf'))return'📄'; return'📎'; }
 function formatFileSize(b) { if(!b)return''; if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; return(b/1048576).toFixed(1)+' MB'; }
+
+function openVaultPreview(fileId, fileName, storagePath, mimeType) {
+  var existing = document.getElementById('vaultPreviewModal');
+  if (existing) existing.remove();
+  var mime = (mimeType||'').toLowerCase();
+  var isImage = mime.startsWith('image/');
+  var isPdf = mime.includes('pdf');
+  var previewUrl = '/api/vault/files/' + fileId + '/preview';
+  var contentHtml;
+  if (isImage) {
+    contentHtml = '<img src="' + previewUrl + '" class="vault-preview-content" alt="' + esc(fileName) + '">';
+  } else if (isPdf) {
+    contentHtml = '<iframe src="' + previewUrl + '" class="vault-preview-content vault-preview-pdf" title="' + esc(fileName) + '"></iframe>';
+  } else {
+    contentHtml = '<div style="color:var(--text-dim);padding:40px;text-align:center">Преглед не е наличен</div>';
+  }
+  var ov = document.createElement('div');
+  ov.id = 'vaultPreviewModal';
+  ov.className = 'vault-preview-modal';
+  ov.innerHTML =
+    '<div class="vault-preview-header">' +
+      '<span class="vault-preview-filename">' + esc(fileName) + '</span>' +
+      '<div class="vault-preview-actions">' +
+        '<a href="' + storagePath + '" download class="btn btn-sm" title="Изтегли">⬇ Изтегли</a>' +
+        '<button class="btn btn-sm vault-preview-close" onclick="closeVaultPreview()" title="Затвори">✕</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="vault-preview-body">' + contentHtml + '</div>';
+  document.body.appendChild(ov);
+  ov.onclick = function(e) { if (e.target === ov) closeVaultPreview(); };
+  document.addEventListener('keydown', vaultPreviewEscHandler);
+}
+function closeVaultPreview() {
+  var m = document.getElementById('vaultPreviewModal');
+  if (m) m.remove();
+  document.removeEventListener('keydown', vaultPreviewEscHandler);
+}
+function vaultPreviewEscHandler(e) { if (e.key === 'Escape') closeVaultPreview(); }
 
 // ==================== CAMPFIRE (Group Chat) ====================
 async function renderCampfire(el, roomId) {
@@ -2976,7 +3029,7 @@ function createScheduleEvent() {
     var t = ov.querySelector('#evTitle').value.trim(); if (!t) { ov.querySelector('#evTitle').focus(); return; }
     var d = ov.querySelector('#evDate').dataset.value; if (!d) { showToast('\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430', 'warn'); return; }
     ov.remove();
-    try { await fetch('/api/schedule', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,starts_at:d+'T09:00:00',all_day:true})}); router(); } catch {}
+    try { await fetch('/api/schedule', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,starts_at:d+'T09:00:00',all_day:true})}); showToast('\u0421\u044a\u0431\u0438\u0442\u0438\u0435\u0442\u043e \u0435 \u0434\u043e\u0431\u0430\u0432\u0435\u043d\u043e', 'success'); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0434\u043e\u0431\u0430\u0432\u044f\u043d\u0435 \u043d\u0430 \u0441\u044a\u0431\u0438\u0442\u0438\u0435', 'error'); }
   };
   ov.querySelector('#evCancel').onclick = function() { ov.remove(); };
   ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
@@ -3177,7 +3230,7 @@ async function renderCheckins(el) {
 }
 async function submitCheckinResponse(questionId) {
   const c = document.getElementById(`checkinResponse${questionId}`)?.value?.trim(); if(!c) return;
-  try { await fetch(`/api/checkins/questions/${questionId}/responses`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})}); router(); } catch {}
+  try { await fetch(`/api/checkins/questions/${questionId}/responses`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c})}); showToast('\u041e\u0442\u0433\u043e\u0432\u043e\u0440\u044a\u0442 \u0435 \u0438\u0437\u043f\u0440\u0430\u0442\u0435\u043d', 'success'); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0438\u0437\u043f\u0440\u0430\u0449\u0430\u043d\u0435', 'error'); }
 }
 function createCheckinQuestion() {
   var ov = document.createElement('div'); ov.className = 'modal-overlay';
@@ -3192,7 +3245,7 @@ function createCheckinQuestion() {
     var q = ov.querySelector('#ciQ').value.trim(); if (!q) { ov.querySelector('#ciQ').focus(); return; }
     var cron = ov.querySelector('#ciCron').value || '0 9 * * 1-5';
     ov.remove();
-    try { await fetch('/api/checkins/questions', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,schedule_cron:cron})}); router(); } catch {}
+    try { await fetch('/api/checkins/questions', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,schedule_cron:cron})}); showToast('\u0427\u0435\u043a-\u0438\u043d \u0432\u044a\u043f\u0440\u043e\u0441\u044a\u0442 \u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435\u043d', 'success'); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0441\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435', 'error'); }
   };
   ov.querySelector('#ciCancel').onclick = function() { ov.remove(); };
   ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
@@ -3308,7 +3361,7 @@ function createNewUser() {
     var email = ov.querySelector('#nuEmail').value.trim(); if (!email) { ov.querySelector('#nuEmail').focus(); return; }
     var password = ov.querySelector('#nuPass').value; if (!password) { ov.querySelector('#nuPass').focus(); return; }
     ov.remove();
-    try { await fetch('/api/users', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password})}); router(); } catch {}
+    try { await fetch('/api/users', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password})}); showToast('\u041f\u043e\u0442\u0440\u0435\u0431\u0438\u0442\u0435\u043b\u044f\u0442 \u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435\u043d', 'success'); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0441\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435 \u043d\u0430 \u043f\u043e\u0442\u0440\u0435\u0431\u0438\u0442\u0435\u043b', 'error'); }
   };
   ov.querySelector('#nuCancel').onclick = function() { ov.remove(); };
   ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
@@ -3857,7 +3910,7 @@ function showDoneCards(doneCards, boardId) {
 let _addColumnBoardId = null;
 function showAddColumnModal(bid) { _addColumnBoardId=bid; const m=document.getElementById('addColumnModal'); document.getElementById('addColumnInput').value=''; m.style.display='flex'; setTimeout(()=>document.getElementById('addColumnInput').focus(),50); }
 function closeAddColumnModal() { document.getElementById('addColumnModal').style.display='none'; }
-async function submitAddColumn() { const t=document.getElementById('addColumnInput').value.trim(); if(!t)return; closeAddColumnModal(); try{await fetch(`/api/boards/${_addColumnBoardId}/columns`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }
+async function submitAddColumn() { const t=document.getElementById('addColumnInput').value.trim(); if(!t)return; closeAddColumnModal(); try{await fetch(`/api/boards/${_addColumnBoardId}/columns`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})}); allBoards=await(await fetch('/api/boards')).json(); showToast('\u041a\u043e\u043b\u043e\u043d\u0430\u0442\u0430 \u0435 \u0434\u043e\u0431\u0430\u0432\u0435\u043d\u0430', 'success'); router();}catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0434\u043e\u0431\u0430\u0432\u044f\u043d\u0435 \u043d\u0430 \u043a\u043e\u043b\u043e\u043d\u0430', 'error'); } }
 async function promptAddColumn(bid) { showAddColumnModal(bid); }
 function editColumnTitle(bid,cid,el) { const cur=el.textContent; el.contentEditable=true; el.focus(); const save=async()=>{ el.contentEditable=false; const t=el.textContent.trim(); if(t&&t!==cur){ try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})})}catch{} } else el.textContent=cur; }; el.onblur=save; el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();el.blur()}if(e.key==='Escape'){el.textContent=cur;el.blur()}}; }
 function showColMenu(e,bid,cid) {
@@ -4199,8 +4252,8 @@ function _selectMentionByIdx(idx) { if (_mentionState) _mentionState.onSelect(_m
 // ==================== PROFILE ====================
 async function openProfile() { const m=document.getElementById('profileModal'); m.style.display='flex'; try{ const u=await(await fetch('/api/profile')).json(); const av=document.getElementById('profileAvatar'); if(u.avatar_url)av.innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`; else av.textContent=initials(u.name); document.getElementById('profileName').textContent=u.name; document.getElementById('profileEmail').textContent=u.email; document.getElementById('profileRole').innerHTML=u.role==='admin'?'<span class="badge badge-accent">АДМИН</span>':u.role==='moderator'?'<span class="badge badge-blue">МОДЕРАТОР</span>':'<span class="badge">ЧЛЕН</span>'; document.getElementById('profileNameInput').value=u.name; }catch{} }
 function closeProfile() { document.getElementById('profileModal').style.display='none'; }
-async function saveProfileName() { const n=document.getElementById('profileNameInput').value.trim(); if(!n)return; try{const u=await(await fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})})).json(); document.getElementById('profileName').textContent=u.name; document.getElementById('navAvatar').textContent=initials(u.name);}catch{} }
-async function uploadAvatar(input) { if(!input.files[0])return; const f=new FormData(); f.append('avatar',input.files[0]); try{const u=await(await fetch('/api/profile/avatar',{method:'POST',body:f})).json(); document.getElementById('profileAvatar').innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`;}catch{} }
+async function saveProfileName() { const n=document.getElementById('profileNameInput').value.trim(); if(!n)return; try{const u=await(await fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})})).json(); document.getElementById('profileName').textContent=u.name; document.getElementById('navAvatar').textContent=initials(u.name); showToast('\u0418\u043c\u0435\u0442\u043e \u0435 \u0437\u0430\u043f\u0430\u0437\u0435\u043d\u043e', 'success');}catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0437\u0430\u043f\u0430\u0437\u0432\u0430\u043d\u0435', 'error'); } }
+async function uploadAvatar(input) { if(!input.files[0])return; const f=new FormData(); f.append('avatar',input.files[0]); try{const u=await(await fetch('/api/profile/avatar',{method:'POST',body:f})).json(); document.getElementById('profileAvatar').innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`; showToast('\u0410\u0432\u0430\u0442\u0430\u0440\u044a\u0442 \u0435 \u0441\u043c\u0435\u043d\u0435\u043d', 'success');}catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043a\u0430\u0447\u0432\u0430\u043d\u0435 \u043d\u0430 \u0430\u0432\u0430\u0442\u0430\u0440', 'error'); } }
 async function changePassword() { const msg=document.getElementById('pwdMsg'),c=document.getElementById('currentPwd').value,n=document.getElementById('newPwd').value; if(!c||!n){msg.textContent='Попълни и двете полета';msg.style.color='var(--red)';return;} try{const r=await fetch('/api/profile/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:c,newPassword:n})}); const d=await r.json(); if(r.ok){msg.textContent='Сменена';msg.style.color='var(--green)';}else{msg.textContent=d.error;msg.style.color='var(--red)';}}catch{msg.textContent='Грешка';msg.style.color='var(--red)';} }
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeProfile();closeAddColumnModal();}});
 document.getElementById('profileModal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeProfile()});
@@ -4261,17 +4314,20 @@ function hideTypingIndicator(ev) {
 }
 
 // ==================== TOAST NOTIFICATIONS ====================
-function showToast(msg, type) {
+function showToast(message, type, duration) {
   var t = type || 'info';
+  var d = duration || 4000;
+  var container = document.getElementById('toastContainer');
+  if (!container) return;
+  var icons = { success: '\u2705', error: '\u274C', warning: '\u26A0\uFE0F', warn: '\u26A0\uFE0F', info: '\u2139\uFE0F' };
   var toast = document.createElement('div');
-  toast.className = 'app-toast app-toast--' + t;
-  toast.textContent = msg;
-  document.body.appendChild(toast);
-  requestAnimationFrame(function() { toast.classList.add('app-toast--visible'); });
-  setTimeout(function() {
-    toast.classList.remove('app-toast--visible');
-    setTimeout(function() { toast.remove(); }, 300);
-  }, 3500);
+  toast.className = 'toast toast--' + (t === 'warn' ? 'warning' : t);
+  toast.innerHTML =
+    '<span class="toast__icon">' + (icons[t] || icons.info) + '</span>' +
+    '<div class="toast__content"><div class="toast__message">' + message + '</div></div>' +
+    '<button class="toast__close" onclick="this.parentElement.remove()">&times;</button>';
+  container.appendChild(toast);
+  setTimeout(function() { toast.classList.add('removing'); setTimeout(function() { toast.remove(); }, 300); }, d);
 }
 
 // ==================== CONFIRM/PROMPT MODALS ====================
