@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query, queryOne } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
+const { createGCalEvent, updateGCalEvent, deleteGCalEvent } = require('../services/google-calendar');
 
 // GET /api/production-calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
 router.get('/', requireAuth, async (req, res) => {
@@ -52,6 +53,12 @@ router.post('/', requireAuth, async (req, res) => {
       JOIN boards  b   ON c.board_id  = b.id
       WHERE c.id = $1
     `, [card_id]);
+
+    // Sync to Google Calendar (async, non-blocking)
+    syncProdToGCal('create', { ...entry, ...info }).catch(err =>
+      console.error('[GCal] Background sync error:', err.message)
+    );
+
     res.status(201).json({ ...entry, ...info });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -72,6 +79,20 @@ router.put('/:id', requireAuth, async (req, res) => {
        RETURNING *
     `, [scheduled_date, start_minute, duration_minutes, req.params.id]);
     if (!entry) return res.status(404).json({ error: 'Not found' });
+
+    // Get card title for GCal
+    const info = await queryOne(`
+      SELECT c.title AS card_title, b.title AS board_title
+      FROM cards c
+      JOIN boards b ON c.board_id = b.id
+      WHERE c.id = $1
+    `, [entry.card_id]);
+
+    // Sync to Google Calendar (async, non-blocking)
+    syncProdToGCal('update', { ...entry, ...info }).catch(err =>
+      console.error('[GCal] Background sync error:', err.message)
+    );
+
     res.json(entry);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -81,12 +102,75 @@ router.put('/:id', requireAuth, async (req, res) => {
 // DELETE /api/production-calendar/:id
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
-    const entry = await queryOne('DELETE FROM production_calendar WHERE id = $1 RETURNING id', [req.params.id]);
+    const entry = await queryOne('DELETE FROM production_calendar WHERE id = $1 RETURNING *', [req.params.id]);
     if (!entry) return res.status(404).json({ error: 'Not found' });
+
+    // Delete from Google Calendar
+    if (entry.google_calendar_event_id) {
+      deleteGCalEvent(entry.google_calendar_event_id).catch(err =>
+        console.error('[GCal] Background delete error:', err.message)
+      );
+    }
+
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+/**
+ * Sync production calendar entry to Google Calendar
+ * Converts start_minute + duration_minutes to proper datetime
+ */
+async function syncProdToGCal(action, entry) {
+  try {
+    const title = entry.card_title || `Card #${entry.card_id}`;
+    const date = entry.scheduled_date;
+    // Convert to YYYY-MM-DD string if it's a Date object
+    const dateStr = typeof date === 'string' ? date.split('T')[0] : new Date(date).toISOString().split('T')[0];
+
+    const startH = Math.floor(entry.start_minute / 60);
+    const startM = entry.start_minute % 60;
+    const endMinute = entry.start_minute + (entry.duration_minutes || 60);
+    const endH = Math.floor(endMinute / 60);
+    const endM = endMinute % 60;
+
+    // Build event object compatible with google-calendar service
+    const event = {
+      title: `🎬 ${title}`,
+      description: entry.board_title ? `Board: ${entry.board_title}` : '',
+      starts_at: `${dateStr}T${String(startH).padStart(2,'0')}:${String(startM).padStart(2,'0')}:00`,
+      ends_at: `${dateStr}T${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}:00`,
+      all_day: false,
+    };
+
+    if (action === 'create') {
+      const gcalEventId = await createGCalEvent(event);
+      if (gcalEventId) {
+        await queryOne(
+          'UPDATE production_calendar SET google_calendar_event_id = $1 WHERE id = $2 RETURNING id',
+          [gcalEventId, entry.id]
+        );
+        console.log(`[GCal] Prod entry ${entry.id} → GCal ${gcalEventId}`);
+      }
+    } else if (action === 'update') {
+      if (entry.google_calendar_event_id) {
+        await updateGCalEvent(entry.google_calendar_event_id, event);
+      } else {
+        // Entry created before GCal was enabled — create now
+        const gcalEventId = await createGCalEvent(event);
+        if (gcalEventId) {
+          await queryOne(
+            'UPDATE production_calendar SET google_calendar_event_id = $1 WHERE id = $2 RETURNING id',
+            [gcalEventId, entry.id]
+          );
+          console.log(`[GCal] Prod entry ${entry.id} → GCal ${gcalEventId} (first sync)`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[GCal] Prod sync error:', err.message);
+  }
+}
 
 module.exports = router;

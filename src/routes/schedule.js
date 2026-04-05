@@ -3,7 +3,6 @@ const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { broadcast } = require('../ws/broadcast');
-const { createGCalEvent, updateGCalEvent, deleteGCalEvent } = require('../services/google-calendar');
 
 // GET /api/schedule?month=YYYY-MM&user_id= — events for a month with attendees
 router.get('/', requireAuth, async (req, res) => {
@@ -128,9 +127,6 @@ router.post('/', requireAuth, async (req, res) => {
       }
     }
 
-    // Sync to Google Calendar (async, non-blocking)
-    syncToGoogleCalendar('create', event, attendee_ids);
-
     broadcast({ type: 'schedule:created', event }, req.user.userId);
     res.status(201).json(event);
   } catch (err) {
@@ -165,9 +161,6 @@ router.put('/:id', requireAuth, async (req, res) => {
       }
     }
 
-    // Sync to Google Calendar (async, non-blocking)
-    syncToGoogleCalendar('update', event, attendee_ids);
-
     broadcast({ type: 'schedule:updated', event }, req.user.userId);
     res.json(event);
   } catch (err) {
@@ -183,61 +176,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
     await execute('DELETE FROM schedule_event_attendees WHERE event_id = $1', [req.params.id]);
 
-    // Delete from Google Calendar (async, non-blocking)
-    if (event.google_calendar_event_id) {
-      deleteGCalEvent(event.google_calendar_event_id).catch(err => {
-        console.error('[GCal] Background delete error:', err.message);
-      });
-    }
-
     broadcast({ type: 'schedule:deleted', eventId: parseInt(req.params.id) }, req.user.userId);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-/**
- * Background sync helper — doesn't block the API response
- */
-async function syncToGoogleCalendar(action, event, attendee_ids) {
-  try {
-    // Get attendee emails for GCal invites
-    let attendeeEmails = [];
-    if (attendee_ids?.length > 0) {
-      const users = await query(
-        `SELECT email FROM users WHERE id = ANY($1::int[])`,
-        [attendee_ids]
-      );
-      attendeeEmails = users.map(u => u.email);
-    }
-
-    if (action === 'create') {
-      const gcalEventId = await createGCalEvent(event, attendeeEmails);
-      if (gcalEventId) {
-        // Store the Google Calendar event ID
-        await execute(
-          'UPDATE schedule_events SET google_calendar_event_id = $1 WHERE id = $2',
-          [gcalEventId, event.id]
-        );
-      }
-    } else if (action === 'update') {
-      if (event.google_calendar_event_id) {
-        await updateGCalEvent(event.google_calendar_event_id, event, attendeeEmails);
-      } else {
-        // Event was created before GCal integration — create it now
-        const gcalEventId = await createGCalEvent(event, attendeeEmails);
-        if (gcalEventId) {
-          await execute(
-            'UPDATE schedule_events SET google_calendar_event_id = $1 WHERE id = $2',
-            [gcalEventId, event.id]
-          );
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[GCal] Background sync error:', err.message);
-  }
-}
 
 module.exports = router;
