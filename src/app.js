@@ -38,7 +38,7 @@ app.use(cookieParser());
 // Rate limiting (skip in test env)
 if (process.env.NODE_ENV !== 'test') {
   app.use('/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 30, message: { error: 'Too many requests' } }));
-  app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 300, message: { error: 'Too many requests' } }));
+  app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 1500, message: { error: 'Too many requests' } }));
 }
 
 // Static files with smart caching
