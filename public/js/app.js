@@ -231,8 +231,16 @@ async function renderHome(el) {
     const now14 = new Date(now); now14.setDate(now14.getDate() + 14);
     const activeCards = cards.filter(c => !c.completed_at && !c.archived_at);
     const myCards = activeCards.filter(c => c.assignees?.some(a => a.id === currentUser.id));
-    const overdueCards = activeCards.filter(c => c.due_on && !c.is_on_hold && new Date(c.due_on+'T00:00:00') < now);
-    const todayCards = activeCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') >= now && new Date(c.due_on+'T00:00:00') < tomorrow);
+    const overdueCards = activeCards.filter(c => {
+      const dl = getCardDeadlineDate(c);
+      return dl && !c.is_on_hold && new Date(dl+'T00:00:00') < now;
+    });
+    const todayCards = activeCards.filter(c => {
+      const dl = getCardDeadlineDate(c);
+      if (!dl) return false;
+      const d = new Date(dl+'T00:00:00');
+      return d >= now && d < tomorrow;
+    });
     // Completed this week (Monday-based)
     const weekStart = new Date(now);
     const _dow = weekStart.getDay();
@@ -241,11 +249,14 @@ async function renderHome(el) {
     // Success rate: % of completed cards (last 90 days) that were on time
     const d90ago = new Date(now); d90ago.setDate(d90ago.getDate() - 90);
     const recentCompleted = cards.filter(c => c.completed_at && new Date(c.completed_at) >= d90ago);
-    const onTimeCount = recentCompleted.filter(c => !c.due_on || new Date(c.completed_at) <= new Date(c.due_on + 'T23:59:59')).length;
+    const onTimeCount = recentCompleted.filter(c => {
+      const dl = getCardDeadlineDate(c);
+      return !dl || new Date(c.completed_at) <= new Date(dl + 'T23:59:59');
+    }).length;
     const successRate = recentCompleted.length > 0 ? Math.round(onTimeCount / recentCompleted.length * 100) : 100;
     const myUpcoming = myCards
-      .filter(c => c.due_on && new Date(c.due_on+'T00:00:00') <= now14)
-      .sort((a, b) => new Date(a.due_on) - new Date(b.due_on))
+      .filter(c => { const dl = getCardDeadlineDate(c); return dl && new Date(dl+'T00:00:00') <= now14; })
+      .sort((a, b) => new Date(getCardDeadlineDate(a)) - new Date(getCardDeadlineDate(b)))
       .slice(0, 8);
 
     el.innerHTML = `
@@ -262,16 +273,16 @@ async function renderHome(el) {
               <span class="dash-stat__label">Активни задачи</span>
             </div>
           </a>
-          <a href="#/home-tasks?filter=overdue" style="text-decoration:none">
-            <div class="dash-stat ${overdueCards.length > 0 ? 'dash-stat--warn' : ''}" style="min-width:110px;cursor:pointer">
-              <span class="dash-stat__num">${overdueCards.length}</span>
-              <span class="dash-stat__label">Просрочени</span>
-            </div>
-          </a>
           <a href="#/home-tasks?filter=today" style="text-decoration:none">
             <div class="dash-stat ${todayCards.length > 0 ? 'dash-stat--warn' : ''}" style="min-width:110px;cursor:pointer">
               <span class="dash-stat__num">${todayCards.length}</span>
               <span class="dash-stat__label">Краен срок днес</span>
+            </div>
+          </a>
+          <a href="#/home-tasks?filter=overdue" style="text-decoration:none">
+            <div class="dash-stat ${overdueCards.length > 0 ? 'dash-stat--warn' : ''}" style="min-width:110px;cursor:pointer">
+              <span class="dash-stat__num">${overdueCards.length}</span>
+              <span class="dash-stat__label">Просрочени</span>
             </div>
           </a>
           <a href="#/home-tasks?filter=completed-week" style="text-decoration:none">
@@ -283,7 +294,7 @@ async function renderHome(el) {
           <a href="#/home-tasks?filter=on-time" style="text-decoration:none">
             <div class="dash-stat ${successRate >= 80 ? 'dash-stat--success' : successRate >= 50 ? '' : 'dash-stat--warn'}" style="min-width:110px;cursor:pointer">
               <span class="dash-stat__num">${successRate}%</span>
-              <span class="dash-stat__label">Навреме</span>
+              <span class="dash-stat__label">Успеваемост</span>
             </div>
           </a>
         </div>
@@ -293,7 +304,7 @@ async function renderHome(el) {
           <div class="projects-home-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
             ${boards.map(b => {
               const bc = activeCards.filter(c => c.board_id === b.id);
-              const bOver = bc.filter(c => c.due_on && !c.is_on_hold && new Date(c.due_on+'T00:00:00') < now).length;
+              const bOver = bc.filter(c => { const dl = getCardDeadlineDate(c); return dl && !c.is_on_hold && new Date(dl+'T00:00:00') < now; }).length;
               return '<a href="#/board/' + b.id + '" class="project-card-home">' +
                 '<div class="project-card-home__header">' +
                   '<div class="project-card-home__title">' + esc(b.title) + '</div>' +
@@ -329,10 +340,11 @@ async function renderHome(el) {
           <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">\u041c\u043e\u0438\u0442\u0435 \u043f\u0440\u0435\u0434\u0441\u0442\u043e\u044f\u0449\u0438</div>
           <div class="task-list" style="max-width:100%">
             ${myUpcoming.map(c => {
-              const dueDate = new Date(c.due_on+'T00:00:00');
-              const isOver = dueDate < now;
-              const isToday = dueDate.getTime() === now.getTime();
-              const dueLabel = isOver ? '<span style="color:var(--red);font-weight:600">\u26a0 ' + formatDate(c.due_on) + '</span>' : isToday ? '<span style="color:var(--yellow);font-weight:600">\u23f0 Днес</span>' : '<span>' + formatDate(c.due_on) + '</span>';
+              const dl = getCardDeadlineDate(c);
+              const dueDate = dl ? new Date(dl+'T00:00:00') : null;
+              const isOver = dueDate && dueDate < now;
+              const isToday = dueDate && dueDate.getTime() === now.getTime();
+              const dueLabel = !dueDate ? '' : isOver ? '<span style="color:var(--red);font-weight:600">\u26a0 ' + formatDate(dl) + '</span>' : isToday ? '<span style="color:var(--yellow);font-weight:600">\u23f0 Днес</span>' : '<span>' + formatDate(dl) + '</span>';
               const pri = c.priority === 'urgent' ? '\ud83d\udd34 ' : c.priority === 'high' ? '\u2191 ' : '';
               return '<a class="task-row ' + (isOver ? 'overdue' : '') + '" href="#/card/' + c.id + '" style="align-items:center">' +
                 '<span class="task-title">' + pri + esc(c.title) + '</span>' +
@@ -4978,7 +4990,7 @@ async function renderHomeTasks(el) {
     'overdue': 'Просрочени задачи',
     'today': 'Краен срок днес',
     'completed-week': 'Завършени тази седмица',
-    'on-time': 'Завършени навреме (90 дни)'
+    'on-time': 'Успеваемост (90 дни)'
   };
 
   setBreadcrumb([{ label: 'Начало', href: '#/home' }, { label: filterLabels[filter] || 'Задачи' }]);
@@ -4997,30 +5009,45 @@ async function renderHomeTasks(el) {
     if (filter === 'active') {
       filtered = cards.filter(c => !c.completed_at && !c.archived_at);
     } else if (filter === 'overdue') {
-      filtered = cards.filter(c => !c.completed_at && !c.archived_at && !c.is_on_hold && c.due_on && new Date(c.due_on+'T00:00:00') < now);
+      filtered = cards.filter(c => {
+        if (c.completed_at || c.archived_at || c.is_on_hold) return false;
+        const dl = getCardDeadlineDate(c);
+        return dl && new Date(dl+'T00:00:00') < now;
+      });
     } else if (filter === 'today') {
-      filtered = cards.filter(c => !c.completed_at && !c.archived_at && c.due_on && new Date(c.due_on+'T00:00:00') >= now && new Date(c.due_on+'T00:00:00') < tomorrow);
+      filtered = cards.filter(c => {
+        if (c.completed_at || c.archived_at) return false;
+        const dl = getCardDeadlineDate(c);
+        if (!dl) return false;
+        const d = new Date(dl+'T00:00:00');
+        return d >= now && d < tomorrow;
+      });
     } else if (filter === 'completed-week') {
       filtered = cards.filter(c => c.completed_at && new Date(c.completed_at) >= weekStart);
     } else if (filter === 'on-time') {
-      filtered = cards.filter(c => c.completed_at && new Date(c.completed_at) >= d90ago && (!c.due_on || new Date(c.completed_at) <= new Date(c.due_on + 'T23:59:59')));
+      filtered = cards.filter(c => {
+        if (!c.completed_at || new Date(c.completed_at) < d90ago) return false;
+        const dl = getCardDeadlineDate(c);
+        return !dl || new Date(c.completed_at) <= new Date(dl + 'T23:59:59');
+      });
     }
 
-    // Sort: overdue first, then by due date
+    // Sort by deadline date
     filtered.sort((a, b) => {
-      const da = a.due_on ? new Date(a.due_on) : null;
-      const db = b.due_on ? new Date(b.due_on) : null;
+      const da = getCardDeadlineDate(a);
+      const db = getCardDeadlineDate(b);
       if (!da && !db) return 0;
       if (!da) return 1;
       if (!db) return -1;
-      return da - db;
+      return new Date(da) - new Date(db);
     });
 
     const rows = filtered.map(c => {
-      const dueDate = c.due_on ? new Date(c.due_on+'T00:00:00') : null;
+      const dl = getCardDeadlineDate(c);
+      const dueDate = dl ? new Date(dl+'T00:00:00') : null;
       const isOver = dueDate && dueDate < now && !c.completed_at;
       const isToday = dueDate && dueDate >= now && dueDate < tomorrow;
-      const dueLabel = !dueDate ? '' : isOver ? '<span style="color:var(--red);font-weight:600">\u26a0 ' + formatDate(c.due_on) + '</span>' : isToday ? '<span style="color:var(--yellow);font-weight:600">\u23f0 Днес</span>' : '<span>' + formatDate(c.due_on) + '</span>';
+      const dueLabel = !dueDate ? '' : isOver ? '<span style="color:var(--red);font-weight:600">\u26a0 ' + formatDate(dl) + '</span>' : isToday ? '<span style="color:var(--yellow);font-weight:600">\u23f0 Днес</span>' : '<span>' + formatDate(dl) + '</span>';
       const completedLabel = c.completed_at ? '<span style="color:var(--green);font-size:11px">\u2713 ' + formatDate(c.completed_at) + '</span>' : '';
       const pri = c.priority === 'urgent' ? '\ud83d\udd34 ' : c.priority === 'high' ? '\u2191 ' : '';
       const assignees = (c.assignees || []).map(a => a.name).join(', ');
@@ -5037,10 +5064,10 @@ async function renderHomeTasks(el) {
     // Filter tabs
     const tabs = [
       { key: 'active', label: 'Активни', icon: '\ud83d\udfe2' },
-      { key: 'overdue', label: 'Просрочени', icon: '\ud83d\udd34' },
       { key: 'today', label: 'Днес', icon: '\u23f0' },
+      { key: 'overdue', label: 'Просрочени', icon: '\ud83d\udd34' },
       { key: 'completed-week', label: 'Тази седмица', icon: '\u2705' },
-      { key: 'on-time', label: 'Навреме', icon: '\ud83c\udfc6' }
+      { key: 'on-time', label: 'Успеваемост', icon: '\ud83c\udfc6' }
     ];
 
     el.innerHTML = `
