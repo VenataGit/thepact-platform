@@ -219,6 +219,7 @@
 .kanban-card.dl-yellow { border-left: 3px solid var(--yellow); background: rgba(234,179,8,0.42); }
 .kanban-card.dl-red    { border-left: 3px solid var(--red);    background: rgba(239,68,68,0.38); }
 .kanban-card.dl-black  { border-left: 3px solid #888;          background: rgba(0,0,0,0.5); }
+.kanban-card.dl-none   { border-left: 3px solid #8899a6;       background: rgba(136,153,166,0.15); }
 .kanban-card__dl-badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
 .kanban-card__dl-badge.dl-green  { color: #fff; background: rgba(45,165,98,0.6); }
 .kanban-card__dl-badge.dl-yellow { color: #fff; background: rgba(180,130,0,0.7); }
@@ -229,6 +230,7 @@
 .dash-card.dl-yellow { border-left: 3px solid var(--yellow); background: rgba(234,179,8,0.38); }
 .dash-card.dl-red    { border-left: 3px solid var(--red);    background: rgba(239,68,68,0.35); }
 .dash-card.dl-black  { border-left: 3px solid #888;          background: rgba(0,0,0,0.45); }
+.dash-card.dl-none   { border-left: 3px solid #8899a6;       background: rgba(136,153,166,0.12); }
 .dash-card__dl-badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; padding: 2px 5px; border-radius: 4px; }
 .dash-card__dl-badge.dl-green  { color: #fff; background: rgba(45,165,98,0.6); }
 .dash-card__dl-badge.dl-yellow { color: #fff; background: rgba(180,130,0,0.7); }
@@ -239,6 +241,7 @@
 .pc-mini-card.dl-yellow { border-left: 3px solid var(--yellow); background: rgba(234,179,8,0.35); }
 .pc-mini-card.dl-red    { border-left: 3px solid var(--red);    background: rgba(239,68,68,0.32); }
 .pc-mini-card.dl-black  { border-left: 3px solid #888;          background: rgba(0,0,0,0.45); }
+.pc-mini-card.dl-none   { border-left: 3px solid #8899a6;       background: rgba(136,153,166,0.12); }
 .pc-mini-card__dl { font-size: 10px; font-weight: 600; margin-top: 4px; padding: 1px 5px; border-radius: 4px; display: inline-block; }
 .pc-mini-card__dl.dl-green  { color: var(--green);  background: var(--green-dim); }
 .pc-mini-card__dl.dl-yellow { color: var(--yellow); background: var(--yellow-dim); }

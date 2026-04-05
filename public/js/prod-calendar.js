@@ -169,7 +169,7 @@ function _pcRefreshWeekView() {
 
 // ─── HTML builders ────────────────────────────────────────────────────────────
 
-var _PC_DL_COLORS = { 'dl-green': '#2a9d5c', 'dl-yellow': '#c4930a', 'dl-red': '#c0392b', 'dl-black': '#555' };
+var _PC_DL_COLORS = { 'dl-green': '#2a9d5c', 'dl-yellow': '#c4930a', 'dl-red': '#c0392b', 'dl-black': '#555', 'dl-none': '#8899a6' };
 function _pcEventHtml(entry) {
   var dlClass = (typeof getDeadlineClass === 'function') ? getDeadlineClass(entry) : '';
   var color   = (_PC_DL_COLORS[dlClass]) || _pcColor(entry.board_id || 0);

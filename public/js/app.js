@@ -4552,9 +4552,9 @@ function getCardDeadlineDate(card) {
 }
 function getDeadlineClass(card) {
   var date = getCardDeadlineDate(card);
-  if (!date) return '';
+  if (!date) return 'dl-none';
   var days = workingDaysUntil(date);
-  if (days === null) return '';
+  if (days === null) return 'dl-none';
   if (days < 0) return 'dl-black';
   if (days === 0) return 'dl-red';
   if (days <= 4) return 'dl-yellow';
