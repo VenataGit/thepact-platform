@@ -4112,6 +4112,25 @@ function handleDashDragLeave(e) {
     e.currentTarget.classList.remove('dash-drop-over');
   }
 }
+function _dashSortZoneByDeadline(zone) {
+  var holdSep = zone.querySelector('.dash-on-hold-sep');
+  var regularEls = Array.from(zone.querySelectorAll('.dash-card:not(.dash-card--hold)'));
+  if (regularEls.length < 2) return;
+  regularEls.sort(function(a, b) {
+    var ca = _dashCards.find(function(c) { return c.id == a.dataset.cardId; });
+    var cb = _dashCards.find(function(c) { return c.id == b.dataset.cardId; });
+    var da = ca ? getCardDeadlineDate(ca) : null;
+    var db = cb ? getCardDeadlineDate(cb) : null;
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+  regularEls.forEach(function(el) {
+    if (holdSep) zone.insertBefore(el, holdSep);
+    else zone.appendChild(el);
+  });
+}
 async function handleDashDrop(e) {
   e.preventDefault(); e.stopPropagation();
   _clearAllDragOver(); // clean all highlighted zones, not just this one
@@ -4135,6 +4154,9 @@ async function handleDashDrop(e) {
     const holdSep = targetZone.querySelector('.dash-on-hold-sep');
     if (holdSep) targetZone.insertBefore(cardEl, holdSep);
     else targetZone.appendChild(cardEl);
+
+    // Re-sort all regular cards in target zone by deadline (earliest first)
+    _dashSortZoneByDeadline(targetZone);
   }
 
   // Update column counts in headers
