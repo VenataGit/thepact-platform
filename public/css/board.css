@@ -18,7 +18,7 @@
   overflow: hidden;
 }
 .project-card-home:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.4); transform: translateY(-3px); }
-.project-card-home__header { padding: 14px 18px; background: rgba(28,176,246,0.12); }
+.project-card-home__header { padding: 14px 18px; background: rgba(28,176,246,0.12); text-align: center; }
 .project-card-home__pin { position: absolute; top: 12px; right: 14px; color: var(--text-dim); opacity: 0.5; }
 .project-card-home__above { font-size: 11px; color: var(--text-dim); font-weight: 500; margin-bottom: 4px; letter-spacing: 0.04em; }
 .project-card-home__title { font-size: 14px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
@@ -994,6 +994,7 @@ trix-toolbar .trix-button-group--file-tools { }
 .dash-stat__num { font-size: 14px; font-weight: 800; color: #fff; }
 .dash-stat__label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
 .dash-stat--warn .dash-stat__num { color: var(--red); }
+.dash-stat--success .dash-stat__num { color: var(--green); }
 .dash-stat--clickable { cursor: pointer; transition: background 0.15s, outline 0.15s; }
 .dash-stat--clickable:hover { background: rgba(239,68,68,0.1); border-color: var(--red); }
 

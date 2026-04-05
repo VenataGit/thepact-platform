@@ -198,6 +198,7 @@ function router() {
     case 'column': return id ? renderColumnView(el, id) : renderHome(el);
     case 'trash': return renderTrash(el);
     case 'release-notes': return renderReleaseNotes(el);
+    case 'home-tasks': return renderHomeTasks(el);
     default: return renderHome(el);
   }
 }
@@ -230,15 +231,22 @@ async function renderHome(el) {
     const now14 = new Date(now); now14.setDate(now14.getDate() + 14);
     const activeCards = cards.filter(c => !c.completed_at && !c.archived_at);
     const myCards = activeCards.filter(c => c.assignees?.some(a => a.id === currentUser.id));
-    const overdueCards = activeCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
-    const myOverdue = myCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
+    const overdueCards = activeCards.filter(c => c.due_on && !c.is_on_hold && new Date(c.due_on+'T00:00:00') < now);
     const todayCards = activeCards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') >= now && new Date(c.due_on+'T00:00:00') < tomorrow);
-    const urgentCards = activeCards.filter(c => c.priority === 'urgent');
+    // Completed this week (Monday-based)
+    const weekStart = new Date(now);
+    const _dow = weekStart.getDay();
+    weekStart.setDate(weekStart.getDate() - (_dow === 0 ? 6 : _dow - 1));
+    const completedThisWeek = cards.filter(c => c.completed_at && new Date(c.completed_at) >= weekStart);
+    // Success rate: % of completed cards (last 90 days) that were on time
+    const d90ago = new Date(now); d90ago.setDate(d90ago.getDate() - 90);
+    const recentCompleted = cards.filter(c => c.completed_at && new Date(c.completed_at) >= d90ago);
+    const onTimeCount = recentCompleted.filter(c => !c.due_on || new Date(c.completed_at) <= new Date(c.due_on + 'T23:59:59')).length;
+    const successRate = recentCompleted.length > 0 ? Math.round(onTimeCount / recentCompleted.length * 100) : 100;
     const myUpcoming = myCards
       .filter(c => c.due_on && new Date(c.due_on+'T00:00:00') <= now14)
       .sort((a, b) => new Date(a.due_on) - new Date(b.due_on))
       .slice(0, 8);
-    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
 
     el.innerHTML = `
       <div style="text-align:center;margin-bottom:20px">
@@ -248,60 +256,53 @@ async function renderHome(el) {
 
         <!-- Stats bar -->
         <div style="display:flex;gap:12px;justify-content:center;margin-bottom:32px;flex-wrap:wrap">
-          <a href="#/mystuff" style="text-decoration:none">
+          <a href="#/home-tasks?filter=active" style="text-decoration:none">
             <div class="dash-stat" style="min-width:110px;cursor:pointer">
-              <span class="dash-stat__num">${myCards.length}</span>
-              <span class="dash-stat__label">Мои задачи</span>
+              <span class="dash-stat__num">${activeCards.length}</span>
+              <span class="dash-stat__label">Активни задачи</span>
             </div>
           </a>
-          <a href="#/mystuff" style="text-decoration:none">
-            <div class="dash-stat ${myOverdue.length > 0 ? 'dash-stat--warn' : ''}" style="min-width:110px;cursor:pointer">
-              <span class="dash-stat__num">${myOverdue.length}</span>
-              <span class="dash-stat__label">Мои просрочени</span>
-            </div>
-          </a>
-          <a href="#/reports?tab=overdue" style="text-decoration:none">
+          <a href="#/home-tasks?filter=overdue" style="text-decoration:none">
             <div class="dash-stat ${overdueCards.length > 0 ? 'dash-stat--warn' : ''}" style="min-width:110px;cursor:pointer">
               <span class="dash-stat__num">${overdueCards.length}</span>
-              <span class="dash-stat__label">Просрочени общо</span>
+              <span class="dash-stat__label">Просрочени</span>
             </div>
           </a>
-          <a href="#/reports?tab=upcoming&days=1" style="text-decoration:none">
+          <a href="#/home-tasks?filter=today" style="text-decoration:none">
             <div class="dash-stat ${todayCards.length > 0 ? 'dash-stat--warn' : ''}" style="min-width:110px;cursor:pointer">
               <span class="dash-stat__num">${todayCards.length}</span>
-              <span class="dash-stat__label">\u0414\u043d\u0435\u0441 \u0435 \u043a\u0440\u0430\u0439\u043d\u0438\u044f\u0442 \u0441\u0440\u043e\u043a</span>
+              <span class="dash-stat__label">Краен срок днес</span>
             </div>
           </a>
-          ${urgentCards.length > 0 ? `<a href="#/reports?tab=overdue" style="text-decoration:none">
-            <div class="dash-stat dash-stat--warn" style="min-width:110px;cursor:pointer">
-              <span class="dash-stat__num">${urgentCards.length}</span>
-              <span class="dash-stat__label">\ud83d\udd34 \u0421\u043f\u0435\u0448\u043d\u0438</span>
-            </div>
-          </a>` : ''}
-          <a href="#/dashboard" style="text-decoration:none">
+          <a href="#/home-tasks?filter=completed-week" style="text-decoration:none">
             <div class="dash-stat" style="min-width:110px;cursor:pointer">
-              <span class="dash-stat__num">${boards.length}</span>
-              <span class="dash-stat__label">\u0411\u043e\u0440\u0434\u0430</span>
+              <span class="dash-stat__num">${completedThisWeek.length}</span>
+              <span class="dash-stat__label">Завършени тази седмица</span>
+            </div>
+          </a>
+          <a href="#/home-tasks?filter=on-time" style="text-decoration:none">
+            <div class="dash-stat ${successRate >= 80 ? 'dash-stat--success' : successRate >= 50 ? '' : 'dash-stat--warn'}" style="min-width:110px;cursor:pointer">
+              <span class="dash-stat__num">${successRate}%</span>
+              <span class="dash-stat__label">Навреме</span>
             </div>
           </a>
         </div>
 
         <!-- Boards grid -->
         <div style="margin-bottom:32px">
-          <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Проекти</div>
           <div class="projects-home-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
             ${boards.map(b => {
               const bc = activeCards.filter(c => c.board_id === b.id);
-              const bOver = bc.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now).length;
+              const bOver = bc.filter(c => c.due_on && !c.is_on_hold && new Date(c.due_on+'T00:00:00') < now).length;
               return '<a href="#/board/' + b.id + '" class="project-card-home">' +
                 '<div class="project-card-home__header">' +
-                  '<div style="display:flex;justify-content:space-between;align-items:center">' +
-                    '<div class="project-card-home__title">' + esc(b.title) + '</div>' +
-                    (bOver > 0 ? '<span style="background:rgba(239,68,68,.2);color:var(--red);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">\u26a0 ' + bOver + '</span>' : '') +
-                  '</div>' +
+                  '<div class="project-card-home__title">' + esc(b.title) + '</div>' +
                 '</div>' +
                 '<div class="project-card-home__body">' +
-                  '<div style="font-size:11px;color:var(--text-dim)">' + bc.length + ' карти \xb7 ' + (b.columns?.filter(c=>!c.is_done_column).length || 0) + ' колони</div>' +
+                  '<div style="font-size:11px;color:var(--text-dim);text-align:center">' +
+                    bc.length + ' активни' +
+                    (bOver > 0 ? ' · <span style="color:var(--red);font-weight:600">' + bOver + ' просрочени</span>' : '') +
+                  '</div>' +
                 '</div>' +
               '</a>';
             }).join('')}
@@ -343,17 +344,6 @@ async function renderHome(el) {
           </div>
           <a href="#/mystuff" style="font-size:12px;color:var(--accent);text-decoration:none;display:inline-block;margin-top:8px">\u0412\u0441\u0438\u0447\u043a\u0438 \u043c\u043e\u0438 \u0437\u0430\u0434\u0430\u0447\u0438 \u2192</a>
         </div>` : ''}
-
-        <!-- Team -->
-        <div style="margin-bottom:32px">
-          <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Екип</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            ${allUsers.map((u, i) => '<div style="display:flex;align-items:center;gap:8px;background:var(--card);border-radius:8px;padding:8px 12px">' +
-              '<div style="width:30px;height:30px;border-radius:50%;background:' + avatarColors[i % avatarColors.length] + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">' + initials(u.name) + '</div>' +
-              '<span style="font-size:13px;color:var(--text)">' + esc(u.name) + '</span>' +
-            '</div>').join('')}
-          </div>
-        </div>
 
         <!-- Recent activity (lazy loaded) -->
         <div>
@@ -4977,6 +4967,97 @@ document.addEventListener('pointerup', function() {
     if (dragCardId) { dragCardId = null; _clearAllDragOver(); }
   }, 200);
 });
+
+// ==================== HOME TASKS (filtered view) ====================
+async function renderHomeTasks(el) {
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  const filter = params.get('filter') || 'active';
+
+  const filterLabels = {
+    'active': 'Активни задачи',
+    'overdue': 'Просрочени задачи',
+    'today': 'Краен срок днес',
+    'completed-week': 'Завършени тази седмица',
+    'on-time': 'Завършени навреме (90 дни)'
+  };
+
+  setBreadcrumb([{ label: 'Начало', href: '#/home' }, { label: filterLabels[filter] || 'Задачи' }]);
+  el.className = '';
+
+  try {
+    const cards = await (await fetch('/api/cards')).json();
+    const now = new Date(); now.setHours(0,0,0,0);
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+    const weekStart = new Date(now);
+    const _dow = weekStart.getDay();
+    weekStart.setDate(weekStart.getDate() - (_dow === 0 ? 6 : _dow - 1));
+    const d90ago = new Date(now); d90ago.setDate(d90ago.getDate() - 90);
+
+    let filtered = [];
+    if (filter === 'active') {
+      filtered = cards.filter(c => !c.completed_at && !c.archived_at);
+    } else if (filter === 'overdue') {
+      filtered = cards.filter(c => !c.completed_at && !c.archived_at && !c.is_on_hold && c.due_on && new Date(c.due_on+'T00:00:00') < now);
+    } else if (filter === 'today') {
+      filtered = cards.filter(c => !c.completed_at && !c.archived_at && c.due_on && new Date(c.due_on+'T00:00:00') >= now && new Date(c.due_on+'T00:00:00') < tomorrow);
+    } else if (filter === 'completed-week') {
+      filtered = cards.filter(c => c.completed_at && new Date(c.completed_at) >= weekStart);
+    } else if (filter === 'on-time') {
+      filtered = cards.filter(c => c.completed_at && new Date(c.completed_at) >= d90ago && (!c.due_on || new Date(c.completed_at) <= new Date(c.due_on + 'T23:59:59')));
+    }
+
+    // Sort: overdue first, then by due date
+    filtered.sort((a, b) => {
+      const da = a.due_on ? new Date(a.due_on) : null;
+      const db = b.due_on ? new Date(b.due_on) : null;
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return da - db;
+    });
+
+    const rows = filtered.map(c => {
+      const dueDate = c.due_on ? new Date(c.due_on+'T00:00:00') : null;
+      const isOver = dueDate && dueDate < now && !c.completed_at;
+      const isToday = dueDate && dueDate >= now && dueDate < tomorrow;
+      const dueLabel = !dueDate ? '' : isOver ? '<span style="color:var(--red);font-weight:600">\u26a0 ' + formatDate(c.due_on) + '</span>' : isToday ? '<span style="color:var(--yellow);font-weight:600">\u23f0 Днес</span>' : '<span>' + formatDate(c.due_on) + '</span>';
+      const completedLabel = c.completed_at ? '<span style="color:var(--green);font-size:11px">\u2713 ' + formatDate(c.completed_at) + '</span>' : '';
+      const pri = c.priority === 'urgent' ? '\ud83d\udd34 ' : c.priority === 'high' ? '\u2191 ' : '';
+      const assignees = (c.assignees || []).map(a => a.name).join(', ');
+      return '<a class="task-row ' + (isOver ? 'overdue' : '') + '" href="#/card/' + c.id + '" style="align-items:center">' +
+        '<span class="task-title">' + pri + esc(c.title) + '</span>' +
+        '<span class="task-meta">' +
+          (c.board_title ? '<span style="color:var(--text-dim);font-size:11px">' + esc(c.board_title) + '</span>' : '') +
+          (assignees ? '<span style="color:var(--accent);font-size:11px">' + esc(assignees) + '</span>' : '') +
+          (c.client_name ? '<span style="color:var(--accent);font-size:11px">' + esc(c.client_name) + '</span>' : '') +
+          dueLabel + completedLabel +
+        '</span></a>';
+    }).join('');
+
+    // Filter tabs
+    const tabs = [
+      { key: 'active', label: 'Активни', icon: '\ud83d\udfe2' },
+      { key: 'overdue', label: 'Просрочени', icon: '\ud83d\udd34' },
+      { key: 'today', label: 'Днес', icon: '\u23f0' },
+      { key: 'completed-week', label: 'Тази седмица', icon: '\u2705' },
+      { key: 'on-time', label: 'Навреме', icon: '\ud83c\udfc6' }
+    ];
+
+    el.innerHTML = `
+      <div style="max-width:800px;margin:0 auto">
+        <div class="page-header"><h1>${filterLabels[filter] || 'Задачи'}</h1><div class="page-subtitle">${filtered.length} резултата</div></div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px;flex-wrap:wrap">
+          ${tabs.map(t => `<a href="#/home-tasks?filter=${t.key}" class="btn btn-sm ${filter === t.key ? 'btn-primary' : ''}">${t.icon} ${t.label}</a>`).join('')}
+        </div>
+        <div class="task-list">
+          ${rows || '<div style="text-align:center;padding:32px;color:var(--text-dim)">Няма задачи в тази категория</div>'}
+        </div>
+        <div style="text-align:center;margin-top:16px">
+          <a href="#/home" class="btn btn-sm btn-ghost">\u2190 Начало</a>
+        </div>
+      </div>`;
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане</div>'; }
+}
 
 // ==================== RELEASE NOTES ====================
 function renderReleaseNotes(el) {
