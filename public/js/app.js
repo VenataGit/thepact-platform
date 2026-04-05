@@ -2,6 +2,7 @@
 let currentUser = null, ws = null, wsReconnectDelay = 1000;
 let allUsers = [], allBoards = [], allProjects = [];
 let onlineUsers = new Set();
+let _platformConfig = {};
 let pendingShortcut = null, typingTimeout = null;
 
 // ==================== AUTH ====================
@@ -238,8 +239,8 @@ async function renderHome(el) {
     const _dow = weekStart.getDay();
     weekStart.setDate(weekStart.getDate() - (_dow === 0 ? 6 : _dow - 1));
     const completedThisWeek = cards.filter(c => c.completed_at && _parseDateMidnight(c.completed_at) >= weekStart);
-    // Success rate: % of completed cards (last 90 days) that were on time
-    const d90ago = new Date(now); d90ago.setDate(d90ago.getDate() - 90);
+    // Success rate: % of completed cards (last N days) that were on time
+    const d90ago = new Date(now); d90ago.setDate(d90ago.getDate() - parseInt(_platformConfig.success_rate_days || '90'));
     const recentCompleted = cards.filter(c => c.completed_at && _parseDateMidnight(c.completed_at) >= d90ago);
     const onTimeCount = recentCompleted.filter(c => {
       const dates = getCardRelevantDates(c);
@@ -476,7 +477,7 @@ async function renderDashboard(el) {
       var now = new Date(); now.setHours(0,0,0,0);
       var syncPayload = boards.map(function(board) {
         var boardCards = cards.filter(function(c) { return c.board_id === board.id && !c.completed_at && !c.archived_at; });
-        var hasOverdue = boardCards.some(function(c) { return isCardOverdue(c, now); });
+        var hasOverdue = boardCards.some(function(c) { return isCardOverdueForTimer(c, now); });
         return { board_id: board.id, has_overdue: hasOverdue };
       });
       var timerRes = await fetch('/api/timers/boards/sync', {
@@ -514,7 +515,7 @@ async function _dashRefresh() {
     var now = new Date(); now.setHours(0,0,0,0);
     var syncPayload = boards.map(function(board) {
       var boardCards = cards.filter(function(c) { return c.board_id === board.id && !c.completed_at && !c.archived_at; });
-      var hasOverdue = boardCards.some(function(c) { return isCardOverdue(c, now); });
+      var hasOverdue = boardCards.some(function(c) { return isCardOverdueForTimer(c, now); });
       return { board_id: board.id, has_overdue: hasOverdue };
     });
     var timerRes = await fetch('/api/timers/boards/sync', {
@@ -554,7 +555,7 @@ function _dashStartAutoRefresh() {
     var page = (location.hash.split('/')[1] || '').split('?')[0];
     if (page !== 'dashboard') { clearInterval(_dashAutoRefreshId); _dashAutoRefreshId = null; return; }
     _dashRefresh();
-  }, 30000); // every 30 seconds
+  }, (parseInt(_platformConfig.auto_refresh_seconds || '30')) * 1000);
 }
 
 function showDashSettings() {
@@ -768,7 +769,7 @@ function getDashCardColor(card) {
   var diff = Math.ceil((ed - now) / 86400000);
   if (diff < 0) return 'dash-card--overdue';
   if (diff === 0) return 'dash-card--today';
-  if (diff <= 3) return 'dash-card--soon';
+  if (diff <= parseInt(_platformConfig.deadline_soon_days || '3')) return 'dash-card--soon';
   return 'dash-card--ok';
 }
 
@@ -3370,6 +3371,7 @@ async function renderAdmin(el) {
           <button class="btn btn-sm admin-tab active" onclick="showAdminTab('users',this)">👤 Потребители</button>
           <button class="btn btn-sm admin-tab" onclick="showAdminTab('boards',this)">📋 Бордове</button>
           <button class="btn btn-sm admin-tab" onclick="showAdminTab('settings',this)">⚙️ Настройки</button>
+          <button class="btn btn-sm admin-tab" onclick="showAdminTab('logic',this)">📖 Логика</button>
         </div>
 
         <div id="adminContent">
@@ -3405,6 +3407,9 @@ async function renderAdmin(el) {
             <h2 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:20px">Настройки на системата</h2>
             <div id="adminSettingsContent" style="color:var(--text-dim);text-align:center;padding:40px">Зареждане...</div>
           </div>
+          <div id="adminLogic" style="display:none">
+            <div id="adminLogicContent" style="color:var(--text-dim);text-align:center;padding:40px">Зареждане...</div>
+          </div>
         </div>
       </div>`;
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
@@ -3412,11 +3417,12 @@ async function renderAdmin(el) {
 function showAdminTab(tab, btn) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   btn?.classList.add('active');
-  ['Users','Boards','Settings'].forEach(t => {
+  ['Users','Boards','Settings','Logic'].forEach(t => {
     const el = document.getElementById('admin'+t);
     if (el) el.style.display = t.toLowerCase() === tab ? 'block' : 'none';
   });
   if (tab === 'settings') loadAdminSettings();
+  if (tab === 'logic') loadAdminLogic();
 }
 function createNewUser() {
   var ov = document.createElement('div'); ov.className = 'modal-overlay';
@@ -3443,6 +3449,180 @@ async function changeUserRole(userId, role) {
 }
 async function toggleUserActive(userId, active) {
   try { await fetch(`/api/users/${userId}/active`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:active})}); router(); } catch {}
+}
+
+// ==================== ADMIN LOGIC ====================
+async function loadAdminLogic() {
+  var el = document.getElementById('adminLogicContent');
+  if (!el) return;
+  try {
+    var settingsRes = await fetch('/api/settings');
+    var s = (await settingsRes.json()).settings || {};
+
+    el.innerHTML = '' +
+      '<div style="text-align:left">' +
+
+      // Section 1: Board-Date Mapping
+      '<div class="admin-settings-section">' +
+        '<h3>📋 Борд → Дата (коя дата е важна за всеки борд)</h3>' +
+        '<p style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px">' +
+          'Всяка карта може да има няколко дати: <strong>Краен срок (due_on)</strong>, <strong>Дата за измисляне (brainstorm_date)</strong>, ' +
+          '<strong>Заснемане (filming_date)</strong>, <strong>Монтаж (editing_date)</strong>, <strong>Качване (upload_date)</strong>. ' +
+          'За всеки борд има една "водеща" production дата, която определя дали картата е просрочена в контекста на този борд.' +
+        '</p>' +
+        '<table class="admin-table" style="margin-bottom:10px"><thead><tr><th>Борд (ключова дума)</th><th>Production дата</th><th>Обяснение</th></tr></thead><tbody>' +
+          '<tr><td><input class="input-sm" style="width:120px" value="' + esc(s.board_keyword_pre || 'pre') + '" onblur="saveSetting(\'board_keyword_pre\',this.value)"></td>' +
+            '<td><strong style="color:var(--accent)">brainstorm_date</strong></td>' +
+            '<td style="font-size:11px;color:var(--text-dim)">Pre-Production — измисляне</td></tr>' +
+          '<tr><td><input class="input-sm" style="width:120px" value="' + esc(s.board_keyword_production || 'production') + '" onblur="saveSetting(\'board_keyword_production\',this.value)"></td>' +
+            '<td><strong style="color:var(--accent)">filming_date</strong></td>' +
+            '<td style="font-size:11px;color:var(--text-dim)">Production — заснемане</td></tr>' +
+          '<tr><td><input class="input-sm" style="width:120px" value="' + esc(s.board_keyword_post || 'post') + '" onblur="saveSetting(\'board_keyword_post\',this.value)"></td>' +
+            '<td><strong style="color:var(--accent)">editing_date</strong></td>' +
+            '<td style="font-size:11px;color:var(--text-dim)">Post-Production — монтаж</td></tr>' +
+          '<tr><td><input class="input-sm" style="width:120px" value="' + esc(s.board_keyword_account || 'акаунт') + '" onblur="saveSetting(\'board_keyword_account\',this.value)"></td>' +
+            '<td><strong style="color:var(--accent)">upload_date</strong></td>' +
+            '<td style="font-size:11px;color:var(--text-dim)">Акаунт — качване</td></tr>' +
+        '</tbody></table>' +
+        '<p style="font-size:11px;color:var(--text-dim);line-height:1.5">' +
+          'Системата проверява дали името на борда <strong>съдържа</strong> ключовата дума (case-insensitive). ' +
+          'За бордове, които не съвпадат с нито една дума — се ползва само <strong>due_on</strong>.' +
+        '</p>' +
+      '</div>' +
+
+      // Section 2: Overdue Logic
+      '<div class="admin-settings-section">' +
+        '<h3>🔴 Логика за "Просрочени" (Home + Dashboard)</h3>' +
+        '<p style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px">' +
+          'Карта се счита за <strong>просрочена</strong> когато КОЯТО И ДА Е от приложимите дати е преди днешната дата. ' +
+          'На началната страница се проверяват <strong>и due_on, и production датата</strong> на борда. ' +
+          'Ако карта има due_on = 5 април и filming_date = 10 април, тя ще е просрочена от 6 април заради due_on.' +
+        '</p>' +
+        '<div class="admin-setting-row">' +
+          '<label>due_on влияе на просрочени</label>' +
+          '<label class="toggle-switch">' +
+            '<input type="checkbox" ' + (s.overdue_checks_due_on !== 'false' ? 'checked' : '') + ' onchange="saveSetting(\'overdue_checks_due_on\',this.checked?\'true\':\'false\')">' +
+            '<span class="toggle-track"></span>' +
+          '</label>' +
+          '<span style="font-size:11px;color:var(--text-dim)">Ако е изключено, само production датата на борда се проверява</span>' +
+        '</div>' +
+      '</div>' +
+
+      // Section 3: Timer Logic
+      '<div class="admin-settings-section">' +
+        '<h3>⏱ Таймер логика (Dashboard)</h3>' +
+        '<p style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px">' +
+          'Всеки борд в Dashboard има таймер, който брои колко време няма просрочени задачи. ' +
+          'Когато се появи просрочена задача, таймерът спира и показва "<span style="color:var(--red)">Просрочена задача</span>". ' +
+          'Когато всички просрочени задачи се решат (преместят, завършат), таймерът тръгва отново.' +
+        '</p>' +
+        '<div class="admin-setting-row">' +
+          '<label>due_on спира таймера</label>' +
+          '<label class="toggle-switch">' +
+            '<input type="checkbox" ' + (s.timer_checks_due_on === 'true' ? 'checked' : '') + ' onchange="saveSetting(\'timer_checks_due_on\',this.checked?\'true\':\'false\');_platformConfig.timer_checks_due_on=this.checked?\'true\':\'false\'">' +
+            '<span class="toggle-track"></span>' +
+          '</label>' +
+          '<span style="font-size:11px;color:var(--text-dim)">По подразбиране: <strong>ИЗКЛ</strong> — таймерът реагира САМО на production дати (filming, brainstorm, editing, upload)</span>' +
+        '</div>' +
+        '<div style="margin-top:8px;padding:10px 12px;background:rgba(28,176,246,0.06);border:1px solid rgba(28,176,246,0.15);border-radius:8px;font-size:11px;color:var(--text-secondary);line-height:1.7">' +
+          '<strong>Примери:</strong><br>' +
+          '• Карта в Production с <strong>filming_date = 3 април</strong> (минала) → таймерът СПИРА<br>' +
+          '• Карта в Production с <strong>due_on = 3 април</strong>, без filming_date → таймерът <strong>НЕ СПИРА</strong> (ако toggle е ИЗКЛ)<br>' +
+          '• Карта в Pre-Production с <strong>brainstorm_date = 1 април</strong> (минала) → таймерът СПИРА<br>' +
+          '• Карта е <strong>на изчакване (on hold)</strong> → НЕ влияе на таймера' +
+        '</div>' +
+      '</div>' +
+
+      // Section 4: Deadline Colors
+      '<div class="admin-settings-section">' +
+        '<h3>🎨 Цветове на крайни срокове</h3>' +
+        '<p style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px">' +
+          'Картите в Dashboard и Kanban се оцветяват според оставащите дни до най-близкия крайен срок. ' +
+          'Проверява се <strong>най-ранната</strong> дата от всички приложими (due_on + production дата на борда).' +
+        '</p>' +
+        '<table class="admin-table" style="margin-bottom:10px"><thead><tr><th>Цвят</th><th>Условие</th></tr></thead><tbody>' +
+          '<tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#111;border:1px solid #444;vertical-align:middle"></span> Черно</td><td>Просрочена (дни &lt; 0)</td></tr>' +
+          '<tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--red);vertical-align:middle"></span> Червено</td><td>Краен срок е ДНЕС (0 дни)</td></tr>' +
+          '<tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--yellow);vertical-align:middle"></span> Жълто</td><td>Наближава — до <input class="input-sm" type="number" min="1" max="30" style="width:50px;display:inline" value="' + esc(s.deadline_soon_days || '3') + '" onblur="saveSetting(\'deadline_soon_days\',this.value);_platformConfig.deadline_soon_days=this.value"> дни</td></tr>' +
+          '<tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--green);vertical-align:middle"></span> Зелено</td><td>Има време (повече дни)</td></tr>' +
+        '</tbody></table>' +
+      '</div>' +
+
+      // Section 5: Dashboard
+      '<div class="admin-settings-section">' +
+        '<h3>📊 Dashboard настройки</h3>' +
+        '<div class="admin-setting-row">' +
+          '<label>Auto-refresh интервал</label>' +
+          '<input class="input-sm" type="number" min="10" max="300" style="width:60px" value="' + esc(s.auto_refresh_seconds || '30') + '" onblur="saveSetting(\'auto_refresh_seconds\',this.value);_platformConfig.auto_refresh_seconds=this.value">' +
+          '<span style="font-size:11px;color:var(--text-dim)">секунди (Dashboard се обновява автоматично за studio screen режим)</span>' +
+        '</div>' +
+        '<div class="admin-setting-row">' +
+          '<label>Таймер на секундите</label>' +
+          '<span style="color:#fff;font-weight:600">1 сек</span>' +
+          '<span style="font-size:11px;color:var(--text-dim)">Таймерът в Dashboard тиктака на всяка секунда (не е променимо)</span>' +
+        '</div>' +
+      '</div>' +
+
+      // Section 6: Success Rate
+      '<div class="admin-settings-section">' +
+        '<h3>🏆 Успеваемост (Home)</h3>' +
+        '<p style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px">' +
+          'Показва процента на завършените карти, които са приключени <strong>преди или на крайния им срок</strong>. ' +
+          'Изчислява се за последните N дни. Ако карта няма краен срок — счита се за "навреме".' +
+        '</p>' +
+        '<div class="admin-setting-row">' +
+          '<label>Период за изчисление</label>' +
+          '<input class="input-sm" type="number" min="7" max="365" style="width:60px" value="' + esc(s.success_rate_days || '90') + '" onblur="saveSetting(\'success_rate_days\',this.value);_platformConfig.success_rate_days=this.value">' +
+          '<span style="font-size:11px;color:var(--text-dim)">дни назад</span>' +
+        '</div>' +
+        '<table class="admin-table"><thead><tr><th>Цвят</th><th>Условие</th></tr></thead><tbody>' +
+          '<tr><td><span style="color:var(--green);font-weight:700">Зелено</span></td><td>≥ 80%</td></tr>' +
+          '<tr><td><span style="color:#fff;font-weight:700">Бяло</span></td><td>50% – 79%</td></tr>' +
+          '<tr><td><span style="color:var(--red);font-weight:700">Червено</span></td><td>&lt; 50%</td></tr>' +
+        '</tbody></table>' +
+      '</div>' +
+
+      // Section 7: KP Cards
+      '<div class="admin-settings-section">' +
+        '<h3>📦 КП Карти (Content Plan)</h3>' +
+        '<p style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px">' +
+          'КП (Контент План) картите се разпознават по regex pattern в заглавието. ' +
+          'Те имат специална логика за deadline-и и автоматично генериране на видео задачи.' +
+        '</p>' +
+        '<div class="admin-setting-row">' +
+          '<label>KP regex pattern</label>' +
+          '<input class="input-sm" type="text" style="width:140px" value="' + esc(s.kp_card_pattern || 'КП-\\d') + '" onblur="saveSetting(\'kp_card_pattern\',this.value);_platformConfig.kp_card_pattern=this.value">' +
+          '<span style="font-size:11px;color:var(--text-dim)">Regex за разпознаване на КП карти по заглавие</span>' +
+        '</div>' +
+      '</div>' +
+
+      // Section 8: Home Page Stats
+      '<div class="admin-settings-section">' +
+        '<h3>🏠 Начална страница — статистика</h3>' +
+        '<p style="font-size:12px;color:var(--text-secondary);line-height:1.6">' +
+          'Статистиката горе показва 5 метрики. Всяка е кликабилна и отваря филтриран списък:' +
+        '</p>' +
+        '<table class="admin-table"><thead><tr><th>Метрика</th><th>Логика</th></tr></thead><tbody>' +
+          '<tr><td><strong>Активни задачи</strong></td><td style="font-size:11px">Всички карти без completed_at и archived_at</td></tr>' +
+          '<tr><td><strong>Краен срок днес</strong></td><td style="font-size:11px">Карти с НЯКОЯ приложима дата = днес (due_on или production дата)</td></tr>' +
+          '<tr><td><strong>Просрочени</strong></td><td style="font-size:11px">Карти с НЯКОЯ приложима дата &lt; днес, не са on hold</td></tr>' +
+          '<tr><td><strong>Завършени тази седмица</strong></td><td style="font-size:11px">Карти с completed_at ≥ понеделник на текущата седмица</td></tr>' +
+          '<tr><td><strong>Успеваемост</strong></td><td style="font-size:11px">% завършени навреме за последните N дни (виж горе)</td></tr>' +
+        '</tbody></table>' +
+      '</div>' +
+
+      // Section 9: WebSocket
+      '<div class="admin-settings-section">' +
+        '<h3>🔌 Real-time (WebSocket)</h3>' +
+        '<p style="font-size:12px;color:var(--text-secondary);line-height:1.6">' +
+          'Платформата използва WebSocket за мигновени обновявания. Когато някой премести карта, добави коментар ' +
+          'или промени нещо — всички отворени табове се обновяват автоматично без refresh. ' +
+          'Dashboard допълнително има auto-refresh на всеки ' + (s.auto_refresh_seconds || '30') + ' секунди за studio screen режим.' +
+        '</p>' +
+      '</div>' +
+
+      '</div>';
+  } catch (e) { el.innerHTML = '<div style="color:var(--red)">Грешка при зареждане на логиката</div>'; }
 }
 
 // ==================== ADMIN SETTINGS ====================
@@ -4652,6 +4832,19 @@ function isCardOverdue(card, now) {
   if (card.is_on_hold || card.completed_at || card.archived_at) return false;
   return getCardRelevantDates(card).some(function(d) { return _parseDateMidnight(d) < now; });
 }
+// Timer-specific overdue — only board-specific production dates (not due_on unless configured)
+function isCardOverdueForTimer(card, now) {
+  if (card.is_on_hold || card.completed_at || card.archived_at) return false;
+  var checkDueOn = _platformConfig.timer_checks_due_on === 'true';
+  var dates = [];
+  if (checkDueOn && card.due_on) dates.push(card.due_on);
+  var bt = (card.board_title || '').toLowerCase();
+  if (bt.indexOf('pre') !== -1 && card.brainstorm_date) dates.push(card.brainstorm_date);
+  else if (bt.indexOf('post') !== -1 && card.editing_date) dates.push(card.editing_date);
+  else if (bt.indexOf('production') !== -1 && card.filming_date) dates.push(card.filming_date);
+  else if ((bt.indexOf('акаунт') !== -1 || bt.indexOf('account') !== -1) && card.upload_date) dates.push(card.upload_date);
+  return dates.some(function(d) { return _parseDateMidnight(d) < now; });
+}
 // Check if card has ANY deadline today
 function isCardDueToday(card, now, tomorrow) {
   if (card.completed_at || card.archived_at) return false;
@@ -5078,7 +5271,7 @@ async function renderHomeTasks(el) {
     const weekStart = new Date(now);
     const _dow = weekStart.getDay();
     weekStart.setDate(weekStart.getDate() - (_dow === 0 ? 6 : _dow - 1));
-    const d90ago = new Date(now); d90ago.setDate(d90ago.getDate() - 90);
+    const d90ago = new Date(now); d90ago.setDate(d90ago.getDate() - parseInt(_platformConfig.success_rate_days || '90'));
 
     let filtered = [];
     if (filter === 'active') {
@@ -5247,6 +5440,8 @@ function renderReleaseNotes(el) {
 // ==================== INIT ====================
 (async function() {
   if (!await checkAuth()) return;
+  // Load platform config
+  try { const r = await fetch('/api/settings'); _platformConfig = (await r.json()).settings || {}; } catch {}
   if (!location.hash || location.hash === '#' || location.hash === '#/') location.hash = '#/home';
   router();
   connectWS();
