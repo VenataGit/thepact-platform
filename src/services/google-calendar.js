@@ -115,6 +115,16 @@ async function loadCalendarId() {
 }
 
 /**
+ * Add 1 hour to a local time string "YYYY-MM-DDTHH:MM:SS"
+ */
+function addHour(timeStr) {
+  const d = new Date(timeStr + '+03:00'); // treat as Sofia time
+  d.setHours(d.getHours() + 1);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+/**
  * Convert platform event to Google Calendar event format
  */
 function toGCalEvent(event, attendeeEmails = []) {
@@ -140,15 +150,21 @@ function toGCalEvent(event, attendeeEmails = []) {
       gcalEvent.end = { date: endDate.toISOString().split('T')[0] };
     }
   } else {
-    // Timed event
+    // Timed event — pass local time string directly with timeZone
+    // (NOT .toISOString() which converts to UTC and causes +3h offset)
+    const startStr = event.starts_at.includes('+') || event.starts_at.endsWith('Z')
+      ? event.starts_at
+      : event.starts_at; // already local time like "2026-04-07T10:00:00"
+    const endStr = event.ends_at
+      ? (event.ends_at.includes('+') || event.ends_at.endsWith('Z') ? event.ends_at : event.ends_at)
+      : null;
+
     gcalEvent.start = {
-      dateTime: new Date(event.starts_at).toISOString(),
+      dateTime: startStr,
       timeZone: 'Europe/Sofia',
     };
     gcalEvent.end = {
-      dateTime: event.ends_at
-        ? new Date(event.ends_at).toISOString()
-        : new Date(new Date(event.starts_at).getTime() + 60 * 60 * 1000).toISOString(), // +1 hour default
+      dateTime: endStr || addHour(startStr),
       timeZone: 'Europe/Sofia',
     };
   }
