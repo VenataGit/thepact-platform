@@ -2992,22 +2992,28 @@ async function renderChatChannel(el, channelId) {
     // Build layout
     var sidebarHtml = _renderChatSidebar(channels);
 
-    // Basecamp-style profile header
+    // Compact header (horizontal bar)
     var headerHtml = '<div class="chat-hd">' +
       '<button class="chat-hd__back" onclick="location.hash=\'#/chat\'">←</button>' +
-      (isGroup ? '<button class="chat-hd__settings" onclick="chatGroupSettings('+channelId+')">···</button>' : '') +
       '<div class="chat-hd__av">'+_chatAvatar(ch)+'</div>' +
-      '<div class="chat-hd__name">'+esc(name)+'</div>' +
-      '<div class="chat-hd__meta">' +
-        (isGroup ? memberCount+' участника' : '') +
+      '<div class="chat-hd__info"><div class="chat-hd__name">'+esc(name)+'</div>' +
+        (isGroup ? '<div class="chat-hd__meta">'+memberCount+' участника</div>' : '') +
       '</div>' +
+      (isGroup ? '<button class="chat-hd__settings" onclick="chatGroupSettings('+channelId+')">···</button>' : '') +
     '</div>';
 
     // Messages with date dividers
     var msgsHtml = _renderMessagesWithDividers(msgs, channelId);
 
-    // Basecamp-style input footer
+    // Input footer — format bar ABOVE editor, emoji picker inside actions
     var inputHtml = '<div class="chat-footer">' +
+      '<div class="chat-format-bar" id="chatFormatBar">' +
+        '<button onmousedown="event.preventDefault();document.execCommand(\'bold\')"><b>B</b></button>' +
+        '<button onmousedown="event.preventDefault();document.execCommand(\'italic\')"><i>I</i></button>' +
+        '<button onmousedown="event.preventDefault();document.execCommand(\'strikeThrough\')"><s>S</s></button>' +
+        '<button onmousedown="event.preventDefault();document.execCommand(\'insertUnorderedList\')">• List</button>' +
+        '<button onmousedown="event.preventDefault();chatInsertLink()">🔗 Link</button>' +
+      '</div>' +
       '<div class="chat-input" id="chatInputBar">' +
         '<div class="chat-input__area">' +
           '<div class="chat-input__editor" id="chatEditor" contenteditable="true" data-placeholder="Напиши съобщение..." onkeydown="chatInputKeydown(event,'+channelId+')" onpaste="chatPaste(event,'+channelId+')" oninput="chatInputChange('+channelId+')"></div>' +
@@ -3017,30 +3023,17 @@ async function renderChatChannel(el, channelId) {
           '<button class="chat-input__btn" onclick="chatToggleEmoji()" title="Емоджи">😊</button>' +
           '<button class="chat-input__btn" onclick="document.getElementById(\'chatFileInput\').click()" title="Прикачи файл">📎</button>' +
           '<input type="file" id="chatFileInput" multiple style="display:none" onchange="chatUploadFiles(this,'+channelId+')">' +
+          '<div class="chat-emoji-picker" id="chatEmojiPicker"></div>' +
         '</div>' +
       '</div>' +
-      '<div class="chat-format-bar" id="chatFormatBar" style="display:none">' +
-        '<button onmousedown="event.preventDefault();document.execCommand(\'bold\')"><b>B</b></button>' +
-        '<button onmousedown="event.preventDefault();document.execCommand(\'italic\')"><i>I</i></button>' +
-        '<button onmousedown="event.preventDefault();document.execCommand(\'strikeThrough\')"><s>S</s></button>' +
-        '<button onmousedown="event.preventDefault();document.execCommand(\'insertUnorderedList\')">• List</button>' +
-        '<button onmousedown="event.preventDefault();chatInsertLink()">🔗</button>' +
-      '</div>' +
-      '<div class="chat-emoji-picker" id="chatEmojiPicker" style="display:none"></div>' +
     '</div>' +
     '<div class="chat-typing" id="chatTyping"></div>';
 
     el.innerHTML = '<div class="chat-layout">' +
-      '<div class="chat-sidebar" id="chatSidebar">'+sidebarHtml+'</div>' +
       '<div class="chat-main" id="chatMain">' + headerHtml +
         '<div class="chat-messages" id="chatMessages">'+msgsHtml+'</div>' +
         inputHtml +
       '</div></div>';
-
-    // Mark active in sidebar
-    document.querySelectorAll('.chat-sb__item').forEach(function(item){
-      if (parseInt(item.dataset.chatId) === channelId) item.classList.add('chat-sb__item--active');
-    });
 
     var msgsEl = document.getElementById('chatMessages');
     if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -3191,7 +3184,22 @@ function appendChatMsg(msg) {
 // --- Formatting, emoji, files ---
 function chatToggleFormatting() {
   var bar = document.getElementById('chatFormatBar');
-  if (bar) bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
+  var editor = document.getElementById('chatEditor');
+  var btn = document.querySelector('.chat-input__btn--text');
+  if (!bar) return;
+  var isOpen = bar.classList.contains('open');
+  if (isOpen) {
+    bar.classList.remove('open');
+    if (editor) editor.classList.remove('expanded');
+    if (btn) btn.classList.remove('active');
+  } else {
+    bar.classList.add('open');
+    if (editor) editor.classList.add('expanded');
+    if (btn) btn.classList.add('active');
+    // Close emoji picker if open
+    var emojiPicker = document.getElementById('chatEmojiPicker');
+    if (emojiPicker) emojiPicker.classList.remove('open');
+  }
 }
 function chatInsertLink() {
   var url = prompt('URL:');
@@ -3200,17 +3208,21 @@ function chatInsertLink() {
 function chatToggleEmoji() {
   var picker = document.getElementById('chatEmojiPicker');
   if (!picker) return;
-  if (picker.style.display !== 'none') { picker.style.display = 'none'; return; }
+  var isOpen = picker.classList.contains('open');
+  if (isOpen) { picker.classList.remove('open'); return; }
   if (!picker.innerHTML) {
     var emojis = ['😀','😂','🤣','😊','😍','🥰','😘','🤔','😎','🤩','😤','😢','😭','🔥','❤️','👍','👎','👏','🙏','💪','🎉','🎊','✅','❌','⚡','💡','📌','🚀','⭐','💯'];
     picker.innerHTML = '<div class="chat-emoji-grid">'+emojis.map(function(e){return '<button class="chat-emoji-btn" onclick="chatInsertEmoji(\''+e+'\')">'+e+'</button>';}).join('')+'</div>';
   }
-  picker.style.display = 'block';
+  picker.classList.add('open');
+  // Close on outside click
+  setTimeout(function(){ document.addEventListener('click', function handler(e) { if (!picker.contains(e.target) && !e.target.closest('.chat-input__btn')) { picker.classList.remove('open'); document.removeEventListener('click', handler); } }); }, 10);
 }
 function chatInsertEmoji(emoji) {
   var editor = document.getElementById('chatEditor');
   if (editor) { editor.focus(); document.execCommand('insertText', false, emoji); }
-  document.getElementById('chatEmojiPicker').style.display = 'none';
+  var picker = document.getElementById('chatEmojiPicker');
+  if (picker) picker.classList.remove('open');
 }
 async function chatUploadFiles(input, chId) {
   if (!input.files || !input.files.length) return;
