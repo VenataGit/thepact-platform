@@ -2991,37 +2991,43 @@ async function renderChatChannel(el, channelId) {
 
     // Build layout
     var sidebarHtml = _renderChatSidebar(channels);
+
+    // Basecamp-style profile header
     var headerHtml = '<div class="chat-hd">' +
-      '<div class="chat-hd__left">' +
-        '<button class="chat-hd__back" onclick="location.hash=\'#/chat\'">←</button>' +
-        '<div class="chat-hd__av">'+_chatAvatar(ch)+'</div>' +
-        '<div><div class="chat-hd__name">'+esc(name)+'</div>' +
-        (isGroup ? '<div class="chat-hd__meta">'+memberCount+' участника</div>' : '<div class="chat-hd__meta chat-hd__status" data-user-id="'+(others[0]?.id||'')+'"></div>') +
-      '</div></div>' +
-      (isGroup ? '<button class="chat-hd__settings" onclick="chatGroupSettings('+channelId+')">⚙️</button>' : '') +
+      '<button class="chat-hd__back" onclick="location.hash=\'#/chat\'">←</button>' +
+      (isGroup ? '<button class="chat-hd__settings" onclick="chatGroupSettings('+channelId+')">···</button>' : '') +
+      '<div class="chat-hd__av">'+_chatAvatar(ch)+'</div>' +
+      '<div class="chat-hd__name">'+esc(name)+'</div>' +
+      '<div class="chat-hd__meta">' +
+        (isGroup ? memberCount+' участника' : '') +
+      '</div>' +
     '</div>';
 
-    var msgsHtml = msgs.map(function(m){ return _renderChatMessage(m, channelId); }).join('');
+    // Messages with date dividers
+    var msgsHtml = _renderMessagesWithDividers(msgs, channelId);
 
-    var inputHtml = '<div class="chat-input" id="chatInputBar">' +
-      '<div class="chat-input__area">' +
-        '<div class="chat-input__editor" id="chatEditor" contenteditable="true" data-placeholder="Напиши съобщение..." onkeydown="chatInputKeydown(event,'+channelId+')" onpaste="chatPaste(event,'+channelId+')" oninput="chatInputChange('+channelId+')"></div>' +
+    // Basecamp-style input footer
+    var inputHtml = '<div class="chat-footer">' +
+      '<div class="chat-input" id="chatInputBar">' +
+        '<div class="chat-input__area">' +
+          '<div class="chat-input__editor" id="chatEditor" contenteditable="true" data-placeholder="Напиши съобщение..." onkeydown="chatInputKeydown(event,'+channelId+')" onpaste="chatPaste(event,'+channelId+')" oninput="chatInputChange('+channelId+')"></div>' +
+        '</div>' +
+        '<div class="chat-input__actions">' +
+          '<button class="chat-input__btn chat-input__btn--text" onclick="chatToggleFormatting()" title="Форматиране">A</button>' +
+          '<button class="chat-input__btn" onclick="chatToggleEmoji()" title="Емоджи">😊</button>' +
+          '<button class="chat-input__btn" onclick="document.getElementById(\'chatFileInput\').click()" title="Прикачи файл">📎</button>' +
+          '<input type="file" id="chatFileInput" multiple style="display:none" onchange="chatUploadFiles(this,'+channelId+')">' +
+        '</div>' +
       '</div>' +
-      '<div class="chat-input__actions">' +
-        '<button class="chat-input__btn" onclick="chatToggleFormatting()" title="Форматиране">T</button>' +
-        '<button class="chat-input__btn" onclick="chatToggleEmoji()" title="Емоджи">😊</button>' +
-        '<button class="chat-input__btn" onclick="document.getElementById(\'chatFileInput\').click()" title="Прикачи файл">📎</button>' +
-        '<input type="file" id="chatFileInput" multiple style="display:none" onchange="chatUploadFiles(this,'+channelId+')">' +
+      '<div class="chat-format-bar" id="chatFormatBar" style="display:none">' +
+        '<button onmousedown="event.preventDefault();document.execCommand(\'bold\')"><b>B</b></button>' +
+        '<button onmousedown="event.preventDefault();document.execCommand(\'italic\')"><i>I</i></button>' +
+        '<button onmousedown="event.preventDefault();document.execCommand(\'strikeThrough\')"><s>S</s></button>' +
+        '<button onmousedown="event.preventDefault();document.execCommand(\'insertUnorderedList\')">• List</button>' +
+        '<button onmousedown="event.preventDefault();chatInsertLink()">🔗</button>' +
       '</div>' +
+      '<div class="chat-emoji-picker" id="chatEmojiPicker" style="display:none"></div>' +
     '</div>' +
-    '<div class="chat-format-bar" id="chatFormatBar" style="display:none">' +
-      '<button onmousedown="event.preventDefault();document.execCommand(\'bold\')"><b>B</b></button>' +
-      '<button onmousedown="event.preventDefault();document.execCommand(\'italic\')"><i>I</i></button>' +
-      '<button onmousedown="event.preventDefault();document.execCommand(\'strikeThrough\')"><s>S</s></button>' +
-      '<button onmousedown="event.preventDefault();document.execCommand(\'insertUnorderedList\')">• List</button>' +
-      '<button onmousedown="event.preventDefault();chatInsertLink()">🔗</button>' +
-    '</div>' +
-    '<div class="chat-emoji-picker" id="chatEmojiPicker" style="display:none"></div>' +
     '<div class="chat-typing" id="chatTyping"></div>';
 
     el.innerHTML = '<div class="chat-layout">' +
@@ -3049,6 +3055,7 @@ function _renderChatMessage(m, channelId) {
   }
   var av = m.user_avatar ? '<img src="'+m.user_avatar+'" class="chat-av-img">' : '<div class="chat-av-initials" style="background:'+_chatColor(m.user_id)+'">'+initials(m.user_name)+'</div>';
   var time = new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'});
+  var displayName = isOwn ? 'Me' : esc(m.user_name);
   var contentHtml = '';
   if (m.message_type === 'attachment' && m.attachment_url) {
     var isImage = (m.attachment_mime||'').startsWith('image/');
@@ -3062,12 +3069,60 @@ function _renderChatMessage(m, channelId) {
     contentHtml = '<div class="chat-msg-text">'+_chatFormatText(m.content)+'</div>';
   }
   return '<div class="chat-msg'+(isOwn?' chat-msg--own':' chat-msg--other')+'" data-msg-id="'+m.id+'">' +
-    (!isOwn ? '<div class="chat-msg-av">'+av+'</div>' : '') +
+    '<div class="chat-msg-av">'+av+'</div>' +
     '<div class="chat-msg-body">' +
-      (!isOwn ? '<div class="chat-msg-name">'+esc(m.user_name)+' <span class="chat-msg-time">'+time+'</span></div>' : '<div class="chat-msg-time-own">'+time+'</div>') +
+      '<div class="chat-msg-meta"><span class="chat-msg-name">'+displayName+'</span><span class="chat-msg-time">'+time+'</span></div>' +
       contentHtml +
+      '<div class="chat-msg-reactions"><button class="chat-msg-boost-trigger" onclick="chatBoostMsg('+m.id+',this)" title="Реагирай">😊</button></div>' +
     '</div>' +
   '</div>';
+}
+function _renderDateDivider(dateStr) {
+  var d = new Date(dateStr);
+  var opts = {weekday:'long', day:'numeric', month:'long', year:'numeric'};
+  var label = d.toLocaleDateString('bg-BG', opts);
+  return '<div class="chat-date-divider"><span>'+label+'</span></div>';
+}
+function _renderMessagesWithDividers(msgs, channelId) {
+  var html = '', lastDate = '';
+  msgs.forEach(function(m) {
+    var msgDate = (m.created_at||'').split('T')[0];
+    if (msgDate && msgDate !== lastDate) {
+      html += _renderDateDivider(msgDate+'T00:00:00');
+      lastDate = msgDate;
+    }
+    html += _renderChatMessage(m, channelId);
+  });
+  return html;
+}
+function chatBoostMsg(msgId, btn) {
+  var boostEmojis = ['❤️','👍','🔥','😂','🎉','👏'];
+  var existing = btn.closest('.chat-msg-reactions').querySelector('.chat-boost-picker');
+  if (existing) { existing.remove(); return; }
+  var picker = document.createElement('div');
+  picker.className = 'chat-boost-picker';
+  picker.style.cssText = 'display:flex;gap:2px;padding:4px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.3);position:absolute;z-index:50';
+  picker.innerHTML = boostEmojis.map(function(e){ return '<button style="border:none;background:none;font-size:18px;cursor:pointer;padding:2px 4px;border-radius:4px" onmousedown="event.preventDefault()" onclick="chatAddReaction('+msgId+',\''+e+'\',this)">'+e+'</button>'; }).join('');
+  btn.parentElement.style.position = 'relative';
+  btn.parentElement.appendChild(picker);
+  setTimeout(function(){ document.addEventListener('click', function handler(){ picker.remove(); document.removeEventListener('click', handler); }); }, 10);
+}
+function chatAddReaction(msgId, emoji, btn) {
+  // Visual-only reaction for now
+  var picker = btn.closest('.chat-boost-picker');
+  var reactions = picker.parentElement;
+  picker.remove();
+  var existing = reactions.querySelector('.chat-msg-react-btn[data-emoji="'+emoji+'"]');
+  if (existing) {
+    var cnt = existing.querySelector('.chat-msg-react-count');
+    cnt.textContent = parseInt(cnt.textContent||'1') + 1;
+  } else {
+    var rb = document.createElement('button');
+    rb.className = 'chat-msg-react-btn active';
+    rb.dataset.emoji = emoji;
+    rb.innerHTML = emoji + '<span class="chat-msg-react-count">1</span>';
+    reactions.insertBefore(rb, reactions.querySelector('.chat-msg-boost-trigger'));
+  }
 }
 function _chatFormatText(text) {
   if (!text) return '';
