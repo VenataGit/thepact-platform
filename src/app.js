@@ -35,10 +35,9 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Rate limiting (skip in test env)
+// Rate limiting — only on auth (brute-force protection)
 if (process.env.NODE_ENV !== 'test') {
-  app.use('/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 30, message: { error: 'Too many requests' } }));
-  app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 1500, message: { error: 'Too many requests' } }));
+  app.use('/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 50, message: { error: 'Too many requests' } }));
 }
 
 // Static files with smart caching
