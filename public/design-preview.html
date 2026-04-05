@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Design Preview — ThePact</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================
+   BASE — same variables as the real platform
+   ============================================ */
+:root {
+  --bg: #0b151b;
+  --bg-card: #1b2930;
+  --bg-elevated: #1e3040;
+  --bg-hover: #243848;
+  --bg-active: #2c4858;
+  --border: #1e3040;
+  --border-hover: #2c4858;
+  --text: #e8ecee;
+  --text-secondary: #8fa3b0;
+  --text-dim: #566d7a;
+  --accent: #1cb0f6;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --red: #ef4444;
+  --orange: #f97316;
+  --blue: #3b82f6;
+  color-scheme: dark;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Inter', -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================
+   STYLE PICKER — fixed top bar
+   ============================================ */
+.picker-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: #0d1a22; border-bottom: 1px solid var(--border);
+  padding: 12px 20px; display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap;
+}
+.picker-bar__title {
+  font-size: 14px; font-weight: 700; color: #fff;
+  margin-right: 12px; white-space: nowrap;
+}
+.style-btn {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 16px; color: var(--text-secondary);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; font-family: inherit;
+}
+.style-btn:hover { border-color: var(--accent); color: var(--accent); }
+.style-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.style-desc {
+  flex-basis: 100%; margin-top: 6px;
+  font-size: 12px; color: var(--text-dim); line-height: 1.5;
+}
+
+/* ============================================
+   PREVIEW AREA
+   ============================================ */
+.preview-area { padding: 16px; }
+
+/* ============================================
+   VARIANT A — "Current" (what you have now)
+   ============================================ */
+.variant-a .dp-board { display: flex; gap: 8px; min-height: 70vh; }
+.variant-a .dp-col {
+  flex: 1; min-width: 0; background: var(--bg-card); border-radius: 10px;
+  border: 1px solid var(--border); display: flex; flex-direction: column;
+}
+.variant-a .dp-col-header {
+  display: flex; justify-content: center; align-items: center; gap: 10px;
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+}
+.variant-a .dp-col-title {
+  font-size: 14px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: #fff;
+}
+.variant-a .dp-col-count {
+  background: var(--bg); padding: 2px 10px; border-radius: 12px;
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+}
+.variant-a .dp-col-body { flex: 1; overflow-y: auto; padding: 8px; display: flex; gap: 6px; }
+.variant-a .dp-subcol {
+  flex: 1; background: var(--bg-elevated); border-radius: 6px;
+  padding: 0 6px 6px; display: flex; flex-direction: column;
+}
+.variant-a .dp-subcol-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 8px 8px; font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--text);
+  border-bottom: 1px solid var(--border); margin-bottom: 8px;
+}
+.variant-a .dp-subcol-count {
+  font-size: 11px; font-weight: 700; color: var(--text-secondary);
+  background: var(--bg); padding: 1px 8px; border-radius: 10px;
+}
+.variant-a .dp-cards { display: flex; flex-direction: column; gap: 4px; }
+.variant-a .dp-card {
+  display: block; background: var(--bg); border-radius: 6px;
+  border-left: 3px solid transparent; padding: 8px 10px;
+  text-decoration: none; color: var(--text); cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.variant-a .dp-card:hover { transform: translateY(-2px); box-shadow: 0 3px 10px rgba(0,0,0,0.28); }
+.variant-a .dp-card__title { font-size: 12px; font-weight: 500; line-height: 1.3; color: #fff; margin-bottom: 4px; }
+.variant-a .dp-card__footer { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--text-dim); }
+.variant-a .dp-card__right { display: flex; align-items: center; gap: 8px; }
+.variant-a .dp-card__date { font-size: 11px; }
+.variant-a .dp-card__steps, .variant-a .dp-card__assignee { font-size: 10px; color: var(--text-secondary); }
+/* deadline colors */
+.variant-a .dp-card.dl-green  { border-left-color: var(--green);  background: rgba(45,165,98,0.35); }
+.variant-a .dp-card.dl-yellow { border-left-color: var(--yellow); background: rgba(234,179,8,0.38); }
+.variant-a .dp-card.dl-red    { border-left-color: var(--red);    background: rgba(239,68,68,0.35); }
+.variant-a .dp-card.dl-black  { border-left-color: #888;          background: rgba(0,0,0,0.45); }
+.variant-a .dp-card.dl-none   { border-left-color: #8899a6;       background: rgba(136,153,166,0.12); }
+.variant-a .dp-badge { display: inline-flex; font-size: 10px; font-weight: 600; padding: 2px 5px; border-radius: 4px; }
+.variant-a .dp-badge.dl-green  { color: #fff; background: rgba(45,165,98,0.6); }
+.variant-a .dp-badge.dl-yellow { color: #fff; background: rgba(180,130,0,0.7); }
+.variant-a .dp-badge.dl-red    { color: #fff; background: rgba(239,68,68,0.6); }
+.variant-a .dp-badge.dl-black  { color: var(--text-dim); background: rgba(0,0,0,0.4); }
+.variant-a .dp-badge.dl-none   { color: var(--text-dim); background: rgba(136,153,166,0.2); }
+
+/* ============================================
+   VARIANT B — "Glass" — frosted glass panels
+   ============================================ */
+.variant-b .dp-board { display: flex; gap: 10px; min-height: 70vh; }
+.variant-b .dp-col {
+  flex: 1; min-width: 0;
+  background: rgba(30, 48, 64, 0.45); backdrop-filter: blur(16px);
+  border-radius: 14px; border: 1px solid rgba(255,255,255,0.06);
+  display: flex; flex-direction: column;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+}
+.variant-b .dp-col-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.variant-b .dp-col-title {
+  font-size: 13px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; color: rgba(255,255,255,0.85);
+}
+.variant-b .dp-col-count {
+  background: rgba(255,255,255,0.08); padding: 3px 12px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.5);
+}
+.variant-b .dp-col-body { flex: 1; overflow-y: auto; padding: 10px; display: flex; gap: 8px; }
+.variant-b .dp-subcol {
+  flex: 1; background: rgba(0,0,0,0.15); border-radius: 10px;
+  padding: 0 8px 8px; display: flex; flex-direction: column;
+}
+.variant-b .dp-subcol-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 8px 10px; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.5);
+  margin-bottom: 8px;
+}
+.variant-b .dp-subcol-count {
+  font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.06); padding: 2px 10px; border-radius: 12px;
+}
+.variant-b .dp-cards { display: flex; flex-direction: column; gap: 6px; }
+.variant-b .dp-card {
+  background: rgba(11, 21, 27, 0.6); backdrop-filter: blur(8px);
+  border-radius: 10px; border: 1px solid rgba(255,255,255,0.04);
+  border-left: 3px solid transparent; padding: 10px 12px;
+  cursor: pointer; transition: all 0.2s;
+}
+.variant-b .dp-card:hover { background: rgba(11, 21, 27, 0.8); border-color: rgba(255,255,255,0.08); transform: translateY(-1px); }
+.variant-b .dp-card__title { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.9); margin-bottom: 6px; line-height: 1.35; }
+.variant-b .dp-card__footer { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.35); }
+.variant-b .dp-card__right { display: flex; align-items: center; gap: 8px; }
+.variant-b .dp-card__steps, .variant-b .dp-card__assignee { font-size: 10px; color: rgba(255,255,255,0.3); }
+.variant-b .dp-card.dl-green  { border-left-color: var(--green); }
+.variant-b .dp-card.dl-yellow { border-left-color: var(--yellow); }
+.variant-b .dp-card.dl-red    { border-left-color: var(--red); }
+.variant-b .dp-card.dl-black  { border-left-color: #666; }
+.variant-b .dp-card.dl-none   { border-left-color: rgba(255,255,255,0.08); }
+.variant-b .dp-badge { display: inline-flex; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 6px; backdrop-filter: blur(4px); }
+.variant-b .dp-badge.dl-green  { color: #6ee7a0; background: rgba(34,197,94,0.15); }
+.variant-b .dp-badge.dl-yellow { color: #fbbf24; background: rgba(234,179,8,0.15); }
+.variant-b .dp-badge.dl-red    { color: #fca5a5; background: rgba(239,68,68,0.15); }
+.variant-b .dp-badge.dl-black  { color: #888; background: rgba(0,0,0,0.2); }
+.variant-b .dp-badge.dl-none   { color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); }
+
+/* ============================================
+   VARIANT C — "Compact" — dense, tight rows
+   ============================================ */
+.variant-c .dp-board { display: flex; gap: 6px; min-height: 70vh; }
+.variant-c .dp-col {
+  flex: 1; min-width: 0; background: var(--bg-card);
+  border-radius: 8px; border: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.variant-c .dp-col-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+}
+.variant-c .dp-col-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); }
+.variant-c .dp-col-count { font-size: 11px; font-weight: 700; color: var(--text-dim); }
+.variant-c .dp-col-body { flex: 1; overflow-y: auto; padding: 4px; display: flex; gap: 4px; }
+.variant-c .dp-subcol {
+  flex: 1; background: transparent; padding: 0 4px 4px;
+  display: flex; flex-direction: column;
+}
+.variant-c .dp-subcol-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 4px 5px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim);
+  border-bottom: 1px solid rgba(255,255,255,0.04); margin-bottom: 4px;
+}
+.variant-c .dp-subcol-count { font-size: 10px; font-weight: 700; color: var(--text-dim); }
+.variant-c .dp-cards { display: flex; flex-direction: column; gap: 1px; }
+.variant-c .dp-card {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.02); border-radius: 4px;
+  border-left: 3px solid transparent; padding: 5px 8px;
+  cursor: pointer; transition: background 0.1s;
+}
+.variant-c .dp-card:hover { background: rgba(255,255,255,0.06); }
+.variant-c .dp-card__title { font-size: 11px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.variant-c .dp-card__footer { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.variant-c .dp-card__right { display: flex; align-items: center; gap: 6px; }
+.variant-c .dp-card__steps, .variant-c .dp-card__assignee { font-size: 9px; color: var(--text-dim); }
+.variant-c .dp-card.dl-green  { border-left-color: var(--green); }
+.variant-c .dp-card.dl-yellow { border-left-color: var(--yellow); }
+.variant-c .dp-card.dl-red    { border-left-color: var(--red); }
+.variant-c .dp-card.dl-black  { border-left-color: #888; }
+.variant-c .dp-card.dl-none   { border-left-color: transparent; }
+.variant-c .dp-badge { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
+.variant-c .dp-badge.dl-green  { color: var(--green); background: rgba(34,197,94,0.12); }
+.variant-c .dp-badge.dl-yellow { color: var(--yellow); background: rgba(234,179,8,0.12); }
+.variant-c .dp-badge.dl-red    { color: var(--red); background: rgba(239,68,68,0.12); }
+.variant-c .dp-badge.dl-black  { color: #888; background: rgba(0,0,0,0.3); }
+.variant-c .dp-badge.dl-none   { display: none; }
+
+/* ============================================
+   VARIANT D — "Stripe" — top color bar per board
+   ============================================ */
+.variant-d .dp-board { display: flex; gap: 10px; min-height: 70vh; }
+.variant-d .dp-col {
+  flex: 1; min-width: 0; background: var(--bg-card);
+  border-radius: 12px; border: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.variant-d .dp-col:nth-child(1) .dp-col-header { border-top: 3px solid var(--blue); }
+.variant-d .dp-col:nth-child(2) .dp-col-header { border-top: 3px solid var(--orange); }
+.variant-d .dp-col:nth-child(3) .dp-col-header { border-top: 3px solid #a78bfa; }
+.variant-d .dp-col:nth-child(4) .dp-col-header { border-top: 3px solid var(--green); }
+.variant-d .dp-col-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px; background: rgba(0,0,0,0.15);
+}
+.variant-d .dp-col-title { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 0.02em; }
+.variant-d .dp-col-count {
+  font-size: 12px; font-weight: 800; color: var(--text-dim);
+  background: rgba(255,255,255,0.06); padding: 3px 12px; border-radius: 20px;
+}
+.variant-d .dp-col-body { flex: 1; overflow-y: auto; padding: 8px; display: flex; gap: 8px; }
+.variant-d .dp-subcol {
+  flex: 1; background: var(--bg-elevated); border-radius: 8px;
+  padding: 0 8px 8px; display: flex; flex-direction: column;
+}
+.variant-d .dp-subcol-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 6px 8px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.variant-d .dp-subcol-count { font-size: 11px; font-weight: 700; color: var(--text-dim); }
+.variant-d .dp-cards { display: flex; flex-direction: column; gap: 5px; }
+.variant-d .dp-card {
+  background: var(--bg); border-radius: 8px;
+  border-left: 4px solid transparent; padding: 10px 12px;
+  cursor: pointer; transition: all 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.variant-d .dp-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
+.variant-d .dp-card__title { font-size: 12.5px; font-weight: 500; color: #fff; margin-bottom: 6px; line-height: 1.35; }
+.variant-d .dp-card__footer { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--text-dim); }
+.variant-d .dp-card__right { display: flex; align-items: center; gap: 8px; }
+.variant-d .dp-card__steps, .variant-d .dp-card__assignee { font-size: 10px; color: var(--text-secondary); }
+.variant-d .dp-card.dl-green  { border-left-color: var(--green);  background: rgba(34,197,94,0.06); }
+.variant-d .dp-card.dl-yellow { border-left-color: var(--yellow); background: rgba(234,179,8,0.06); }
+.variant-d .dp-card.dl-red    { border-left-color: var(--red);    background: rgba(239,68,68,0.08); }
+.variant-d .dp-card.dl-black  { border-left-color: #888;          background: rgba(0,0,0,0.25); }
+.variant-d .dp-card.dl-none   { border-left-color: #2c4858;       background: rgba(255,255,255,0.02); }
+.variant-d .dp-badge { display: inline-flex; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+.variant-d .dp-badge.dl-green  { color: #fff; background: rgba(34,197,94,0.45); }
+.variant-d .dp-badge.dl-yellow { color: #fff; background: rgba(180,130,0,0.55); }
+.variant-d .dp-badge.dl-red    { color: #fff; background: rgba(239,68,68,0.5); }
+.variant-d .dp-badge.dl-black  { color: #999; background: rgba(0,0,0,0.35); }
+.variant-d .dp-badge.dl-none   { color: var(--text-dim); background: rgba(255,255,255,0.04); }
+
+/* ============================================
+   VARIANT E — "Flat Minimal" — clean, airy
+   ============================================ */
+.variant-e .dp-board { display: flex; gap: 12px; min-height: 70vh; }
+.variant-e .dp-col {
+  flex: 1; min-width: 0; background: transparent;
+  display: flex; flex-direction: column;
+}
+.variant-e .dp-col-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 4px 12px; border-bottom: 2px solid var(--border-hover);
+}
+.variant-e .dp-col-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-secondary); }
+.variant-e .dp-col-count { font-size: 12px; font-weight: 600; color: var(--text-dim); }
+.variant-e .dp-col-body { flex: 1; overflow-y: auto; padding: 10px 0; display: flex; gap: 10px; }
+.variant-e .dp-subcol {
+  flex: 1; background: transparent; padding: 0;
+  display: flex; flex-direction: column;
+}
+.variant-e .dp-subcol-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 0 8px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.variant-e .dp-subcol-count { font-size: 10px; font-weight: 700; color: var(--text-dim); }
+.variant-e .dp-cards { display: flex; flex-direction: column; gap: 6px; }
+.variant-e .dp-card {
+  background: var(--bg-card); border-radius: 8px;
+  border: 1px solid var(--border); border-left: 3px solid transparent;
+  padding: 10px 14px; cursor: pointer; transition: all 0.2s;
+}
+.variant-e .dp-card:hover { background: var(--bg-hover); border-color: var(--border-hover); }
+.variant-e .dp-card__title { font-size: 13px; font-weight: 500; color: #fff; margin-bottom: 6px; line-height: 1.4; }
+.variant-e .dp-card__footer { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--text-dim); }
+.variant-e .dp-card__right { display: flex; align-items: center; gap: 10px; }
+.variant-e .dp-card__steps, .variant-e .dp-card__assignee { font-size: 10px; color: var(--text-secondary); }
+.variant-e .dp-card.dl-green  { border-left-color: var(--green); }
+.variant-e .dp-card.dl-yellow { border-left-color: var(--yellow); }
+.variant-e .dp-card.dl-red    { border-left-color: var(--red); }
+.variant-e .dp-card.dl-black  { border-left-color: #666; }
+.variant-e .dp-card.dl-none   { border-left-color: transparent; }
+.variant-e .dp-badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+.variant-e .dp-badge.dl-green  { color: var(--green); background: transparent; }
+.variant-e .dp-badge.dl-yellow { color: var(--yellow); background: transparent; }
+.variant-e .dp-badge.dl-red    { color: var(--red); background: transparent; }
+.variant-e .dp-badge.dl-black  { color: #888; background: transparent; }
+.variant-e .dp-badge.dl-none   { display: none; }
+
+/* ============================================
+   VARIANT F — "Gradient Glow" — vivid, gradient headers
+   ============================================ */
+.variant-f .dp-board { display: flex; gap: 10px; min-height: 70vh; }
+.variant-f .dp-col {
+  flex: 1; min-width: 0; background: var(--bg-card);
+  border-radius: 14px; border: 1px solid rgba(255,255,255,0.04);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.variant-f .dp-col:nth-child(1) .dp-col-header { background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(59,130,246,0.05)); }
+.variant-f .dp-col:nth-child(2) .dp-col-header { background: linear-gradient(135deg, rgba(249,115,22,0.25), rgba(249,115,22,0.05)); }
+.variant-f .dp-col:nth-child(3) .dp-col-header { background: linear-gradient(135deg, rgba(167,139,250,0.25), rgba(167,139,250,0.05)); }
+.variant-f .dp-col:nth-child(4) .dp-col-header { background: linear-gradient(135deg, rgba(34,197,94,0.25), rgba(34,197,94,0.05)); }
+.variant-f .dp-col-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 18px;
+}
+.variant-f .dp-col:nth-child(1) .dp-col-title { color: #93bbfd; }
+.variant-f .dp-col:nth-child(2) .dp-col-title { color: #fdba74; }
+.variant-f .dp-col:nth-child(3) .dp-col-title { color: #c4b5fd; }
+.variant-f .dp-col:nth-child(4) .dp-col-title { color: #86efac; }
+.variant-f .dp-col-title { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+.variant-f .dp-col-count {
+  font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.5);
+  background: rgba(0,0,0,0.2); padding: 3px 12px; border-radius: 20px;
+}
+.variant-f .dp-col-body { flex: 1; overflow-y: auto; padding: 10px; display: flex; gap: 8px; }
+.variant-f .dp-subcol {
+  flex: 1; background: rgba(0,0,0,0.12); border-radius: 10px;
+  padding: 0 8px 8px; display: flex; flex-direction: column;
+}
+.variant-f .dp-subcol-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 6px 8px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.45);
+  margin-bottom: 8px;
+}
+.variant-f .dp-subcol-count { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.3); }
+.variant-f .dp-cards { display: flex; flex-direction: column; gap: 5px; }
+.variant-f .dp-card {
+  background: rgba(11,21,27,0.6); border-radius: 10px;
+  border-left: 3px solid transparent; padding: 10px 12px;
+  cursor: pointer; transition: all 0.2s;
+}
+.variant-f .dp-card:hover { background: rgba(11,21,27,0.85); box-shadow: 0 0 20px rgba(0,0,0,0.3); }
+.variant-f .dp-card__title { font-size: 12.5px; font-weight: 500; color: rgba(255,255,255,0.9); margin-bottom: 5px; line-height: 1.35; }
+.variant-f .dp-card__footer { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,0.3); }
+.variant-f .dp-card__right { display: flex; align-items: center; gap: 8px; }
+.variant-f .dp-card__steps, .variant-f .dp-card__assignee { font-size: 10px; color: rgba(255,255,255,0.25); }
+.variant-f .dp-card.dl-green  { border-left-color: var(--green); }
+.variant-f .dp-card.dl-yellow { border-left-color: var(--yellow); }
+.variant-f .dp-card.dl-red    { border-left-color: var(--red); }
+.variant-f .dp-card.dl-black  { border-left-color: #555; }
+.variant-f .dp-card.dl-none   { border-left-color: rgba(255,255,255,0.05); }
+.variant-f .dp-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; }
+.variant-f .dp-badge.dl-green  { color: #6ee7a0; background: rgba(34,197,94,0.18); }
+.variant-f .dp-badge.dl-yellow { color: #fbbf24; background: rgba(234,179,8,0.18); }
+.variant-f .dp-badge.dl-red    { color: #fca5a5; background: rgba(239,68,68,0.18); }
+.variant-f .dp-badge.dl-black  { color: #888; background: rgba(0,0,0,0.25); }
+.variant-f .dp-badge.dl-none   { color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.04); }
+</style>
+</head>
+<body>
+
+<div class="picker-bar">
+  <span class="picker-bar__title">Избери дизайн:</span>
+  <button class="style-btn active" onclick="setVariant('a')">A — Текущ</button>
+  <button class="style-btn" onclick="setVariant('b')">B — Glass</button>
+  <button class="style-btn" onclick="setVariant('c')">C — Compact</button>
+  <button class="style-btn" onclick="setVariant('d')">D — Stripe</button>
+  <button class="style-btn" onclick="setVariant('e')">E — Flat</button>
+  <button class="style-btn" onclick="setVariant('f')">F — Gradient</button>
+  <div class="style-desc" id="styleDesc">Текущият дизайн на Dashboard-а — тъмни панели, border-left deadline цветове, компактни карти.</div>
+</div>
+
+<div class="preview-area" id="previewArea"></div>
+
+<script>
+var DESCRIPTIONS = {
+  a: 'Текущият дизайн на Dashboard-а — тъмни панели, border-left deadline цветове, компактни карти.',
+  b: 'Glass ефект — полупрозрачни панели с blur, по-меки цветове, елегантен вид. Картите са по-отделени.',
+  c: 'Компактен — картите са в един ред (title + дата + assignee), побира много повече информация на екран. Минимален дизайн.',
+  d: 'Stripe — цветна горна ивица на всеки борд (синя, оранжева, лилава, зелена), по-големи карти с shadow.',
+  e: 'Flat Minimal — без рамки на бордовете, чист и въздушен дизайн, фокус само върху съдържанието.',
+  f: 'Gradient Glow — gradient headers с цвят на борда, тъмни карти, по-жив и модерен вид.'
+};
+
+var BOARDS = [
+  {
+    title: 'Pre-Production',
+    cols: [
+      { title: 'Измисляне', cards: [
+        { title: 'Credissimo КП-4', dl: 'dl-red', date: '05 апр', steps: '2/5', assignee: 'Марияi' },
+        { title: 'ЕКОПАК КП-7', dl: 'dl-yellow', date: '08 апр', steps: '0/5', assignee: 'Захари' },
+        { title: 'GStroy КП-3', dl: 'dl-green', date: '14 апр', steps: '1/5', assignee: 'Кристина' },
+        { title: 'Fornetti КП-2', dl: 'dl-none', date: '', steps: '', assignee: 'Мирела' },
+      ]},
+      { title: 'Към клиент', cards: [
+        { title: 'Beauty Sector КП-5', dl: 'dl-black', date: '01 апр', steps: '4/5', assignee: 'Марияi' },
+        { title: 'KeySoo КП-3', dl: 'dl-yellow', date: '09 апр', steps: '3/5', assignee: 'Никола' },
+      ]},
+    ]
+  },
+  {
+    title: 'Production',
+    cols: [
+      { title: 'Разпределение', cards: [
+        { title: 'Credissimo Видео 3 — Brand Story', dl: 'dl-red', date: '05 апр', steps: '1/5', assignee: 'Захари' },
+        { title: 'ЕКОПАК Видео 1 — Behind the Scenes', dl: 'dl-green', date: '15 апр', steps: '0/5', assignee: '' },
+      ]},
+      { title: 'Заснемане', cards: [
+        { title: 'GStroy Видео 2 — Office Tour', dl: 'dl-yellow', date: '07 апр', steps: '2/5', assignee: 'Никола' },
+        { title: 'Beauty Sector Видео 4 — Tutorial', dl: 'dl-red', date: '04 апр', steps: '3/5', assignee: 'Захари' },
+        { title: 'Fornetti Видео 1 — Product Launch', dl: 'dl-green', date: '12 апр', steps: '1/5', assignee: 'Кристина' },
+      ]},
+    ]
+  },
+  {
+    title: 'Post-Production',
+    cols: [
+      { title: 'Монтаж', cards: [
+        { title: 'KeySoo Видео 2 — Unboxing', dl: 'dl-black', date: '02 апр', steps: '4/5', assignee: 'Захари' },
+        { title: 'Credissimo Видео 1 — Testimonial', dl: 'dl-yellow', date: '09 апр', steps: '3/5', assignee: 'Никола' },
+        { title: 'GStroy Видео 1 — Intro', dl: 'dl-none', date: '', steps: '2/5', assignee: 'Мирела' },
+      ]},
+      { title: 'Корекции', cards: [
+        { title: 'Beauty Sector Видео 2 — Before/After', dl: 'dl-red', date: '05 апр', steps: '4/5', assignee: 'Захари' },
+      ]},
+    ]
+  },
+  {
+    title: 'Акаунт Мениджмънт',
+    cols: [
+      { title: 'За изпращане', cards: [
+        { title: 'Credissimo Видео 2 — FAQ', dl: 'dl-green', date: '14 апр', steps: '5/5', assignee: 'Марияi' },
+        { title: 'KeySoo Видео 1 — Promo', dl: 'dl-yellow', date: '08 апр', steps: '5/5', assignee: 'Кристина' },
+      ]},
+      { title: 'Изпратено', cards: [
+        { title: 'ЕКОПАК Видео 5 — Sustainability', dl: 'dl-none', date: '', steps: '5/5', assignee: 'Мирела' },
+        { title: 'Fornetti Видео 3 — Recipe', dl: 'dl-black', date: '30 мар', steps: '5/5', assignee: 'Никола' },
+        { title: 'GStroy Видео 4 — Timelapse', dl: 'dl-green', date: '18 апр', steps: '5/5', assignee: 'Марияi' },
+      ]},
+    ]
+  },
+];
+
+function renderBoard(variant) {
+  var isCompact = variant === 'c';
+  return '<div class="variant-' + variant + '">' +
+    '<div class="dp-board">' +
+    BOARDS.map(function(board) {
+      var totalCards = board.cols.reduce(function(s, c) { return s + c.cards.length; }, 0);
+      var subColsHtml = board.cols.map(function(col) {
+        var cardsHtml = col.cards.map(function(card) {
+          if (isCompact) {
+            return '<div class="dp-card ' + card.dl + '">' +
+              '<div class="dp-card__title">' + card.title + '</div>' +
+              '<div class="dp-card__footer">' +
+                (card.date ? '<span class="dp-badge ' + card.dl + '">' + card.date + '</span>' : '') +
+                '<div class="dp-card__right">' +
+                  (card.steps ? '<span class="dp-card__steps">' + card.steps + '</span>' : '') +
+                  (card.assignee ? '<span class="dp-card__assignee">' + card.assignee + '</span>' : '') +
+                '</div>' +
+              '</div>' +
+            '</div>';
+          }
+          return '<div class="dp-card ' + card.dl + '">' +
+            '<div class="dp-card__title">' + card.title + '</div>' +
+            '<div class="dp-card__footer">' +
+              (card.date ? '<span class="dp-badge ' + card.dl + '">' + card.date + '</span>' : '<span></span>') +
+              '<div class="dp-card__right">' +
+                (card.steps ? '<span class="dp-card__steps">\u2713 ' + card.steps + '</span>' : '') +
+                (card.assignee ? '<span class="dp-card__assignee">' + card.assignee + '</span>' : '') +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+
+        return '<div class="dp-subcol">' +
+          '<div class="dp-subcol-header">' +
+            '<span>' + col.title + '</span>' +
+            '<span class="dp-subcol-count">' + col.cards.length + '</span>' +
+          '</div>' +
+          '<div class="dp-cards">' + cardsHtml + '</div>' +
+        '</div>';
+      }).join('');
+
+      return '<div class="dp-col">' +
+        '<div class="dp-col-header">' +
+          '<span class="dp-col-title">' + board.title + '</span>' +
+          '<span class="dp-col-count">' + totalCards + '</span>' +
+        '</div>' +
+        '<div class="dp-col-body">' + subColsHtml + '</div>' +
+      '</div>';
+    }).join('') +
+    '</div></div>';
+}
+
+var currentVariant = 'a';
+
+function setVariant(v) {
+  currentVariant = v;
+  document.getElementById('previewArea').innerHTML = renderBoard(v);
+  document.getElementById('styleDesc').textContent = DESCRIPTIONS[v];
+  document.querySelectorAll('.style-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.textContent.toLowerCase().indexOf(v) === 0);
+  });
+}
+
+// Initial render
+setVariant('a');
+</script>
+</body>
+</html>
