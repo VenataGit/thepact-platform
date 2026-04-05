@@ -7,41 +7,24 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0b151b;
-  --bg-card: #1b2930;
-  --bg-elevated: #1e3040;
-  --bg-hover: #243848;
-  --border: #1e3040;
-  --border-hover: #2c4858;
-  --text: #e8ecee;
-  --text-secondary: #8fa3b0;
-  --text-dim: #566d7a;
-  --accent: #1cb0f6;
-  --accent-dim: rgba(28,176,246,0.12);
-  --green: #22c55e;
-  --yellow: #eab308;
-  --red: #ef4444;
-  --orange: #f97316;
-  --blue: #3b82f6;
+  --bg: #0b151b; --bg-card: #1b2930; --bg-elevated: #1e3040;
+  --bg-hover: #243848; --border: #1e3040; --border-hover: #2c4858;
+  --text: #e8ecee; --text-secondary: #8fa3b0; --text-dim: #566d7a;
+  --accent: #1cb0f6; --green: #22c55e; --red: #ef4444;
   color-scheme: dark;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  background: var(--bg); color: var(--text);
-  font-family: 'Inter', -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
 .picker-bar {
-  position: sticky; top: 0; z-index: 100;
-  background: #0d1a22; border-bottom: 1px solid var(--border);
-  padding: 14px 24px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 100; background: #0d1a22;
+  border-bottom: 1px solid var(--border); padding: 14px 24px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .picker-bar__title { font-size: 14px; font-weight: 700; color: #fff; margin-right: 10px; }
 .style-btn {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 8px; padding: 8px 14px; color: var(--text-secondary);
-  font-size: 12px; font-weight: 600; cursor: pointer;
-  transition: all 0.2s; font-family: inherit;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 14px; color: var(--text-secondary); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; font-family: inherit;
 }
 .style-btn:hover { border-color: var(--accent); color: var(--accent); }
 .style-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -49,228 +32,213 @@ body {
 .preview-wrap { max-width: 1100px; margin: 30px auto; padding: 0 24px; }
 .preview-section { background: var(--bg-card); border-radius: 12px; padding: 28px 32px 36px; }
 .section-label { font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
-.board-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.bg { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
 
 /* ============================================
-   A — ТЕКУЩ
+   1 — DIAGONAL SLICE
+   Диагонална линия разделя цветна и тъмна зона
    ============================================ */
-.va .bc {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #1e3a4a 0%, #1a2f3d 50%, #1d2d35 100%);
-  border: 1px solid var(--border); border-radius: 16px;
-  padding: 20px; min-height: 120px; text-align: center;
-  cursor: pointer; transition: all 0.15s; box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+.v1 .c {
+  position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+  background: var(--bg-card); border-radius: 14px; padding: 18px; min-height: 120px;
+  cursor: pointer; transition: all 0.2s; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.25);
 }
-.va .bc:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.4); transform: translateY(-3px); }
-.va .bc__t { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 8px; }
-.va .bc__s { font-size: 12px; color: var(--text-dim); }
-.va .bc__b { display: none; }
-.va .bc--n { border-style: dashed; opacity: 0.5; }
+.v1 .c::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 55%;
+  background: rgba(28,176,246,0.1); clip-path: polygon(0 0, 100% 0, 100% 60%, 0 100%);
+}
+.v1 .c:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(0,0,0,.4); }
+.v1 .c__t { font-size: 14px; font-weight: 800; color: #fff; margin-bottom: 4px; position: relative; }
+.v1 .c__s { font-size: 11px; color: var(--text-dim); position: relative; }
+.v1 .c__b { position: absolute; top: 12px; right: 14px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: rgba(239,68,68,.2); color: var(--red); z-index: 1; }
+.v1 .c--n { opacity: 0.35; border: 1px dashed var(--border); box-shadow: none; }
+.v1 .c--n::before { display: none; }
 
 /* ============================================
-   B — TINTED HEADER (H от преди, но един цвят)
+   2 — MONOLITH
+   Плътен блок, без рамка, голям bold шрифт
    ============================================ */
-.vb .bc {
+.v2 .c {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background: var(--bg-elevated); border-radius: 10px; padding: 22px 20px;
+  min-height: 125px; cursor: pointer; transition: all 0.15s;
+}
+.v2 .c:hover { background: var(--bg-hover); }
+.v2 .c__t { font-size: 18px; font-weight: 900; color: #fff; margin-bottom: 6px; line-height: 1.1; }
+.v2 .c__s { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+.v2 .c__b { margin-top: 8px; display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgba(239,68,68,.12); color: var(--red); }
+.v2 .c--n { opacity: 0.3; border: 1px dashed var(--border); }
+
+/* ============================================
+   3 — PROGRESS METER
+   Мини progress bar показва запълненост
+   ============================================ */
+.v3 .c {
   display: flex; flex-direction: column;
-  background: var(--bg-card); border: none; border-radius: 14px;
-  padding: 0; min-height: 120px; cursor: pointer;
-  transition: all 0.2s; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 18px 14px; min-height: 110px; cursor: pointer; transition: all 0.15s;
 }
-.vb .bc:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
-.vb .bc__h { padding: 14px 18px; background: rgba(28,176,246,0.12); }
-.vb .bc__t { font-size: 14px; font-weight: 800; color: #fff; }
-.vb .bc__bot { padding: 12px 18px; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
-.vb .bc__s { font-size: 11px; color: var(--text-dim); }
-.vb .bc__b { float: right; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: rgba(239,68,68,.2); color: var(--red); }
-.vb .bc--n { border: 1px dashed var(--border); opacity: 0.4; box-shadow: none; }
-.vb .bc--n .bc__h { background: transparent; }
+.v3 .c:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+.v3 .c__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.v3 .c__s { font-size: 11px; color: var(--text-dim); margin-bottom: auto; }
+.v3 .c__bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.06); margin-top: 14px; overflow: hidden; }
+.v3 .c__bar-fill { height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.3s; }
+.v3 .c__b { position: absolute; top: 12px; right: 14px; font-size: 10px; font-weight: 700; color: var(--red); }
+.v3 .c { position: relative; }
+.v3 .c--n { opacity: 0.35; border-style: dashed; }
+.v3 .c--n .c__bar { display: none; }
 
 /* ============================================
-   C — NEON EDGE
-   Тънка светеща рамка, glow при hover
+   4 — FLOATING ISLAND
+   Голям shadow, закръглени ъгли, "плава"
    ============================================ */
-.vc .bc {
+.v4 .c {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: rgba(11,21,27,0.8); border: 1px solid rgba(28,176,246,0.2);
-  border-radius: 12px; padding: 22px 18px; min-height: 120px;
-  text-align: center; cursor: pointer; transition: all 0.3s;
-}
-.vc .bc:hover { border-color: rgba(28,176,246,0.6); box-shadow: 0 0 25px rgba(28,176,246,0.12), 0 0 60px rgba(28,176,246,0.05); transform: translateY(-2px); }
-.vc .bc__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; letter-spacing: 0.02em; }
-.vc .bc__s { font-size: 11px; color: var(--text-dim); }
-.vc .bc__b { margin-top: 10px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: rgba(239,68,68,.12); color: #fca5a5; }
-.vc .bc--n { border-style: dashed; border-color: rgba(28,176,246,0.1); opacity: 0.35; }
-
-/* ============================================
-   D — BRUTALIST
-   Остри ъгли, дебела рамка, суров вид
-   ============================================ */
-.vd .bc {
-  display: flex; flex-direction: column;
-  background: var(--bg); border: 2px solid var(--text-dim);
-  border-radius: 0; padding: 0; min-height: 110px;
-  cursor: pointer; transition: all 0.1s; position: relative;
-}
-.vd .bc:hover { border-color: var(--accent); background: var(--bg-elevated); }
-.vd .bc__top { padding: 14px 16px; border-bottom: 2px solid var(--text-dim); transition: border-color 0.1s; }
-.vd .bc:hover .bc__top { border-color: var(--accent); }
-.vd .bc__t { font-size: 13px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 0.1em; }
-.vd .bc__bot { padding: 12px 16px; flex: 1; display: flex; align-items: flex-end; }
-.vd .bc__s { font-size: 11px; color: var(--text-dim); font-weight: 600; letter-spacing: 0.04em; }
-.vd .bc__b { position: absolute; top: 14px; right: 14px; font-size: 10px; font-weight: 900; color: var(--red); letter-spacing: 0.05em; }
-.vd .bc--n { border-style: dashed; border-color: var(--text-dim); opacity: 0.3; }
-.vd .bc--n .bc__top { border-bottom: none; }
-
-/* ============================================
-   E — SPLIT PANEL
-   Голям номер вляво, текст вдясно
-   ============================================ */
-.ve .bc {
-  display: flex; flex-direction: row; align-items: stretch;
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 0; min-height: 100px; overflow: hidden;
-  cursor: pointer; transition: all 0.15s;
-}
-.ve .bc:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
-.ve .bc__num {
-  display: flex; align-items: center; justify-content: center;
-  width: 72px; flex-shrink: 0; background: rgba(28,176,246,0.08);
-  font-size: 28px; font-weight: 900; color: rgba(28,176,246,0.5);
-  border-right: 1px solid var(--border);
-}
-.ve .bc__info { padding: 16px 18px; display: flex; flex-direction: column; justify-content: center; flex: 1; }
-.ve .bc__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-.ve .bc__s { font-size: 11px; color: var(--text-dim); }
-.ve .bc__b { margin-top: 6px; font-size: 10px; font-weight: 700; color: var(--red); }
-.ve .bc--n { opacity: 0.35; border-style: dashed; }
-.ve .bc--n .bc__num { background: transparent; color: var(--text-dim); font-size: 22px; }
-
-/* ============================================
-   F — GRADIENT LIFT
-   Subtle gradient от accent, "плаващ" ефект
-   ============================================ */
-.vf .bc {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: linear-gradient(145deg, rgba(28,176,246,0.1) 0%, rgba(28,176,246,0.02) 40%, var(--bg-card) 100%);
-  border: 1px solid rgba(28,176,246,0.08); border-radius: 18px;
+  background: var(--bg-card); border: none; border-radius: 24px;
   padding: 24px 20px; min-height: 130px; text-align: center;
-  cursor: pointer; transition: all 0.3s; position: relative;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  cursor: pointer; transition: all 0.3s;
+  box-shadow: 0 6px 24px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.2);
 }
-.vf .bc:hover { transform: translateY(-5px) scale(1.02); box-shadow: 0 12px 40px rgba(0,0,0,0.3), 0 0 40px rgba(28,176,246,0.06); border-color: rgba(28,176,246,0.15); }
-.vf .bc__t { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 10px; }
-.vf .bc__s { font-size: 11px; color: var(--text-secondary); }
-.vf .bc__b { position: absolute; top: 12px; right: 14px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(239,68,68,.15); color: #fca5a5; }
-.vf .bc--n { background: var(--bg-card); border-style: dashed; border-color: var(--border); opacity: 0.35; }
+.v4 .c:hover { transform: translateY(-6px); box-shadow: 0 16px 48px rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.2); }
+.v4 .c__t { font-size: 14px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+.v4 .c__s { font-size: 11px; color: var(--text-dim); }
+.v4 .c__b { margin-top: 10px; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 12px; background: rgba(239,68,68,.15); color: #fca5a5; }
+.v4 .c--n { opacity: 0.3; border: 1px dashed var(--border); box-shadow: none; }
 
 /* ============================================
-   G — BOTTOM BAR
-   Чист дизайн, цветна ивица отдолу
+   5 — SIDE STRIPE + NUMBERS
+   Вертикална ивица вляво, голям count вдясно
    ============================================ */
-.vg .bc {
-  display: flex; flex-direction: column; justify-content: center;
-  background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: 10px; padding: 20px 18px 24px; min-height: 110px;
-  cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden;
-}
-.vg .bc::after {
-  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
-  height: 3px; background: var(--accent); opacity: 0.5; transition: opacity 0.2s;
-}
-.vg .bc:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
-.vg .bc:hover::after { opacity: 1; }
-.vg .bc__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 6px; }
-.vg .bc__s { font-size: 11px; color: var(--text-dim); }
-.vg .bc__b { position: absolute; top: 12px; right: 12px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(239,68,68,.15); color: var(--red); }
-.vg .bc--n { border-style: dashed; opacity: 0.35; }
-.vg .bc--n::after { display: none; }
-
-/* ============================================
-   H — LAYERED STACK
-   3D ефект — карта върху друга карта
-   ============================================ */
-.vh .bc {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 22px 18px; min-height: 115px;
-  text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
-}
-.vh .bc::before {
-  content: ''; position: absolute; inset: 4px 4px -5px 4px;
-  background: var(--bg-elevated); border-radius: 12px;
-  border: 1px solid var(--border); z-index: -1; opacity: 0.5;
-}
-.vh .bc::after {
-  content: ''; position: absolute; inset: 8px 8px -9px 8px;
-  background: var(--bg); border-radius: 12px;
-  border: 1px solid var(--border); z-index: -2; opacity: 0.3;
-}
-.vh .bc:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
-.vh .bc__t { font-size: 14px; font-weight: 800; color: #fff; margin-bottom: 8px; }
-.vh .bc__s { font-size: 11px; color: var(--text-dim); }
-.vh .bc__b { position: absolute; top: 10px; right: 12px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: rgba(239,68,68,.2); color: var(--red); }
-.vh .bc--n { border-style: dashed; opacity: 0.35; }
-.vh .bc--n::before, .vh .bc--n::after { display: none; }
-
-/* ============================================
-   I — LEFT ACCENT + STATS ROW
-   Лява ивица, долен ред с мини-статистики
-   ============================================ */
-.vi .bc {
-  display: flex; flex-direction: column;
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-left: 4px solid var(--accent); border-radius: 10px;
-  padding: 16px 18px; min-height: 105px;
+.v5 .c {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+  border-left: 4px solid var(--accent); padding: 16px 18px; min-height: 90px;
   cursor: pointer; transition: all 0.15s;
 }
-.vi .bc:hover { background: var(--bg-hover); transform: translateX(3px); }
-.vi .bc__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-.vi .bc__s { font-size: 11px; color: var(--text-dim); margin-bottom: auto; }
-.vi .bc__stats {
-  display: flex; gap: 12px; margin-top: 12px; padding-top: 10px;
-  border-top: 1px solid var(--border);
-}
-.vi .bc__stat { font-size: 10px; color: var(--text-dim); font-weight: 600; }
-.vi .bc__stat strong { color: var(--text); font-weight: 800; font-size: 13px; margin-right: 3px; }
-.vi .bc__stat--warn strong { color: var(--red); }
-.vi .bc__b { display: none; }
-.vi .bc--n { border-left-style: dashed; border-left-color: var(--border); opacity: 0.35; }
-.vi .bc--n .bc__stats { display: none; }
+.v5 .c:hover { background: var(--bg-hover); transform: translateX(3px); }
+.v5 .c__info { flex: 1; }
+.v5 .c__t { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+.v5 .c__s { font-size: 10px; color: var(--text-dim); }
+.v5 .c__big { font-size: 32px; font-weight: 900; color: rgba(28,176,246,.2); line-height: 1; }
+.v5 .c__b { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(239,68,68,.12); color: var(--red); }
+.v5 .c--n { border-left-style: dashed; border-left-color: var(--border); opacity: 0.3; }
 
 /* ============================================
-   J — PILL / WIDE ROWS
-   Широки хоризонтални "пилюли", 1 колона
+   6 — DOUBLE BORDER
+   Двойна рамка — вътрешна + външна
    ============================================ */
-.vj .board-grid { grid-template-columns: 1fr; gap: 8px; max-width: 600px; }
-.vj .bc {
-  display: flex; align-items: center;
-  background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: 50px; padding: 14px 24px; min-height: 56px;
-  cursor: pointer; transition: all 0.15s; gap: 16px;
+.v6 .c {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--bg-card); border: 2px solid var(--border); border-radius: 12px;
+  padding: 4px; min-height: 120px; cursor: pointer; transition: all 0.2s; text-align: center;
 }
-.vj .bc:hover { background: var(--bg-hover); border-color: var(--accent); }
-.vj .bc__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-.vj .bc__t { font-size: 14px; font-weight: 700; color: #fff; flex: 1; }
-.vj .bc__s { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
-.vj .bc__b { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(239,68,68,.12); color: var(--red); flex-shrink: 0; margin-left: 8px; }
-.vj .bc--n { border-style: dashed; opacity: 0.3; }
-.vj .bc--n .bc__dot { background: var(--text-dim); }
+.v6 .c:hover { border-color: rgba(28,176,246,.3); }
+.v6 .c__inner {
+  width: 100%; height: 100%; border: 1px solid var(--border); border-radius: 8px;
+  padding: 18px 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: border-color 0.2s;
+}
+.v6 .c:hover .c__inner { border-color: rgba(28,176,246,.15); }
+.v6 .c__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+.v6 .c__s { font-size: 11px; color: var(--text-dim); }
+.v6 .c__b { margin-top: 8px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(239,68,68,.15); color: var(--red); }
+.v6 .c--n { border-style: dashed; opacity: 0.3; }
+.v6 .c--n .c__inner { border-style: dashed; }
+
+/* ============================================
+   7 — SPOTLIGHT
+   Кръгъл accent елемент + centered text
+   ============================================ */
+.v7 .c {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+  padding: 22px 18px; min-height: 130px; text-align: center;
+  cursor: pointer; transition: all 0.2s; position: relative;
+}
+.v7 .c:hover { border-color: var(--border-hover); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+.v7 .c__ring {
+  width: 44px; height: 44px; border-radius: 50%; margin-bottom: 14px;
+  background: rgba(28,176,246,.08); border: 2px solid rgba(28,176,246,.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 900; color: rgba(28,176,246,.6); transition: all 0.2s;
+}
+.v7 .c:hover .c__ring { background: rgba(28,176,246,.15); border-color: rgba(28,176,246,.4); }
+.v7 .c__t { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.v7 .c__s { font-size: 10px; color: var(--text-dim); }
+.v7 .c__b { position: absolute; top: 10px; right: 12px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: rgba(239,68,68,.15); color: var(--red); }
+.v7 .c--n { opacity: 0.3; border-style: dashed; }
+.v7 .c--n .c__ring { border-color: var(--text-dim); background: transparent; }
+
+/* ============================================
+   8 — RIBBON TAB
+   "Етикет" tab в горния ляв ъгъл
+   ============================================ */
+.v8 .c {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px;
+  padding: 40px 18px 16px; min-height: 115px; cursor: pointer;
+  transition: all 0.15s; position: relative; overflow: hidden;
+}
+.v8 .c:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.3); border-color: var(--border-hover); }
+.v8 .c__tab {
+  position: absolute; top: 0; left: 0;
+  background: rgba(28,176,246,.15); padding: 6px 14px 6px 12px;
+  border-radius: 0 0 12px 0; font-size: 10px; font-weight: 700;
+  color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em;
+}
+.v8 .c__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.v8 .c__s { font-size: 11px; color: var(--text-dim); }
+.v8 .c__b { position: absolute; top: 8px; right: 12px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(239,68,68,.12); color: var(--red); }
+.v8 .c--n { border-style: dashed; opacity: 0.3; }
+.v8 .c--n .c__tab { display: none; }
+
+/* ============================================
+   9 — METRO TILE
+   Плоски плочки, accent фон, бели букви
+   ============================================ */
+.v9 .c {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background: rgba(28,176,246,.12); border: none; border-radius: 6px;
+  padding: 18px; min-height: 115px; cursor: pointer; transition: all 0.1s;
+}
+.v9 .c:hover { background: rgba(28,176,246,.2); }
+.v9 .c__t { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+.v9 .c__s { font-size: 11px; color: rgba(255,255,255,.4); }
+.v9 .c__b { margin-top: 8px; display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: rgba(239,68,68,.3); color: #fca5a5; }
+.v9 .c--n { opacity: 0.25; border: 1px dashed rgba(28,176,246,.2); background: transparent; }
+
+/* ============================================
+   10 — UNDERLINE
+   Чист текст, само долна черта accent при hover
+   ============================================ */
+.v10 .bg { gap: 8px; }
+.v10 .c {
+  display: flex; flex-direction: column; justify-content: center;
+  background: transparent; border: none; border-bottom: 2px solid transparent;
+  border-radius: 0; padding: 18px 14px; min-height: 90px;
+  cursor: pointer; transition: all 0.2s;
+}
+.v10 .c:hover { border-bottom-color: var(--accent); background: rgba(28,176,246,.03); }
+.v10 .c__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.v10 .c__s { font-size: 11px; color: var(--text-dim); }
+.v10 .c__b { margin-top: 6px; display: inline-block; font-size: 10px; font-weight: 700; color: var(--red); }
+.v10 .c--n { opacity: 0.25; }
 </style>
 </head>
 <body>
 
 <div class="picker-bar">
-  <span class="picker-bar__title">Избери дизайн:</span>
-  <button class="style-btn active" data-v="a">A — Текущ</button>
-  <button class="style-btn" data-v="b">B — Tinted Header</button>
-  <button class="style-btn" data-v="c">C — Neon Edge</button>
-  <button class="style-btn" data-v="d">D — Brutalist</button>
-  <button class="style-btn" data-v="e">E — Split Panel</button>
-  <button class="style-btn" data-v="f">F — Gradient Lift</button>
-  <button class="style-btn" data-v="g">G — Bottom Bar</button>
-  <button class="style-btn" data-v="h">H — Layered Stack</button>
-  <button class="style-btn" data-v="i">I — Left Accent</button>
-  <button class="style-btn" data-v="j">J — Pill Rows</button>
+  <span class="picker-bar__title">Нови варианти:</span>
+  <button class="style-btn" data-v="1">1 — Diagonal</button>
+  <button class="style-btn" data-v="2">2 — Monolith</button>
+  <button class="style-btn" data-v="3">3 — Progress</button>
+  <button class="style-btn" data-v="4">4 — Island</button>
+  <button class="style-btn" data-v="5">5 — Side Stripe</button>
+  <button class="style-btn" data-v="6">6 — Double Border</button>
+  <button class="style-btn" data-v="7">7 — Spotlight</button>
+  <button class="style-btn" data-v="8">8 — Ribbon Tab</button>
+  <button class="style-btn" data-v="9">9 — Metro Tile</button>
+  <button class="style-btn" data-v="10">10 — Underline</button>
   <div class="style-desc" id="styleDesc"></div>
 </div>
 
@@ -282,83 +250,64 @@ body {
 </div>
 
 <script>
-var DESCS = {
-  a: 'Текущият дизайн — gradient фон, центриран текст, равни карти.',
-  b: 'Tinted Header — оцветена горна лента + тъмно тяло. Ясно разделение заглавие/детайли.',
-  c: 'Neon Edge — тънка светеща рамка в accent цвят. При hover свети по-силно. Тъмен и елегантен.',
-  d: 'Brutalist — остри ъгли (0 radius), дебели рамки, uppercase. Суров, индустриален вид.',
-  e: 'Split Panel — голям номер вляво в отделна секция, текст вдясно. Информативен.',
-  f: 'Gradient Lift — лек gradient от accent, "плаващ" ефект при hover. Мек и модерен.',
-  g: 'Bottom Bar — чист дизайн с цветна ивица отдолу, която светва при hover.',
-  h: 'Layered Stack — 3D ефект от подредени карти една върху друга. Визуално дълбочина.',
-  i: 'Left Accent — лява цветна ивица + долен ред с мини-статистики (карти, колони, просрочени).',
-  j: 'Pill Rows — широки хоризонтални "пилюли" в 1 колона. Компактен списъчен изглед.'
+var D = {
+  '1': 'Diagonal Slice — диагонална цветна зона в горната половина. Заглавие и детайли отдолу.',
+  '2': 'Monolith — плътен блок без рамка, голям bold шрифт (18px). Тежък и солиден.',
+  '3': 'Progress Meter — мини progress bar отдолу показва колко карти има (по-пълен = повече).',
+  '4': 'Floating Island — много закръглени ъгли (24px), голям shadow, "плава" при hover.',
+  '5': 'Side Stripe — лява accent ивица, голям номер вдясно. Layout е grid 4 колони.',
+  '6': 'Double Border — двойна рамка (вътрешна + външна), и двете светват при hover.',
+  '7': 'Spotlight — кръгъл accent елемент с числото на картите, центриран layout.',
+  '8': 'Ribbon Tab — малък "етикет" в горния ляв ъгъл с номера, текст отдолу.',
+  '9': 'Metro Tile — плоски цветни плочки (accent фон), без рамки, Windows Metro стил.',
+  '10': 'Underline — минимален, без фон/рамка, само долна accent линия при hover.'
 };
 
-var BOARDS = [
-  { title: 'Pre-Production',    cards: 4,  cols: 3, overdue: 1 },
-  { title: 'Production',        cards: 12, cols: 3, overdue: 3 },
-  { title: 'Post-Production',   cards: 2,  cols: 4, overdue: 0 },
-  { title: 'Акаунт Мениджмънт', cards: 0,  cols: 3, overdue: 0 },
-  { title: 'Задачи',            cards: 0,  cols: 2, overdue: 0 },
+var B = [
+  { t: 'Pre-Production', c: 4, cols: 3, o: 1 },
+  { t: 'Production',     c: 12, cols: 3, o: 3 },
+  { t: 'Post-Production', c: 2, cols: 4, o: 0 },
+  { t: 'Акаунт Мениджмънт', c: 0, cols: 3, o: 0 },
+  { t: 'Задачи', c: 0, cols: 2, o: 0 },
 ];
 
-function badge(b) {
-  return b.overdue > 0 ? '<span class="bc__b">\u26a0 ' + b.overdue + '</span>' : '';
-}
+function bd(b) { return b.o > 0 ? '<span class="c__b">\u26a0 '+b.o+'</span>' : ''; }
 
 function render(v) {
-  var html = '<div class="board-grid v' + v + '">';
-
-  BOARDS.forEach(function(b) {
-    if (v === 'b') {
-      html += '<div class="bc"><div class="bc__h"><div style="display:flex;justify-content:space-between;align-items:center"><div class="bc__t">' + b.title + '</div>' + badge(b) + '</div></div><div class="bc__bot"><div class="bc__s">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div></div></div>';
-    } else if (v === 'd') {
-      html += '<div class="bc"><div class="bc__top"><div class="bc__t">' + b.title + '</div></div><div class="bc__bot"><div class="bc__s">' + b.cards + ' КАРТИ \xb7 ' + b.cols + ' КОЛОНИ</div></div>' + badge(b) + '</div>';
-    } else if (v === 'e') {
-      html += '<div class="bc"><div class="bc__num">' + b.cards + '</div><div class="bc__info"><div class="bc__t">' + b.title + '</div><div class="bc__s">' + b.cols + ' колони</div>' + (b.overdue > 0 ? '<div class="bc__b">\u26a0 ' + b.overdue + ' просрочени</div>' : '') + '</div></div>';
-    } else if (v === 'i') {
-      html += '<div class="bc"><div class="bc__t">' + b.title + '</div><div class="bc__s">' + b.cols + ' колони</div><div class="bc__stats"><div class="bc__stat"><strong>' + b.cards + '</strong>карти</div><div class="bc__stat"><strong>' + b.cols + '</strong>колони</div>' + (b.overdue > 0 ? '<div class="bc__stat bc__stat--warn"><strong>' + b.overdue + '</strong>просрочени</div>' : '') + '</div></div>';
-    } else if (v === 'j') {
-      html += '<div class="bc"><div class="bc__dot"></div><div class="bc__t">' + b.title + '</div><div class="bc__s">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' + badge(b) + '</div>';
+  var maxCards = 12;
+  var html = '<div class="bg v' + v + '">';
+  B.forEach(function(b) {
+    if (v==='3') {
+      var pct = Math.min(100, Math.round(b.c/maxCards*100));
+      html += '<div class="c"><div class="c__t">'+b.t+'</div><div class="c__s">'+b.c+' карти \xb7 '+b.cols+' колони</div><div class="c__bar"><div class="c__bar-fill" style="width:'+pct+'%"></div></div>'+bd(b)+'</div>';
+    } else if (v==='5') {
+      html += '<div class="c"><div class="c__info"><div class="c__t">'+b.t+'</div><div class="c__s">'+b.c+' карти \xb7 '+b.cols+' колони</div></div>'+(b.o>0?bd(b):'')+' <div class="c__big">'+b.c+'</div></div>';
+    } else if (v==='6') {
+      html += '<div class="c"><div class="c__inner"><div class="c__t">'+b.t+'</div><div class="c__s">'+b.c+' карти \xb7 '+b.cols+' колони</div>'+bd(b)+'</div></div>';
+    } else if (v==='7') {
+      html += '<div class="c"><div class="c__ring">'+b.c+'</div><div class="c__t">'+b.t+'</div><div class="c__s">'+b.cols+' колони</div>'+bd(b)+'</div>';
+    } else if (v==='8') {
+      html += '<div class="c"><div class="c__tab">'+b.c+' карти</div><div class="c__t">'+b.t+'</div><div class="c__s">'+b.cols+' колони</div>'+bd(b)+'</div>';
     } else {
-      // a, c, f, g, h — centered
-      html += '<div class="bc"><div class="bc__t">' + b.title + '</div><div class="bc__s">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' + badge(b) + '</div>';
+      html += '<div class="c"><div class="c__t">'+b.t+'</div><div class="c__s">'+b.c+' карти \xb7 '+b.cols+' колони</div>'+bd(b)+'</div>';
     }
   });
-
-  // "+ Нов борд"
-  if (v === 'b') {
-    html += '<div class="bc bc--n"><div class="bc__h"></div><div class="bc__bot"><div class="bc__t" style="font-size:14px;text-align:center">+ Нов борд</div></div></div>';
-  } else if (v === 'd') {
-    html += '<div class="bc bc--n"><div class="bc__top"><div class="bc__t">+ Нов борд</div></div><div class="bc__bot"></div></div>';
-  } else if (v === 'e') {
-    html += '<div class="bc bc--n"><div class="bc__num">+</div><div class="bc__info"><div class="bc__t">Нов борд</div></div></div>';
-  } else if (v === 'i') {
-    html += '<div class="bc bc--n"><div class="bc__t" style="font-size:14px">+ Нов борд</div></div>';
-  } else if (v === 'j') {
-    html += '<div class="bc bc--n"><div class="bc__dot"></div><div class="bc__t" style="opacity:0.6">+ Нов борд</div></div>';
-  } else {
-    html += '<div class="bc bc--n"><div class="bc__t" style="font-size:14px">+ Нов борд</div></div>';
-  }
-
+  // + Нов борд
+  if (v==='6') html += '<div class="c c--n"><div class="c__inner"><div class="c__t" style="font-size:14px">+ Нов борд</div></div></div>';
+  else if (v==='7') html += '<div class="c c--n"><div class="c__ring">+</div><div class="c__t" style="font-size:13px">Нов борд</div></div>';
+  else if (v==='8') html += '<div class="c c--n"><div class="c__t" style="font-size:14px">+ Нов борд</div></div>';
+  else html += '<div class="c c--n"><div class="c__t" style="font-size:14px">+ Нов борд</div></div>';
   html += '</div>';
   return html;
 }
 
-function setVariant(v) {
+function set(v) {
   document.getElementById('boardGrid').innerHTML = render(v);
-  document.getElementById('styleDesc').textContent = DESCS[v];
-  document.querySelectorAll('.style-btn').forEach(function(btn) {
-    btn.classList.toggle('active', btn.dataset.v === v);
-  });
+  document.getElementById('styleDesc').textContent = D[v];
+  document.querySelectorAll('.style-btn').forEach(function(btn) { btn.classList.toggle('active', btn.dataset.v===v); });
 }
-
-document.querySelectorAll('.style-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() { setVariant(btn.dataset.v); });
-});
-
-setVariant('a');
+document.querySelectorAll('.style-btn').forEach(function(btn) { btn.addEventListener('click', function(){ set(btn.dataset.v); }); });
+set('1');
 </script>
 </body>
 </html>
