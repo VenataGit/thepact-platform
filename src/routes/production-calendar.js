@@ -136,9 +136,10 @@ async function syncProdToGCal(action, entry) {
     const endM = endMinute % 60;
 
     // Build event object compatible with google-calendar service
+    const cardUrl = `https://thepact.pro/#/card/${entry.card_id}`;
     const event = {
       title: `🎬 ${title}`,
-      description: entry.board_title ? `Board: ${entry.board_title}` : '',
+      description: `📋 Отвори картата: ${cardUrl}` + (entry.board_title ? `\n\nBoard: ${entry.board_title}` : ''),
       starts_at: `${dateStr}T${String(startH).padStart(2,'0')}:${String(startM).padStart(2,'0')}:00`,
       ends_at: `${dateStr}T${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}:00`,
       all_day: false,
