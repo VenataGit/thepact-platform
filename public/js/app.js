@@ -3703,29 +3703,7 @@ async function loadKpAuto(el) {
       return;
     }
 
-    // Auto-create KP cards for clients that have no card in Измисляне but have a date configured
-    var toAutoCreate = clients.filter(function(c) {
-      return !c.has_kp_card && (c.next_kp_date || c.first_publish_date);
-    });
-    if (toAutoCreate.length > 0) {
-      el.querySelector('.kp-auto-wrap') && (el.querySelector('.kp-auto-wrap').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim)">🤖 Автоматично създаване на КП карти…</div>');
-      var autoResults = await Promise.all(toAutoCreate.map(function(c) {
-        return fetch('/api/kp/create-card/' + c.id, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-          .then(function(r) { return r.json(); })
-          .then(function(data) { return { clientName: c.name, ok: data.ok, title: data.title, error: data.error }; })
-          .catch(function(e) { return { clientName: c.name, ok: false, error: e.message }; });
-      }));
-      autoResults.forEach(function(r) {
-        if (r.ok) showToast('\u2705 \u0421\u044a\u0437\u0434\u0430\u0434\u0435\u043d: ' + r.title, 'success');
-        else showToast('\u26a0 ' + r.clientName + ': ' + (r.error || '\u0413\u0440\u0435\u0448\u043a\u0430'), 'error');
-      });
-      if (autoResults.some(function(r) { return r.ok; })) {
-        await loadKpAuto(el);
-        return;
-      }
-    }
-
-    const needsKp = clients.filter(function(c) { return !c.has_kp_card && !c.next_kp_date && !c.first_publish_date; });
+    const needsKp = clients.filter(function(c) { return !c.has_kp_card; });
     var warningHtml = '';
     if (needsKp.length > 0) {
       warningHtml = '<div class="kp-warning">' +
@@ -3738,13 +3716,17 @@ async function loadKpAuto(el) {
     clients.forEach(function(c) {
       var autoCreateDate = '—';
       if (c.next_kp_date) {
-        var nkd = new Date(c.next_kp_date + 'T12:00:00');
-        nkd.setDate(nkd.getDate() - 21);
-        var today = new Date(); today.setHours(0,0,0,0);
-        var autoStr = nkd.toLocaleDateString('bg-BG', { day:'2-digit', month:'2-digit', year:'numeric' });
-        autoCreateDate = nkd <= today
-          ? '<span style="color:var(--red)">' + autoStr + ' ⚠</span>'
-          : autoStr;
+        try {
+          var nkd = new Date(c.next_kp_date.toString().split('T')[0] + 'T12:00:00');
+          if (!isNaN(nkd.getTime())) {
+            nkd.setDate(nkd.getDate() - 21);
+            var today = new Date(); today.setHours(0,0,0,0);
+            var autoStr = nkd.toLocaleDateString('bg-BG', { day:'2-digit', month:'2-digit', year:'numeric' });
+            autoCreateDate = nkd <= today
+              ? '<span style="color:var(--red)">' + autoStr + ' ⚠</span>'
+              : autoStr;
+          }
+        } catch(e) { /* invalid date, keep '—' */ }
       }
       var missingKp = !c.has_kp_card;
       var rowBg = missingKp ? 'background:rgba(220,120,0,0.08);' : '';
@@ -3878,19 +3860,22 @@ async function saveKpClient(id) {
     var json = await res.json();
     if (!res.ok) return showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + (json.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'), 'error');
     document.getElementById('kpClientFormWrap').style.display = 'none';
-    var el = document.getElementById('pageContent');
-    if (el) await loadKpAuto(el);
-    // Auto-create KP card for new client with date set
+    // Auto-create KP card for new client with date set (only once, before reload)
     if (!id && data.first_publish_date && json.id) {
       var cardRes = await fetch('/api/kp/create-card/' + json.id, {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ firstPublishDate: data.first_publish_date })
       });
       var cardData = await cardRes.json();
-      if (cardData.ok) showToast('\u2705 \u041a\u043b\u0438\u0435\u043d\u0442\u044a\u0442 \u0435 \u0434\u043e\u0431\u0430\u0432\u0435\u043d \u0438 \u041a\u041f \u043a\u0430\u0440\u0442\u0430\u0442\u0430 \u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435\u043d\u0430: ' + cardData.title, 'success');
-      else showToast('\u26a0\ufe0f \u041a\u043b\u0438\u0435\u043d\u0442\u044a\u0442 \u0435 \u0434\u043e\u0431\u0430\u0432\u0435\u043d, \u043d\u043e \u041a\u041f \u043a\u0430\u0440\u0442\u0430\u0442\u0430 \u043d\u0435 \u0441\u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435: ' + (cardData.error || '\u0413\u0440\u0435\u0448\u043a\u0430'), 'warn');
-      if (el) await loadKpAuto(el);
+      if (cardData.ok) showToast('✅ Клиентът е добавен и КП картата е създадена: ' + cardData.title, 'success');
+      else showToast('⚠️ Клиентът е добавен, но КП картата не се създаде: ' + (cardData.error || 'Грешка'), 'warn');
+    } else if (!id) {
+      showToast('✅ Клиентът е добавен', 'success');
+    } else {
+      showToast('✅ Запазено', 'success');
     }
+    var el = document.getElementById('pageContent');
+    if (el) await loadKpAuto(el);
   } catch (err) { showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error'); }
 }
 
