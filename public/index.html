@@ -46,13 +46,13 @@
         </li>
         <li class="nav__item">
           <button class="nav__link" data-nav="pings" onclick="location.hash='#/chat'">
-            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <img src="/img/icon-ping.png" alt="" width="16" height="16" class="nav__icon">
             <span>Pings</span>
           </button>
         </li>
         <li class="nav__item">
           <button class="nav__link" data-nav="hey" onclick="toggleDropdown('heyDropdown', this, event)">
-            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <img src="/img/icon-hey.png" alt="" width="16" height="16" class="nav__icon">
             <span>Hey!</span>
             <span class="unread-badge" id="heyBadge" style="display:none">0</span>
           </button>
@@ -60,7 +60,7 @@
         </li>
         <li class="nav__item">
           <button class="nav__link" data-nav="mystuff" onclick="toggleDropdown('myStuffDropdown', this, event)">
-            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 3a4 4 0 100 8 4 4 0 000-8z" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <img src="/img/icon-my-stuff.png" alt="" width="16" height="16" class="nav__icon">
             <span>My Stuff</span>
           </button>
           <div class="nav-dropdown nav-dropdown--center nav-dropdown--small" id="myStuffDropdown"></div>
@@ -78,11 +78,11 @@
             <span>Инструменти</span>
           </button>
           <div class="nav-dropdown nav-dropdown--center nav-dropdown--small" id="toolsDropdown">
-            <a class="nav-dropdown__item" href="#/kp-auto">📋 КП-Автоматизация</a>
-            <a class="nav-dropdown__item" href="#/calendar">📅 Производствен Календар</a>
+            <a class="nav-dropdown__item" href="#/kp-auto"><img src="/img/icon-kp-avto.png" alt="" width="16" height="16" class="nav__icon"> КП-Автоматизация</a>
+            <a class="nav-dropdown__item" href="#/calendar"><img src="/img/icon-calendar.png" alt="" width="16" height="16" class="nav__icon"> Производствен Календар</a>
             <div class="nav-dropdown__divider"></div>
-            <a class="nav-dropdown__item" href="#/release-notes">📰 Какво ново</a>
-            <a class="nav-dropdown__item" href="#/trash">🗑️ Кошче</a>
+            <a class="nav-dropdown__item" href="#/release-notes"><img src="/img/icon-whats-new.png" alt="" width="16" height="16" class="nav__icon"> Какво ново</a>
+            <a class="nav-dropdown__item" href="#/trash"><img src="/img/icon-trash.png" alt="" width="16" height="16" class="nav__icon"> Кошче</a>
           </div>
         </li>
       </ul>
