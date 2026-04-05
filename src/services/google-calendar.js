@@ -57,14 +57,16 @@ function getCalendarClient() {
 async function isGCalEnabled() {
   // Check env first (fast path)
   if (process.env.GOOGLE_CALENDAR_ENABLED === 'true') {
-    return !!getCalendarId();
+    await loadCalendarId();
+    return !!calendarId;
   }
 
   // Check DB settings
   try {
     const setting = await queryOne("SELECT value FROM settings WHERE key = 'google_calendar_enabled'");
     if (setting?.value === 'true') {
-      return !!getCalendarId();
+      await loadCalendarId();
+      return !!calendarId;
     }
   } catch (err) {
     // Settings table might not exist yet
