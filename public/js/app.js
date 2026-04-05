@@ -292,15 +292,19 @@ async function renderHome(el) {
             ${boards.map(b => {
               const bc = activeCards.filter(c => c.board_id === b.id);
               const bOver = bc.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now).length;
-              return '<a href="#/board/' + b.id + '" class="project-card-home" style="padding:16px 20px">' +
-                '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
-                  '<div class="project-card-home__title" style="font-size:15px;margin:0">' + esc(b.title) + '</div>' +
-                  (bOver > 0 ? '<span style="background:rgba(239,68,68,.2);color:var(--red);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">⚠ ' + bOver + '</span>' : '') +
+              return '<a href="#/board/' + b.id + '" class="project-card-home">' +
+                '<div class="project-card-home__header">' +
+                  '<div style="display:flex;justify-content:space-between;align-items:center">' +
+                    '<div class="project-card-home__title">' + esc(b.title) + '</div>' +
+                    (bOver > 0 ? '<span style="background:rgba(239,68,68,.2);color:var(--red);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">\u26a0 ' + bOver + '</span>' : '') +
+                  '</div>' +
                 '</div>' +
-                '<div style="font-size:12px;color:var(--text-dim)">' + bc.length + ' карти · ' + (b.columns?.filter(c=>!c.is_done_column).length || 0) + ' колони</div>' +
+                '<div class="project-card-home__body">' +
+                  '<div style="font-size:11px;color:var(--text-dim)">' + bc.length + ' карти \xb7 ' + (b.columns?.filter(c=>!c.is_done_column).length || 0) + ' колони</div>' +
+                '</div>' +
               '</a>';
             }).join('')}
-            ${canManage() ? '<div class="project-card-home" style="padding:16px 20px;cursor:pointer;border-style:dashed;opacity:0.5" onclick="promptCreateBoard()"><div class="project-card-home__title" style="font-size:14px;margin:0">+ Нов борд</div></div>' : ''}
+            ${canManage() ? '<div class="project-card-home project-card-home--new" style="cursor:pointer" onclick="promptCreateBoard()"><div class="project-card-home__header"></div><div class="project-card-home__body" style="align-items:center;justify-content:center"><div class="project-card-home__title" style="font-size:14px">+ \u041d\u043e\u0432 \u0431\u043e\u0440\u0434</div></div></div>' : ''}
           </div>
         </div>
 
@@ -771,48 +775,54 @@ async function renderProject(el, projectId) {
           const bc = cards.filter(c => c.board_id === board.id && !c.completed_at && !c.archived_at);
           const overdue = bc.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now).length;
           return '<a href="#/board/' + board.id + '" class="project-card-home">' +
-            '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
-              '<div class="project-card-home__above">' + esc(board.title) + '</div>' +
-              (overdue > 0 ? '<span style="background:rgba(239,68,68,.2);color:var(--red);font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">⚠ ' + overdue + '</span>' : '') +
+            '<div class="project-card-home__header">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center">' +
+                '<div class="project-card-home__title">' + esc(board.title) + '</div>' +
+                (overdue > 0 ? '<span style="background:rgba(239,68,68,.2);color:var(--red);font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">\u26a0 ' + overdue + '</span>' : '') +
+              '</div>' +
             '</div>' +
-            '<div class="project-card-home__title" style="font-size:18px;margin-bottom:4px">' + bc.length + ' карти</div>' +
-            '<div style="font-size:11px;color:var(--text-dim)">' + (board.columns?.filter(c=>!c.is_done_column).length || 0) + ' колони</div>' +
+            '<div class="project-card-home__body">' +
+              '<div style="font-size:11px;color:var(--text-dim)">' + bc.length + ' карти \xb7 ' + (board.columns?.filter(c=>!c.is_done_column).length || 0) + ' колони</div>' +
+            '</div>' +
           '</a>';
         }).join('')}
 
         <a href="#/campfire/1" class="project-card-home">
-          <div class="project-card-home__above">Campfire</div>
-          <div class="project-card-home__title" style="font-size:18px">🔥 Чат</div>
+          <div class="project-card-home__header"><div class="project-card-home__title">\ud83d\udd25 Campfire</div></div>
+          <div class="project-card-home__body"><div style="font-size:11px;color:var(--text-dim)">\u0427\u0430\u0442</div></div>
         </a>
 
         <a href="#/schedule" class="project-card-home">
-          <div class="project-card-home__above">График</div>
-          <div class="project-card-home__title" style="font-size:18px">📅 Събития</div>
+          <div class="project-card-home__header"><div class="project-card-home__title">\ud83d\udcc5 \u0413\u0440\u0430\u0444\u0438\u043a</div></div>
+          <div class="project-card-home__body"><div style="font-size:11px;color:var(--text-dim)">\u0421\u044a\u0431\u0438\u0442\u0438\u044f</div></div>
         </a>
 
         <a href="#/checkins" class="project-card-home">
-          <div class="project-card-home__above">Дейности</div>
-          <div class="project-card-home__title" style="font-size:18px">✋ Въпроси</div>
+          <div class="project-card-home__header"><div class="project-card-home__title">\u270b \u0414\u0435\u0439\u043d\u043e\u0441\u0442\u0438</div></div>
+          <div class="project-card-home__body"><div style="font-size:11px;color:var(--text-dim)">\u0412\u044a\u043f\u0440\u043e\u0441\u0438</div></div>
         </a>
 
         <a href="#/chat" class="project-card-home">
-          <div class="project-card-home__above">Чат</div>
-          <div class="project-card-home__title" style="font-size:18px">💬 Съобщения</div>
+          <div class="project-card-home__header"><div class="project-card-home__title">\ud83d\udcac \u0427\u0430\u0442</div></div>
+          <div class="project-card-home__body"><div style="font-size:11px;color:var(--text-dim)">\u0421\u044a\u043e\u0431\u0449\u0435\u043d\u0438\u044f</div></div>
         </a>
 
         <a href="#/messages" class="project-card-home">
-          <div class="project-card-home__above">Известия</div>
-          <div class="project-card-home__title" style="font-size:18px">📢 Борд</div>
+          <div class="project-card-home__header"><div class="project-card-home__title">\ud83d\udce2 \u0418\u0437\u0432\u0435\u0441\u0442\u0438\u044f</div></div>
+          <div class="project-card-home__body"><div style="font-size:11px;color:var(--text-dim)">\u0411\u043e\u0440\u0434</div></div>
         </a>
 
         <a href="#/vault" class="project-card-home">
-          <div class="project-card-home__above">Документи</div>
-          <div class="project-card-home__title" style="font-size:18px">📁 Файлове</div>
+          <div class="project-card-home__header"><div class="project-card-home__title">\ud83d\udcc1 \u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0438</div></div>
+          <div class="project-card-home__body"><div style="font-size:11px;color:var(--text-dim)">\u0424\u0430\u0439\u043b\u043e\u0432\u0435</div></div>
         </a>
 
         ${canManage() ? `
-        <div class="project-card-home" style="cursor:pointer;border-style:dashed;opacity:0.5" onclick="promptCreateBoard()">
-          <div class="project-card-home__title" style="font-size:18px">+ Добави</div>
+        <div class="project-card-home project-card-home--new" style="cursor:pointer" onclick="promptCreateBoard()">
+          <div class="project-card-home__header"></div>
+          <div class="project-card-home__body" style="align-items:center;justify-content:center">
+            <div class="project-card-home__title" style="font-size:14px">+ \u0414\u043e\u0431\u0430\u0432\u0438</div>
+          </div>
         </div>` : ''}
       </div>
 
