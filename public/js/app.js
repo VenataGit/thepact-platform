@@ -3450,6 +3450,20 @@ async function loadAdminSettings() {
           <span style="color:#fff;font-weight:600">5</span>
           <span style="font-size:11px;color:var(--text-dim)">Видеограф → Монтажист → Акаунт → Корекции → Качване</span>
         </div>
+        <div class="admin-setting-row">
+          <label>Календарен прозорец</label>
+          <input class="input-sm" type="number" min="7" max="90" style="width:60px"
+                 value="${esc(s.kp_calendar_window || '30')}"
+                 onblur="saveSetting('kp_calendar_window', this.value)">
+          <span style="font-size:11px;color:var(--text-dim)">календарни дни за разпределение на видеата</span>
+        </div>
+        <div class="admin-setting-row">
+          <label>Дни преди следващ КП</label>
+          <input class="input-sm" type="number" min="1" max="30" style="width:60px"
+                 value="${esc(s.kp_days_before_next_kp || '15')}"
+                 onblur="saveSetting('kp_days_before_next_kp', this.value)">
+          <span style="font-size:11px;color:var(--text-dim)">работни дни преди първото видео → автоматично създаване на КП карта</span>
+        </div>
       </div>
 
       <div class="admin-settings-section">
@@ -3715,14 +3729,13 @@ async function loadKpAuto(el) {
     var rowsHtml = '';
     clients.forEach(function(c) {
       var autoCreateDate = '—';
-      if (c.next_kp_date) {
+      if (c.auto_create_date) {
         try {
-          var nkd = new Date(c.next_kp_date.toString().split('T')[0] + 'T12:00:00');
-          if (!isNaN(nkd.getTime())) {
-            nkd.setDate(nkd.getDate() - 21);
+          var acd = new Date(c.auto_create_date.toString().split('T')[0] + 'T12:00:00');
+          if (!isNaN(acd.getTime())) {
             var today = new Date(); today.setHours(0,0,0,0);
-            var autoStr = nkd.toLocaleDateString('bg-BG', { day:'2-digit', month:'2-digit', year:'numeric' });
-            autoCreateDate = nkd <= today
+            var autoStr = formatDate(c.auto_create_date);
+            autoCreateDate = acd <= today
               ? '<span style="color:var(--red)">' + autoStr + ' ⚠</span>'
               : autoStr;
           }
@@ -3795,7 +3808,7 @@ function showKpClientForm(editData) {
     '<div class="kp-form-grid">' +
       '<div><label class="kp-label">\u041a\u043b\u0438\u0435\u043d\u0442</label><input class="input" type="text" id="kpName" value="' + (isEdit ? esc(editData.name) : '') + '" placeholder="\u0418\u043c\u0435 \u043d\u0430 \u043a\u043b\u0438\u0435\u043d\u0442"></div>' +
       '<div><label class="kp-label">\u0412\u0438\u0434\u0435\u0430 \u0432 \u041a\u041f</label><input class="input" type="number" id="kpVideos" value="' + (isEdit ? (editData.videos_per_month || 10) : 10) + '" min="1" max="50" onchange="kpAutoInterval()"></div>' +
-      '<div><label class="kp-label">\u0418\u043d\u0442\u0435\u0440\u0432\u0430\u043b (\u0434\u043d\u0438) <span style="opacity:.5;font-weight:400">\u0430\u0432\u0442\u043e</span></label><input class="input" type="number" id="kpInterval" value="' + (isEdit ? (editData.publish_interval_days || 3) : Math.max(1, Math.round(30 / 10))) + '" min="1" max="30" onchange="kpRecalcDates()"></div>' +
+      '<div><label class="kp-label">\u0418\u043d\u0442\u0435\u0440\u0432\u0430\u043b (\u0434\u043d\u0438) <span style="opacity:.5;font-weight:400">\u0430\u0432\u0442\u043e</span></label><span class="input" id="kpInterval" data-value="' + (isEdit ? (editData.publish_interval_days || '') : '') + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (isEdit ? (editData.publish_interval_days || '—') : '—') + '</span></div>' +
       '<div><label class="kp-label">\u0422\u0435\u043a\u0443\u0449 \u041a\u041f \u2116</label><input class="input" type="number" id="kpKpNum" value="' + (isEdit ? (editData.current_kp_number || 1) : 1) + '" min="1"></div>' +
       '<div><label class="kp-label">\u0414\u0430\u0442\u0430 \u043f\u044a\u0440\u0432\u043e \u0432\u0438\u0434\u0435\u043e</label><button class="bc-date-btn ' + (firstDateVal ? '' : 'bc-date-btn--placeholder') + '" id="kpFirstDate" data-value="' + firstDateVal + '" onclick="event.stopPropagation();showDatePickerPopup(this,this.dataset.value,function(d){var b=document.getElementById(\'kpFirstDate\');if(b){b.dataset.value=d||\'\';b.textContent=d?formatDate(d):\'\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026\';b.className=d?\'bc-date-btn\':\'bc-date-btn bc-date-btn--placeholder\';}kpRecalcDates();})" style="width:100%;text-align:left">' + (firstDateVal ? formatDate(firstDateVal) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026') + '</button></div>' +
       '<div><label class="kp-label">\u041f\u043e\u0441\u043b\u0435\u0434\u043d\u043e \u0432\u0438\u0434\u0435\u043e <span style="opacity:.5">(\u0430\u0432\u0442\u043e)</span></label><span class="input" id="kpLastDate" data-value="' + lastDateVal + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (lastDateVal ? formatDate(lastDateVal) : '\u2014') + '</span></div>' +
@@ -3809,26 +3822,25 @@ function showKpClientForm(editData) {
   '</div>';
 }
 
-function kpRecalcDates() {
+async function kpRecalcDates() {
   var firstEl = document.getElementById('kpFirstDate');
   var firstDate = firstEl && firstEl.dataset.value;
   var videos = parseInt((document.getElementById('kpVideos') || {}).value) || 10;
-  var interval = parseInt((document.getElementById('kpInterval') || {}).value) || 3;
   if (!firstDate) return;
-  var first = new Date(firstDate + 'T12:00:00');
-  var last = new Date(first); last.setDate(last.getDate() + (videos - 1) * interval);
-  var nextFirst = new Date(last); nextFirst.setDate(nextFirst.getDate() + interval);
-  var lastEl = document.getElementById('kpLastDate');
-  if (lastEl) { var lastStr = last.toISOString().split('T')[0]; lastEl.dataset.value = lastStr; lastEl.textContent = formatDate(lastStr); }
-  var nextEl = document.getElementById('kpNextDate');
-  if (nextEl) { var nextStr = nextFirst.toISOString().split('T')[0]; nextEl.dataset.value = nextStr; nextEl.textContent = formatDate(nextStr); }
+  try {
+    var res = await fetch('/api/kp/preview-dates?firstDate=' + firstDate + '&videoCount=' + videos);
+    var data = await res.json();
+    if (!res.ok) return;
+    var intEl = document.getElementById('kpInterval');
+    if (intEl) { intEl.dataset.value = data.interval; intEl.textContent = data.interval + 'д'; }
+    var lastEl = document.getElementById('kpLastDate');
+    if (lastEl) { lastEl.dataset.value = data.lastVideoDate; lastEl.textContent = formatDate(data.lastVideoDate); }
+    var nextEl = document.getElementById('kpNextDate');
+    if (nextEl) { nextEl.dataset.value = data.nextKpFirstDate; nextEl.textContent = formatDate(data.nextKpFirstDate); }
+  } catch(e) { /* ignore */ }
 }
 
 function kpAutoInterval() {
-  var videos = parseInt((document.getElementById('kpVideos') || {}).value) || 10;
-  var interval = Math.max(1, Math.round(30 / videos));
-  var intEl = document.getElementById('kpInterval');
-  if (intEl) intEl.value = interval;
   kpRecalcDates();
 }
 
@@ -3846,11 +3858,8 @@ async function saveKpClient(id) {
   var data = {
     name: name,
     videos_per_month: parseInt(document.getElementById('kpVideos').value) || 10,
-    publish_interval_days: parseInt(document.getElementById('kpInterval').value) || 3,
     current_kp_number: parseInt(document.getElementById('kpKpNum').value) || 1,
     first_publish_date: (document.getElementById('kpFirstDate') && document.getElementById('kpFirstDate').dataset.value) || null,
-    last_video_date: (document.getElementById('kpLastDate') && document.getElementById('kpLastDate').dataset.value) || null,
-    next_kp_date: (document.getElementById('kpNextDate') && document.getElementById('kpNextDate').dataset.value) || null,
     notes: document.getElementById('kpNotes').value || null
   };
   try {

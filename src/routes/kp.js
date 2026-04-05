@@ -137,10 +137,60 @@ function calcProductionDates(publishDate, offsets) {
   };
 }
 
+/**
+ * Load KP schedule settings from DB
+ */
+async function loadKpScheduleSettings() {
+  const defaults = { calendarWindow: 30, daysBeforeNextKp: 15 };
+  try {
+    const rows = await query("SELECT key, value FROM settings WHERE key IN ('kp_calendar_window', 'kp_days_before_next_kp')");
+    for (const r of rows) {
+      if (r.key === 'kp_calendar_window') defaults.calendarWindow = parseInt(r.value) || 30;
+      if (r.key === 'kp_days_before_next_kp') defaults.daysBeforeNextKp = parseInt(r.value) || 15;
+    }
+  } catch (err) { /* use defaults */ }
+  return defaults;
+}
+
+/**
+ * Distribute N videos evenly across a calendar window.
+ * Returns { dates[], interval, lastVideoDate, nextKpFirstDate }
+ */
+function distributePublishDates(firstDateStr, videoCount, calendarWindow) {
+  const first = new Date(firstDateStr + 'T12:00:00');
+  if (videoCount <= 1) {
+    return {
+      dates: [first],
+      interval: calendarWindow,
+      lastVideoDate: first,
+      nextKpFirstDate: new Date(first.getTime() + calendarWindow * 86400000),
+    };
+  }
+  const gap = calendarWindow / (videoCount - 1);
+  const dates = [];
+  for (let i = 0; i < videoCount; i++) {
+    const d = new Date(first);
+    d.setDate(d.getDate() + Math.round(i * gap));
+    dates.push(d);
+  }
+  const lastVideoDate = dates[dates.length - 1];
+  const nextKpFirst = new Date(lastVideoDate);
+  nextKpFirst.setDate(nextKpFirst.getDate() + Math.round(gap));
+  return { dates, interval: Math.round(gap * 10) / 10, lastVideoDate, nextKpFirstDate: nextKpFirst };
+}
+
+function toDateStr(d) {
+  return d instanceof Date ? d.toISOString().split('T')[0] : String(d).split('T')[0];
+}
+function toBgDate(d) {
+  return d.toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 // GET /api/kp/clients
 router.get('/clients', requireAuth, async (req, res) => {
   try {
     const clients = await query('SELECT * FROM kp_clients WHERE active = true ORDER BY name');
+    const schedSettings = await loadKpScheduleSettings();
 
     // Resolve target column by setting (ID) or fall back to name search
     const izmislianeColIdSetting = await queryOne("SELECT value FROM settings WHERE key = 'kp_izmislyane_column_id'");
@@ -161,7 +211,15 @@ router.get('/clients', requireAuth, async (req, res) => {
           [`%${client.name}%`]
         );
       }
-      return { ...client, has_kp_card: !!card, kp_card_id: card?.id || null };
+      // Compute auto-create date: X working days before next KP's first video
+      let auto_create_date = null;
+      if (client.next_kp_date) {
+        const nkd = new Date(toDateStr(client.next_kp_date) + 'T12:00:00');
+        if (!isNaN(nkd.getTime())) {
+          auto_create_date = toDateStr(subtractWorkingDays(nkd, schedSettings.daysBeforeNextKp));
+        }
+      }
+      return { ...client, has_kp_card: !!card, kp_card_id: card?.id || null, auto_create_date };
     }));
 
     res.json(enriched);
@@ -173,13 +231,26 @@ router.get('/clients', requireAuth, async (req, res) => {
 // POST /api/kp/clients
 router.post('/clients', requireAuth, async (req, res) => {
   try {
-    const { name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, last_video_date, next_kp_date, notes } = req.body;
+    const { name, videos_per_month, current_kp_number, first_publish_date, notes } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
+
+    const vidCount = videos_per_month || 10;
+    let computedInterval = null, computedLast = null, computedNext = null;
+
+    // Auto-compute dates if first_publish_date provided
+    if (first_publish_date) {
+      const schedSettings = await loadKpScheduleSettings();
+      const dist = distributePublishDates(first_publish_date, vidCount, schedSettings.calendarWindow);
+      computedInterval = Math.round(dist.interval);
+      computedLast = toDateStr(dist.lastVideoDate);
+      computedNext = toDateStr(dist.nextKpFirstDate);
+    }
+
     const client = await queryOne(
       `INSERT INTO kp_clients (name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, last_video_date, next_kp_date, notes)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [name, videos_per_month || 10, publish_interval_days || 3, current_kp_number || 1,
-       first_publish_date || null, last_video_date || null, next_kp_date || null, notes || null]
+      [name, vidCount, computedInterval, current_kp_number || 1,
+       first_publish_date || null, computedLast, computedNext, notes || null]
     );
     await execute(
       'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
@@ -232,6 +303,26 @@ router.delete('/clients/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/kp/preview-dates?firstDate=YYYY-MM-DD&videoCount=N
+router.get('/preview-dates', requireAuth, async (req, res) => {
+  try {
+    const { firstDate, videoCount } = req.query;
+    if (!firstDate) return res.status(400).json({ error: 'firstDate required' });
+    const count = parseInt(videoCount) || 10;
+    const schedSettings = await loadKpScheduleSettings();
+    const dist = distributePublishDates(firstDate, count, schedSettings.calendarWindow);
+    res.json({
+      dates: dist.dates.map(d => toDateStr(d)),
+      datesBg: dist.dates.map(d => toBgDate(d)),
+      interval: dist.interval,
+      lastVideoDate: toDateStr(dist.lastVideoDate),
+      nextKpFirstDate: toDateStr(dist.nextKpFirstDate),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/kp/template
 router.get('/template', requireAuth, async (req, res) => {
   try {
@@ -275,16 +366,12 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
     const firstPublishDate = (rawDate instanceof Date ? rawDate.toISOString() : String(rawDate)).split('T')[0];
 
     const videoCount = client.videos_per_month || 10;
-    const interval = client.publish_interval_days || 3;
     const kpNumber = client.current_kp_number || 1;
 
-    // Generate publish dates
-    const publishDates = [];
-    for (let i = 0; i < videoCount; i++) {
-      const d = new Date(firstPublishDate + 'T12:00:00');
-      d.setDate(d.getDate() + i * interval);
-      publishDates.push(d.toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' }));
-    }
+    // Distribute publish dates evenly across calendar window
+    const schedSettings = await loadKpScheduleSettings();
+    const dist = distributePublishDates(firstPublishDate, videoCount, schedSettings.calendarWindow);
+    const publishDates = dist.dates.map(d => toBgDate(d));
 
     // Get templates
     const mainTplRow = await queryOne('SELECT value FROM app_settings WHERE key = $1', ['kp_template']);
@@ -342,17 +429,12 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
        req.user.userId, client.name, kpNumber, maxPos.pos]
     );
 
-    // Update client: increment KP number, update dates
-    const lastVideoDate = new Date(firstPublishDate + 'T12:00:00');
-    lastVideoDate.setDate(lastVideoDate.getDate() + (videoCount - 1) * interval);
-    const nextKpFirst = new Date(lastVideoDate);
-    nextKpFirst.setDate(nextKpFirst.getDate() + interval);
-
+    // Update client: increment KP number, update dates from distribution
     await execute(
-      `UPDATE kp_clients SET current_kp_number = $1, first_publish_date = $2, last_video_date = $3, next_kp_date = $4, updated_at = NOW()
-       WHERE id = $5`,
-      [kpNumber + 1, nextKpFirst.toISOString().split('T')[0],
-       lastVideoDate.toISOString().split('T')[0], nextKpFirst.toISOString().split('T')[0], client.id]
+      `UPDATE kp_clients SET current_kp_number = $1, first_publish_date = $2, last_video_date = $3, next_kp_date = $4, publish_interval_days = $5, updated_at = NOW()
+       WHERE id = $6`,
+      [kpNumber + 1, toDateStr(dist.nextKpFirstDate),
+       toDateStr(dist.lastVideoDate), toDateStr(dist.nextKpFirstDate), Math.round(dist.interval), client.id]
     );
 
     await execute(
