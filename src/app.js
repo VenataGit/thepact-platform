@@ -4,11 +4,15 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 const config = require('./config');
 const { getConnectedCount } = require('./ws/broadcast');
 const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
+
+// Gzip/Brotli compression — reduces ~551 KB transfer to ~150 KB
+app.use(compression());
 
 // Trust proxy (Nginx)
 if (config.IS_PRODUCTION) app.set('trust proxy', 1);
@@ -37,11 +41,20 @@ if (process.env.NODE_ENV !== 'test') {
   app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 300, message: { error: 'Too many requests' } }));
 }
 
-// Static files
+// Static files with smart caching
 app.use(express.static(path.join(__dirname, '..', 'public'), {
+  etag: true,
+  lastModified: true,
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    if (filePath.endsWith('.html')) {
+      // HTML: always revalidate (ensures fresh app shell)
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
+      // JS/CSS: cache 1 hour, revalidate after (ETag handles freshness)
+      res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+    } else if (filePath.endsWith('.svg') || filePath.endsWith('.png') || filePath.endsWith('.jpg')) {
+      // Images: cache 7 days
+      res.setHeader('Cache-Control', 'public, max-age=604800');
     }
   }
 }));

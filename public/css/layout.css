@@ -455,15 +455,6 @@
   margin: 0;
 }
 
-/* ==================== STATUS DOTS ==================== */
-.status-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.status-dot.offline { background: var(--text-dim); }
-
 /* ==================== RESPONSIVE ==================== */
 @media (max-width: 900px) {
   .project-tools { grid-template-columns: repeat(2, 1fr); }

@@ -2,7 +2,7 @@
    Design: Data-Dense Dashboard
    Typography: Inter (Google Fonts) + tabular-nums for data */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* Font loaded via <link> in index.html for faster preconnect */
 
 :root {
   --bg: #0b151b;
