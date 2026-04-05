@@ -97,25 +97,45 @@ function parsePublishDateFromSection(sectionText) {
   return new Date(year, month, day);
 }
 
+// KP video card steps — tied to production date fields
 const VIDEO_CARD_STEPS = [
-  { title: 'Сценарий и концепция', daysBeforePublish: 10 },
-  { title: 'Одобрение на концепция', daysBeforePublish: 9 },
-  { title: 'Подготовка за снимане', daysBeforePublish: 8 },
-  { title: 'Снимане', daysBeforePublish: 7 },
-  { title: 'Преглед на суров материал', daysBeforePublish: 6 },
-  { title: 'Груб монтаж', daysBeforePublish: 6 },
-  { title: 'Финален монтаж', daysBeforePublish: 5 },
-  { title: 'Вътрешен преглед', daysBeforePublish: 5 },
-  { title: 'Корекции след вътрешен преглед', daysBeforePublish: 4 },
-  { title: 'Клиентски преглед', daysBeforePublish: 3 },
-  { title: 'Корекции след клиент', daysBeforePublish: 3 },
-  { title: 'Финално одобрение', daysBeforePublish: 2 },
-  { title: 'Озвучаване / Музика', daysBeforePublish: 2 },
-  { title: 'Субтитри и текст', daysBeforePublish: 1 },
-  { title: 'Export и форматиране', daysBeforePublish: 1 },
-  { title: 'Качване в платформата', daysBeforePublish: 1 },
-  { title: 'Публикуване', daysBeforePublish: 0 },
+  { title: 'Видеограф - Приключен запис', dateField: 'filming' },
+  { title: 'Монтажист - Приключен монтаж', dateField: 'editing' },
+  { title: 'Акаунт - Обратна връзка от клиент', dateField: 'editing' },
+  { title: 'Монтажист - Корекции / финализиране монтаж', dateField: 'upload' },
+  { title: 'Акаунт - Изпращане / Качване', dateField: 'upload' },
 ];
+
+/**
+ * Load KP production day offsets from settings
+ * Returns { brainstorm: 10, filming: 7, editing: 5, upload: 1 }
+ */
+async function loadKpDayOffsets() {
+  const defaults = { brainstorm: 10, filming: 7, editing: 5, upload: 1 };
+  try {
+    const rows = await query("SELECT key, value FROM settings WHERE key LIKE 'kp_days_%'");
+    for (const r of rows) {
+      const field = r.key.replace('kp_days_', '');
+      if (defaults.hasOwnProperty(field)) {
+        defaults[field] = parseInt(r.value) || defaults[field];
+      }
+    }
+  } catch (err) { /* use defaults */ }
+  return defaults;
+}
+
+/**
+ * Calculate production dates from publish date + offsets
+ */
+function calcProductionDates(publishDate, offsets) {
+  return {
+    brainstorm_date: subtractWorkingDays(publishDate, offsets.brainstorm).toISOString().split('T')[0],
+    filming_date: subtractWorkingDays(publishDate, offsets.filming).toISOString().split('T')[0],
+    editing_date: subtractWorkingDays(publishDate, offsets.editing).toISOString().split('T')[0],
+    upload_date: subtractWorkingDays(publishDate, offsets.upload).toISOString().split('T')[0],
+    publish_date: publishDate.toISOString().split('T')[0],
+  };
+}
 
 // GET /api/kp/clients
 router.get('/clients', requireAuth, async (req, res) => {
@@ -292,10 +312,7 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
 
     const title = `${client.name} КП-${kpNumber}`;
 
-    // Due date: 14 days before first publish
-    const dueDate = new Date(firstPublishDate + 'T12:00:00');
-    dueDate.setDate(dueDate.getDate() - 14);
-    const dueDateStr = dueDate.toISOString().split('T')[0];
+    // KP cards: NO due_on — deadlines are tracked via production dates only
 
     // Find target column: setting (by ID) first, then fall back to name search
     let izmislianeCol = null;
@@ -317,11 +334,11 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
       [izmislianeCol.id]
     );
 
-    // Create the card
+    // Create the card (no due_on for KP cards)
     const card = await queryOne(
-      `INSERT INTO cards (board_id, column_id, title, content, due_on, creator_id, client_name, kp_number, position)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [izmislianeCol.board_id, izmislianeCol.id, title, textToHtml(content), dueDateStr,
+      `INSERT INTO cards (board_id, column_id, title, content, creator_id, client_name, kp_number, position)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [izmislianeCol.board_id, izmislianeCol.id, title, textToHtml(content),
        req.user.userId, client.name, kpNumber, maxPos.pos]
     );
 
@@ -388,44 +405,50 @@ router.post('/generate-video-cards/:cardId', requireAuth, async (req, res) => {
     const { broadcast } = require('../ws/broadcast');
     const createdCards = [];
 
+    // Load configurable day offsets from admin settings
+    const offsets = await loadKpDayOffsets();
+
     for (const section of videoSections) {
       const publishDate = parsePublishDateFromSection(section.sectionText);
       const videoCardTitle = `${card.client_name || card.title} КП-${card.kp_number || '?'} - Видео ${section.videoNumber} - ${section.title}`;
+
+      // Calculate all production dates from publish date
+      const prodDates = publishDate ? calcProductionDates(publishDate, offsets) : {};
 
       const maxPos = await queryOne(
         'SELECT COALESCE(MAX(position), -1) + 1 as pos FROM cards WHERE column_id = $1',
         [targetCol.id]
       );
 
+      // KP cards: NO due_on, only production dates
       const videoCard = await queryOne(
-        `INSERT INTO cards (board_id, column_id, title, content, due_on, publish_date, creator_id, client_name, kp_number, video_number, video_title, parent_id, position)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+        `INSERT INTO cards (board_id, column_id, title, content, publish_date, brainstorm_date, filming_date, editing_date, upload_date, creator_id, client_name, kp_number, video_number, video_title, parent_id, position)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
         [
           targetCol.board_id, targetCol.id, videoCardTitle,
           section.sectionText ? textToHtml(section.sectionText) : null,
-          publishDate ? publishDate.toISOString().split('T')[0] : null,
-          publishDate ? publishDate.toISOString().split('T')[0] : null,
+          prodDates.publish_date || null,
+          prodDates.brainstorm_date || null,
+          prodDates.filming_date || null,
+          prodDates.editing_date || null,
+          prodDates.upload_date || null,
           req.user.userId,
           card.client_name, card.kp_number, section.videoNumber, section.title,
           cardId, maxPos.pos
         ]
       );
 
-      // Create steps with calculated due dates
+      // Create 5 steps tied to production dates
+      const dateMap = {
+        filming: prodDates.filming_date || null,
+        editing: prodDates.editing_date || null,
+        upload: prodDates.upload_date || null,
+      };
       for (let i = 0; i < VIDEO_CARD_STEPS.length; i++) {
         const stepDef = VIDEO_CARD_STEPS[i];
-        let stepDueDate = null;
-        if (publishDate !== null) {
-          if (stepDef.daysBeforePublish === 0) {
-            stepDueDate = publishDate.toISOString().split('T')[0];
-          } else {
-            const d = subtractWorkingDays(publishDate, stepDef.daysBeforePublish);
-            stepDueDate = d.toISOString().split('T')[0];
-          }
-        }
         await execute(
           'INSERT INTO card_steps (card_id, title, due_on, position) VALUES ($1, $2, $3, $4)',
-          [videoCard.id, stepDef.title, stepDueDate, i]
+          [videoCard.id, stepDef.title, dateMap[stepDef.dateField] || null, i]
         );
       }
 

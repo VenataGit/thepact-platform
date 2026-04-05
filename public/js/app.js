@@ -3447,13 +3447,44 @@ async function loadAdminSettings() {
         </div>
         <div class="admin-setting-row">
           <label>Стъпки за видео карта</label>
-          <span style="color:#fff;font-weight:600">17</span>
-          <span style="font-size:11px;color:var(--text-dim)">фиксирано — от концепция до публикуване</span>
+          <span style="color:#fff;font-weight:600">5</span>
+          <span style="font-size:11px;color:var(--text-dim)">Видеограф → Монтажист → Акаунт → Корекции → Качване</span>
+        </div>
+      </div>
+
+      <div class="admin-settings-section">
+        <h3>📆 КП Дати (работни дни преди публикуване) <span class="info-tooltip" title="Колко работни дни преди датата за публикуване да се зададат автоматично production датите за нови видео карти.">ⓘ</span></h3>
+        <div class="admin-setting-row">
+          <label>Измисляне</label>
+          <input class="input-sm" type="number" min="0" max="60" style="width:60px"
+                 value="${esc(s.kp_days_brainstorm || '10')}"
+                 onblur="saveSetting('kp_days_brainstorm', this.value)">
+          <span style="font-size:11px;color:var(--text-dim)">работни дни</span>
         </div>
         <div class="admin-setting-row">
-          <label>Работни дни преди публ.</label>
-          <span style="color:#fff;font-weight:600">10 → 0</span>
-          <span style="font-size:11px;color:var(--text-dim)">автоматично изчислени</span>
+          <label>Заснемане</label>
+          <input class="input-sm" type="number" min="0" max="60" style="width:60px"
+                 value="${esc(s.kp_days_filming || '7')}"
+                 onblur="saveSetting('kp_days_filming', this.value)">
+          <span style="font-size:11px;color:var(--text-dim)">работни дни</span>
+        </div>
+        <div class="admin-setting-row">
+          <label>Монтаж</label>
+          <input class="input-sm" type="number" min="0" max="60" style="width:60px"
+                 value="${esc(s.kp_days_editing || '5')}"
+                 onblur="saveSetting('kp_days_editing', this.value)">
+          <span style="font-size:11px;color:var(--text-dim)">работни дни</span>
+        </div>
+        <div class="admin-setting-row">
+          <label>Качване</label>
+          <input class="input-sm" type="number" min="0" max="60" style="width:60px"
+                 value="${esc(s.kp_days_upload || '1')}"
+                 onblur="saveSetting('kp_days_upload', this.value)">
+          <span style="font-size:11px;color:var(--text-dim)">работни дни</span>
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-dim);line-height:1.5">
+          Пример: ако Публикуване е на 20-ти и Заснемане = 7 → filming_date ще бъде 7 работни дни преди 20-ти.
+          <br>Промените важат само за <strong>нови</strong> видео карти.
         </div>
       </div>
 
@@ -4542,13 +4573,30 @@ function workingDaysUntil(dateStr) {
   while (d <= target) { var dow = d.getDay(); if (dow !== 0 && dow !== 6) count++; d.setDate(d.getDate() + 1); }
   return count;
 }
+function isKpCard(card) {
+  return /КП-\d/.test(card.title || '');
+}
 function getCardDeadlineDate(card) {
-  var bt = (card.board_title || '').toLowerCase();
-  if (bt.indexOf('pre') !== -1) return card.brainstorm_date || null;
-  if (bt.indexOf('post') !== -1) return card.editing_date || null;
-  if (bt.indexOf('production') !== -1) return card.filming_date || null;
-  if (bt.indexOf('акаунт') !== -1 || bt.indexOf('account') !== -1) return card.upload_date || null;
-  return null;
+  // KP cards: use board-specific production dates
+  if (isKpCard(card)) {
+    var bt = (card.board_title || '').toLowerCase();
+    if (bt.indexOf('pre') !== -1) return card.brainstorm_date || null;
+    if (bt.indexOf('post') !== -1) return card.editing_date || null;
+    if (bt.indexOf('production') !== -1) return card.filming_date || null;
+    if (bt.indexOf('акаунт') !== -1 || bt.indexOf('account') !== -1) return card.upload_date || null;
+    // Fallback: use the nearest upcoming production date
+    var dates = [card.brainstorm_date, card.filming_date, card.editing_date, card.upload_date, card.publish_date].filter(Boolean);
+    if (dates.length > 0) {
+      var now = new Date(); now.setHours(0,0,0,0);
+      var upcoming = dates.map(function(d){ return new Date(d.toString().split('T')[0]+'T00:00:00'); })
+        .filter(function(d){ return d >= now; })
+        .sort(function(a,b){ return a-b; });
+      return upcoming.length > 0 ? upcoming[0].toISOString().split('T')[0] : dates[dates.length-1];
+    }
+    return null;
+  }
+  // Non-KP cards: use due_on (Краен срок)
+  return card.due_on || null;
 }
 function getDeadlineClass(card) {
   var date = getCardDeadlineDate(card);
