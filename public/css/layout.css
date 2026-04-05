@@ -362,6 +362,10 @@
 }
 #pageContent.wide { max-width: 1400px; }
 #pageContent.full-width { max-width: none; }
+#pageContent.page-chat { max-width: none; padding: 0; height: calc(100vh - 50px); overflow: hidden; }
+.with-breadcrumb #pageContent.page-chat { height: calc(100vh - 90px); }
+body:has(#pageContent.page-chat) { overflow: hidden; }
+body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
 #pageContent.card-sidebar { max-width: 1600px; }
 
 /* Tool pages (КП-Авто, бъдещи инструменти) — card style */

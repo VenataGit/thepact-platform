@@ -2872,7 +2872,7 @@ async function pingsStartChat(e) {
 
 // --- Full Chat Page ---
 async function renderChatList(el) {
-  setBreadcrumb(null); el.className = 'full-width';
+  setBreadcrumb(null); el.className = 'page-chat';
   try {
     var channels = await (await fetch('/api/chat/channels')).json();
     el.innerHTML = '<div class="chat-layout"><div class="chat-sidebar" id="chatSidebar">'+_renderChatSidebar(channels)+'</div><div class="chat-main" id="chatMain"><div class="chat-empty"><div class="chat-empty__icon">💬</div><p>Избери чат отляво или започни нов</p></div></div></div>';
@@ -2972,7 +2972,7 @@ window.newChatFilter = function() {
 // --- Chat conversation page ---
 async function renderChatChannel(el, channelId) {
   _activeChatChannel = channelId;
-  setBreadcrumb([{label:'Пингове',href:'#/chat'}]); el.className = 'full-width';
+  setBreadcrumb([{label:'Пингове',href:'#/chat'}]); el.className = 'page-chat';
   try {
     var [msgs, channels] = await Promise.all([
       (await fetch('/api/chat/channels/'+channelId+'/messages')).json(),
