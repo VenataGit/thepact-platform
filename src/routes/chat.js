@@ -1,24 +1,99 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const { query, queryOne, execute } = require('../db/pool');
-const { requireAuth, requireModerator } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const { broadcast, sendToUser } = require('../ws/broadcast');
 
-// GET /api/chat/channels — list user's channels
+// File uploads for chat
+const CHAT_UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads', 'chat');
+if (!fs.existsSync(CHAT_UPLOADS_DIR)) fs.mkdirSync(CHAT_UPLOADS_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: CHAT_UPLOADS_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } }); // 25MB
+
+// GET /api/chat/channels — list user's channels with unread counts
 router.get('/channels', requireAuth, async (req, res) => {
   try {
     const channels = await query(
       `SELECT ch.*,
         (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'avatar_url', u.avatar_url))
-         FROM chat_members cm JOIN users u ON cm.user_id = u.id WHERE cm.channel_id = ch.id) as members,
+         FROM chat_members cm2 JOIN users u ON cm2.user_id = u.id WHERE cm2.channel_id = ch.id) as members,
         (SELECT content FROM chat_messages WHERE channel_id = ch.id ORDER BY created_at DESC LIMIT 1) as last_message,
-        (SELECT created_at FROM chat_messages WHERE channel_id = ch.id ORDER BY created_at DESC LIMIT 1) as last_message_at
+        (SELECT user_id FROM chat_messages WHERE channel_id = ch.id ORDER BY created_at DESC LIMIT 1) as last_message_user_id,
+        (SELECT u.name FROM chat_messages cm3 JOIN users u ON cm3.user_id = u.id WHERE cm3.channel_id = ch.id ORDER BY cm3.created_at DESC LIMIT 1) as last_message_user_name,
+        (SELECT created_at FROM chat_messages WHERE channel_id = ch.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
+        (SELECT message_type FROM chat_messages WHERE channel_id = ch.id ORDER BY created_at DESC LIMIT 1) as last_message_type,
+        (SELECT COUNT(*) FROM chat_messages
+         WHERE channel_id = ch.id
+         AND created_at > COALESCE(
+           (SELECT last_read_at FROM chat_members WHERE channel_id = ch.id AND user_id = $1),
+           '1970-01-01'
+         )) as unread_count
        FROM chat_channels ch
        JOIN chat_members cm ON cm.channel_id = ch.id AND cm.user_id = $1
-       ORDER BY last_message_at DESC NULLS LAST`,
+       ORDER BY COALESCE(ch.updated_at, ch.created_at) DESC NULLS LAST`,
       [req.user.userId]
     );
     res.json(channels);
+  } catch (err) {
+    console.error('Chat channels error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/chat/recent — 2 most recent channels for dropdown
+router.get('/recent', requireAuth, async (req, res) => {
+  try {
+    const channels = await query(
+      `SELECT ch.*,
+        (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'avatar_url', u.avatar_url))
+         FROM chat_members cm2 JOIN users u ON cm2.user_id = u.id WHERE cm2.channel_id = ch.id) as members,
+        (SELECT content FROM chat_messages WHERE channel_id = ch.id ORDER BY created_at DESC LIMIT 1) as last_message,
+        (SELECT u.name FROM chat_messages cm3 JOIN users u ON cm3.user_id = u.id WHERE cm3.channel_id = ch.id ORDER BY cm3.created_at DESC LIMIT 1) as last_message_user_name,
+        (SELECT created_at FROM chat_messages WHERE channel_id = ch.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
+        (SELECT COUNT(*) FROM chat_messages
+         WHERE channel_id = ch.id
+         AND created_at > COALESCE(
+           (SELECT last_read_at FROM chat_members WHERE channel_id = ch.id AND user_id = $1),
+           '1970-01-01'
+         )) as unread_count
+       FROM chat_channels ch
+       JOIN chat_members cm ON cm.channel_id = ch.id AND cm.user_id = $1
+       WHERE EXISTS (SELECT 1 FROM chat_messages WHERE channel_id = ch.id)
+       ORDER BY (SELECT MAX(created_at) FROM chat_messages WHERE channel_id = ch.id) DESC
+       LIMIT 2`,
+      [req.user.userId]
+    );
+    res.json(channels);
+  } catch (err) {
+    console.error('Chat recent error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/chat/unread-count — total unread across all channels
+router.get('/unread-count', requireAuth, async (req, res) => {
+  try {
+    const result = await queryOne(
+      `SELECT COALESCE(SUM(cnt), 0)::int as count FROM (
+        SELECT (SELECT COUNT(*) FROM chat_messages
+                WHERE channel_id = ch.id
+                AND created_at > COALESCE(cm.last_read_at, '1970-01-01')) as cnt
+        FROM chat_channels ch
+        JOIN chat_members cm ON cm.channel_id = ch.id AND cm.user_id = $1
+      ) sub`,
+      [req.user.userId]
+    );
+    res.json({ count: result.count });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -33,13 +108,21 @@ router.post('/channels', requireAuth, async (req, res) => {
     // For DMs, check if one already exists between these two users
     if (channelType === 'dm' && member_ids?.length === 1) {
       const existing = await queryOne(
-        `SELECT ch.id FROM chat_channels ch
+        `SELECT ch.* FROM chat_channels ch
          WHERE ch.type = 'dm'
          AND EXISTS (SELECT 1 FROM chat_members WHERE channel_id = ch.id AND user_id = $1)
          AND EXISTS (SELECT 1 FROM chat_members WHERE channel_id = ch.id AND user_id = $2)`,
         [req.user.userId, member_ids[0]]
       );
-      if (existing) return res.json(existing);
+      if (existing) {
+        // Return full channel with members
+        const members = await query(
+          `SELECT u.id, u.name, u.avatar_url FROM chat_members cm JOIN users u ON cm.user_id = u.id WHERE cm.channel_id = $1`,
+          [existing.id]
+        );
+        existing.members = members;
+        return res.json(existing);
+      }
     }
 
     const channel = await queryOne(
@@ -47,17 +130,87 @@ router.post('/channels', requireAuth, async (req, res) => {
       [name || null, channelType, req.user.userId]
     );
 
-    // Add creator
-    await execute('INSERT INTO chat_members (channel_id, user_id) VALUES ($1, $2)', [channel.id, req.user.userId]);
+    // Add creator as admin
+    await execute('INSERT INTO chat_members (channel_id, user_id, role, last_read_at) VALUES ($1, $2, $3, NOW())',
+      [channel.id, req.user.userId, 'admin']);
 
     // Add other members
     if (member_ids?.length > 0) {
       for (const uid of member_ids) {
-        await execute('INSERT INTO chat_members (channel_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [channel.id, uid]);
+        await execute('INSERT INTO chat_members (channel_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [channel.id, uid]);
       }
     }
 
+    // Return with members
+    const members = await query(
+      `SELECT u.id, u.name, u.avatar_url FROM chat_members cm JOIN users u ON cm.user_id = u.id WHERE cm.channel_id = $1`,
+      [channel.id]
+    );
+    channel.members = members;
+
+    // Send system message for group creation
+    if (channelType === 'group') {
+      const creator = await queryOne('SELECT name FROM users WHERE id = $1', [req.user.userId]);
+      const memberNames = members.filter(m => m.id !== req.user.userId).map(m => m.name).join(', ');
+      await execute(
+        `INSERT INTO chat_messages (channel_id, user_id, content, message_type) VALUES ($1, $2, $3, 'system')`,
+        [channel.id, req.user.userId, `${creator.name} създаде група с ${memberNames}`]
+      );
+    }
+
     res.status(201).json(channel);
+  } catch (err) {
+    console.error('Chat create channel error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/chat/channels/:id — update channel (name, avatar)
+router.put('/channels/:id', requireAuth, async (req, res) => {
+  try {
+    const { name } = req.body;
+    const channel = await queryOne(
+      'UPDATE chat_channels SET name = COALESCE($1, name), updated_at = NOW() WHERE id = $2 RETURNING *',
+      [name, req.params.id]
+    );
+    if (!channel) return res.status(404).json({ error: 'Channel not found' });
+
+    // Notify members
+    const members = await query('SELECT user_id FROM chat_members WHERE channel_id = $1', [req.params.id]);
+    for (const m of members) {
+      sendToUser(m.user_id, { type: 'chat:channel:updated', channelId: parseInt(req.params.id), name: channel.name, avatar_url: channel.avatar_url });
+    }
+
+    // System message
+    const user = await queryOne('SELECT name FROM users WHERE id = $1', [req.user.userId]);
+    await execute(
+      `INSERT INTO chat_messages (channel_id, user_id, content, message_type) VALUES ($1, $2, $3, 'system')`,
+      [req.params.id, req.user.userId, `${user.name} преименува групата на "${name}"`]
+    );
+    await execute('UPDATE chat_channels SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+
+    res.json(channel);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/chat/channels/:id/avatar — upload group avatar
+router.post('/channels/:id/avatar', requireAuth, upload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file' });
+    const avatarUrl = `/uploads/chat/${req.file.filename}`;
+    const channel = await queryOne(
+      'UPDATE chat_channels SET avatar_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [avatarUrl, req.params.id]
+    );
+    // Notify members
+    const members = await query('SELECT user_id FROM chat_members WHERE channel_id = $1', [req.params.id]);
+    for (const m of members) {
+      sendToUser(m.user_id, { type: 'chat:channel:updated', channelId: parseInt(req.params.id), avatar_url: avatarUrl });
+    }
+    res.json(channel);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -66,7 +219,6 @@ router.post('/channels', requireAuth, async (req, res) => {
 // GET /api/chat/channels/:id/messages
 router.get('/channels/:id/messages', requireAuth, async (req, res) => {
   try {
-    // Verify user is member
     const member = await queryOne(
       'SELECT 1 FROM chat_members WHERE channel_id = $1 AND user_id = $2',
       [req.params.id, req.user.userId]
@@ -94,11 +246,13 @@ router.get('/channels/:id/messages', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/chat/channels/:id/messages
+// POST /api/chat/channels/:id/messages — send message
 router.post('/channels/:id/messages', requireAuth, async (req, res) => {
   try {
-    const { content, mentions } = req.body;
-    if (!content?.trim()) return res.status(400).json({ error: 'Content required' });
+    const { content, mentions, message_type, attachment_url, attachment_name, attachment_mime, attachment_size } = req.body;
+    const msgType = message_type || 'text';
+
+    if (msgType === 'text' && !content?.trim()) return res.status(400).json({ error: 'Content required' });
 
     // Verify membership
     const member = await queryOne(
@@ -108,10 +262,18 @@ router.post('/channels/:id/messages', requireAuth, async (req, res) => {
     if (!member) return res.status(403).json({ error: 'Not a member' });
 
     const msg = await queryOne(
-      `INSERT INTO chat_messages (channel_id, user_id, content, mentions)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [req.params.id, req.user.userId, content.trim(), JSON.stringify(mentions || [])]
+      `INSERT INTO chat_messages (channel_id, user_id, content, mentions, message_type, attachment_url, attachment_name, attachment_mime, attachment_size)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [req.params.id, req.user.userId, (content || '').trim(), JSON.stringify(mentions || []),
+       msgType, attachment_url || null, attachment_name || null, attachment_mime || null, attachment_size || null]
     );
+
+    // Update channel updated_at
+    await execute('UPDATE chat_channels SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+
+    // Mark as read for sender
+    await execute('UPDATE chat_members SET last_read_at = NOW() WHERE channel_id = $1 AND user_id = $2',
+      [req.params.id, req.user.userId]);
 
     const user = await queryOne('SELECT name, avatar_url FROM users WHERE id = $1', [req.user.userId]);
     msg.user_name = user.name;
@@ -127,6 +289,34 @@ router.post('/channels/:id/messages', requireAuth, async (req, res) => {
 
     res.status(201).json(msg);
   } catch (err) {
+    console.error('Chat send error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/chat/channels/:id/upload — upload file to chat
+router.post('/channels/:id/upload', requireAuth, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file' });
+    const fileUrl = `/uploads/chat/${req.file.filename}`;
+    res.json({
+      url: fileUrl,
+      name: req.file.originalname,
+      mime: req.file.mimetype,
+      size: req.file.size
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/chat/channels/:id/read — mark channel as read
+router.put('/channels/:id/read', requireAuth, async (req, res) => {
+  try {
+    await execute('UPDATE chat_members SET last_read_at = NOW() WHERE channel_id = $1 AND user_id = $2',
+      [req.params.id, req.user.userId]);
+    res.json({ ok: true });
+  } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -135,8 +325,26 @@ router.post('/channels/:id/messages', requireAuth, async (req, res) => {
 router.post('/channels/:id/members', requireAuth, async (req, res) => {
   try {
     const { user_id } = req.body;
-    await execute('INSERT INTO chat_members (channel_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.params.id, user_id]);
-    res.json({ ok: true });
+    await execute('INSERT INTO chat_members (channel_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [req.params.id, user_id]);
+
+    const user = await queryOne('SELECT id, name, avatar_url FROM users WHERE id = $1', [user_id]);
+    const adder = await queryOne('SELECT name FROM users WHERE id = $1', [req.user.userId]);
+
+    // System message
+    await queryOne(
+      `INSERT INTO chat_messages (channel_id, user_id, content, message_type) VALUES ($1, $2, $3, 'system') RETURNING *`,
+      [req.params.id, req.user.userId, `${adder.name} добави ${user.name} в групата`]
+    );
+    await execute('UPDATE chat_channels SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+
+    // Notify members
+    const members = await query('SELECT user_id FROM chat_members WHERE channel_id = $1', [req.params.id]);
+    for (const m of members) {
+      sendToUser(m.user_id, { type: 'chat:member:added', channelId: parseInt(req.params.id), user });
+    }
+
+    res.json({ ok: true, user });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -145,7 +353,29 @@ router.post('/channels/:id/members', requireAuth, async (req, res) => {
 // DELETE /api/chat/channels/:id/members/:userId — remove member
 router.delete('/channels/:id/members/:userId', requireAuth, async (req, res) => {
   try {
-    await execute('DELETE FROM chat_members WHERE channel_id = $1 AND user_id = $2', [req.params.id, req.params.userId]);
+    const removed = await queryOne('SELECT name FROM users WHERE id = $1', [req.params.userId]);
+    const remover = await queryOne('SELECT name FROM users WHERE id = $1', [req.user.userId]);
+
+    await execute('DELETE FROM chat_members WHERE channel_id = $1 AND user_id = $2',
+      [req.params.id, req.params.userId]);
+
+    // System message
+    const msg = req.user.userId === parseInt(req.params.userId)
+      ? `${removed.name} напусна групата`
+      : `${remover.name} премахна ${removed.name} от групата`;
+    await queryOne(
+      `INSERT INTO chat_messages (channel_id, user_id, content, message_type) VALUES ($1, $2, $3, 'system') RETURNING *`,
+      [req.params.id, req.user.userId, msg]
+    );
+    await execute('UPDATE chat_channels SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+
+    // Notify
+    const members = await query('SELECT user_id FROM chat_members WHERE channel_id = $1', [req.params.id]);
+    for (const m of members) {
+      sendToUser(m.user_id, { type: 'chat:member:removed', channelId: parseInt(req.params.id), userId: parseInt(req.params.userId) });
+    }
+    sendToUser(parseInt(req.params.userId), { type: 'chat:member:removed', channelId: parseInt(req.params.id), userId: parseInt(req.params.userId) });
+
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
