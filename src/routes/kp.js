@@ -438,17 +438,11 @@ router.post('/generate-video-cards/:cardId', requireAuth, async (req, res) => {
         ]
       );
 
-      // Create 5 steps tied to production dates
-      const dateMap = {
-        filming: prodDates.filming_date || null,
-        editing: prodDates.editing_date || null,
-        upload: prodDates.upload_date || null,
-      };
+      // Create 5 steps (no due dates on steps)
       for (let i = 0; i < VIDEO_CARD_STEPS.length; i++) {
-        const stepDef = VIDEO_CARD_STEPS[i];
         await execute(
-          'INSERT INTO card_steps (card_id, title, due_on, position) VALUES ($1, $2, $3, $4)',
-          [videoCard.id, stepDef.title, dateMap[stepDef.dateField] || null, i]
+          'INSERT INTO card_steps (card_id, title, position) VALUES ($1, $2, $3)',
+          [videoCard.id, VIDEO_CARD_STEPS[i].title, i]
         );
       }
 
