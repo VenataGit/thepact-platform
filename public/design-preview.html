@@ -17,6 +17,7 @@
   --text-secondary: #8fa3b0;
   --text-dim: #566d7a;
   --accent: #1cb0f6;
+  --accent-dim: rgba(28,176,246,0.12);
   --green: #22c55e;
   --yellow: #eab308;
   --red: #ef4444;
@@ -30,8 +31,6 @@ body {
   font-family: 'Inter', -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-
-/* Picker bar */
 .picker-bar {
   position: sticky; top: 0; z-index: 100;
   background: #0d1a22; border-bottom: 1px solid var(--border);
@@ -46,202 +45,232 @@ body {
 }
 .style-btn:hover { border-color: var(--accent); color: var(--accent); }
 .style-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.style-desc { flex-basis: 100%; margin-top: 8px; font-size: 12px; color: var(--text-dim); line-height: 1.5; }
-
-/* Preview wrapper */
-.preview-wrap {
-  max-width: 1100px; margin: 30px auto; padding: 0 24px;
-}
-.preview-section {
-  background: var(--bg-card); border-radius: 12px; padding: 28px 32px 36px;
-}
-.section-label {
-  font-size: 12px; font-weight: 700; color: var(--text-dim);
-  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px;
-}
-.board-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-}
+.style-desc { flex-basis: 100%; margin-top: 8px; font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+.preview-wrap { max-width: 1100px; margin: 30px auto; padding: 0 24px; }
+.preview-section { background: var(--bg-card); border-radius: 12px; padding: 28px 32px 36px; }
+.section-label { font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+.board-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 
 /* ============================================
-   A — Current (the existing design)
+   A — ТЕКУЩ
    ============================================ */
-.variant-a .bcard {
+.va .bc {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: linear-gradient(135deg, #1e3a4a 0%, #1a2f3d 50%, #1d2d35 100%);
   border: 1px solid var(--border); border-radius: 16px;
   padding: 20px; min-height: 120px; text-align: center;
-  text-decoration: none; color: #fff; cursor: pointer;
-  transition: all 0.15s; box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  cursor: pointer; transition: all 0.15s; box-shadow: 0 2px 12px rgba(0,0,0,0.2);
 }
-.variant-a .bcard:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.4); transform: translateY(-3px); border-color: var(--border-hover); }
-.variant-a .bcard__bar { width: 50px; height: 4px; border-radius: 2px; margin-bottom: 14px; }
-.variant-a .bcard__title { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 8px; }
-.variant-a .bcard__sub { font-size: 12px; color: var(--text-dim); }
-.variant-a .bcard__badge { display: none; }
-.variant-a .bcard--new { border-style: dashed; opacity: 0.5; }
+.va .bc:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.4); transform: translateY(-3px); }
+.va .bc__t { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+.va .bc__s { font-size: 12px; color: var(--text-dim); }
+.va .bc__b { display: none; }
+.va .bc--n { border-style: dashed; opacity: 0.5; }
 
 /* ============================================
-   B — Glass Cards
+   B — TINTED HEADER (H от преди, но един цвят)
    ============================================ */
-.variant-b .bcard {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: rgba(30, 48, 64, 0.4); backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.06); border-radius: 20px;
-  padding: 24px 20px; min-height: 130px; text-align: center;
-  text-decoration: none; color: #fff; cursor: pointer;
-  transition: all 0.25s; box-shadow: 0 4px 24px rgba(0,0,0,0.15);
-}
-.variant-b .bcard:hover { background: rgba(30, 48, 64, 0.6); border-color: rgba(255,255,255,0.1); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
-.variant-b .bcard__bar { width: 40px; height: 3px; border-radius: 3px; margin-bottom: 16px; opacity: 0.7; }
-.variant-b .bcard__title { font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.9); margin-bottom: 10px; letter-spacing: 0.01em; }
-.variant-b .bcard__sub { font-size: 11px; color: rgba(255,255,255,0.35); }
-.variant-b .bcard__badge { position: absolute; top: 12px; right: 14px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(239,68,68,0.15); color: #fca5a5; }
-.variant-b .bcard { position: relative; }
-.variant-b .bcard--new { border-style: dashed; border-color: rgba(255,255,255,0.08); opacity: 0.4; backdrop-filter: none; }
-
-/* ============================================
-   C — Top Color Bar (bold stripe)
-   ============================================ */
-.variant-c .bcard {
-  display: flex; flex-direction: column;
-  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px;
-  padding: 0; min-height: 110px; text-decoration: none; color: #fff; cursor: pointer;
-  transition: all 0.15s; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-.variant-c .bcard:hover { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(0,0,0,0.35); border-color: var(--border-hover); }
-.variant-c .bcard__bar { width: 100%; height: 4px; border-radius: 0; margin-bottom: 0; flex-shrink: 0; }
-.variant-c .bcard__body { padding: 16px 18px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
-.variant-c .bcard__title { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 6px; text-align: left; }
-.variant-c .bcard__sub { font-size: 12px; color: var(--text-dim); text-align: left; }
-.variant-c .bcard__badge { float: right; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: rgba(239,68,68,0.2); color: var(--red); margin-top: 2px; }
-.variant-c .bcard--new { border-style: dashed; opacity: 0.5; }
-.variant-c .bcard--new .bcard__bar { display: none; }
-.variant-c .bcard--new .bcard__body { justify-content: center; align-items: center; }
-
-/* ============================================
-   D — Icon Cards (with emoji + large count)
-   ============================================ */
-.variant-d .bcard {
-  display: flex; flex-direction: column; align-items: flex-start;
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
-  padding: 20px; min-height: 120px; text-decoration: none; color: #fff; cursor: pointer;
-  transition: all 0.2s; position: relative;
-}
-.variant-d .bcard:hover { background: var(--bg-hover); border-color: var(--border-hover); }
-.variant-d .bcard__bar { display: none; }
-.variant-d .bcard__icon { font-size: 28px; margin-bottom: 12px; }
-.variant-d .bcard__title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-.variant-d .bcard__sub { font-size: 11px; color: var(--text-dim); }
-.variant-d .bcard__count { position: absolute; top: 18px; right: 18px; font-size: 24px; font-weight: 900; color: rgba(255,255,255,0.08); }
-.variant-d .bcard__badge { position: absolute; bottom: 14px; right: 14px; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 8px; background: rgba(239,68,68,0.15); color: var(--red); }
-.variant-d .bcard--new { border-style: dashed; opacity: 0.4; }
-.variant-d .bcard--new .bcard__icon { opacity: 0.3; }
-
-/* ============================================
-   E — Gradient Glow
-   ============================================ */
-.variant-e .bcard {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  border: 1px solid rgba(255,255,255,0.04); border-radius: 16px;
-  padding: 24px 20px; min-height: 130px; text-align: center;
-  text-decoration: none; color: #fff; cursor: pointer;
-  transition: all 0.25s; position: relative; overflow: hidden;
-}
-.variant-e .bcard::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 60%;
-  border-radius: 16px 16px 0 0; opacity: 0.12; transition: opacity 0.3s;
-}
-.variant-e .bcard:hover::before { opacity: 0.2; }
-.variant-e .bcard:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
-.variant-e .bcard[data-color="blue"]::before   { background: linear-gradient(180deg, var(--blue), transparent); }
-.variant-e .bcard[data-color="orange"]::before { background: linear-gradient(180deg, var(--orange), transparent); }
-.variant-e .bcard[data-color="purple"]::before { background: linear-gradient(180deg, #a78bfa, transparent); }
-.variant-e .bcard[data-color="green"]::before  { background: linear-gradient(180deg, var(--green), transparent); }
-.variant-e .bcard[data-color="teal"]::before   { background: linear-gradient(180deg, #2dd4bf, transparent); }
-.variant-e .bcard { background: var(--bg-card); }
-.variant-e .bcard__bar { display: none; }
-.variant-e .bcard__dot { width: 8px; height: 8px; border-radius: 50%; margin-bottom: 14px; }
-.variant-e .bcard__title { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 8px; position: relative; z-index: 1; }
-.variant-e .bcard__sub { font-size: 11px; color: var(--text-dim); position: relative; z-index: 1; }
-.variant-e .bcard__badge { position: absolute; top: 12px; right: 14px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: rgba(239,68,68,0.2); color: var(--red); z-index: 1; }
-.variant-e .bcard--new { border-style: dashed; opacity: 0.4; }
-.variant-e .bcard--new::before { display: none; }
-
-/* ============================================
-   F — Left Accent Bar + Horizontal Layout
-   ============================================ */
-.variant-f .board-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.variant-f .bcard {
-  display: flex; align-items: center; gap: 16px;
-  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px;
-  border-left: 4px solid transparent; padding: 18px 20px; min-height: 70px;
-  text-decoration: none; color: #fff; cursor: pointer; transition: all 0.15s;
-}
-.variant-f .bcard:hover { background: var(--bg-hover); border-color: var(--border-hover); }
-.variant-f .bcard__bar { display: none; }
-.variant-f .bcard__left-bar { width: 4px; }
-.variant-f .bcard__title { font-size: 14px; font-weight: 700; color: #fff; }
-.variant-f .bcard__sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
-.variant-f .bcard__right { margin-left: auto; text-align: right; }
-.variant-f .bcard__right-num { font-size: 22px; font-weight: 900; color: rgba(255,255,255,0.12); }
-.variant-f .bcard__badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(239,68,68,0.15); color: var(--red); margin-left: auto; }
-.variant-f .bcard--new { border-style: dashed; opacity: 0.4; border-left-style: dashed; }
-
-/* ============================================
-   G — Outlined Minimal
-   ============================================ */
-.variant-g .bcard {
-  display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end;
-  background: transparent; border: 1px solid var(--border); border-radius: 12px;
-  padding: 20px; min-height: 110px; text-decoration: none; color: #fff; cursor: pointer;
-  transition: all 0.2s; position: relative;
-}
-.variant-g .bcard:hover { background: rgba(255,255,255,0.02); border-color: var(--border-hover); }
-.variant-g .bcard__bar { position: absolute; top: 0; left: 16px; right: 16px; height: 2px; border-radius: 0 0 2px 2px; }
-.variant-g .bcard__title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-.variant-g .bcard__sub { font-size: 11px; color: var(--text-dim); }
-.variant-g .bcard__badge { position: absolute; top: 12px; right: 14px; font-size: 10px; font-weight: 700; color: var(--red); }
-.variant-g .bcard--new { border-style: dashed; opacity: 0.35; }
-
-/* ============================================
-   H — Filled Color Header
-   ============================================ */
-.variant-h .bcard {
+.vb .bc {
   display: flex; flex-direction: column;
   background: var(--bg-card); border: none; border-radius: 14px;
-  padding: 0; min-height: 120px; text-decoration: none; color: #fff; cursor: pointer;
+  padding: 0; min-height: 120px; cursor: pointer;
   transition: all 0.2s; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.25);
 }
-.variant-h .bcard:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
-.variant-h .bcard__header { padding: 14px 18px; }
-.variant-h .bcard[data-color="blue"] .bcard__header   { background: rgba(59,130,246,0.2); }
-.variant-h .bcard[data-color="orange"] .bcard__header { background: rgba(249,115,22,0.2); }
-.variant-h .bcard[data-color="purple"] .bcard__header { background: rgba(167,139,250,0.2); }
-.variant-h .bcard[data-color="green"] .bcard__header  { background: rgba(34,197,94,0.2); }
-.variant-h .bcard[data-color="teal"] .bcard__header   { background: rgba(45,212,191,0.2); }
-.variant-h .bcard__bar { display: none; }
-.variant-h .bcard__title { font-size: 14px; font-weight: 800; color: #fff; }
-.variant-h .bcard__body-bottom { padding: 12px 18px; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
-.variant-h .bcard__sub { font-size: 11px; color: var(--text-dim); }
-.variant-h .bcard__badge { float: right; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: rgba(239,68,68,0.2); color: var(--red); }
-.variant-h .bcard--new { border: 1px dashed var(--border); opacity: 0.4; box-shadow: none; }
-.variant-h .bcard--new .bcard__header { background: transparent; padding: 0; }
-.variant-h .bcard--new .bcard__body-bottom { align-items: center; justify-content: center; }
+.vb .bc:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+.vb .bc__h { padding: 14px 18px; background: rgba(28,176,246,0.12); }
+.vb .bc__t { font-size: 14px; font-weight: 800; color: #fff; }
+.vb .bc__bot { padding: 12px 18px; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
+.vb .bc__s { font-size: 11px; color: var(--text-dim); }
+.vb .bc__b { float: right; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: rgba(239,68,68,.2); color: var(--red); }
+.vb .bc--n { border: 1px dashed var(--border); opacity: 0.4; box-shadow: none; }
+.vb .bc--n .bc__h { background: transparent; }
+
+/* ============================================
+   C — NEON EDGE
+   Тънка светеща рамка, glow при hover
+   ============================================ */
+.vc .bc {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(11,21,27,0.8); border: 1px solid rgba(28,176,246,0.2);
+  border-radius: 12px; padding: 22px 18px; min-height: 120px;
+  text-align: center; cursor: pointer; transition: all 0.3s;
+}
+.vc .bc:hover { border-color: rgba(28,176,246,0.6); box-shadow: 0 0 25px rgba(28,176,246,0.12), 0 0 60px rgba(28,176,246,0.05); transform: translateY(-2px); }
+.vc .bc__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; letter-spacing: 0.02em; }
+.vc .bc__s { font-size: 11px; color: var(--text-dim); }
+.vc .bc__b { margin-top: 10px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: rgba(239,68,68,.12); color: #fca5a5; }
+.vc .bc--n { border-style: dashed; border-color: rgba(28,176,246,0.1); opacity: 0.35; }
+
+/* ============================================
+   D — BRUTALIST
+   Остри ъгли, дебела рамка, суров вид
+   ============================================ */
+.vd .bc {
+  display: flex; flex-direction: column;
+  background: var(--bg); border: 2px solid var(--text-dim);
+  border-radius: 0; padding: 0; min-height: 110px;
+  cursor: pointer; transition: all 0.1s; position: relative;
+}
+.vd .bc:hover { border-color: var(--accent); background: var(--bg-elevated); }
+.vd .bc__top { padding: 14px 16px; border-bottom: 2px solid var(--text-dim); transition: border-color 0.1s; }
+.vd .bc:hover .bc__top { border-color: var(--accent); }
+.vd .bc__t { font-size: 13px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 0.1em; }
+.vd .bc__bot { padding: 12px 16px; flex: 1; display: flex; align-items: flex-end; }
+.vd .bc__s { font-size: 11px; color: var(--text-dim); font-weight: 600; letter-spacing: 0.04em; }
+.vd .bc__b { position: absolute; top: 14px; right: 14px; font-size: 10px; font-weight: 900; color: var(--red); letter-spacing: 0.05em; }
+.vd .bc--n { border-style: dashed; border-color: var(--text-dim); opacity: 0.3; }
+.vd .bc--n .bc__top { border-bottom: none; }
+
+/* ============================================
+   E — SPLIT PANEL
+   Голям номер вляво, текст вдясно
+   ============================================ */
+.ve .bc {
+  display: flex; flex-direction: row; align-items: stretch;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 0; min-height: 100px; overflow: hidden;
+  cursor: pointer; transition: all 0.15s;
+}
+.ve .bc:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+.ve .bc__num {
+  display: flex; align-items: center; justify-content: center;
+  width: 72px; flex-shrink: 0; background: rgba(28,176,246,0.08);
+  font-size: 28px; font-weight: 900; color: rgba(28,176,246,0.5);
+  border-right: 1px solid var(--border);
+}
+.ve .bc__info { padding: 16px 18px; display: flex; flex-direction: column; justify-content: center; flex: 1; }
+.ve .bc__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.ve .bc__s { font-size: 11px; color: var(--text-dim); }
+.ve .bc__b { margin-top: 6px; font-size: 10px; font-weight: 700; color: var(--red); }
+.ve .bc--n { opacity: 0.35; border-style: dashed; }
+.ve .bc--n .bc__num { background: transparent; color: var(--text-dim); font-size: 22px; }
+
+/* ============================================
+   F — GRADIENT LIFT
+   Subtle gradient от accent, "плаващ" ефект
+   ============================================ */
+.vf .bc {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: linear-gradient(145deg, rgba(28,176,246,0.1) 0%, rgba(28,176,246,0.02) 40%, var(--bg-card) 100%);
+  border: 1px solid rgba(28,176,246,0.08); border-radius: 18px;
+  padding: 24px 20px; min-height: 130px; text-align: center;
+  cursor: pointer; transition: all 0.3s; position: relative;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.vf .bc:hover { transform: translateY(-5px) scale(1.02); box-shadow: 0 12px 40px rgba(0,0,0,0.3), 0 0 40px rgba(28,176,246,0.06); border-color: rgba(28,176,246,0.15); }
+.vf .bc__t { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 10px; }
+.vf .bc__s { font-size: 11px; color: var(--text-secondary); }
+.vf .bc__b { position: absolute; top: 12px; right: 14px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(239,68,68,.15); color: #fca5a5; }
+.vf .bc--n { background: var(--bg-card); border-style: dashed; border-color: var(--border); opacity: 0.35; }
+
+/* ============================================
+   G — BOTTOM BAR
+   Чист дизайн, цветна ивица отдолу
+   ============================================ */
+.vg .bc {
+  display: flex; flex-direction: column; justify-content: center;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px 18px 24px; min-height: 110px;
+  cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden;
+}
+.vg .bc::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+  height: 3px; background: var(--accent); opacity: 0.5; transition: opacity 0.2s;
+}
+.vg .bc:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+.vg .bc:hover::after { opacity: 1; }
+.vg .bc__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+.vg .bc__s { font-size: 11px; color: var(--text-dim); }
+.vg .bc__b { position: absolute; top: 12px; right: 12px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(239,68,68,.15); color: var(--red); }
+.vg .bc--n { border-style: dashed; opacity: 0.35; }
+.vg .bc--n::after { display: none; }
+
+/* ============================================
+   H — LAYERED STACK
+   3D ефект — карта върху друга карта
+   ============================================ */
+.vh .bc {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 22px 18px; min-height: 115px;
+  text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
+}
+.vh .bc::before {
+  content: ''; position: absolute; inset: 4px 4px -5px 4px;
+  background: var(--bg-elevated); border-radius: 12px;
+  border: 1px solid var(--border); z-index: -1; opacity: 0.5;
+}
+.vh .bc::after {
+  content: ''; position: absolute; inset: 8px 8px -9px 8px;
+  background: var(--bg); border-radius: 12px;
+  border: 1px solid var(--border); z-index: -2; opacity: 0.3;
+}
+.vh .bc:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+.vh .bc__t { font-size: 14px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+.vh .bc__s { font-size: 11px; color: var(--text-dim); }
+.vh .bc__b { position: absolute; top: 10px; right: 12px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: rgba(239,68,68,.2); color: var(--red); }
+.vh .bc--n { border-style: dashed; opacity: 0.35; }
+.vh .bc--n::before, .vh .bc--n::after { display: none; }
+
+/* ============================================
+   I — LEFT ACCENT + STATS ROW
+   Лява ивица, долен ред с мини-статистики
+   ============================================ */
+.vi .bc {
+  display: flex; flex-direction: column;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-left: 4px solid var(--accent); border-radius: 10px;
+  padding: 16px 18px; min-height: 105px;
+  cursor: pointer; transition: all 0.15s;
+}
+.vi .bc:hover { background: var(--bg-hover); transform: translateX(3px); }
+.vi .bc__t { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.vi .bc__s { font-size: 11px; color: var(--text-dim); margin-bottom: auto; }
+.vi .bc__stats {
+  display: flex; gap: 12px; margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.vi .bc__stat { font-size: 10px; color: var(--text-dim); font-weight: 600; }
+.vi .bc__stat strong { color: var(--text); font-weight: 800; font-size: 13px; margin-right: 3px; }
+.vi .bc__stat--warn strong { color: var(--red); }
+.vi .bc__b { display: none; }
+.vi .bc--n { border-left-style: dashed; border-left-color: var(--border); opacity: 0.35; }
+.vi .bc--n .bc__stats { display: none; }
+
+/* ============================================
+   J — PILL / WIDE ROWS
+   Широки хоризонтални "пилюли", 1 колона
+   ============================================ */
+.vj .board-grid { grid-template-columns: 1fr; gap: 8px; max-width: 600px; }
+.vj .bc {
+  display: flex; align-items: center;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 50px; padding: 14px 24px; min-height: 56px;
+  cursor: pointer; transition: all 0.15s; gap: 16px;
+}
+.vj .bc:hover { background: var(--bg-hover); border-color: var(--accent); }
+.vj .bc__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.vj .bc__t { font-size: 14px; font-weight: 700; color: #fff; flex: 1; }
+.vj .bc__s { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.vj .bc__b { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(239,68,68,.12); color: var(--red); flex-shrink: 0; margin-left: 8px; }
+.vj .bc--n { border-style: dashed; opacity: 0.3; }
+.vj .bc--n .bc__dot { background: var(--text-dim); }
 </style>
 </head>
 <body>
 
 <div class="picker-bar">
   <span class="picker-bar__title">Избери дизайн:</span>
-  <button class="style-btn active" onclick="setVariant('a')">A — Текущ</button>
-  <button class="style-btn" onclick="setVariant('b')">B — Glass</button>
-  <button class="style-btn" onclick="setVariant('c')">C — Stripe</button>
-  <button class="style-btn" onclick="setVariant('d')">D — Icon</button>
-  <button class="style-btn" onclick="setVariant('e')">E — Glow</button>
-  <button class="style-btn" onclick="setVariant('f')">F — Хоризонтален</button>
-  <button class="style-btn" onclick="setVariant('g')">G — Outlined</button>
-  <button class="style-btn" onclick="setVariant('h')">H — Color Header</button>
+  <button class="style-btn active" data-v="a">A — Текущ</button>
+  <button class="style-btn" data-v="b">B — Tinted Header</button>
+  <button class="style-btn" data-v="c">C — Neon Edge</button>
+  <button class="style-btn" data-v="d">D — Brutalist</button>
+  <button class="style-btn" data-v="e">E — Split Panel</button>
+  <button class="style-btn" data-v="f">F — Gradient Lift</button>
+  <button class="style-btn" data-v="g">G — Bottom Bar</button>
+  <button class="style-btn" data-v="h">H — Layered Stack</button>
+  <button class="style-btn" data-v="i">I — Left Accent</button>
+  <button class="style-btn" data-v="j">J — Pill Rows</button>
   <div class="style-desc" id="styleDesc"></div>
 </div>
 
@@ -254,113 +283,63 @@ body {
 
 <script>
 var DESCS = {
-  a: 'Текущият дизайн — gradient фон, цветна чертичка отгоре, центриран текст.',
-  b: 'Glass — полупрозрачни карти с blur ефект, по-мек и модерен вид.',
-  c: 'Stripe — дебела цветна ивица отгоре на всяка карта, текстът е подравнен вляво.',
-  d: 'Icon — emoji икона + голям номер на картите, подравнено вляво, по-информативно.',
-  e: 'Glow — gradient сияние от цвета на борда, точка вместо ивица, елегантен ефект.',
-  f: 'Хоризонтален — 2 колони, картите са широки с лява цветна ивица. По-компактно.',
-  g: 'Outlined — без фон, само рамка, тънка цветна ивица отгоре. Минималистичен.',
-  h: 'Color Header — цветен header секция + тъмно тяло отдолу. Ясно разделение.'
+  a: 'Текущият дизайн — gradient фон, центриран текст, равни карти.',
+  b: 'Tinted Header — оцветена горна лента + тъмно тяло. Ясно разделение заглавие/детайли.',
+  c: 'Neon Edge — тънка светеща рамка в accent цвят. При hover свети по-силно. Тъмен и елегантен.',
+  d: 'Brutalist — остри ъгли (0 radius), дебели рамки, uppercase. Суров, индустриален вид.',
+  e: 'Split Panel — голям номер вляво в отделна секция, текст вдясно. Информативен.',
+  f: 'Gradient Lift — лек gradient от accent, "плаващ" ефект при hover. Мек и модерен.',
+  g: 'Bottom Bar — чист дизайн с цветна ивица отдолу, която светва при hover.',
+  h: 'Layered Stack — 3D ефект от подредени карти една върху друга. Визуално дълбочина.',
+  i: 'Left Accent — лява цветна ивица + долен ред с мини-статистики (карти, колони, просрочени).',
+  j: 'Pill Rows — широки хоризонтални "пилюли" в 1 колона. Компактен списъчен изглед.'
 };
 
 var BOARDS = [
-  { title: 'Pre-Production',     cards: 4,  cols: 3, overdue: 1, color: 'blue',   icon: '📋', barColor: '#3b82f6'   },
-  { title: 'Production',         cards: 12, cols: 3, overdue: 3, color: 'orange', icon: '🎬', barColor: '#f97316'   },
-  { title: 'Post-Production',    cards: 2,  cols: 4, overdue: 0, color: 'purple', icon: '🎞',  barColor: '#a78bfa'   },
-  { title: 'Акаунт Мениджмънт',  cards: 0,  cols: 3, overdue: 0, color: 'green',  icon: '📊', barColor: '#22c55e'   },
-  { title: 'Задачи',             cards: 0,  cols: 2, overdue: 0, color: 'teal',   icon: '✅', barColor: '#2dd4bf'   },
+  { title: 'Pre-Production',    cards: 4,  cols: 3, overdue: 1 },
+  { title: 'Production',        cards: 12, cols: 3, overdue: 3 },
+  { title: 'Post-Production',   cards: 2,  cols: 4, overdue: 0 },
+  { title: 'Акаунт Мениджмънт', cards: 0,  cols: 3, overdue: 0 },
+  { title: 'Задачи',            cards: 0,  cols: 2, overdue: 0 },
 ];
 
+function badge(b) {
+  return b.overdue > 0 ? '<span class="bc__b">\u26a0 ' + b.overdue + '</span>' : '';
+}
+
 function render(v) {
-  var isHoriz = v === 'f';
-  var html = '<div class="board-grid variant-' + v + '">';
+  var html = '<div class="board-grid v' + v + '">';
 
   BOARDS.forEach(function(b) {
-    var badgeHtml = b.overdue > 0
-      ? (v === 'g'
-          ? '<span class="bcard__badge">\u26a0 ' + b.overdue + '</span>'
-          : '<span class="bcard__badge">\u26a0 ' + b.overdue + '</span>')
-      : '';
-
-    if (v === 'c') {
-      // Stripe: top bar + body
-      html += '<div class="bcard" data-color="' + b.color + '">' +
-        '<div class="bcard__bar" style="background:' + b.barColor + '"></div>' +
-        '<div class="bcard__body">' +
-          '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
-            '<div class="bcard__title">' + b.title + '</div>' +
-            badgeHtml +
-          '</div>' +
-          '<div class="bcard__sub">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' +
-        '</div></div>';
+    if (v === 'b') {
+      html += '<div class="bc"><div class="bc__h"><div style="display:flex;justify-content:space-between;align-items:center"><div class="bc__t">' + b.title + '</div>' + badge(b) + '</div></div><div class="bc__bot"><div class="bc__s">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div></div></div>';
     } else if (v === 'd') {
-      // Icon style
-      html += '<div class="bcard" data-color="' + b.color + '">' +
-        '<span class="bcard__icon">' + b.icon + '</span>' +
-        '<div class="bcard__title">' + b.title + '</div>' +
-        '<div class="bcard__sub">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' +
-        '<span class="bcard__count">' + b.cards + '</span>' +
-        badgeHtml +
-      '</div>';
+      html += '<div class="bc"><div class="bc__top"><div class="bc__t">' + b.title + '</div></div><div class="bc__bot"><div class="bc__s">' + b.cards + ' КАРТИ \xb7 ' + b.cols + ' КОЛОНИ</div></div>' + badge(b) + '</div>';
     } else if (v === 'e') {
-      // Glow
-      html += '<div class="bcard" data-color="' + b.color + '">' +
-        '<div class="bcard__dot" style="background:' + b.barColor + '"></div>' +
-        '<div class="bcard__title">' + b.title + '</div>' +
-        '<div class="bcard__sub">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' +
-        badgeHtml +
-      '</div>';
-    } else if (v === 'f') {
-      // Horizontal
-      html += '<div class="bcard" style="border-left-color:' + b.barColor + '">' +
-        '<div>' +
-          '<div class="bcard__title">' + b.title + '</div>' +
-          '<div class="bcard__sub">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' +
-        '</div>' +
-        (b.overdue > 0 ? badgeHtml : '') +
-        '<div class="bcard__right"><span class="bcard__right-num">' + b.cards + '</span></div>' +
-      '</div>';
-    } else if (v === 'g') {
-      // Outlined
-      html += '<div class="bcard" data-color="' + b.color + '">' +
-        '<div class="bcard__bar" style="background:' + b.barColor + '"></div>' +
-        '<div class="bcard__title">' + b.title + '</div>' +
-        '<div class="bcard__sub">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' +
-        badgeHtml +
-      '</div>';
-    } else if (v === 'h') {
-      // Color Header
-      html += '<div class="bcard" data-color="' + b.color + '">' +
-        '<div class="bcard__header">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center">' +
-            '<div class="bcard__title">' + b.title + '</div>' +
-            badgeHtml +
-          '</div>' +
-        '</div>' +
-        '<div class="bcard__body-bottom">' +
-          '<div class="bcard__sub">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' +
-        '</div></div>';
+      html += '<div class="bc"><div class="bc__num">' + b.cards + '</div><div class="bc__info"><div class="bc__t">' + b.title + '</div><div class="bc__s">' + b.cols + ' колони</div>' + (b.overdue > 0 ? '<div class="bc__b">\u26a0 ' + b.overdue + ' просрочени</div>' : '') + '</div></div>';
+    } else if (v === 'i') {
+      html += '<div class="bc"><div class="bc__t">' + b.title + '</div><div class="bc__s">' + b.cols + ' колони</div><div class="bc__stats"><div class="bc__stat"><strong>' + b.cards + '</strong>карти</div><div class="bc__stat"><strong>' + b.cols + '</strong>колони</div>' + (b.overdue > 0 ? '<div class="bc__stat bc__stat--warn"><strong>' + b.overdue + '</strong>просрочени</div>' : '') + '</div></div>';
+    } else if (v === 'j') {
+      html += '<div class="bc"><div class="bc__dot"></div><div class="bc__t">' + b.title + '</div><div class="bc__s">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' + badge(b) + '</div>';
     } else {
-      // A (current) and B (glass) — centered
-      html += '<div class="bcard" data-color="' + b.color + '">' +
-        '<div class="bcard__bar" style="background:' + b.barColor + '"></div>' +
-        '<div class="bcard__title">' + b.title + '</div>' +
-        '<div class="bcard__sub">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' +
-        badgeHtml +
-      '</div>';
+      // a, c, f, g, h — centered
+      html += '<div class="bc"><div class="bc__t">' + b.title + '</div><div class="bc__s">' + b.cards + ' карти \xb7 ' + b.cols + ' колони</div>' + badge(b) + '</div>';
     }
   });
 
-  // "+ Нов борд" card
-  if (v === 'c') {
-    html += '<div class="bcard bcard--new"><div class="bcard__body"><div class="bcard__title" style="font-size:14px">+ Нов борд</div></div></div>';
-  } else if (v === 'f') {
-    html += '<div class="bcard bcard--new"><div><div class="bcard__title" style="font-size:14px">+ Нов борд</div></div></div>';
-  } else if (v === 'h') {
-    html += '<div class="bcard bcard--new" data-color=""><div class="bcard__header"></div><div class="bcard__body-bottom"><div class="bcard__title" style="font-size:14px;text-align:center">+ Нов борд</div></div></div>';
+  // "+ Нов борд"
+  if (v === 'b') {
+    html += '<div class="bc bc--n"><div class="bc__h"></div><div class="bc__bot"><div class="bc__t" style="font-size:14px;text-align:center">+ Нов борд</div></div></div>';
+  } else if (v === 'd') {
+    html += '<div class="bc bc--n"><div class="bc__top"><div class="bc__t">+ Нов борд</div></div><div class="bc__bot"></div></div>';
+  } else if (v === 'e') {
+    html += '<div class="bc bc--n"><div class="bc__num">+</div><div class="bc__info"><div class="bc__t">Нов борд</div></div></div>';
+  } else if (v === 'i') {
+    html += '<div class="bc bc--n"><div class="bc__t" style="font-size:14px">+ Нов борд</div></div>';
+  } else if (v === 'j') {
+    html += '<div class="bc bc--n"><div class="bc__dot"></div><div class="bc__t" style="opacity:0.6">+ Нов борд</div></div>';
   } else {
-    html += '<div class="bcard bcard--new"><div class="bcard__title" style="font-size:14px">+ Нов борд</div></div>';
+    html += '<div class="bc bc--n"><div class="bc__t" style="font-size:14px">+ Нов борд</div></div>';
   }
 
   html += '</div>';
@@ -371,9 +350,13 @@ function setVariant(v) {
   document.getElementById('boardGrid').innerHTML = render(v);
   document.getElementById('styleDesc').textContent = DESCS[v];
   document.querySelectorAll('.style-btn').forEach(function(btn) {
-    btn.classList.toggle('active', btn.textContent.trim().charAt(0) === v.toUpperCase());
+    btn.classList.toggle('active', btn.dataset.v === v);
   });
 }
+
+document.querySelectorAll('.style-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() { setVariant(btn.dataset.v); });
+});
 
 setVariant('a');
 </script>
