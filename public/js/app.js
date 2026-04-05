@@ -490,10 +490,71 @@ async function renderDashboard(el) {
     } catch (e) { console.warn('Timer sync failed', e); }
 
     renderDashboardBoard(boards, cards, _dashStageColors);
+
+    // Start auto-refresh for live dashboard (studio screen mode)
+    _dashStartAutoRefresh();
   } catch (err) {
     console.error('Dashboard error:', err);
     el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане</div>';
   }
+}
+
+// Live dashboard refresh — re-syncs data, timers, stats, and re-renders board
+let _dashAutoRefreshId = null;
+async function _dashRefresh() {
+  if (dragCardId) return; // never refresh during drag
+  try {
+    const [boards, cards] = await Promise.all([
+      fetch('/api/boards').then(r => r.json()),
+      fetch('/api/cards').then(r => r.json())
+    ]);
+    _dashBoards = boards; _dashCards = cards; allBoards = boards;
+
+    // Re-sync timers with correct overdue status
+    var now = new Date(); now.setHours(0,0,0,0);
+    var syncPayload = boards.map(function(board) {
+      var boardCards = cards.filter(function(c) { return c.board_id === board.id && !c.completed_at && !c.archived_at; });
+      var hasOverdue = boardCards.some(function(c) { return isCardOverdue(c, now); });
+      return { board_id: board.id, has_overdue: hasOverdue };
+    });
+    var timerRes = await fetch('/api/timers/boards/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(syncPayload)
+    });
+    var timerRows = await timerRes.json();
+    _dashTimers = {};
+    timerRows.forEach(function(t) { _dashTimers[t.board_id] = t; });
+
+    // Update stats bar numbers
+    var totalActive = cards.filter(c => !c.completed_at && !c.archived_at).length;
+    var totalOverdue = cards.filter(c => isCardOverdue(c, now)).length;
+    var totalOnHold = cards.filter(c => c.is_on_hold).length;
+    var nums = document.querySelectorAll('.dash-stats-bar .dash-stat__num');
+    if (nums[0]) nums[0].textContent = totalActive;
+    if (nums[1]) nums[1].textContent = totalOverdue;
+    if (nums[2]) nums[2].textContent = totalOnHold;
+    if (nums[3]) nums[3].textContent = boards.length;
+    // Update overdue stat styling
+    var overdueEl = document.getElementById('dashOverdueStat');
+    if (overdueEl) {
+      if (totalOverdue > 0) overdueEl.classList.add('dash-stat--clickable');
+      else overdueEl.classList.remove('dash-stat--clickable');
+    }
+
+    // Re-render board (cards, colors, timers)
+    renderDashboardBoard(boards, cards, _dashStageColors);
+  } catch (e) { console.warn('Dashboard refresh failed', e); }
+}
+
+function _dashStartAutoRefresh() {
+  if (_dashAutoRefreshId) clearInterval(_dashAutoRefreshId);
+  _dashAutoRefreshId = setInterval(function() {
+    // Stop if navigated away from dashboard
+    var page = (location.hash.split('/')[1] || '').split('?')[0];
+    if (page !== 'dashboard') { clearInterval(_dashAutoRefreshId); _dashAutoRefreshId = null; return; }
+    _dashRefresh();
+  }, 30000); // every 30 seconds
 }
 
 function showDashSettings() {
@@ -4184,29 +4245,11 @@ async function handleDashDrop(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ column_id: colId, board_id: boardId })
     });
-    // Silent data sync — no re-render, DOM is already correct
-    const [boards, cards] = await Promise.all([
-      fetch('/api/boards').then(r => r.json()),
-      fetch('/api/cards').then(r => r.json())
-    ]);
-    _dashBoards = boards; _dashCards = cards;
-    try {
-      const timerRows = await (await fetch('/api/timers/boards')).json();
-      _dashTimers = {};
-      timerRows.forEach(function(t) { _dashTimers[t.board_id] = t; });
-    } catch {}
   } catch(err) {
     console.error('Dashboard drop error:', err);
-    // On API error — full re-render to restore correct state
-    try {
-      const [boards, cards] = await Promise.all([
-        fetch('/api/boards').then(r => r.json()),
-        fetch('/api/cards').then(r => r.json())
-      ]);
-      _dashBoards = boards; _dashCards = cards;
-      renderDashboardBoard(boards, cards, _dashStageColors);
-    } catch {}
   }
+  // Full refresh: re-fetch data, re-sync timers, re-render (card colors, timer bars, stats)
+  await _dashRefresh();
 }
 
 // ==================== ON HOLD ====================
