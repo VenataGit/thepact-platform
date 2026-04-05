@@ -11,7 +11,7 @@ async function checkAuth() {
     const res = await fetch('/auth/status');
     if (!res.ok) throw new Error();
     currentUser = (await res.json()).user;
-    document.getElementById('navAvatar').textContent = initials(currentUser.name);
+    document.getElementById('navAvatar').innerHTML = _avInner(currentUser.name, currentUser.avatar_url);
     try { allUsers = await (await fetch('/api/users/team')).json(); } catch {}
     try { allBoards = await (await fetch('/api/boards')).json(); } catch {}
     updateHeyBadge();
@@ -23,6 +23,10 @@ function canManage() { return currentUser?.role === 'admin' || currentUser?.role
 function canEdit() { return !!currentUser; }
 async function logout() { await fetch('/auth/logout', { method: 'POST' }); window.location.href = '/login.html'; }
 function initials(name) { return name?.split(' ').map(n => n[0]).join('').substring(0, 2) || '?'; }
+var _avColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
+function _avColor(n) { return _avColors[(n||'').length % _avColors.length]; }
+function _avInner(name, url) { return url ? '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">' : initials(name); }
+function _findAvatar(name) { var u = (allUsers||[]).find(function(x){return x.name===name}); return u ? u.avatar_url : null; }
 
 async function updateHeyBadge() {
   try {
@@ -76,11 +80,11 @@ async function populateHey(el) {
 }
 function _renderHeyItem(n) {
   var sn = n.sender_name || '';
-  var av = sn ? initials(sn) : '?';
+  var savUrl = _findAvatar(sn);
   var link = n.reference_type === 'card' ? '#/card/' + n.reference_id : '#/notifications';
   var sid = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
   return '<a class="hey-item' + (n.is_read ? '' : ' unread') + '" href="' + link + '" onclick="if(' + sid + '){_pendingScrollCommentId=' + sid + ';}closeAllDropdowns()">' +
-    '<div class="hey-item__av">' + av + '</div>' +
+    '<div class="hey-item__av" style="background:' + (savUrl ? 'none' : _avColor(sn)) + '">' + _avInner(sn, savUrl) + '</div>' +
     '<div class="hey-item__content">' +
       '<div class="hey-item__subject">' + esc(n.title) + '</div>' +
       (n.body ? '<div class="hey-item__preview">' + esc(n.body) + '</div>' : '') +
@@ -375,14 +379,12 @@ async function loadHomeActivity() {
   try {
     const items = await (await fetch('/api/activity?limit=6')).json();
     if (!Array.isArray(items) || items.length === 0) { container.textContent = '\u041d\u044f\u043c\u0430 \u0430\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442 \u0432\u0441\u0435 \u043e\u0449\u0435'; return; }
-    const avColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
-    const getAC = n => avColors[(n||'').length % avColors.length];
     const actLabel = a => { if(a.action==='created')return'\u0441\u044a\u0437\u0434\u0430\u0434\u0435'; if(a.action==='commented')return'\u043a\u043e\u043c\u0435\u043d\u0442\u0438\u0440\u0430'; if(a.action==='moved')return'\u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0438'; if(a.action==='completed')return'\u0437\u0430\u0432\u044a\u0440\u0448\u0438'; if(a.action==='archived')return'\u0430\u0440\u0445\u0438\u0432\u0438\u0440\u0430'; return a.action; };
     container.style.textAlign = '';
     container.style.padding = '';
     container.innerHTML = items.map(a =>
       '<div class="activity-entry" style="margin-bottom:10px">' +
-      '<div class="activity-avatar" style="background:' + getAC(a.user_name) + ';width:26px;height:26px;font-size:9px">' + initials(a.user_name||'') + '</div>' +
+      '<div class="activity-avatar" style="background:' + (a.user_avatar ? 'none' : _avColor(a.user_name)) + ';width:26px;height:26px;font-size:9px">' + _avInner(a.user_name||'', a.user_avatar) + '</div>' +
       '<div class="activity-body">' +
       '<div class="activity-text" style="font-size:13px"><strong>' + esc(a.user_name||'') + '</strong> ' + actLabel(a) + ' ' +
       (a.target_type==='card' ? '<a href="#/card/' + a.target_id + '">' + esc(a.target_title||'') + '</a>' : esc(a.target_title||'')) +
@@ -901,13 +903,11 @@ async function loadProjectActivity() {
     const items = await (await fetch('/api/activity?limit=20')).json();
     const container = document.getElementById('projectActivity');
     if (!container) return;
-    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
-    const getAC = (name) => avatarColors[(name||'').length % avatarColors.length];
     container.innerHTML = items.length === 0
       ? '<div style="color:var(--text-dim)">Няма активност все още</div>'
       : items.map(a => `
           <div class="activity-entry" style="text-align:left">
-            <div class="activity-avatar" style="background:${getAC(a.user_name)};width:28px;height:28px;font-size:10px">${initials(a.user_name || '')}</div>
+            <div class="activity-avatar" style="background:${a.user_avatar ? 'none' : _avColor(a.user_name)};width:28px;height:28px;font-size:10px">${_avInner(a.user_name || '', a.user_avatar)}</div>
             <div class="activity-body">
               <div class="activity-text"><strong>${esc(a.user_name || '')}</strong> ${a.action === 'created' ? 'създаде' : a.action === 'commented' ? 'коментира' : a.action === 'moved' ? 'премести' : a.action === 'completed' ? 'завърши' : a.action === 'checked_off' ? 'отметна стъпка на' : a.action === 'archived' ? 'архивира' : a.action === 'updated' ? 'обнови' : a.action} ${a.target_type === 'card' ? `<a href="#/card/${a.target_id}">${esc(a.target_title || '')}</a>` : esc(a.target_title || '')}</div>
               <div class="activity-meta">${timeAgo(a.created_at)}</div>
@@ -956,7 +956,7 @@ async function renderBoard(el, boardId) {
           <input id="boardFilterInput" type="search" placeholder="Филтрирай карти..." style="background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text);width:160px;outline:none" oninput="filterBoardCards(this.value)">
           <div class="board-page-header__watchers">
             <div class="board-page-header__watcher-avatars">
-              ${allUsers.slice(0,6).map((u,i) => `<div class="board-page-header__watcher-av" style="background:${wColors[i%wColors.length]}" title="${esc(u.name)}">${initials(u.name)}</div>`).join('')}
+              ${allUsers.slice(0,6).map((u,i) => `<div class="board-page-header__watcher-av" style="background:${u.avatar_url ? 'none' : wColors[i%wColors.length]}" title="${esc(u.name)}">${_avInner(u.name, u.avatar_url)}</div>`).join('')}
             </div>
           </div>
           ${boardOverdueCount > 0 ? `<button class="btn btn-sm btn-ghost" id="overdueFilterBtn" onclick="toggleOverdueFilter(this)" title="\u041f\u043e\u043a\u0430\u0436\u0438 \u0441\u0430\u043c\u043e \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438">\u26a0 ${boardOverdueCount}</button>` : ''}
@@ -1091,14 +1091,11 @@ function renderKanbanCard(card, colColor) {
   const dueStr = card.due_on ? formatDate(card.due_on) : '';
   const publishStr = card.publish_date ? formatDate(card.publish_date) : '';
   const stepsStr = card.steps_total > 0 ? `${card.steps_done}/${card.steps_total}` : '';
-  const avColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
-  const getAC = n => avColors[(n||'').length % avColors.length];
-
   const assignees = card.assignees || [];
   const shown = assignees.slice(0, 4);
   const extra = assignees.length - shown.length;
   const avatarsHtml = assignees.length
-    ? shown.map(a => `<div class="kanban-card__av" style="background:${getAC(a.name)}" title="${esc(a.name)}">${initials(a.name)}</div>`).join('')
+    ? shown.map(a => `<div class="kanban-card__av" style="background:${a.avatar_url ? 'none' : _avColor(a.name)}" title="${esc(a.name)}">${_avInner(a.name, a.avatar_url)}</div>`).join('')
       + (extra > 0 ? `<div class="kanban-card__av kanban-card__av--more">+${extra}</div>` : '')
     : `<div class="kanban-card__av kanban-card__av--empty">–</div>`;
 
@@ -1163,8 +1160,7 @@ async function renderCardPage(el, cardId) {
     var editing = _cardEditMode && canEdit();
     var creatorName = card.creator_name || (allUsers.find(function(u) { return u.id === card.creator_id; }) || {}).name || '';
     var createdAgo = card.created_at ? timeAgo(card.created_at) : '';
-    var avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
-    var getAC = function(name) { return avatarColors[(name||'').length % avatarColors.length]; };
+    var getAC = _avColor;
 
     // Envelope SVG icon
     var envelopeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>';
@@ -1330,7 +1326,7 @@ async function renderCardPage(el, cardId) {
 
     // ===== COMMENTS =====
     var commentAddHtml = '<div class="bc-comment-add">' +
-      '<div class="bc-comment-avatar" style="background:' + getAC(currentUser ? currentUser.name : '') + '">' + initials(currentUser ? currentUser.name : '') + '</div>' +
+      '<div class="bc-comment-avatar" style="background:' + (currentUser?.avatar_url ? 'none' : getAC(currentUser ? currentUser.name : '')) + '">' + _avInner(currentUser ? currentUser.name : '', currentUser?.avatar_url) + '</div>' +
       '<div class="bc-comment-input-wrap">' +
       '<div id="replyBadge" class="bc-reply-badge" style="display:none"><span>↩ Отговаряш на <strong class="bc-reply-badge__name"></strong></span><button class="bc-reply-badge__cancel" onclick="cancelReply()">✕</button></div>' +
       '<div class="bc-comment-placeholder" onclick="expandCommentInput()">Добави коментар тук…</div>' +
@@ -1366,7 +1362,7 @@ async function renderCardPage(el, cardId) {
         var isPinned = _cardPinnedComment && _cardPinnedComment.id === c.id;
         return '<div class="bc-comment" data-comment-id="' + c.id + '" data-user-id="' + c.user_id + '" data-timestamp="' + (c.created_at||'') + '">' +
           '<div class="bc-comment-date">' + fmtDate(c.created_at) + '</div>' +
-          '<div class="bc-comment-avatar" style="background:' + cc + '">' + initials(c.user_name) + '</div>' +
+          '<div class="bc-comment-avatar" style="background:' + (c.user_avatar ? 'none' : cc) + '">' + _avInner(c.user_name, c.user_avatar) + '</div>' +
           '<div class="bc-comment-body">' +
           '<div class="bc-comment-meta"><strong>' + esc(c.user_name) + '</strong></div>' +
           (c.reply_to_id && c.parent_user_name ? '<div class="bc-reply-preview" onclick="scrollToComment(' + c.reply_to_id + ')" title="Премини към оригиналния коментар"><span class="bc-reply-preview__author">↩ ' + esc(c.parent_user_name) + ':</span> <span class="bc-reply-preview__text">' + esc((c.parent_content||'').replace(/<[^>]*>/g,'').slice(0,120)) + ((c.parent_content||'').replace(/<[^>]*>/g,'').length>120?'…':'') + '</span></div>' : '') +
@@ -2545,8 +2541,6 @@ function filterActivity(board, btn) {
   const toShow = board === 'all' ? _activityItems : board === 'mine' ? _activityItems.filter(a => a.user_id === currentUser.id) : _activityItems.filter(a => a.board_title === board);
   const container = document.getElementById('activityList');
   if (!container) return;
-  const campColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
-  const getAvatarColor = (name) => campColors[(name||'').length % campColors.length];
   const grouped = {};
   toShow.forEach(a => {
     const d = new Date(a.created_at);
@@ -2560,7 +2554,7 @@ function filterActivity(board, btn) {
     Object.entries(grouped).map(([date, entries]) =>
       '<div style="margin-bottom:24px"><div style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px">' + date + '</div>' +
       entries.map(a =>
-        '<div class="activity-entry"><div class="activity-avatar" style="background:' + getAvatarColor(a.user_name) + '">' + initials(a.user_name||'') + '</div>' +
+        '<div class="activity-entry"><div class="activity-avatar" style="background:' + (a.user_avatar ? 'none' : _avColor(a.user_name)) + '">' + _avInner(a.user_name||'', a.user_avatar) + '</div>' +
         '<div class="activity-body"><div class="activity-text"><strong>' + esc(a.user_name||'') + '</strong> ' +
         (a.action==='created'?'създаде':a.action==='commented'?'коментира':a.action==='moved'?'премести':a.action==='completed'?'завърши':a.action==='checked_off'?'отметна стъпка на':a.action==='archived'?'архивира':a.action==='updated'?'обнови':a.action) + ' ' +
         (a.target_type==='card' ? '<a href="#/card/' + a.target_id + '">' + esc(a.target_title||'') + '</a>' : esc(a.target_title||'')) + '</div>' +
@@ -2575,9 +2569,6 @@ async function renderActivity(el) {
     const _actRes = await fetch('/api/activity?limit=50');
     const _actData = await _actRes.json();
     const items = Array.isArray(_actData) ? _actData : [];
-    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
-    const getAvatarColor = (name) => avatarColors[(name||'').length % avatarColors.length];
-
     _activityItems = items;
     // Group by date
     const grouped = {};
@@ -2617,7 +2608,7 @@ async function renderActivity(el) {
               <div style="font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px">${date}</div>
               ${entries.map(a=>`
                 <div class="activity-entry">
-                  <div class="activity-avatar" style="background:${getAvatarColor(a.user_name)}">${initials(a.user_name||'')}</div>
+                  <div class="activity-avatar" style="background:${a.user_avatar ? 'none' : _avColor(a.user_name)}">${_avInner(a.user_name||'', a.user_avatar)}</div>
                   <div class="activity-body">
                     <div class="activity-text"><strong>${esc(a.user_name||'')}</strong> ${actionText(a)} ${a.target_type==='card'?`<a href="#/card/${a.target_id}">${esc(a.target_title||'')}</a>`:esc(a.target_title||'')}</div>
                     ${a.excerpt ? `<div class="activity-excerpt">${esc(a.excerpt).substring(0,150)}</div>` : ''}
@@ -2643,13 +2634,11 @@ async function loadMoreActivity(btn) {
     _activityItems = (_activityItems || []).concat(more);
     const list = document.getElementById('activityList');
     if (!list) return;
-    const avatarColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
-    const getAC = n => avatarColors[(n||'').length % avatarColors.length];
     const actionText = a => { if(a.action==='created')return'\u0441\u044a\u0437\u0434\u0430\u0434\u0435'; if(a.action==='commented')return'\u043a\u043e\u043c\u0435\u043d\u0442\u0438\u0440\u0430'; if(a.action==='moved')return'\u043f\u0440\u0435\u043c\u0435\u0441\u0442\u0438'; if(a.action==='completed')return'\u0437\u0430\u0432\u044a\u0440\u0448\u0438'; if(a.action==='checked_off')return'\u043e\u0442\u043c\u0435\u0442\u043d\u0430 \u0441\u0442\u044a\u043f\u043a\u0430 \u043d\u0430'; if(a.action==='archived')return'\u0430\u0440\u0445\u0438\u0432\u0438\u0440\u0430'; if(a.action==='updated')return'\u043e\u0431\u043d\u043e\u0432\u0438'; return a.action; };
     const frag = document.createDocumentFragment();
     const div = document.createElement('div');
     div.innerHTML = more.map(a => `<div class="activity-entry">
-      <div class="activity-avatar" style="background:${getAC(a.user_name)}">${initials(a.user_name||'')}</div>
+      <div class="activity-avatar" style="background:${a.user_avatar ? 'none' : _avColor(a.user_name)}">${_avInner(a.user_name||'', a.user_avatar)}</div>
       <div class="activity-body">
         <div class="activity-text"><strong>${esc(a.user_name||'')}</strong> ${actionText(a)} ${a.target_type==='card'?`<a href="#/card/${a.target_id}">${esc(a.target_title||'')}</a>`:esc(a.target_title||'')}</div>
         ${a.excerpt ? `<div class="activity-excerpt">${esc(a.excerpt).substring(0,150)}</div>` : ''}
@@ -3516,8 +3505,8 @@ async function renderCampfire(el, roomId) {
           ${msgs.length === 0 ? '<div style="text-align:center;color:var(--text-dim);padding:40px">🔥 Добре дошли в Campfire!<br>Тук целият екип може да говори.</div>' : ''}
           ${msgs.map(m => {
             const isSystem = !m.user_id;
-            const mc = isSystem ? '#1a3040' : campColors[(m.user_name||'').length % campColors.length];
-            const avatarContent = isSystem ? '📊' : initials(m.user_name);
+            const mc = isSystem ? '#1a3040' : (m.user_avatar ? 'none' : campColors[(m.user_name||'').length % campColors.length]);
+            const avatarContent = isSystem ? '📊' : _avInner(m.user_name, m.user_avatar);
             const msgContent = parseCampfireMarkdown(m.content || '');
             return `<div class="chat-msg${isSystem ? ' campfire-system-msg' : ''}">
               <div class="chat-msg-avatar" style="background:${mc};color:#fff">${avatarContent}</div>
@@ -3556,10 +3545,9 @@ async function sendCampfireMsg(roomId) {
 function appendCampfireMsg(msg) {
   const msgs = document.getElementById('campfireMessages');
   if (!msgs) return;
-  const campColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
   const isSystem = !msg.user_id;
-  const mc = isSystem ? '#1a3040' : campColors[(msg.user_name||'').length % campColors.length];
-  const avatarContent = isSystem ? '📊' : initials(msg.user_name);
+  const mc = isSystem ? '#1a3040' : (msg.user_avatar ? 'none' : _avColor(msg.user_name));
+  const avatarContent = isSystem ? '📊' : _avInner(msg.user_name, msg.user_avatar);
   const msgContent = parseCampfireMarkdown(msg.content || '');
   const div = document.createElement('div');
   div.className = 'chat-msg' + (isSystem ? ' campfire-system-msg' : '');
@@ -3890,7 +3878,7 @@ async function viewCheckinResponses(questionId) {
             var col = campColors[(r.user_name||'').length % campColors.length];
             return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
               '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
-              '<div style="width:28px;height:28px;border-radius:50%;background:' + col + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">' + initials(r.user_name||'') + '</div>' +
+              '<div style="width:28px;height:28px;border-radius:50%;background:' + (r.user_avatar ? 'none' : col) + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden">' + _avInner(r.user_name||'', r.user_avatar) + '</div>' +
               '<strong style="font-size:13px;color:#fff">' + esc(r.user_name||'') + '</strong>' +
               '<span style="font-size:11px;color:var(--text-dim);margin-left:6px">' + timeAgo(r.created_at) + '</span>' +
               '</div>' +
@@ -5093,7 +5081,6 @@ function setupMentionPicker(trixEl, cardId) {
 }
 function _showMentionDropdown(anchorEl, query, onSelect) {
   _hideMentionDropdown();
-  const avColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308','#06b6d4','#ec4899'];
   const users = allUsers.filter(u => !query || u.name.toLowerCase().includes(query)).slice(0, 8);
   if (!users.length) return;
   _mentionState = { users, selectedIdx: 0, onSelect };
@@ -5102,7 +5089,7 @@ function _showMentionDropdown(anchorEl, query, onSelect) {
   dd.className = 'mention-dropdown';
   dd.innerHTML = users.map((u, i) =>
     `<div class="mention-item${i===0?' mention-item--active':''}" data-idx="${i}" onmousedown="event.preventDefault();_selectMentionByIdx(${i})">
-      <div class="mention-av" style="background:${avColors[u.id%avColors.length]}">${initials(u.name)}</div>
+      <div class="mention-av" style="background:${u.avatar_url ? 'none' : _avColors[u.id%_avColors.length]}">${_avInner(u.name, u.avatar_url)}</div>
       <span>${esc(u.name)}</span>
     </div>`
   ).join('');
@@ -5129,8 +5116,8 @@ function _selectMentionByIdx(idx) { if (_mentionState) _mentionState.onSelect(_m
 // ==================== PROFILE ====================
 async function openProfile() { const m=document.getElementById('profileModal'); m.style.display='flex'; try{ const u=await(await fetch('/api/profile')).json(); const av=document.getElementById('profileAvatar'); if(u.avatar_url)av.innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`; else av.textContent=initials(u.name); document.getElementById('profileName').textContent=u.name; document.getElementById('profileEmail').textContent=u.email; document.getElementById('profileRole').innerHTML=u.role==='admin'?'<span class="badge badge-accent">АДМИН</span>':u.role==='moderator'?'<span class="badge badge-blue">МОДЕРАТОР</span>':'<span class="badge">ЧЛЕН</span>'; document.getElementById('profileNameInput').value=u.name; }catch{} }
 function closeProfile() { document.getElementById('profileModal').style.display='none'; }
-async function saveProfileName() { const n=document.getElementById('profileNameInput').value.trim(); if(!n)return; try{const u=await(await fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})})).json(); document.getElementById('profileName').textContent=u.name; document.getElementById('navAvatar').textContent=initials(u.name); showToast('\u0418\u043c\u0435\u0442\u043e \u0435 \u0437\u0430\u043f\u0430\u0437\u0435\u043d\u043e', 'success');}catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0437\u0430\u043f\u0430\u0437\u0432\u0430\u043d\u0435', 'error'); } }
-async function uploadAvatar(input) { if(!input.files[0])return; const f=new FormData(); f.append('avatar',input.files[0]); try{const u=await(await fetch('/api/profile/avatar',{method:'POST',body:f})).json(); document.getElementById('profileAvatar').innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`; showToast('\u0410\u0432\u0430\u0442\u0430\u0440\u044a\u0442 \u0435 \u0441\u043c\u0435\u043d\u0435\u043d', 'success');}catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043a\u0430\u0447\u0432\u0430\u043d\u0435 \u043d\u0430 \u0430\u0432\u0430\u0442\u0430\u0440', 'error'); } }
+async function saveProfileName() { const n=document.getElementById('profileNameInput').value.trim(); if(!n)return; try{const u=await(await fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})})).json(); document.getElementById('profileName').textContent=u.name; document.getElementById('navAvatar').innerHTML=_avInner(u.name, u.avatar_url); currentUser.name=u.name; showToast('\u0418\u043c\u0435\u0442\u043e \u0435 \u0437\u0430\u043f\u0430\u0437\u0435\u043d\u043e', 'success');}catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0437\u0430\u043f\u0430\u0437\u0432\u0430\u043d\u0435', 'error'); } }
+async function uploadAvatar(input) { if(!input.files[0])return; const f=new FormData(); f.append('avatar',input.files[0]); try{const u=await(await fetch('/api/profile/avatar',{method:'POST',body:f})).json(); document.getElementById('profileAvatar').innerHTML=`<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">`; document.getElementById('navAvatar').innerHTML=_avInner(u.name, u.avatar_url); currentUser.avatar_url=u.avatar_url; showToast('\u0410\u0432\u0430\u0442\u0430\u0440\u044a\u0442 \u0435 \u0441\u043c\u0435\u043d\u0435\u043d', 'success');}catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043a\u0430\u0447\u0432\u0430\u043d\u0435 \u043d\u0430 \u0430\u0432\u0430\u0442\u0430\u0440', 'error'); } }
 async function changePassword() { const msg=document.getElementById('pwdMsg'),c=document.getElementById('currentPwd').value,n=document.getElementById('newPwd').value; if(!c||!n){msg.textContent='Попълни и двете полета';msg.style.color='var(--red)';return;} try{const r=await fetch('/api/profile/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:c,newPassword:n})}); const d=await r.json(); if(r.ok){msg.textContent='Сменена';msg.style.color='var(--green)';}else{msg.textContent=d.error;msg.style.color='var(--red)';}}catch{msg.textContent='Грешка';msg.style.color='var(--red)';} }
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeProfile();closeAddColumnModal();}});
 document.getElementById('profileModal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeProfile()});

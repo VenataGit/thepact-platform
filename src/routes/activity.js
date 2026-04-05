@@ -10,7 +10,9 @@ router.get('/', requireAuth, async (req, res) => {
     const offset = parseInt(req.query.offset) || 0;
 
     const items = await query(
-      `SELECT * FROM activity_log ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      `SELECT a.*, u.avatar_url as user_avatar
+       FROM activity_log a LEFT JOIN users u ON a.user_id = u.id
+       ORDER BY a.created_at DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
     res.json(items);
