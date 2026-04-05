@@ -1,4 +1,4 @@
-// ThePact Platform — Basecamp Clone (v3)
+// ThePact Platform — Video Production Management
 let currentUser = null, ws = null, wsReconnectDelay = 1000;
 let allUsers = [], allBoards = [], allProjects = [];
 let onlineUsers = new Set();

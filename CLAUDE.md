@@ -1,6 +1,6 @@
 # ThePact Platform
 
-Standalone video production management platform. Replaces Basecamp for internal task management.
+Standalone video production management platform for The Pact (Bulgarian video production company). Fully independent — no Basecamp dependency.
 
 ## Tech Stack
 - **Backend**: Node.js + Express, PostgreSQL, WebSocket (ws)
