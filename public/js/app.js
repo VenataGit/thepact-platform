@@ -458,7 +458,7 @@ async function renderDashboard(el) {
     const _nowMidnight = new Date(); _nowMidnight.setHours(0,0,0,0);
     const totalActive = cards.filter(c => !c.completed_at && !c.archived_at).length;
     const totalOnHold = cards.filter(c => c.is_on_hold).length;
-    const totalOverdue = cards.filter(c => c.due_on && !c.is_on_hold && !c.completed_at && new Date(c.due_on+'T00:00:00') < _nowMidnight).length;
+    const totalOverdue = cards.filter(c => isCardOverdue(c, _nowMidnight)).length;
 
     el.innerHTML = '<div class="dash-wrap">' +
       '<div class="dash-stats-bar">' +
@@ -476,9 +476,7 @@ async function renderDashboard(el) {
       var now = new Date(); now.setHours(0,0,0,0);
       var syncPayload = boards.map(function(board) {
         var boardCards = cards.filter(function(c) { return c.board_id === board.id && !c.completed_at && !c.archived_at; });
-        var hasOverdue = boardCards.some(function(c) {
-          return c.due_on && !c.is_on_hold && new Date(c.due_on) < now;
-        });
+        var hasOverdue = boardCards.some(function(c) { return isCardOverdue(c, now); });
         return { board_id: board.id, has_overdue: hasOverdue };
       });
       var timerRes = await fetch('/api/timers/boards/sync', {
@@ -676,9 +674,10 @@ function renderDashCard(card) {
   var holdClass = card.is_on_hold ? ' dash-card--hold' : '';
 
   var nowDC = new Date(); nowDC.setHours(0,0,0,0);
-  var dueDateDC = card.due_on ? new Date(card.due_on + 'T00:00:00') : null;
+  var tomorrowDC = new Date(nowDC); tomorrowDC.setDate(tomorrowDC.getDate() + 1);
+  var dueDateDC = _parseDateMidnight(card.due_on);
   var isDCOverdue = dueDateDC && dueDateDC < nowDC && !card.completed_at;
-  var isDCToday = dueDateDC && dueDateDC.getTime() === nowDC.getTime();
+  var isDCToday = dueDateDC && dueDateDC >= nowDC && dueDateDC < tomorrowDC;
   var dueStyle = isDCOverdue ? ' style="color:var(--red);font-weight:600"' : isDCToday ? ' style="color:var(--yellow);font-weight:600"' : '';
   var dueIcon = isDCOverdue ? '\u26a0 ' : isDCToday ? '\u23f0 ' : '\ud83d\udcc5 ';
   var dueStr = card.due_on ? formatDate(card.due_on) : '';
@@ -702,10 +701,10 @@ function renderDashCard(card) {
 function getDashCardColor(card) {
   if (card.is_on_hold) return 'dash-card--on-hold';
   if (card.priority === 'urgent') return 'dash-card--priority';
-  if (!card.due_on) return '';
+  var ed = getCardEarliestDeadline(card);
+  if (!ed) return '';
   var now = new Date(); now.setHours(0,0,0,0);
-  var due = new Date(card.due_on + 'T00:00:00');
-  var diff = Math.ceil((due - now) / 86400000);
+  var diff = Math.ceil((ed - now) / 86400000);
   if (diff < 0) return 'dash-card--overdue';
   if (diff === 0) return 'dash-card--today';
   if (diff <= 3) return 'dash-card--soon';
@@ -770,7 +769,7 @@ async function renderProject(el, projectId) {
         ${boards.map((board, bi) => {
           const now = new Date(); now.setHours(0,0,0,0);
           const bc = cards.filter(c => c.board_id === board.id && !c.completed_at && !c.archived_at);
-          const overdue = bc.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now).length;
+          const overdue = bc.filter(c => isCardOverdue(c, now)).length;
           return '<a href="#/board/' + board.id + '" class="project-card-home">' +
             '<div class="project-card-home__header">' +
               '<div style="display:flex;justify-content:space-between;align-items:center">' +
@@ -884,7 +883,7 @@ async function renderBoard(el, boardId) {
     const doneCards = doneCol ? cards.filter(c => c.column_id === doneCol.id) : [];
     const wColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308'];
     const nowB = new Date(); nowB.setHours(0,0,0,0);
-    const boardOverdueCount = cards.filter(c => c.due_on && !c.is_on_hold && !c.completed_at && new Date(c.due_on+'T00:00:00') < nowB).length;
+    const boardOverdueCount = cards.filter(c => isCardOverdue(c, nowB)).length;
 
     el.innerHTML = `
       <div class="board-page-header">
@@ -1021,9 +1020,9 @@ function renderKanbanCard(card, colColor) {
   const dlDate = getCardDeadlineDate(card);
   const dlDateStr = dlDate ? formatDate(dlDate) : '';
   const nowDay = new Date(); nowDay.setHours(0,0,0,0);
-  const dueDate = card.due_on ? new Date(card.due_on+'T00:00:00') : null;
+  const dueDate = _parseDateMidnight(card.due_on);
   const isDueOverdue = dueDate && dueDate < nowDay;
-  const isDueToday = dueDate && dueDate.getTime() === nowDay.getTime();
+  const isDueToday = dueDate && dueDate >= nowDay && dueDate < new Date(nowDay.getTime() + 86400000);
   const dueClass = isDueOverdue ? ' kanban-card__due--overdue' : isDueToday ? ' kanban-card__due--today' : '';
   const dueStr = card.due_on ? formatDate(card.due_on) : '';
   const publishStr = card.publish_date ? formatDate(card.publish_date) : '';
@@ -1142,10 +1141,10 @@ async function renderCardPage(el, cardId) {
         '<button class="' + dueBtnCls + '" id="dueDateBtn_' + cardId + '" data-value="' + ((card.due_on || '').split('T')[0]) + '"' + dueBtnStyle + ' onclick="event.stopPropagation();openDueDatePicker(' + cardId + ',this)">' + dueBtnText + '</button></label>' +
         '<span id="dueSavedLabel_' + cardId + '" class="bc-due-saved" style="display:none">\u2713 \u0417\u0430\u043f\u0430\u0437\u0435\u043d\u043e</span>';
     } else {
-      var dueDateObj = card.due_on ? new Date(card.due_on+'T00:00:00') : null;
+      var dueDateObj = _parseDateMidnight(card.due_on);
       var nowDay2 = new Date(); nowDay2.setHours(0,0,0,0);
       var dueIsOverdue = dueDateObj && dueDateObj < nowDay2 && !card.completed_at;
-      var dueIsToday = dueDateObj && dueDateObj.getTime() === nowDay2.getTime();
+      var dueIsToday = dueDateObj && dueDateObj >= nowDay2 && dueDateObj < new Date(nowDay2.getTime() + 86400000);
       if (card.due_on) {
         var dueStyle = dueIsOverdue ? ' style="color:var(--red);font-weight:600"' : dueIsToday ? ' style="color:var(--yellow);font-weight:600"' : '';
         var duePrefix = dueIsOverdue ? '\u26a0 ' : dueIsToday ? '\u23f0 ' : '';
@@ -2604,9 +2603,13 @@ async function renderMyStuff(el) {
   try {
     const cards = await (await fetch(`/api/cards?assignee_id=${currentUser.id}`)).json();
     const now = new Date(); now.setHours(0,0,0,0);
-    const overdue  = cards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') < now);
-    const upcoming = cards.filter(c => c.due_on && new Date(c.due_on+'T00:00:00') >= now);
-    const noDate   = cards.filter(c => !c.due_on);
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+    const overdue  = cards.filter(c => isCardOverdue(c, now));
+    const upcoming = cards.filter(c => {
+      const ed = getCardEarliestDeadline(c);
+      return ed && ed >= now && !overdue.includes(c);
+    });
+    const noDate   = cards.filter(c => getCardRelevantDates(c).length === 0);
     const renderCard = c => {
       const pri = c.priority === 'urgent' ? '\ud83d\udd34 ' : c.priority === 'high' ? '\u2191 ' : '';
       const cls = getCardColorClass(c);
@@ -3595,7 +3598,7 @@ async function testGoogleCalendar(btn) {
 // ==================== REPORTS ====================
 function renderReportRow(c, tab) {
   const now = new Date(); now.setHours(0,0,0,0);
-  const isOver = c.due_on && new Date(c.due_on+'T00:00:00') < now;
+  const isOver = isCardOverdue(c, now);
   const priLabel = c.priority === 'urgent' ? '<span style="color:var(--red);font-weight:700;font-size:11px">\ud83d\udd34</span>' : c.priority === 'high' ? '<span style="color:var(--yellow);font-weight:700;font-size:11px">\u2191</span>' : '';
   return '<a class="task-row ' + (isOver ? 'overdue' : '') + '" href="#/card/' + c.id + '">' +
     '<span class="task-title">' + priLabel + (priLabel ? ' ' : '') + esc(c.title) + '</span>' +
@@ -4584,7 +4587,7 @@ function openEditStepDatePicker(stepId, btn) {
 // ==================== UTILS ====================
 function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(d) { if(!d)return''; const s=d.split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}.${m}.${y}`; }
-function getCardColorClass(c) { if(c.is_on_hold)return'on-hold'; if(c.priority==='urgent')return'priority'; if(!c.due_on)return''; const n=new Date();n.setHours(0,0,0,0); const due=new Date(c.due_on+'T00:00:00'); const diff=Math.ceil((due-n)/86400000); if(diff<0)return'overdue'; if(diff===0)return'deadline-today'; if(diff<=4)return'deadline-soon'; return'deadline-ok'; }
+function getCardColorClass(c) { if(c.is_on_hold)return'on-hold'; if(c.priority==='urgent')return'priority'; var ed=getCardEarliestDeadline(c); if(!ed)return''; var n=new Date();n.setHours(0,0,0,0); var diff=Math.ceil((ed-n)/86400000); if(diff<0)return'overdue'; if(diff===0)return'deadline-today'; if(diff<=4)return'deadline-soon'; return'deadline-ok'; }
 // Safe date parser — handles both "2026-04-01" and "2026-04-01T00:00:00.000Z"
 function _parseDateMidnight(d) {
   if (!d) return null;
