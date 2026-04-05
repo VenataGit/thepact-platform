@@ -51,4 +51,45 @@ router.post('/daily-report/trigger', requireAuth, requireAdmin, async (req, res)
   }
 });
 
+// POST /api/settings/google-calendar/test — test Google Calendar connection (admin)
+router.post('/google-calendar/test', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { google } = require('googleapis');
+    const path = require('path');
+    const fs = require('fs');
+    const { resetCache } = require('../services/google-calendar');
+
+    // Reset cache so it picks up latest settings
+    resetCache();
+
+    const credentialsPath = path.join(__dirname, '..', '..', 'google-credentials.json');
+    if (!fs.existsSync(credentialsPath)) {
+      return res.json({ ok: false, error: 'google-credentials.json файлът не е намерен на сървъра' });
+    }
+
+    // Get calendar ID from settings or env
+    let calId = process.env.GOOGLE_CALENDAR_ID;
+    if (!calId) {
+      const setting = await queryOne("SELECT value FROM settings WHERE key = 'google_calendar_id'");
+      calId = setting?.value;
+    }
+    if (!calId) {
+      return res.json({ ok: false, error: 'Calendar ID не е конфигуриран' });
+    }
+
+    const auth = new google.auth.GoogleAuth({
+      keyFile: credentialsPath,
+      scopes: ['https://www.googleapis.com/auth/calendar'],
+    });
+    const calendar = google.calendar({ version: 'v3', auth });
+
+    // Try to get calendar info
+    const calInfo = await calendar.calendars.get({ calendarId: calId });
+    res.json({ ok: true, calendarName: calInfo.data.summary });
+  } catch (err) {
+    console.error('Google Calendar test error:', err.message);
+    res.json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;

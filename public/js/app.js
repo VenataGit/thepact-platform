@@ -3455,6 +3455,37 @@ async function loadAdminSettings() {
           <span style="color:#fff;font-weight:600">10 → 0</span>
           <span style="font-size:11px;color:var(--text-dim)">автоматично изчислени</span>
         </div>
+      </div>
+
+      <div class="admin-settings-section">
+        <h3>📅 Google Calendar <span class="info-tooltip" title="Синхронизира събитията от Календар → Google Calendar. Нужен е Service Account.">ⓘ</span></h3>
+        <div class="admin-setting-row">
+          <label>Активен</label>
+          <label class="toggle-switch">
+            <input type="checkbox" ${s.google_calendar_enabled === 'true' ? 'checked' : ''} onchange="saveSetting('google_calendar_enabled', this.checked ? 'true' : 'false')">
+            <span class="toggle-track"></span>
+          </label>
+          <span style="font-size:11px;color:var(--text-dim)">${s.google_calendar_enabled === 'true' ? 'синхронизация включена' : 'изключено'}</span>
+        </div>
+        <div class="admin-setting-row">
+          <label>Calendar ID</label>
+          <input class="input-sm" type="text" value="${esc(s.google_calendar_id || '')}"
+                 style="width:320px" placeholder="xxxxx@group.calendar.google.com"
+                 onblur="saveSetting('google_calendar_id', this.value)">
+        </div>
+        <div class="admin-setting-row">
+          <label>Тест</label>
+          <button class="btn btn-sm" onclick="testGoogleCalendar(this)">🔗 Тествай връзката</button>
+          <span style="font-size:11px;color:var(--text-dim)">Проверява дали credentials-а работи</span>
+        </div>
+        <div style="margin-top:8px;padding:10px 12px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:11px;color:var(--text-dim);line-height:1.5">
+          <strong style="color:var(--text-secondary)">Настройка:</strong><br>
+          1. Google Cloud Console → Enable "Google Calendar API"<br>
+          2. Create Service Account → Download JSON key<br>
+          3. Качете файла като <code>google-credentials.json</code> в root папката на сървъра<br>
+          4. Споделете Google Calendar-а с email-а на service account-а (Make changes to events)<br>
+          5. Копирайте Calendar ID тук (Settings → Integrate calendar)
+        </div>
       </div>`;
   } catch(e) {
     el.innerHTML = '<div style="color:var(--red);padding:20px">Грешка при зареждане: ' + esc(e.message) + '</div>';
@@ -3487,6 +3518,25 @@ async function testDailyReport(btn) {
   } catch(e) {
     showToast('Грешка: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '📤 Изпрати сега'; }
+  }
+}
+
+async function testGoogleCalendar(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Тестване...'; }
+  try {
+    const res = await fetch('/api/settings/google-calendar/test', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast('✅ Google Calendar връзката работи!', 'success');
+      if (btn) { btn.textContent = '✅ Работи!'; }
+    } else {
+      showToast('❌ ' + (data.error || 'Неуспешно свързване'), 'error');
+      if (btn) { btn.textContent = '❌ Грешка'; }
+    }
+    setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '🔗 Тествай връзката'; } }, 3000);
+  } catch(e) {
+    showToast('Грешка: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🔗 Тествай връзката'; }
   }
 }
 
