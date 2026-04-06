@@ -21,24 +21,40 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
 
 // GET /api/vault/folders
+// ?parent_id=X — browse subfolder
+// ?board_id=X — browse docs board root (finds root folder by board_id)
 router.get('/folders', requireAuth, async (req, res) => {
   try {
     const parentId = req.query.parent_id || null;
+    const boardId = req.query.board_id || null;
+
+    let rootFolderId = parentId;
+
+    // For docs boards: find the root folder by board_id
+    if (!parentId && boardId) {
+      const root = await queryOne(
+        'SELECT id FROM vault_folders WHERE board_id = $1 AND parent_id IS NULL',
+        [boardId]
+      );
+      if (root) rootFolderId = root.id;
+      else return res.json({ folders: [], files: [], current_folder: null });
+    }
+
     const folders = await query(
-      parentId
+      rootFolderId
         ? 'SELECT * FROM vault_folders WHERE parent_id = $1 ORDER BY name'
-        : 'SELECT * FROM vault_folders WHERE parent_id IS NULL ORDER BY name',
-      parentId ? [parentId] : []
+        : 'SELECT * FROM vault_folders WHERE parent_id IS NULL AND board_id IS NULL ORDER BY name',
+      rootFolderId ? [rootFolderId] : []
     );
     const files = await query(
-      parentId
+      rootFolderId
         ? 'SELECT * FROM vault_files WHERE folder_id = $1 ORDER BY created_at DESC'
         : 'SELECT * FROM vault_files WHERE folder_id IS NULL ORDER BY created_at DESC',
-      parentId ? [parentId] : []
+      rootFolderId ? [rootFolderId] : []
     );
     let current_folder = null;
-    if (parentId) {
-      current_folder = await queryOne('SELECT * FROM vault_folders WHERE id = $1', [parentId]);
+    if (rootFolderId) {
+      current_folder = await queryOne('SELECT * FROM vault_folders WHERE id = $1', [rootFolderId]);
     }
     res.json({ folders, files, current_folder });
   } catch (err) {

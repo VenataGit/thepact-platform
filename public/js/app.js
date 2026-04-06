@@ -232,6 +232,7 @@ function router() {
     case 'videoproduction': return renderProject(el, 1);
     case 'dashboard': return renderDashboard(el);
     case 'board': return id ? renderBoard(el, id) : renderHome(el);
+    case 'docs': return id ? renderDocs(el, id, sub ? parseInt(sub) : null) : renderHome(el);
     case 'card':
       if (sub === 'new') return renderCardCreate(el);
       return id ? renderCardPage(el, id) : renderHome(el);
@@ -354,9 +355,22 @@ async function renderHome(el) {
         <div style="margin-bottom:32px">
           <div class="projects-home-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
             ${boards.map(b => {
+              var isDocs = b.type === 'docs';
+              var href = isDocs ? '#/docs/' + b.id : '#/board/' + b.id;
+              var cardClass = isDocs ? 'project-card-home project-card-home--docs' : 'project-card-home';
+              if (isDocs) {
+                return '<a href="' + href + '" class="' + cardClass + '">' +
+                  '<div class="project-card-home__header">' +
+                    '<div class="project-card-home__title">📁 ' + esc(b.title) + '</div>' +
+                  '</div>' +
+                  '<div class="project-card-home__body">' +
+                    '<div style="font-size:11px;color:var(--text-dim);text-align:center">Docs & Files</div>' +
+                  '</div>' +
+                '</a>';
+              }
               const bc = activeCards.filter(c => c.board_id === b.id);
               const bOver = bc.filter(c => isCardOverdue(c, now)).length;
-              return '<a href="#/board/' + b.id + '" class="project-card-home">' +
+              return '<a href="' + href + '" class="' + cardClass + '">' +
                 '<div class="project-card-home__header">' +
                   '<div class="project-card-home__title">' + esc(b.title) + '</div>' +
                 '</div>' +
@@ -368,7 +382,7 @@ async function renderHome(el) {
                 '</div>' +
               '</a>';
             }).join('')}
-            ${canManage() ? '<div class="project-card-home project-card-home--new" style="cursor:pointer" onclick="promptCreateBoard()"><div class="project-card-home__header"></div><div class="project-card-home__body" style="align-items:center;justify-content:center"><div class="project-card-home__title" style="font-size:14px">+ \u041d\u043e\u0432 \u0431\u043e\u0440\u0434</div></div></div>' : ''}
+            ${canManage() ? '<div class="project-card-home project-card-home--new" style="cursor:pointer" onclick="promptCreateBoard()"><div class="project-card-home__header"></div><div class="project-card-home__body" style="align-items:center;justify-content:center"><div class="project-card-home__title" style="font-size:14px">+ Ново</div></div></div>' : ''}
           </div>
         </div>
 
@@ -968,8 +982,35 @@ async function loadProjectActivity() {
 }
 
 function promptCreateBoard() {
-  showPromptModal('\u041d\u043e\u0432 \u0431\u043e\u0440\u0434', '\u0412\u044a\u0432\u0435\u0434\u0438 \u0437\u0430\u0433\u043b\u0430\u0432\u0438\u0435\u2026', '', async function(title) {
-    try { await fetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title }) }); showToast('\u0411\u043e\u0440\u0434\u044a\u0442 \u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435\u043d', 'success'); router(); } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0441\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435 \u043d\u0430 \u0431\u043e\u0440\u0434', 'error'); }
+  var ov = document.createElement('div');
+  ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box" style="max-width:400px">' +
+    '<p class="confirm-modal-msg" style="margin-bottom:16px">Какво искаш да създадеш?</p>' +
+    '<div style="display:flex;flex-direction:column;gap:10px">' +
+      '<button class="btn-create-choice" onclick="promptCreateBoardType(\'board\');this.closest(\'.modal-overlay\').remove()">' +
+        '<span class="btn-create-choice__icon">📋</span>' +
+        '<div><div class="btn-create-choice__title">Борд</div>' +
+        '<div class="btn-create-choice__desc">Kanban борд с колони за управление на задачи</div></div>' +
+      '</button>' +
+      '<button class="btn-create-choice" onclick="promptCreateBoardType(\'docs\');this.closest(\'.modal-overlay\').remove()">' +
+        '<span class="btn-create-choice__icon">📁</span>' +
+        '<div><div class="btn-create-choice__title">Docs & Files</div>' +
+        '<div class="btn-create-choice__desc">Споделяне и организиране на документи, таблици, снимки и други файлове</div></div>' +
+      '</button>' +
+    '</div>' +
+    '<div class="confirm-modal-actions" style="margin-top:16px"><button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">Отказ</button></div>' +
+  '</div>';
+  document.body.appendChild(ov);
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+}
+function promptCreateBoardType(type) {
+  var label = type === 'docs' ? 'Docs & Files' : 'Нов борд';
+  showPromptModal(label, 'Въведи заглавие…', '', async function(title) {
+    try {
+      await fetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title, type: type }) });
+      showToast(type === 'docs' ? 'Docs & Files е създаден' : 'Бордът е създаден', 'success');
+      router();
+    } catch { showToast('Грешка при създаване', 'error'); }
   });
 }
 
@@ -3560,6 +3601,101 @@ function closeVaultPreview() {
   document.removeEventListener('keydown', vaultPreviewEscHandler);
 }
 function vaultPreviewEscHandler(e) { if (e.key === 'Escape') closeVaultPreview(); }
+
+// ==================== DOCS & FILES (Board-scoped Vault) ====================
+async function renderDocs(el, boardId, folderId) {
+  el.className = '';
+  try {
+    // Load board info for breadcrumb
+    var boardsData = await (await fetch('/api/boards')).json();
+    var board = boardsData.find(function(b) { return b.id === boardId; });
+    var boardTitle = board ? board.title : 'Docs & Files';
+
+    // Load folder contents
+    var url = folderId
+      ? '/api/vault/folders?parent_id=' + folderId
+      : '/api/vault/folders?board_id=' + boardId;
+    var data = await (await fetch(url)).json();
+    var folders = data.folders || [];
+    var files = data.files || [];
+    var currentFolder = data.current_folder;
+
+    // Breadcrumb
+    var bcItems = [{ label: '📁 ' + boardTitle, href: '#/docs/' + boardId }];
+    if (folderId && currentFolder) {
+      bcItems.push({ label: currentFolder.name });
+    }
+    setBreadcrumb(bcItems);
+
+    var canDel = canManage();
+    var rootFolderId = null;
+    if (!folderId && currentFolder) rootFolderId = currentFolder.id;
+    var uploadFolderId = folderId || rootFolderId || 'null';
+
+    el.innerHTML =
+      '<div class="home-content-box">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">' +
+          '<button class="btn btn-primary btn-sm" onclick="createDocsFolder(' + boardId + ',' + (folderId || 'null') + ')">📁 Нова папка</button>' +
+          '<h1 style="font-size:22px;font-weight:800;color:#fff;text-align:center;flex:1">' + esc(boardTitle) + '</h1>' +
+          '<label class="btn btn-sm" style="cursor:pointer">📎 Качи файл<input type="file" style="display:none" onchange="uploadDocsFile(this,' + uploadFolderId + ')" multiple></label>' +
+        '</div>' +
+        (folderId ? '<a href="#/docs/' + boardId + '" class="btn btn-sm" style="margin-bottom:16px;display:inline-flex">← Назад</a>' : '') +
+        '<div class="vault-grid">' +
+          folders.map(function(f) {
+            return '<div class="vault-item folder" style="position:relative">' +
+              '<a href="#/docs/' + boardId + '/' + f.id + '" style="display:contents"><span class="vault-icon">📁</span><span class="vault-name">' + esc(f.name) + '</span></a>' +
+              (canDel ? '<button onclick="deleteVaultFolder(' + f.id + ')" style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;opacity:0;transition:opacity .15s" class="vault-del-btn" title="Изтрий папка">✕</button>' : '') +
+            '</div>';
+          }).join('') +
+          files.map(function(f) {
+            var mime = (f.mime_type || '').toLowerCase();
+            var isImage = mime.startsWith('image/');
+            var isVideo = mime.startsWith('video/');
+            var isPdf = mime.includes('pdf');
+            var canPreview = isImage || isPdf;
+            var thumbHtml = isImage
+              ? '<div class="vault-thumb"><img src="/api/vault/files/' + f.id + '/preview" alt="' + esc(f.original_name) + '" loading="lazy"></div>'
+              : isVideo
+                ? '<div class="vault-icon" style="position:relative">' + getFileIcon(f.mime_type) + '<span class="vault-play-badge">&#9654;</span></div>'
+                : '<span class="vault-icon">' + getFileIcon(f.mime_type) + '</span>';
+            var clickAttr = canPreview
+              ? 'onclick="openVaultPreview(' + f.id + ',\'' + esc(f.original_name).replace(/'/g, "\\'") + '\',\'' + f.storage_path + '\',\'' + f.mime_type + '\')" style="cursor:pointer"'
+              : 'onclick="window.open(\'' + f.storage_path + '\',\'_blank\')" style="cursor:pointer"';
+            return '<div class="vault-item file" style="position:relative" ' + clickAttr + '>' +
+              thumbHtml +
+              '<span class="vault-name">' + esc(f.original_name) + '</span>' +
+              '<span class="hint">' + formatFileSize(f.size_bytes) + '</span>' +
+              (canDel ? '<button onclick="event.stopPropagation();deleteVaultFile(' + f.id + ')" style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;opacity:0;transition:opacity .15s" class="vault-del-btn" title="Изтрий файл">✕</button>' : '') +
+            '</div>';
+          }).join('') +
+          (folders.length === 0 && files.length === 0 ? '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Празна папка — добави файлове или папки</div>' : '') +
+        '</div>' +
+      '</div>';
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане</div>'; }
+}
+function createDocsFolder(boardId, parentFolderId) {
+  showPromptModal('Нова папка', 'Въведи название…', '', async function(name) {
+    try {
+      await fetch('/api/vault/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, parent_id: parentFolderId }) });
+      showToast('Папката е създадена', 'success');
+      router();
+    } catch { showToast('Грешка при създаване на папка', 'error'); }
+  });
+}
+function uploadDocsFile(input, folderId) {
+  if (!input.files || !input.files.length) return;
+  var promises = [];
+  for (var i = 0; i < input.files.length; i++) {
+    var f = new FormData();
+    f.append('file', input.files[i]);
+    if (folderId && folderId !== 'null') f.append('folder_id', folderId);
+    promises.push(fetch('/api/vault/upload', { method: 'POST', body: f }));
+  }
+  Promise.all(promises).then(function() {
+    showToast(input.files.length > 1 ? input.files.length + ' файла качени' : 'Файлът е качен', 'success');
+    router();
+  }).catch(function() { showToast('Грешка при качване', 'error'); });
+}
 
 // ==================== CAMPFIRE (Group Chat) ====================
 async function renderCampfire(el, roomId) {

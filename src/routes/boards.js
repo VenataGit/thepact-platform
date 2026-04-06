@@ -52,16 +52,26 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/boards — create board
+// POST /api/boards — create board (type: 'board' or 'docs')
 router.post('/', requireAuth, requireModerator, async (req, res) => {
   try {
-    const { title, color } = req.body;
+    const { title, color, type } = req.body;
     if (!title) return res.status(400).json({ error: 'Title required' });
+    const boardType = (type === 'docs') ? 'docs' : 'board';
     const maxPos = await queryOne('SELECT COALESCE(MAX(position), -1) + 1 as pos FROM boards');
     const board = await queryOne(
-      'INSERT INTO boards (title, color, position) VALUES ($1, $2, $3) RETURNING *',
-      [title, color || null, maxPos.pos]
+      'INSERT INTO boards (title, color, position, type) VALUES ($1, $2, $3, $4) RETURNING *',
+      [title, color || null, maxPos.pos, boardType]
     );
+
+    // For docs boards, auto-create a root vault folder
+    if (boardType === 'docs') {
+      await queryOne(
+        'INSERT INTO vault_folders (name, parent_id, board_id, created_by) VALUES ($1, NULL, $2, $3) RETURNING *',
+        [title, board.id, req.user.userId]
+      );
+    }
+
     broadcast({ type: 'board:created', board }, req.user.userId);
     res.status(201).json(board);
   } catch (err) {

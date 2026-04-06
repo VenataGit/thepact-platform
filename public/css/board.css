@@ -27,6 +27,15 @@
 .project-card-home__desc { font-size: 13px; color: var(--text-secondary); }
 .project-card-home--new { border: 1px dashed var(--border); opacity: 0.4; box-shadow: none; }
 .project-card-home--new .project-card-home__header { background: transparent; }
+.project-card-home--new:hover { opacity: 0.7; }
+.project-card-home--docs .project-card-home__header { background: #3a5565; }
+
+/* Create choice modal */
+.btn-create-choice { display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; text-align: left; color: var(--text); font-family: inherit; transition: border-color 0.15s, background 0.15s; }
+.btn-create-choice:hover { border-color: var(--accent); background: var(--bg-hover); }
+.btn-create-choice__icon { font-size: 28px; flex-shrink: 0; }
+.btn-create-choice__title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.btn-create-choice__desc { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
 
 .projects-home-grid { display: grid; gap: 12px; }
 @media (max-width: 600px) { .projects-home-grid { grid-template-columns: 1fr !important; } }
