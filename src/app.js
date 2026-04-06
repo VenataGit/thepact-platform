@@ -35,9 +35,11 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Rate limiting — only on auth (brute-force protection)
+// Rate limiting — only on login attempts (brute-force protection)
+// GET /auth/status is called on every page load, so we only limit POST /auth/login
 if (process.env.NODE_ENV !== 'test') {
-  app.use('/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 50, message: { error: 'Too many requests' } }));
+  const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many login attempts. Try again in 15 minutes.' } });
+  app.post('/auth/login', loginLimiter);
 }
 
 // Static files with smart caching
