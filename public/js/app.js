@@ -83,7 +83,7 @@ function _renderHeyItem(n) {
   var savUrl = _findAvatar(sn);
   var link = n.reference_type === 'card' ? '#/card/' + n.reference_id : '#/notifications';
   var sid = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
-  return '<a class="hey-item' + (n.is_read ? '' : ' unread') + '" href="' + link + '" onclick="if(' + sid + '){_pendingScrollCommentId=' + sid + ';}closeAllDropdowns()">' +
+  return '<a class="hey-item' + (n.is_read ? '' : ' unread') + '" href="' + link + '" onclick="heyClickItem('+n.id+','+sid+');closeAllDropdowns()">' +
     '<div class="hey-item__av" style="background:' + (savUrl ? 'none' : _avColor(sn)) + '">' + _avInner(sn, savUrl) + '</div>' +
     '<div class="hey-item__content">' +
       '<div class="hey-item__subject">' + esc(n.title) + '</div>' +
@@ -92,6 +92,10 @@ function _renderHeyItem(n) {
     '</div>' +
     (!n.is_read ? '<div class="hey-item__unread-dot"></div>' : '') +
   '</a>';
+}
+function heyClickItem(notifId, commentId) {
+  if (commentId) _pendingScrollCommentId = commentId;
+  if (notifId) { fetch('/api/notifications/'+notifId+'/read',{method:'PUT'}).then(function(){updateHeyBadge()}).catch(function(){}); }
 }
 function heyExpandMore() {
   var el = document.getElementById('heyDropdown');
