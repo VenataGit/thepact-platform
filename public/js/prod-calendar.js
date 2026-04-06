@@ -170,22 +170,29 @@ function _pcRefreshWeekView() {
 // ─── HTML builders ────────────────────────────────────────────────────────────
 
 var _PC_DL_COLORS = { 'dl-green': '#2a9d5c', 'dl-yellow': '#c4930a', 'dl-red': '#c0392b', 'dl-black': '#555', 'dl-none': '#8899a6' };
+
+function _pcIsPostProd(entry) {
+  return (entry.board_title || '').toLowerCase() === 'post-production';
+}
+
 function _pcEventHtml(entry) {
+  var isDone  = _pcIsPostProd(entry);
   var dlClass = (typeof getDeadlineClass === 'function') ? getDeadlineClass(entry) : '';
-  var color   = (_PC_DL_COLORS[dlClass]) || _pcColor(entry.board_id || 0);
+  var color   = isDone ? '#2a9d5c' : ((_PC_DL_COLORS[dlClass]) || _pcColor(entry.board_id || 0));
   var top    = (entry.start_minute - PC_H0 * 60) * PC_PX_MIN;
   var height = Math.max(20, entry.duration_minutes * PC_PX_MIN);
   var t0     = _pcMinToTime(entry.start_minute);
   var t1     = _pcMinToTime(entry.start_minute + entry.duration_minutes);
   var title  = (entry.card_title || '').replace(/"/g, '&quot;');
   var short  = entry.duration_minutes < 30;
-  return '<div class="pc-event" data-entry-id="' + entry.id + '" data-card-id="' + entry.card_id + '"' +
+  var doneClass = isDone ? ' pc-event--done' : '';
+  return '<div class="pc-event' + doneClass + '" data-entry-id="' + entry.id + '" data-card-id="' + entry.card_id + '"' +
     ' style="top:' + top + 'px;height:' + height + 'px;background:' + color + '"' +
     ' draggable="true"' +
     ' ondblclick="pcOpenCard(event,' + entry.card_id + ')"' +
     ' ondragstart="pcEventDragStart(event,' + entry.id + ',' + entry.start_minute + ')">' +
     '<button class="pc-event__del" title="Върни в списъка" onclick="event.stopPropagation();pcDeleteEntry(' + entry.id + ')">↩</button>' +
-    '<div class="pc-event__title">' + (entry.card_title || '') + '</div>' +
+    '<div class="pc-event__title">' + (isDone ? '<span class="pc-event__check">✓</span> ' : '') + (entry.card_title || '') + '</div>' +
     (short ? '' : '<div class="pc-event__time">' + t0 + ' – ' + t1 + '</div>') +
     '<div class="pc-event__resize" onmousedown="pcResizeStart(event,' + entry.id + ')" onclick="event.stopPropagation()"></div>' +
   '</div>';

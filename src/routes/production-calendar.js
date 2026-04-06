@@ -124,7 +124,9 @@ router.delete('/:id', requireAuth, async (req, res) => {
  */
 async function syncProdToGCal(action, entry) {
   try {
-    const title = entry.card_title || `Card #${entry.card_id}`;
+    const rawTitle = entry.card_title || `Card #${entry.card_id}`;
+    const isPostProd = (entry.board_title || '').toLowerCase() === 'post-production';
+    const title = isPostProd ? `✓ ${rawTitle}` : rawTitle;
     const date = entry.scheduled_date;
     // Convert to YYYY-MM-DD string if it's a Date object
     const dateStr = typeof date === 'string' ? date.split('T')[0] : new Date(date).toISOString().split('T')[0];

@@ -1470,6 +1470,10 @@ textarea.confirm-modal-input { resize: vertical; min-height: 80px; }
 .pc-event__del:hover { opacity: 1; background: rgba(180,30,30,0.8); }
 .pc-event__resize { position: absolute; bottom: 0; left: 0; right: 0; height: 6px; cursor: s-resize; background: rgba(0,0,0,0.2); border-radius: 0 0 5px 5px; }
 .pc-event__resize:hover { background: rgba(0,0,0,0.4); }
+/* Done state — card moved to Post-Production */
+.pc-event--done { opacity: 0.85; border: 1px solid rgba(255,255,255,0.18); }
+.pc-event--done .pc-event__title { opacity: 0.9; }
+.pc-event__check { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,0.25); font-size: 9px; font-weight: 700; line-height: 1; margin-right: 2px; vertical-align: middle; }
 
 /* Drag preview ghost */
 .pc-drag-preview { position: absolute; left: 2px; right: 2px; background: rgba(70,163,116,0.2); border: 2px dashed var(--accent); border-radius: 5px; pointer-events: none; z-index: 0; box-sizing: border-box; }
