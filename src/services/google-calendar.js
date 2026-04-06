@@ -133,6 +133,9 @@ function toGCalEvent(event, attendeeEmails = []) {
     description: event.description || '',
   };
 
+  // Google Calendar event color (colorId: '10' = Basil/green, '2' = Sage, '11' = Tomato, etc.)
+  if (event.colorId) gcalEvent.colorId = event.colorId;
+
   if (event.all_day) {
     // All-day event: use date (not dateTime)
     const startDate = new Date(event.starts_at).toISOString().split('T')[0];

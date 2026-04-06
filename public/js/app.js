@@ -5478,6 +5478,10 @@ function handleWSEvent(ev) {
   }
   if (t === 'sos:alert') { showSosAlert(ev); return; }
   if (t === 'sos:resolved') { document.querySelectorAll('.sos-alert-banner[data-alert-id="' + ev.alertId + '"]').forEach(function(b) { b.remove(); }); return; }
+  // Live-update Production Calendar when a card is moved (Post-Production checkmark)
+  if (t === 'card:moved' && location.hash === '#/calendar' && typeof _pcLoadEntries === 'function') {
+    _pcLoadEntries().then(function() { _pcRefreshWeekView(); });
+  }
   // Core data events — re-render current page
   if (t.startsWith('card:') || t.startsWith('board:') || t.startsWith('column:') || t.startsWith('step:') || t.startsWith('comment:')) wsRouter();
   if (t === 'chat:message') { updatePingsBadge(); if (location.hash.startsWith('#/chat/' + ev.channelId)) { if (ev.message) appendChatMsg(ev.message); fetch('/api/chat/channels/'+ev.channelId+'/read',{method:'PUT'}).catch(function(){}); } return; }

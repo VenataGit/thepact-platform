@@ -126,7 +126,6 @@ async function syncProdToGCal(action, entry) {
   try {
     const rawTitle = entry.card_title || `Card #${entry.card_id}`;
     const isPostProd = (entry.board_title || '').toLowerCase() === 'post-production';
-    const title = isPostProd ? `✓ ${rawTitle}` : rawTitle;
     const date = entry.scheduled_date;
     // Convert to YYYY-MM-DD string if it's a Date object
     const dateStr = typeof date === 'string' ? date.split('T')[0] : new Date(date).toISOString().split('T')[0];
@@ -138,13 +137,15 @@ async function syncProdToGCal(action, entry) {
     const endM = endMinute % 60;
 
     // Build event object compatible with google-calendar service
+    // ✓ replaces 🎬 when card is in Post-Production; colorId 10 = Basil (green)
     const cardUrl = `https://thepact.pro/#/card/${entry.card_id}`;
     const event = {
-      title: `🎬 ${title}`,
+      title: isPostProd ? `✓ ${rawTitle}` : `🎬 ${rawTitle}`,
       description: `📋 Отвори картата: ${cardUrl}` + (entry.board_title ? `\n\nBoard: ${entry.board_title}` : ''),
       starts_at: `${dateStr}T${String(startH).padStart(2,'0')}:${String(startM).padStart(2,'0')}:00`,
       ends_at: `${dateStr}T${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}:00`,
       all_day: false,
+      colorId: isPostProd ? '10' : undefined,
     };
 
     if (action === 'create') {

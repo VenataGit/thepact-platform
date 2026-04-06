@@ -356,9 +356,13 @@ router.post('/:id/move', requireAuth, async (req, res) => {
       userName: req.user.name
     });
 
-    // If moved to Post-Production, update Google Calendar events with ✓ prefix
+    // Sync Google Calendar when moving to/from Post-Production
     const targetBoard = await queryOne('SELECT title FROM boards WHERE id = $1', [targetBoardId]);
-    if (targetBoard && targetBoard.title.toLowerCase() === 'post-production') {
+    const fromBoard = await queryOne('SELECT title FROM boards WHERE id = $1', [card.board_id]);
+    const toPostProd = targetBoard && targetBoard.title.toLowerCase() === 'post-production';
+    const fromPostProd = fromBoard && fromBoard.title.toLowerCase() === 'post-production';
+
+    if (toPostProd || fromPostProd) {
       const calEntries = await query(
         'SELECT id, card_id, scheduled_date, start_minute, duration_minutes, google_calendar_event_id FROM production_calendar WHERE card_id = $1',
         [card.id]
@@ -372,53 +376,24 @@ router.post('/:id/move', requireAuth, async (req, res) => {
         const endM = endMinute % 60;
         const dateStr = typeof entry.scheduled_date === 'string' ? entry.scheduled_date.split('T')[0] : new Date(entry.scheduled_date).toISOString().split('T')[0];
         const cardUrl = `https://thepact.pro/#/card/${card.id}`;
+        // ✓ replaces 🎬 when going to Post-Production; colorId 10 = Basil (green)
         const gcalEvent = {
-          title: `✓ 🎬 ${cardTitle}`,
-          description: `📋 Отвори картата: ${cardUrl}\n\nBoard: Post-Production`,
+          title: toPostProd ? `✓ ${cardTitle}` : `🎬 ${cardTitle}`,
+          description: `📋 Отвори картата: ${cardUrl}\n\nBoard: ${toPostProd ? 'Post-Production' : targetBoard.title}`,
           starts_at: `${dateStr}T${String(startH).padStart(2,'0')}:${String(startM).padStart(2,'0')}:00`,
           ends_at: `${dateStr}T${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}:00`,
           all_day: false,
+          colorId: toPostProd ? '10' : undefined,
         };
         if (entry.google_calendar_event_id) {
           updateGCalEvent(entry.google_calendar_event_id, gcalEvent).catch(err =>
-            console.error('[GCal] Post-prod checkmark update error:', err.message)
+            console.error('[GCal] Board move GCal sync error:', err.message)
           );
-        } else {
-          // Entry created before GCal — create it now with ✓
+        } else if (toPostProd) {
           createGCalEvent(gcalEvent).then(gcalId => {
             if (gcalId) queryOne('UPDATE production_calendar SET google_calendar_event_id = $1 WHERE id = $2 RETURNING id', [gcalId, entry.id]);
           }).catch(err => console.error('[GCal] Post-prod create error:', err.message));
         }
-      }
-    }
-
-    // If moved BACK from Post-Production to Production, remove ✓ from Google Calendar
-    const fromBoard = await queryOne('SELECT title FROM boards WHERE id = $1', [card.board_id]);
-    if (fromBoard && fromBoard.title.toLowerCase() === 'post-production' && targetBoard && targetBoard.title.toLowerCase() !== 'post-production') {
-      const calEntries = await query(
-        'SELECT id, card_id, scheduled_date, start_minute, duration_minutes, google_calendar_event_id FROM production_calendar WHERE card_id = $1',
-        [card.id]
-      );
-      for (const entry of calEntries) {
-        if (!entry.google_calendar_event_id) continue;
-        const cardTitle = updated.title || card.title;
-        const startH = Math.floor(entry.start_minute / 60);
-        const startM = entry.start_minute % 60;
-        const endMinute = entry.start_minute + (entry.duration_minutes || 60);
-        const endH = Math.floor(endMinute / 60);
-        const endM = endMinute % 60;
-        const dateStr = typeof entry.scheduled_date === 'string' ? entry.scheduled_date.split('T')[0] : new Date(entry.scheduled_date).toISOString().split('T')[0];
-        const cardUrl = `https://thepact.pro/#/card/${card.id}`;
-        const gcalEvent = {
-          title: `🎬 ${cardTitle}`,
-          description: `📋 Отвори картата: ${cardUrl}\n\nBoard: ${targetBoard.title}`,
-          starts_at: `${dateStr}T${String(startH).padStart(2,'0')}:${String(startM).padStart(2,'0')}:00`,
-          ends_at: `${dateStr}T${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}:00`,
-          all_day: false,
-        };
-        updateGCalEvent(entry.google_calendar_event_id, gcalEvent).catch(err =>
-          console.error('[GCal] Remove checkmark error:', err.message)
-        );
       }
     }
 
