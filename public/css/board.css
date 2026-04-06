@@ -10,7 +10,7 @@
 
 .project-card-home {
   display: flex; flex-direction: column; position: relative;
-  background: var(--bg-card); border: none; border-radius: 14px;
+  background: #27353C; border: none; border-radius: 14px;
   padding: 0; min-height: 120px;
   text-decoration: none; color: #fff;
   transition: box-shadow var(--transition-fast), transform var(--transition-fast);
