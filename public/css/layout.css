@@ -328,6 +328,27 @@
   color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em;
 }
 
+/* Hey section labels — unread/read divider */
+.hey-section-label {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.hey-section-label::after {
+  content: ''; flex: 1; height: 1px;
+  background: var(--border);
+}
+.hey-section-label--new {
+  color: var(--accent);
+  background: var(--hey-unread-bg, rgba(70, 163, 116, 0.06));
+}
+.hey-section-label--new::after { background: var(--accent); opacity: 0.3; }
+.hey-section-label--read {
+  color: var(--text-dim);
+  background: var(--bg-elevated);
+}
+
 /* ==================== BREADCRUMB BAR ==================== */
 .breadcrumb-bar {
   position: fixed;

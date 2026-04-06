@@ -61,16 +61,17 @@ async function populateHey(el) {
   try {
     const items = await (await fetch('/api/notifications')).json();
     _heyAllItems = items;
-    const unreadCount = items.filter(n => !n.is_read).length;
     const bookmarked = items.filter(n => n.is_bookmarked);
     const regular = items.filter(n => !n.is_bookmarked);
+    const unread = regular.filter(n => !n.is_read);
+    const read = regular.filter(n => n.is_read);
     if (items.length === 0) {
       el.innerHTML = '<div class="nav-dropdown__empty" style="padding:24px 16px">Няма нищо ново за теб.</div>';
       return;
     }
     var headerHtml = '<div class="hey-header">' +
-      '<span class="hey-header__title">Ново за теб' + (unreadCount > 0 ? ' (' + unreadCount + ')' : '') + '</span>' +
-      (unreadCount > 0 ? '<button class="hey-header__action" onclick="markAllHeyRead(event)">Маркирай всички</button>' : '') +
+      '<span class="hey-header__title">Известия' + (unread.length > 0 ? ' (' + unread.length + ' нови)' : '') + '</span>' +
+      (unread.length > 0 ? '<button class="hey-header__action" onclick="markAllHeyRead(event)">Маркирай всички</button>' : '') +
     '</div>';
     var html = headerHtml;
     // Bookmarked section
@@ -80,11 +81,22 @@ async function populateHey(el) {
         bookmarked.map(function(n){ return _renderHeyItem(n, true); }).join('') +
       '</div>';
     }
-    // Regular notifications
-    var first30 = regular.slice(0, 30);
-    html += first30.map(function(n){ return _renderHeyItem(n, false); }).join('');
-    if (regular.length > 30) {
-      html += '<div class="hey-load-more"><button class="hey-load-more__btn" onclick="heyExpandMore()">Виж всички останали известия ↓</button></div>';
+    // Unread (new) notifications — always on top
+    if (unread.length > 0) {
+      html += '<div class="hey-section-label hey-section-label--new">Нови</div>';
+      html += unread.map(function(n){ return _renderHeyItem(n, false); }).join('');
+    }
+    // Read notifications — below
+    if (read.length > 0) {
+      html += '<div class="hey-section-label hey-section-label--read">Прочетени</div>';
+      var readSlice = read.slice(0, 20);
+      html += readSlice.map(function(n){ return _renderHeyItem(n, false); }).join('');
+      if (read.length > 20) {
+        html += '<div class="hey-load-more"><button class="hey-load-more__btn" onclick="heyExpandMore()">Виж още (' + (read.length - 20) + ') ↓</button></div>';
+      }
+    }
+    if (unread.length === 0 && read.length === 0 && bookmarked.length > 0) {
+      html += '<div class="nav-dropdown__empty" style="padding:16px">Няма други известия.</div>';
     }
     el.innerHTML = html;
   } catch { el.innerHTML = '<div class="nav-dropdown__empty">Грешка</div>'; }
@@ -127,10 +139,10 @@ function heyExpandMore() {
   if (!el) return;
   var btn = el.querySelector('.hey-load-more');
   if (!btn) return;
-  var regular = _heyAllItems.filter(function(n){return !n.is_bookmarked});
-  var next15 = regular.slice(30, 45);
-  var html = next15.map(function(n){return _renderHeyItem(n, false)}).join('');
-  html += '<a class="hey-footer-link" href="#/notifications" onclick="closeAllDropdowns()">Виж всички прочетени известия →</a>';
+  var read = _heyAllItems.filter(function(n){return !n.is_bookmarked && n.is_read});
+  var rest = read.slice(20);
+  var html = rest.map(function(n){return _renderHeyItem(n, false)}).join('');
+  html += '<a class="hey-footer-link" href="#/notifications" onclick="closeAllDropdowns()">Виж всички известия →</a>';
   btn.insertAdjacentHTML('afterend', html);
   btn.remove();
 }
@@ -2741,27 +2753,45 @@ async function renderNotifications(el) {
   setBreadcrumb(null); el.className = '';
   try {
     const items = await (await fetch('/api/notifications')).json();
-    const unreadCount = items.filter(n => !n.is_read).length;
-    // Auto-mark as read on full page view
-    if (unreadCount > 0) { fetch('/api/notifications/read-all', { method:'PUT' }); updateHeyBadge(); }
+    const unread = items.filter(n => !n.is_read);
+    const read = items.filter(n => n.is_read);
 
-    const listHtml = items.length === 0
-      ? '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма нищо ново за теб.</div>'
-      : items.map(n => {
-          const senderName = n.sender_name || '';
-          const av = senderName ? initials(senderName) : '?';
-          const link = n.reference_type === 'card' ? `#/card/${n.reference_id}` : '#';
-          const scrollId = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
-          return `<a class="hey-item${n.is_read ? '' : ' unread'}" href="${link}"${scrollId ? ` onclick="_pendingScrollCommentId=${scrollId}"` : ''}>
-            <div class="hey-item__av">${av}</div>
-            <div class="hey-item__content">
-              <div class="hey-item__subject">${esc(n.title)}</div>
-              ${n.body ? `<div class="hey-item__preview">${esc(n.body)}</div>` : ''}
-              <div class="hey-item__meta">${timeAgo(n.created_at)}</div>
-            </div>
-            ${!n.is_read ? '<div class="hey-item__unread-dot"></div>' : ''}
-          </a>`;
-        }).join('');
+    function _renderFullItem(n) {
+      const senderName = n.sender_name || '';
+      const savUrl = _findAvatar(senderName);
+      const link = n.reference_type === 'card' ? '#/card/' + n.reference_id : '#';
+      const scrollId = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
+      return '<a class="hey-item' + (n.is_read ? '' : ' unread') + '" href="' + link + '"' +
+        (scrollId ? ' onclick="heyClickItem('+n.id+','+scrollId+')"' : (n.is_read ? '' : ' onclick="heyClickItem('+n.id+',null)"')) + '>' +
+        '<div class="hey-item__av" style="background:' + (savUrl ? 'none' : _avColor(senderName)) + '">' + _avInner(senderName, savUrl) + '</div>' +
+        '<div class="hey-item__content">' +
+          '<div class="hey-item__subject">' + esc(n.title) + '</div>' +
+          (n.body ? '<div class="hey-item__preview">' + esc(n.body) + '</div>' : '') +
+          '<div class="hey-item__meta">' + (n.type === 'reminder' ? 'Напомняне · ' : '') + timeAgo(n.created_at) + '</div>' +
+        '</div>' +
+        (!n.is_read ? '<div class="hey-item__unread-dot"></div>' : '') +
+      '</a>';
+    }
+
+    var listHtml = '';
+    if (items.length === 0) {
+      listHtml = '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма известия.</div>';
+    } else {
+      if (unread.length > 0) {
+        listHtml += '<div class="hey-section-label hey-section-label--new">Нови (' + unread.length + ')</div>';
+        listHtml += unread.map(_renderFullItem).join('');
+      }
+      if (read.length > 0) {
+        listHtml += '<div class="hey-section-label hey-section-label--read">Прочетени</div>';
+        listHtml += read.map(_renderFullItem).join('');
+      }
+    }
+
+    // Mark unread as read after rendering (so user sees them highlighted first)
+    if (unread.length > 0) {
+      fetch('/api/notifications/read-all', { method:'PUT' });
+      updateHeyBadge();
+    }
 
     el.innerHTML = `
       <div class="home-content-box">
