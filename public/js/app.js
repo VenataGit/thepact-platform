@@ -250,11 +250,14 @@ function setBreadcrumb(items) {
   const bar = document.getElementById('breadcrumbBar');
   const bc = document.getElementById('breadcrumb');
   const main = document.getElementById('mainArea');
-  if (!items?.length) { bar.classList.add('hidden'); main.classList.remove('with-breadcrumb'); return; }
   bar.classList.remove('hidden'); main.classList.add('with-breadcrumb');
-  bc.innerHTML = items.map((item, i) => {
-    if (i === items.length - 1) return `<span class="current">${esc(item.label)}</span>`;
-    return `<a href="${item.href}">${esc(item.label)}</a><span class="sep">›</span>`;
+  var parts = [];
+  var firstIsHome = items?.length && items[0].href === '#/home';
+  if (!firstIsHome) parts.push({ href: '#/home', label: 'Home' });
+  if (items?.length) parts = parts.concat(items);
+  bc.innerHTML = parts.map(function(item, i) {
+    if (i === parts.length - 1) return '<span class="current">' + esc(item.label) + '</span>';
+    return '<a href="' + item.href + '">' + esc(item.label) + '</a><span class="sep">›</span>';
   }).join('');
 }
 
@@ -4429,6 +4432,39 @@ var THEME_CONFIG = [
     { key: 'theme_scrollbar', type: 'color', css: '--scrollbar-thumb', def: '#2a3f4d', label: 'Цвят' },
     { key: 'theme_scrollbar_hover', type: 'color', css: '--scrollbar-thumb-hover', def: '#3a5565', label: 'Ховър' },
   ]},
+  { title: 'Подменю (Breadcrumb)', icon: '🔗', items: [
+    { key: 'theme_breadcrumb_bg', type: 'color', css: '--breadcrumb-bg', def: '#1e3040', label: 'Фон' },
+    { key: 'theme_breadcrumb_text', type: 'color', css: '--breadcrumb-text', def: '#8fa3b0', label: 'Линкове' },
+    { key: 'theme_breadcrumb_active', type: 'color', css: '--breadcrumb-active', def: '#e8ecee', label: 'Текуща страница' },
+    { key: 'theme_breadcrumb_sep', type: 'color', css: '--breadcrumb-sep', def: '#566d7a', label: 'Разделител' },
+  ]},
+  { title: 'Dropdown менюта', icon: '📃', items: [
+    { key: 'theme_dropdown_bg', type: 'color', css: '--dropdown-bg', def: '#1e3040', label: 'Фон' },
+    { key: 'theme_dropdown_text', type: 'color', css: '--dropdown-text', def: '#e8ecee', label: 'Текст' },
+    { key: 'theme_dropdown_hover', type: 'color', css: '--dropdown-hover', def: '#243848', label: 'Ховър' },
+    { key: 'theme_dropdown_dim', type: 'color', css: '--dropdown-dim', def: '#566d7a', label: 'Приглушен текст' },
+  ]},
+  { title: 'Kanban карти', icon: '🃏', items: [
+    { key: 'theme_kcard_bg', type: 'color', css: '--kcard-bg', def: '#1b2930', label: 'Фон на картата' },
+    { key: 'theme_kcard_border', type: 'color', css: '--kcard-border', def: '#1e3040', label: 'Рамка' },
+    { key: 'theme_kcard_title', type: 'color', css: '--kcard-title', def: '#e8ecee', label: 'Заглавие' },
+  ]},
+  { title: 'Dashboard', icon: '📊', items: [
+    { key: 'theme_dash_bg', type: 'color', css: '--dash-card-bg', def: '#0b151b', label: 'Фон на карта' },
+    { key: 'theme_dash_title', type: 'color', css: '--dash-card-title', def: '#ffffff', label: 'Заглавие' },
+    { key: 'theme_dash_ok', type: 'color', css: '--dash-ok', def: '#22c55e', label: 'Има време (зелено)' },
+    { key: 'theme_dash_soon', type: 'color', css: '--dash-soon', def: '#eab308', label: 'Наближава (жълто)' },
+    { key: 'theme_dash_today', type: 'color', css: '--dash-today', def: '#ef4444', label: 'Днес (червено)' },
+    { key: 'theme_dash_overdue', type: 'color', css: '--dash-overdue', def: '#ff0a0a', label: 'Просрочено' },
+    { key: 'theme_dash_priority_bg', type: 'color', css: '--dash-priority-bg', def: '#ffffff', label: 'Приоритет: фон' },
+    { key: 'theme_dash_priority_text', type: 'color', css: '--dash-priority-text', def: '#111111', label: 'Приоритет: текст' },
+    { key: 'theme_dash_hold', type: 'color', css: '--dash-hold', def: '#6b7280', label: 'На изчакване' },
+  ]},
+  { title: 'Hey известия', icon: '🔔', items: [
+    { key: 'theme_hey_unread', type: 'color', css: null, def: '#46a374', label: 'Фон непрочетено' },
+    { key: 'theme_hey_bookmarks', type: 'color', css: null, def: '#46a374', label: 'Секция отметки' },
+    { key: 'theme_hey_dot', type: 'color', css: '--hey-dot', def: '#1cb0f6', label: 'Точка непрочетено' },
+  ]},
   { title: 'Шрифт', icon: '🔤', items: [
     { key: 'theme_font_family', type: 'select', css: '--font-family', def: 'Inter', label: 'Шрифт', options: ['Inter','Roboto','Open Sans','Nunito','Poppins','Lato','Montserrat','Source Sans Pro','Fira Sans','IBM Plex Sans'] },
     { key: 'theme_font_size', type: 'range', css: '--font-size-base', def: '13.5', label: 'Основен размер текст', unit: 'px', min: 11, max: 18, step: 0.5 },
@@ -4480,6 +4516,12 @@ function applyThemeColors() {
   });
   var dimMap = { theme_accent: '--accent-dim', theme_green: '--green-dim', theme_yellow: '--yellow-dim', theme_red: '--red-dim', theme_blue: '--blue-dim' };
   Object.keys(dimMap).forEach(function(k) { if (c[k]) rootVars += '  ' + dimMap[k] + ': ' + _hexToRgba(c[k], 0.12) + ';\n'; });
+  // Dashboard auto-derive tint backgrounds from border colors
+  var dashDerive = { theme_dash_ok: ['--dash-ok-bg', 0.08], theme_dash_soon: ['--dash-soon-bg', 0.08], theme_dash_today: ['--dash-today-bg', 0.12], theme_dash_hold: ['--dash-hold-bg', 0.1] };
+  Object.keys(dashDerive).forEach(function(k) { if (c[k]) rootVars += '  ' + dashDerive[k][0] + ': ' + _hexToRgba(c[k], dashDerive[k][1]) + ';\n'; });
+  // Hey auto-derive tints
+  if (c.theme_hey_unread) rootVars += '  --hey-unread-bg: ' + _hexToRgba(c.theme_hey_unread, 0.06) + ';\n';
+  if (c.theme_hey_bookmarks) rootVars += '  --hey-bookmarks-bg: ' + _hexToRgba(c.theme_hey_bookmarks, 0.04) + ';\n';
   if (rootVars) extraCss += ':root {\n' + rootVars + '}\n';
   if (c.theme_nav_bg) extraCss += '.nav__bar { background: ' + c.theme_nav_bg + ' !important; }\n';
   if (c.theme_nav_text) {

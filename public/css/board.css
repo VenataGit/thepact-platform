@@ -177,7 +177,7 @@
 
 /* ==================== KANBAN CARD ==================== */
 .kanban-card {
-  display: block; background: var(--bg-card); border: 1px solid var(--border);
+  display: block; background: var(--kcard-bg, var(--bg-card)); border: 1px solid var(--kcard-border, var(--border));
   border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
   text-decoration: none; color: var(--text);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
@@ -187,7 +187,7 @@
 .kanban-card:active { cursor: grabbing; transform: scale(0.98); }
 .kanban-card.dragging { opacity: 0.35; }
 .kanban-card__content { min-width: 0; }
-.kanban-card__title { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 10px; line-height: 1.4; }
+.kanban-card__title { font-size: 13.5px; font-weight: 600; color: var(--kcard-title, var(--text)); margin-bottom: 10px; line-height: 1.4; }
 
 /* Card footer: avatars left + badges right */
 .kanban-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -1235,14 +1235,14 @@ trix-toolbar .trix-button-group--file-tools { }
 
 /* Dashboard cards */
 .dash-card {
-  display: block; background: var(--bg); border-radius: 6px;
+  display: block; background: var(--dash-card-bg, var(--bg)); border-radius: 6px;
   border-left: 3px solid transparent; padding: 8px 10px;
   text-decoration: none; color: var(--text);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .dash-card:hover { transform: translateY(-2px); box-shadow: 0 3px 10px rgba(0,0,0,0.28); }
 .dash-card__title {
-  font-size: 12px; font-weight: 500; line-height: 1.3; color: #fff;
+  font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--dash-card-title, #fff);
   margin-bottom: 4px;
 }
 .dash-card__footer {
@@ -1255,24 +1255,24 @@ trix-toolbar .trix-button-group--file-tools { }
 .dash-card__assignee { font-size: 10px; color: var(--text-secondary); }
 
 /* Deadline color states */
-.dash-card--ok { border-left-color: var(--green); background: rgba(74,222,128,0.08); }
-.dash-card--ok .dash-card__date { color: #a0f0c0; font-weight: 600; }
-.dash-card--soon { border-left-color: var(--yellow); background: rgba(226,185,59,0.08); }
-.dash-card--soon .dash-card__date { color: var(--yellow); font-weight: 600; }
-.dash-card--today { border-left-color: var(--red); background: rgba(255,10,10,0.12); }
-.dash-card--today .dash-card__date { color: var(--red); font-weight: 600; }
-.dash-card--overdue { border-left-color: #ff0a0a; background: var(--bg); animation: dashOverduePulse 8s ease-in-out infinite; }
-.dash-card--overdue .dash-card__date { color: #ff0a0a; font-weight: 700; }
+.dash-card--ok { border-left-color: var(--dash-ok, var(--green)); background: var(--dash-ok-bg, rgba(74,222,128,0.08)); }
+.dash-card--ok .dash-card__date { color: var(--dash-ok, #a0f0c0); font-weight: 600; }
+.dash-card--soon { border-left-color: var(--dash-soon, var(--yellow)); background: var(--dash-soon-bg, rgba(226,185,59,0.08)); }
+.dash-card--soon .dash-card__date { color: var(--dash-soon, var(--yellow)); font-weight: 600; }
+.dash-card--today { border-left-color: var(--dash-today, var(--red)); background: var(--dash-today-bg, rgba(255,10,10,0.12)); }
+.dash-card--today .dash-card__date { color: var(--dash-today, var(--red)); font-weight: 600; }
+.dash-card--overdue { border-left-color: var(--dash-overdue, #ff0a0a); background: var(--dash-card-bg, var(--bg)); animation: dashOverduePulse 8s ease-in-out infinite; }
+.dash-card--overdue .dash-card__date { color: var(--dash-overdue, #ff0a0a); font-weight: 700; }
 @keyframes dashOverduePulse {
-  0% { border-left-color: #333; } 37% { border-left-color: #ff0a0a; }
-  63% { border-left-color: #ff0a0a; } 100% { border-left-color: #333; }
+  0% { border-left-color: #333; } 37% { border-left-color: var(--dash-overdue, #ff0a0a); }
+  63% { border-left-color: var(--dash-overdue, #ff0a0a); } 100% { border-left-color: #333; }
 }
-.dash-card--priority { border-left-color: #fff; background: rgba(255,255,255,0.9); }
-.dash-card--priority .dash-card__title { color: #111; }
-.dash-card--priority .dash-card__date { color: #333; font-weight: 600; }
-.dash-card--on-hold { border-left-color: #6b7280; background: rgba(107,114,128,0.1); opacity: 0.7; }
-.dash-card--on-hold .dash-card__title { color: #9ca3af; }
-.dash-card--on-hold .dash-card__date { color: #6b7280; }
+.dash-card--priority { border-left-color: var(--dash-priority-bg, #fff); background: var(--dash-priority-bg, rgba(255,255,255,0.9)); }
+.dash-card--priority .dash-card__title { color: var(--dash-priority-text, #111); }
+.dash-card--priority .dash-card__date { color: var(--dash-priority-text, #333); font-weight: 600; }
+.dash-card--on-hold { border-left-color: var(--dash-hold, #6b7280); background: var(--dash-hold-bg, rgba(107,114,128,0.1)); opacity: 0.7; }
+.dash-card--on-hold .dash-card__title { color: var(--dash-hold, #9ca3af); }
+.dash-card--on-hold .dash-card__date { color: var(--dash-hold, #6b7280); }
 .dash-card--on-hold:hover { opacity: 1; }
 .dash-card--hold { opacity: 0.7; }
 .dash-card--hold:hover { opacity: 1; }
