@@ -3943,10 +3943,11 @@ async function renderAdmin(el) {
           <h1>⚙️ Админ панел</h1>
         </div>
 
-        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:24px">
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:24px;flex-wrap:wrap">
           <button class="btn btn-sm admin-tab active" onclick="showAdminTab('users',this)">👤 Потребители</button>
           <button class="btn btn-sm admin-tab" onclick="showAdminTab('boards',this)">📋 Бордове</button>
           <button class="btn btn-sm admin-tab" onclick="showAdminTab('settings',this)">⚙️ Настройки</button>
+          <button class="btn btn-sm admin-tab" onclick="showAdminTab('colors',this)">🎨 Персонализация</button>
           <button class="btn btn-sm admin-tab" onclick="showAdminTab('logic',this)">📖 Логика</button>
         </div>
 
@@ -3983,6 +3984,10 @@ async function renderAdmin(el) {
             <h2 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:20px">Настройки на системата</h2>
             <div id="adminSettingsContent" style="color:var(--text-dim);text-align:center;padding:40px">Зареждане...</div>
           </div>
+          <div id="adminColors" style="display:none">
+            <h2 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:20px">Персонализация на интерфейса</h2>
+            <div id="adminColorsContent" style="color:var(--text-dim);text-align:center;padding:40px">Зареждане...</div>
+          </div>
           <div id="adminLogic" style="display:none">
             <div id="adminLogicContent" style="color:var(--text-dim);text-align:center;padding:40px">Зареждане...</div>
           </div>
@@ -3993,11 +3998,12 @@ async function renderAdmin(el) {
 function showAdminTab(tab, btn) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   btn?.classList.add('active');
-  ['Users','Boards','Settings','Logic'].forEach(t => {
+  ['Users','Boards','Settings','Colors','Logic'].forEach(t => {
     const el = document.getElementById('admin'+t);
     if (el) el.style.display = t.toLowerCase() === tab ? 'block' : 'none';
   });
   if (tab === 'settings') loadAdminSettings();
+  if (tab === 'colors') loadAdminColors();
   if (tab === 'logic') loadAdminLogic();
 }
 function createNewUser() {
@@ -4222,62 +4228,6 @@ async function loadAdminSettings() {
 
     el.innerHTML = `
       <div class="admin-settings-section">
-        <h3>🎨 Визуализация <span class="info-tooltip" title="Персонализирайте цветовете на интерфейса — начална страница и навигация.">ⓘ</span></h3>
-        <div class="admin-color-group-label">Бордове (начална страница)</div>
-        <div class="admin-setting-row">
-          <label>Фон на картата</label>
-          <input type="color" id="theme_card_bg_picker" value="${s.theme_card_bg || '#27353C'}"
-                 oninput="previewThemeColor('theme_card_bg', this.value)"
-                 onchange="saveThemeColor('theme_card_bg', this.value)">
-          <input class="input-sm" type="text" id="theme_card_bg_text" value="${esc(s.theme_card_bg || '#27353C')}"
-                 style="width:80px;font-family:monospace;font-size:12px"
-                 onblur="saveThemeColor('theme_card_bg', this.value, true)">
-          <button class="btn btn-ghost btn-sm" onclick="resetThemeColor('theme_card_bg','#27353C')" title="По подразбиране">↺</button>
-        </div>
-        <div class="admin-setting-row">
-          <label>Хедър на картата</label>
-          <input type="color" id="theme_card_header_picker" value="${s.theme_card_header || '#3F6B57'}"
-                 oninput="previewThemeColor('theme_card_header', this.value)"
-                 onchange="saveThemeColor('theme_card_header', this.value)">
-          <input class="input-sm" type="text" id="theme_card_header_text" value="${esc(s.theme_card_header || '#3F6B57')}"
-                 style="width:80px;font-family:monospace;font-size:12px"
-                 onblur="saveThemeColor('theme_card_header', this.value, true)">
-          <button class="btn btn-ghost btn-sm" onclick="resetThemeColor('theme_card_header','#3F6B57')" title="По подразбиране">↺</button>
-        </div>
-        <div class="admin-color-group-label" style="margin-top:16px">Навигация (горно меню)</div>
-        <div class="admin-setting-row">
-          <label>Фон</label>
-          <input type="color" id="theme_nav_bg_picker" value="${s.theme_nav_bg || '#1e3040'}"
-                 oninput="previewThemeColor('theme_nav_bg', this.value)"
-                 onchange="saveThemeColor('theme_nav_bg', this.value)">
-          <input class="input-sm" type="text" id="theme_nav_bg_text" value="${esc(s.theme_nav_bg || '#1e3040')}"
-                 style="width:80px;font-family:monospace;font-size:12px"
-                 onblur="saveThemeColor('theme_nav_bg', this.value, true)">
-          <button class="btn btn-ghost btn-sm" onclick="resetThemeColor('theme_nav_bg','#1e3040')" title="По подразбиране">↺</button>
-        </div>
-        <div class="admin-setting-row">
-          <label>Текст и икони</label>
-          <input type="color" id="theme_nav_text_picker" value="${s.theme_nav_text || '#8fa3b0'}"
-                 oninput="previewThemeColor('theme_nav_text', this.value)"
-                 onchange="saveThemeColor('theme_nav_text', this.value)">
-          <input class="input-sm" type="text" id="theme_nav_text_text" value="${esc(s.theme_nav_text || '#8fa3b0')}"
-                 style="width:80px;font-family:monospace;font-size:12px"
-                 onblur="saveThemeColor('theme_nav_text', this.value, true)">
-          <button class="btn btn-ghost btn-sm" onclick="resetThemeColor('theme_nav_text','#8fa3b0')" title="По подразбиране">↺</button>
-        </div>
-        <div class="admin-setting-row">
-          <label>Активно меню</label>
-          <input type="color" id="theme_nav_active_picker" value="${s.theme_nav_active || '#1cb0f6'}"
-                 oninput="previewThemeColor('theme_nav_active', this.value)"
-                 onchange="saveThemeColor('theme_nav_active', this.value)">
-          <input class="input-sm" type="text" id="theme_nav_active_text" value="${esc(s.theme_nav_active || '#1cb0f6')}"
-                 style="width:80px;font-family:monospace;font-size:12px"
-                 onblur="saveThemeColor('theme_nav_active', this.value, true)">
-          <button class="btn btn-ghost btn-sm" onclick="resetThemeColor('theme_nav_active','#1cb0f6')" title="По подразбиране">↺</button>
-        </div>
-      </div>
-
-      <div class="admin-settings-section">
         <h3>📊 Дневен отчет <span class="info-tooltip" title="Автоматично публикува сутрешен отчет в Campfire — задачи за деня, публикации и просрочени.">ⓘ</span></h3>
         <div class="admin-setting-row">
           <label>Активен</label>
@@ -4431,34 +4381,168 @@ async function saveSetting(key, value) {
   } catch(e) { console.error('Save setting error:', e); }
 }
 
-// ==================== THEME COLOR CUSTOMIZATION ====================
+// ==================== THEME CUSTOMIZATION ENGINE ====================
+var THEME_CONFIG = [
+  { title: 'Основни фонове', icon: '🖥️', items: [
+    { key: 'theme_bg', type: 'color', css: '--bg', def: '#0b151b', label: 'Основен фон на страницата' },
+    { key: 'theme_bg_card', type: 'color', css: '--bg-card', def: '#1b2930', label: 'Фон на карти и панели' },
+    { key: 'theme_bg_elevated', type: 'color', css: '--bg-elevated', def: '#1e3040', label: 'Повдигнат фон (бутони, полета)' },
+    { key: 'theme_bg_hover', type: 'color', css: '--bg-hover', def: '#243848', label: 'Ховър ефект' },
+    { key: 'theme_bg_active', type: 'color', css: '--bg-active', def: '#2c4858', label: 'Активен елемент' },
+  ]},
+  { title: 'Текст', icon: '✏️', items: [
+    { key: 'theme_text', type: 'color', css: '--text', def: '#e8ecee', label: 'Основен текст' },
+    { key: 'theme_text_secondary', type: 'color', css: '--text-secondary', def: '#8fa3b0', label: 'Вторичен текст' },
+    { key: 'theme_text_dim', type: 'color', css: '--text-dim', def: '#566d7a', label: 'Приглушен текст' },
+  ]},
+  { title: 'Рамки', icon: '🔲', items: [
+    { key: 'theme_border', type: 'color', css: '--border', def: '#1e3040', label: 'Рамки' },
+    { key: 'theme_border_hover', type: 'color', css: '--border-hover', def: '#2c4858', label: 'Рамки при ховър' },
+  ]},
+  { title: 'Акценти и бутони', icon: '💎', items: [
+    { key: 'theme_accent', type: 'color', css: '--accent', def: '#1cb0f6', label: 'Основен акцент (линкове, фокус)' },
+    { key: 'theme_accent_hover', type: 'color', css: '--accent-hover', def: '#3dc0ff', label: 'Акцент при ховър' },
+    { key: 'theme_btn_primary', type: 'color', css: '--btn-primary-bg', def: '#46a374', label: 'Основен бутон (зелен)' },
+    { key: 'theme_btn_primary_hover', type: 'color', css: '--btn-primary-hover', def: '#3d9168', label: 'Основен бутон ховър' },
+  ]},
+  { title: 'Статус цветове', icon: '🚦', items: [
+    { key: 'theme_green', type: 'color', css: '--green', def: '#22c55e', label: 'Зелено (успех)' },
+    { key: 'theme_yellow', type: 'color', css: '--yellow', def: '#eab308', label: 'Жълто (внимание)' },
+    { key: 'theme_red', type: 'color', css: '--red', def: '#ef4444', label: 'Червено (грешка)' },
+    { key: 'theme_orange', type: 'color', css: '--orange', def: '#f97316', label: 'Оранжево' },
+    { key: 'theme_blue', type: 'color', css: '--blue', def: '#3b82f6', label: 'Синьо' },
+  ]},
+  { title: 'Навигация', icon: '🧭', items: [
+    { key: 'theme_nav_bg', type: 'color', css: null, def: '#1e3040', label: 'Фон на навигацията' },
+    { key: 'theme_nav_text', type: 'color', css: null, def: '#8fa3b0', label: 'Текст и икони' },
+    { key: 'theme_nav_active', type: 'color', css: null, def: '#1cb0f6', label: 'Активно меню' },
+  ]},
+  { title: 'Начална страница', icon: '🏠', items: [
+    { key: 'theme_card_bg', type: 'color', css: '--home-card-bg', def: '#27353C', label: 'Фон на борд карта' },
+    { key: 'theme_card_header', type: 'color', css: '--home-card-header', def: '#3F6B57', label: 'Хедър на борд карта' },
+  ]},
+  { title: 'Kanban борд', icon: '📋', items: [
+    { key: 'theme_kanban_bg', type: 'color', css: '--kanban-bg', def: '#0d1a22', label: 'Фон на борда' },
+    { key: 'theme_kanban_col', type: 'color', css: '--kanban-col-bg', def: '#1a2e3d', label: 'Фон на колоната' },
+  ]},
+  { title: 'Скролбар', icon: '📜', items: [
+    { key: 'theme_scrollbar', type: 'color', css: '--scrollbar-thumb', def: '#2a3f4d', label: 'Цвят' },
+    { key: 'theme_scrollbar_hover', type: 'color', css: '--scrollbar-thumb-hover', def: '#3a5565', label: 'Ховър' },
+  ]},
+  { title: 'Шрифт', icon: '🔤', items: [
+    { key: 'theme_font_family', type: 'select', css: '--font-family', def: 'Inter', label: 'Шрифт', options: ['Inter','Roboto','Open Sans','Nunito','Poppins','Lato','Montserrat','Source Sans Pro','Fira Sans','IBM Plex Sans'] },
+    { key: 'theme_font_size', type: 'range', css: '--font-size-base', def: '13.5', label: 'Основен размер текст', unit: 'px', min: 11, max: 18, step: 0.5 },
+    { key: 'theme_line_height', type: 'range', css: '--line-height-base', def: '1.6', label: 'Височина на ред', unit: '', min: 1.2, max: 2.2, step: 0.1 },
+    { key: 'theme_heading_weight', type: 'select', css: '--heading-weight', def: '700', label: 'Дебелина на заглавия', options: ['400','500','600','700','800','900'] },
+  ]},
+  { title: 'Размери', icon: '📐', items: [
+    { key: 'theme_radius', type: 'range', css: '--radius', def: '8', label: 'Закръгленост (малка)', unit: 'px', min: 0, max: 20, step: 1 },
+    { key: 'theme_radius_lg', type: 'range', css: '--radius-lg', def: '12', label: 'Закръгленост (голяма)', unit: 'px', min: 0, max: 24, step: 1 },
+    { key: 'theme_nav_height', type: 'range', css: '--nav-height', def: '50', label: 'Височина на навигацията', unit: 'px', min: 36, max: 70, step: 1 },
+    { key: 'theme_logo_height', type: 'range', css: '--logo-height', def: '22', label: 'Размер на логото', unit: 'px', min: 14, max: 40, step: 1 },
+    { key: 'theme_nav_icon_size', type: 'range', css: '--nav-icon-size', def: '16', label: 'Навигационни икони', unit: 'px', min: 12, max: 28, step: 1 },
+    { key: 'theme_nav_font_size', type: 'range', css: '--nav-font-size', def: '13', label: 'Навигационен текст', unit: 'px', min: 10, max: 18, step: 1 },
+  ]},
+];
+
+function _hexToRgba(hex, alpha) {
+  hex = (hex || '').replace('#', '');
+  if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  var r = parseInt(hex.substring(0,2), 16), g = parseInt(hex.substring(2,4), 16), b = parseInt(hex.substring(4,6), 16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+
+function _loadGoogleFont(fontName) {
+  var id = 'theme-google-font', el = document.getElementById(id);
+  if (el) el.remove();
+  if (!fontName || fontName === 'Inter') return;
+  var link = document.createElement('link');
+  link.id = id; link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(fontName) + ':wght@400;500;600;700;800;900&display=swap';
+  document.head.appendChild(link);
+}
+
 function applyThemeColors() {
   var style = document.getElementById('themeOverrides');
   if (!style) { style = document.createElement('style'); style.id = 'themeOverrides'; document.head.appendChild(style); }
-  var c = _platformConfig, css = '';
-  if (c.theme_card_bg) css += '.project-card-home { background: ' + c.theme_card_bg + '; }\n';
-  if (c.theme_card_header) css += '.project-card-home__header { background: ' + c.theme_card_header + '; }\n';
-  if (c.theme_nav_bg) css += '.nav__bar { background: ' + c.theme_nav_bg + ' !important; }\n';
+  var c = _platformConfig, rootVars = '', extraCss = '';
+  THEME_CONFIG.forEach(function(group) {
+    group.items.forEach(function(item) {
+      if (!item.css || !c[item.key]) return;
+      var val = c[item.key];
+      if (item.type === 'range' && item.unit) val = val + item.unit;
+      else if (item.type === 'select' && item.css === '--font-family') {
+        _loadGoogleFont(val);
+        val = '"' + val + '", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      }
+      rootVars += '  ' + item.css + ': ' + val + ';\n';
+    });
+  });
+  var dimMap = { theme_accent: '--accent-dim', theme_green: '--green-dim', theme_yellow: '--yellow-dim', theme_red: '--red-dim', theme_blue: '--blue-dim' };
+  Object.keys(dimMap).forEach(function(k) { if (c[k]) rootVars += '  ' + dimMap[k] + ': ' + _hexToRgba(c[k], 0.12) + ';\n'; });
+  if (rootVars) extraCss += ':root {\n' + rootVars + '}\n';
+  if (c.theme_nav_bg) extraCss += '.nav__bar { background: ' + c.theme_nav_bg + ' !important; }\n';
   if (c.theme_nav_text) {
-    css += '.nav__link { color: ' + c.theme_nav_text + '; }\n';
-    css += '.nav__link:hover { color: ' + c.theme_nav_text + '; }\n';
+    extraCss += '.nav__link { color: ' + c.theme_nav_text + '; }\n';
+    extraCss += '.nav__link:hover { color: ' + c.theme_nav_text + '; }\n';
   }
   if (c.theme_nav_active) {
     var hex = c.theme_nav_active.replace('#', '');
     var r = parseInt(hex.substring(0,2), 16), g = parseInt(hex.substring(2,4), 16), b = parseInt(hex.substring(4,6), 16);
-    css += '.nav__link.active { background: rgba(' + r + ',' + g + ',' + b + ',0.15); color: ' + c.theme_nav_active + '; }\n';
+    extraCss += '.nav__link.active { background: rgba(' + r + ',' + g + ',' + b + ',0.15); color: ' + c.theme_nav_active + '; }\n';
   }
-  style.textContent = css;
+  style.textContent = extraCss;
 }
 
-function previewThemeColor(key, value) {
+function loadAdminColors() {
+  var el = document.getElementById('adminColorsContent');
+  if (!el) return;
+  var s = _platformConfig;
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">' +
+    '<div style="font-size:12px;color:var(--text-dim)">Промените се прилагат на живо. Натиснете ↺ за стойност по подразбиране.</div>' +
+    '<button class="btn btn-sm" onclick="resetAllTheme()" style="color:var(--red)">↺ Нулирай всичко</button></div>';
+  THEME_CONFIG.forEach(function(group) {
+    html += '<div class="admin-settings-section"><h3>' + group.icon + ' ' + group.title + '</h3>';
+    group.items.forEach(function(item) {
+      var val = s[item.key] || item.def;
+      html += '<div class="admin-setting-row"><label>' + esc(item.label) + '</label>';
+      if (item.type === 'color') {
+        html += '<input type="color" id="' + item.key + '_picker" value="' + esc(val) + '" ' +
+          'oninput="previewTheme(\'' + item.key + '\',this.value)" onchange="saveTheme(\'' + item.key + '\',this.value)">' +
+          '<input class="input-sm" type="text" id="' + item.key + '_text" value="' + esc(val) + '" ' +
+          'style="width:80px;font-family:monospace;font-size:12px" onblur="saveTheme(\'' + item.key + '\',this.value,true)">' +
+          '<button class="btn btn-ghost btn-sm" onclick="resetTheme(\'' + item.key + '\',\'' + item.def + '\')" title="По подразбиране">↺</button>';
+      } else if (item.type === 'range') {
+        html += '<input type="range" id="' + item.key + '_range" value="' + esc(val) + '" ' +
+          'min="' + item.min + '" max="' + item.max + '" step="' + item.step + '" ' +
+          'style="flex:1;max-width:180px;accent-color:var(--accent)" ' +
+          'oninput="previewTheme(\'' + item.key + '\',this.value);document.getElementById(\'' + item.key + '_val\').textContent=this.value+\'' + (item.unit || '') + '\'" ' +
+          'onchange="saveTheme(\'' + item.key + '\',this.value)">' +
+          '<span id="' + item.key + '_val" style="font-size:12px;font-family:monospace;min-width:50px;color:var(--text-secondary)">' + esc(val) + (item.unit || '') + '</span>' +
+          '<button class="btn btn-ghost btn-sm" onclick="resetThemeRange(\'' + item.key + '\',\'' + item.def + '\',\'' + (item.unit || '') + '\')" title="По подразбиране">↺</button>';
+      } else if (item.type === 'select') {
+        html += '<select class="input-sm" id="' + item.key + '_select" style="max-width:200px" ' +
+          'onchange="saveTheme(\'' + item.key + '\',this.value)">';
+        item.options.forEach(function(opt) {
+          html += '<option value="' + opt + '"' + (val === opt ? ' selected' : '') + '>' + opt + '</option>';
+        });
+        html += '</select><button class="btn btn-ghost btn-sm" onclick="resetThemeSelect(\'' + item.key + '\',\'' + item.def + '\')" title="По подразбиране">↺</button>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+function previewTheme(key, value) {
   _platformConfig[key] = value;
   applyThemeColors();
   var t = document.getElementById(key + '_text');
   if (t) t.value = value;
 }
 
-function saveThemeColor(key, value, fromText) {
+function saveTheme(key, value, fromText) {
   _platformConfig[key] = value;
   saveSetting(key, value);
   applyThemeColors();
@@ -4467,12 +4551,38 @@ function saveThemeColor(key, value, fromText) {
   if (p && p.value !== value) p.value = value;
 }
 
-function resetThemeColor(key, defaultVal) {
+function resetTheme(key, def) {
   _platformConfig[key] = '';
   saveSetting(key, '');
   applyThemeColors();
-  var t = document.getElementById(key + '_text'); if (t) t.value = defaultVal;
-  var p = document.getElementById(key + '_picker'); if (p) p.value = defaultVal;
+  var t = document.getElementById(key + '_text'); if (t) t.value = def;
+  var p = document.getElementById(key + '_picker'); if (p) p.value = def;
+}
+
+function resetThemeRange(key, def, unit) {
+  _platformConfig[key] = '';
+  saveSetting(key, '');
+  applyThemeColors();
+  var r = document.getElementById(key + '_range'); if (r) r.value = def;
+  var v = document.getElementById(key + '_val'); if (v) v.textContent = def + (unit || '');
+}
+
+function resetThemeSelect(key, def) {
+  _platformConfig[key] = '';
+  saveSetting(key, '');
+  applyThemeColors();
+  var s = document.getElementById(key + '_select'); if (s) s.value = def;
+}
+
+function resetAllTheme() {
+  THEME_CONFIG.forEach(function(group) {
+    group.items.forEach(function(item) {
+      _platformConfig[item.key] = '';
+      saveSetting(item.key, '');
+    });
+  });
+  applyThemeColors();
+  loadAdminColors();
 }
 
 async function testDailyReport(btn) {

@@ -3,7 +3,7 @@
 /* ==================== TOP NAVIGATION BAR ==================== */
 .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 900; }
 .nav__bar {
-  height: 50px;
+  height: var(--nav-height);
   background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-card) 100%);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -44,7 +44,7 @@
   padding: 6px 14px;
   border-radius: 6px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--nav-font-size);
   font-weight: 500;
   text-decoration: none;
   transition: background var(--transition-fast), color var(--transition-fast);
@@ -56,7 +56,8 @@
 .nav__link:hover { background: var(--bg-hover); color: var(--text); }
 .nav__link.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
 .nav__link svg { width: 16px; height: 16px; }
-.nav__icon { width: 16px; height: 16px; object-fit: contain; opacity: 0.7; transition: opacity var(--transition-fast); }
+.nav__icon { width: var(--nav-icon-size); height: var(--nav-icon-size); object-fit: contain; opacity: 0.7; transition: opacity var(--transition-fast); }
+.nav__logo img, .nav__logo-img { height: var(--logo-height); }
 .nav__link:hover .nav__icon, .nav__link.active .nav__icon { opacity: 1; }
 .nav__link .unread-badge {
   background: var(--red);
@@ -330,7 +331,7 @@
 /* ==================== BREADCRUMB BAR ==================== */
 .breadcrumb-bar {
   position: fixed;
-  top: 50px;
+  top: var(--nav-height);
   left: 0;
   right: 0;
   height: 40px;
@@ -372,13 +373,13 @@
 
 /* ==================== MAIN CONTENT AREA ==================== */
 .main-area {
-  margin-top: 50px;
-  min-height: calc(100vh - 50px);
+  margin-top: var(--nav-height);
+  min-height: calc(100vh - var(--nav-height));
   background: var(--bg);
 }
 .main-area.with-breadcrumb {
-  margin-top: 90px;
-  min-height: calc(100vh - 90px);
+  margin-top: calc(var(--nav-height) + 40px);
+  min-height: calc(100vh - var(--nav-height) - 40px);
 }
 
 #pageContent {
@@ -388,8 +389,8 @@
 }
 #pageContent.wide { max-width: 1400px; }
 #pageContent.full-width { max-width: none; }
-#pageContent.page-chat { max-width: none; padding: 0; height: calc(100vh - 50px); overflow: hidden; }
-.with-breadcrumb #pageContent.page-chat { height: calc(100vh - 90px); }
+#pageContent.page-chat { max-width: none; padding: 0; height: calc(100vh - var(--nav-height)); overflow: hidden; }
+.with-breadcrumb #pageContent.page-chat { height: calc(100vh - var(--nav-height) - 40px); }
 body:has(#pageContent.page-chat) { overflow: hidden; }
 body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
 #pageContent.card-sidebar { max-width: 1600px; }

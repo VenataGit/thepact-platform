@@ -10,7 +10,7 @@
 
 .project-card-home {
   display: flex; flex-direction: column; position: relative;
-  background: #27353C; border: none; border-radius: 14px;
+  background: var(--home-card-bg); border: none; border-radius: 14px;
   padding: 0; min-height: 120px;
   text-decoration: none; color: #fff;
   transition: box-shadow var(--transition-fast), transform var(--transition-fast);
@@ -18,7 +18,7 @@
   overflow: hidden;
 }
 .project-card-home:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.4); transform: translateY(-3px); }
-.project-card-home__header { padding: 14px 18px; background: #3F6B57; text-align: center; }
+.project-card-home__header { padding: 14px 18px; background: var(--home-card-header); text-align: center; }
 .project-card-home__pin { position: absolute; top: 12px; right: 14px; color: var(--text-dim); opacity: 0.5; }
 .project-card-home__above { font-size: 11px; color: var(--text-dim); font-weight: 500; margin-bottom: 4px; letter-spacing: 0.04em; }
 .project-card-home__title { font-size: 14px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
@@ -87,7 +87,7 @@
 .board-watching__avatar:first-child { margin-left: 0; }
 
 /* ==================== KANBAN BOARD ==================== */
-.board-kanban { display: flex; gap: 10px; overflow-x: auto; min-height: calc(100vh - 180px); align-items: stretch; padding: 16px; background: #0d1a22; }
+.board-kanban { display: flex; gap: 10px; overflow-x: auto; min-height: calc(100vh - 180px); align-items: stretch; padding: 16px; background: var(--kanban-bg); }
 
 /* Board page header */
 .board-page-header {
@@ -106,7 +106,7 @@
 .kanban-column {
   flex: 1; min-width: 280px;
   display: flex; flex-direction: column; position: relative;
-  background: #1a2e3d;
+  background: var(--kanban-col-bg);
   border-radius: 8px;
   border: 1px solid rgba(255,255,255,0.07);
 }
@@ -437,13 +437,13 @@
 /* Save/Discard — Basecamp style compact green pill buttons */
 .bc-card__actions { display: flex; gap: 8px; align-items: center; justify-content: flex-start; margin-top: 20px; padding-top: 16px; }
 .bc-btn-save {
-  background: #46a374; color: #fff; border: none; padding: 6px 16px;
+  background: var(--btn-primary-bg); color: #fff; border: none; padding: 6px 16px;
   border-radius: 20px; font-weight: 700; font-size: 12px; font-family: inherit;
   cursor: pointer; transition: background 0.15s;
 }
-.bc-btn-save:hover { background: #3d9168; }
+.bc-btn-save:hover { background: var(--btn-primary-hover); }
 .bc-btn-discard {
-  background: transparent; color: #46a374; border: 1px solid #46a374;
+  background: transparent; color: var(--btn-primary-bg); border: 1px solid var(--btn-primary-bg);
   padding: 5px 16px; border-radius: 20px; font-weight: 600; font-size: 12px;
   font-family: inherit; cursor: pointer; transition: all 0.15s;
 }
@@ -1068,6 +1068,9 @@ trix-toolbar .trix-button-group--file-tools { }
 .admin-setting-row input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
 .admin-setting-row input[type="color"]::-moz-color-swatch { border: none; border-radius: 4px; }
 .admin-color-group-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+.admin-setting-row input[type="range"] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--border); border-radius: 2px; outline: none; }
+.admin-setting-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 2px solid var(--bg); }
+.admin-setting-row select { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 4px 8px; font-size: 13px; }
 .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
 .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
 .toggle-track { position: absolute; inset: 0; background: var(--bg-hover); border-radius: 20px; cursor: pointer; transition: background 0.2s; border: 1px solid var(--border); }
