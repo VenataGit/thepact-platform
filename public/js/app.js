@@ -62,6 +62,8 @@ async function populateHey(el) {
     const items = await (await fetch('/api/notifications')).json();
     _heyAllItems = items;
     const unreadCount = items.filter(n => !n.is_read).length;
+    const bookmarked = items.filter(n => n.is_bookmarked);
+    const regular = items.filter(n => !n.is_bookmarked);
     if (items.length === 0) {
       el.innerHTML = '<div class="nav-dropdown__empty" style="padding:24px 16px">Няма нищо ново за теб.</div>';
       return;
@@ -70,40 +72,64 @@ async function populateHey(el) {
       '<span class="hey-header__title">Ново за теб' + (unreadCount > 0 ? ' (' + unreadCount + ')' : '') + '</span>' +
       (unreadCount > 0 ? '<button class="hey-header__action" onclick="markAllHeyRead(event)">Маркирай всички</button>' : '') +
     '</div>';
-    var first30 = items.slice(0, 30);
-    var html = headerHtml + first30.map(_renderHeyItem).join('');
-    if (items.length > 30) {
+    var html = headerHtml;
+    // Bookmarked section
+    if (bookmarked.length > 0) {
+      html += '<div class="hey-bookmarks-section">' +
+        '<div class="hey-bookmarks-header"><img src="/img/icon-bookmark.png" alt="" width="14" height="14"> Не забравяй за:</div>' +
+        bookmarked.map(function(n){ return _renderHeyItem(n, true); }).join('') +
+      '</div>';
+    }
+    // Regular notifications
+    var first30 = regular.slice(0, 30);
+    html += first30.map(function(n){ return _renderHeyItem(n, false); }).join('');
+    if (regular.length > 30) {
       html += '<div class="hey-load-more"><button class="hey-load-more__btn" onclick="heyExpandMore()">Виж всички останали известия ↓</button></div>';
     }
     el.innerHTML = html;
   } catch { el.innerHTML = '<div class="nav-dropdown__empty">Грешка</div>'; }
 }
-function _renderHeyItem(n) {
+function _renderHeyItem(n, isInBookmarkSection) {
   var sn = n.sender_name || '';
   var savUrl = _findAvatar(sn);
   var link = n.reference_type === 'card' ? '#/card/' + n.reference_id : '#/notifications';
   var sid = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
-  return '<a class="hey-item' + (n.is_read ? '' : ' unread') + '" href="' + link + '" onclick="heyClickItem('+n.id+','+sid+');closeAllDropdowns()">' +
-    '<div class="hey-item__av" style="background:' + (savUrl ? 'none' : _avColor(sn)) + '">' + _avInner(sn, savUrl) + '</div>' +
-    '<div class="hey-item__content">' +
-      '<div class="hey-item__subject">' + esc(n.title) + '</div>' +
-      (n.body ? '<div class="hey-item__preview">' + esc(n.body) + '</div>' : '') +
-      '<div class="hey-item__meta">' + timeAgo(n.created_at) + '</div>' +
-    '</div>' +
-    (!n.is_read ? '<div class="hey-item__unread-dot"></div>' : '') +
-  '</a>';
+  var bmClass = n.is_bookmarked ? ' hey-item--bookmarked' : '';
+  return '<div class="hey-item-wrap' + bmClass + '">' +
+    '<a class="hey-item' + (n.is_read ? '' : ' unread') + '" href="' + link + '" onclick="heyClickItem('+n.id+','+sid+');closeAllDropdowns()">' +
+      '<div class="hey-item__av" style="background:' + (savUrl ? 'none' : _avColor(sn)) + '">' + _avInner(sn, savUrl) + '</div>' +
+      '<div class="hey-item__content">' +
+        '<div class="hey-item__subject">' + esc(n.title) + '</div>' +
+        (n.body ? '<div class="hey-item__preview">' + esc(n.body) + '</div>' : '') +
+        '<div class="hey-item__meta">' + (n.type === 'reminder' ? 'Напомняне · ' : '') + timeAgo(n.created_at) + '</div>' +
+      '</div>' +
+      (!n.is_read ? '<div class="hey-item__unread-dot"></div>' : '') +
+    '</a>' +
+    '<button class="hey-item__bookmark' + (n.is_bookmarked ? ' active' : '') + '" onclick="event.stopPropagation();heyToggleBookmark('+n.id+')" title="' + (n.is_bookmarked ? 'Махни от Не забравяй' : 'Не забравяй') + '">' +
+      '<img src="/img/icon-bookmark.png" alt="" width="16" height="16">' +
+    '</button>' +
+  '</div>';
 }
 function heyClickItem(notifId, commentId) {
   if (commentId) _pendingScrollCommentId = commentId;
   if (notifId) { fetch('/api/notifications/'+notifId+'/read',{method:'PUT'}).then(function(){updateHeyBadge()}).catch(function(){}); }
+}
+async function heyToggleBookmark(notifId) {
+  try {
+    await fetch('/api/notifications/'+notifId+'/bookmark',{method:'PUT'});
+    updateHeyBadge();
+    var dd = document.getElementById('heyDropdown');
+    if (dd) populateHey(dd);
+  } catch {}
 }
 function heyExpandMore() {
   var el = document.getElementById('heyDropdown');
   if (!el) return;
   var btn = el.querySelector('.hey-load-more');
   if (!btn) return;
-  var next15 = _heyAllItems.slice(30, 45);
-  var html = next15.map(_renderHeyItem).join('');
+  var regular = _heyAllItems.filter(function(n){return !n.is_bookmarked});
+  var next15 = regular.slice(30, 45);
+  var html = next15.map(function(n){return _renderHeyItem(n, false)}).join('');
   html += '<a class="hey-footer-link" href="#/notifications" onclick="closeAllDropdowns()">Виж всички прочетени известия →</a>';
   btn.insertAdjacentHTML('afterend', html);
   btn.remove();
@@ -1788,10 +1814,15 @@ function editCardTitle(el, cardId) {
 }
 
 // Options "..." dropdown menu
-function toggleCardOptionsMenu(e, cardId, cardTitle) {
+async function toggleCardOptionsMenu(e, cardId, cardTitle) {
   e.stopPropagation();
   var existing = document.querySelector('.bc-options-menu');
   if (existing) { existing.remove(); return; }
+
+  var reminderIds = [];
+  try { reminderIds = await (await fetch('/api/notifications/reminders')).json(); } catch {}
+  var hasReminder = reminderIds.includes(cardId);
+  var safeTitle = cardTitle.replace(/'/g, "\\'");
 
   var menu = document.createElement('div');
   menu.className = 'bc-options-menu';
@@ -1801,7 +1832,8 @@ function toggleCardOptionsMenu(e, cardId, cardTitle) {
     '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();copyCardLink(' + cardId + ')">\ud83d\udccb Копирай линк</button>' +
     '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();archiveCard(' + cardId + ')">\ud83d\udce6 Архивирай</button>' +
     '<button class="bc-options-menu__item bc-options-menu__item--danger" onclick="document.querySelector(\'.bc-options-menu\').remove();trashCard(' + cardId + ')">\ud83d\uddd1\ufe0f В кошчето</button>' +
-    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();toggleBookmark(\'card\',' + cardId + ',\'' + cardTitle.replace(/'/g, "\\'") + '\')">\ud83d\udd16 Отметка</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();toggleBookmark(\'card\',' + cardId + ',\'' + safeTitle + '\')">\ud83d\udd16 Отметка</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();toggleCardReminder(' + cardId + ',\'' + safeTitle + '\')"><img src="/img/icon-bookmark.png" alt="" width="14" height="14" style="vertical-align:-2px"> ' + (hasReminder ? 'Махни от Не забравяй' : 'Не забравяй') + '</button>' +
     '<div class="bc-options-menu__sep"></div>' +
     '<div class="bc-options-menu__heading">История</div>' +
     '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();showCardHistory(' + cardId + ')">\ud83d\udd50 История на промените</button>' +
@@ -4747,6 +4779,14 @@ async function toggleBookmark(type, id, title) {
 }
 async function removeBookmark(id) {
   try { await fetch(`/api/bookmarks/${id}`, {method:'DELETE'}); router(); } catch {}
+}
+async function toggleCardReminder(cardId, title) {
+  try {
+    var res = await fetch('/api/notifications/reminder', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({card_id:cardId,title:title})});
+    var data = await res.json();
+    showToast(data.removed ? 'Махнато от Не забравяй' : 'Добавено в Не забравяй', 'success');
+    updateHeyBadge();
+  } catch {}
 }
 
 // ==================== DONE SIDEBAR (Expanded) ====================
