@@ -46,7 +46,7 @@ function toggleDropdown(id, btn, e) {
   // Populate content
   if (id === 'heyDropdown') populateHey(dd);
   else if (id === 'pingsDropdown') populatePings(dd);
-  else if (id === 'myStuffDropdown') populateMyStuff(dd);
+  else if (id === 'moreDropdown') populateMore(dd);
   else if (id === 'findDropdown') populateFind(dd);
   dd.classList.add('open');
   openDropdownId = id;
@@ -144,14 +144,19 @@ async function markAllHeyRead(e) {
   } catch {}
 }
 
-function populateMyStuff(el) {
+function populateMore(el) {
   el.innerHTML = `
     <div class="nav-dropdown__section">
-      <a class="nav-dropdown__item" href="#/mystuff" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--green-dim);color:var(--green)">✓</div> Моите задачи</a>
-      <a class="nav-dropdown__item" href="#/bookmarks" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--accent-dim);color:var(--accent)">⚑</div> Отметки</a>
+      <a class="nav-dropdown__item" href="#/activity" onclick="closeAllDropdowns()"><img src="/img/icon-activity.png" alt="" width="16" height="16" class="nav__icon"> Activity</a>
+      <a class="nav-dropdown__item" href="#/mystuff" onclick="closeAllDropdowns()"><img src="/img/icon-my-stuff.png" alt="" width="16" height="16" class="nav__icon"> My Stuff</a>
+      <a class="nav-dropdown__item" href="#/bookmarks" onclick="closeAllDropdowns()"><img src="/img/icon-bookmark.png" alt="" width="16" height="16" class="nav__icon"> Отметки</a>
       <a class="nav-dropdown__item" href="#/schedule" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--blue-dim);color:var(--blue)">📅</div> Моят график</a>
-      <a class="nav-dropdown__item" href="#/activity" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">◷</div> Последна активност</a>
       <a class="nav-dropdown__item" href="#/reports" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--red-dim);color:var(--red)">📊</div> Отчети</a>
+    </div>
+    <div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
+      <a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()"><img src="/img/icon-kp-avto.png" alt="" width="16" height="16" class="nav__icon"> КП-Автоматизация</a>
+      <a class="nav-dropdown__item" href="#/release-notes" onclick="closeAllDropdowns()"><img src="/img/icon-whats-new.png" alt="" width="16" height="16" class="nav__icon"> Какво ново</a>
+      <a class="nav-dropdown__item" href="#/trash" onclick="closeAllDropdowns()"><img src="/img/icon-trash.png" alt="" width="16" height="16" class="nav__icon"> Кошче</a>
     </div>
     ${currentUser?.role === 'admin' ? `<div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
       <a class="nav-dropdown__item" href="#/admin" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">⚙️</div> Админ панел</a>

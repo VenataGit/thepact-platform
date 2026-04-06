@@ -39,9 +39,9 @@
           </a>
         </li>
         <li class="nav__item">
-          <a class="nav__link" href="#/activity" data-nav="activity">
-            <img src="/img/icon-activity.png" alt="" width="16" height="16" class="nav__icon">
-            <span>Activity</span>
+          <a class="nav__link" href="#/calendar" data-nav="calendar">
+            <img src="/img/icon-calendar.png" alt="" width="16" height="16" class="nav__icon">
+            <span>Production Calendar</span>
           </a>
         </li>
         <li class="nav__item">
@@ -61,13 +61,6 @@
           <div class="nav-dropdown nav-dropdown--center nav-dropdown--hey" id="heyDropdown"></div>
         </li>
         <li class="nav__item">
-          <button class="nav__link" data-nav="mystuff" onclick="toggleDropdown('myStuffDropdown', this, event)">
-            <img src="/img/icon-my-stuff.png" alt="" width="16" height="16" class="nav__icon">
-            <span>My Stuff</span>
-          </button>
-          <div class="nav-dropdown nav-dropdown--center nav-dropdown--small" id="myStuffDropdown"></div>
-        </li>
-        <li class="nav__item">
           <button class="nav__link" data-nav="find" onclick="toggleDropdown('findDropdown', this, event)">
             <img src="/img/icon-search.png" alt="" width="16" height="16" class="nav__icon">
             <span>Find</span>
@@ -75,17 +68,11 @@
           <div class="nav-dropdown nav-dropdown--center nav-dropdown--large" id="findDropdown"></div>
         </li>
         <li class="nav__item">
-          <button class="nav__link" data-nav="tools" onclick="toggleDropdown('toolsDropdown', this, event)">
+          <button class="nav__link" data-nav="more" onclick="toggleDropdown('moreDropdown', this, event)">
             <img src="/img/icon-tools.png" alt="" width="16" height="16" class="nav__icon">
-            <span>Инструменти</span>
+            <span>More</span>
           </button>
-          <div class="nav-dropdown nav-dropdown--center nav-dropdown--small" id="toolsDropdown">
-            <a class="nav-dropdown__item" href="#/kp-auto"><img src="/img/icon-kp-avto.png" alt="" width="16" height="16" class="nav__icon"> КП-Автоматизация</a>
-            <a class="nav-dropdown__item" href="#/calendar"><img src="/img/icon-calendar.png" alt="" width="16" height="16" class="nav__icon"> Производствен Календар</a>
-            <div class="nav-dropdown__divider"></div>
-            <a class="nav-dropdown__item" href="#/release-notes"><img src="/img/icon-whats-new.png" alt="" width="16" height="16" class="nav__icon"> Какво ново</a>
-            <a class="nav-dropdown__item" href="#/trash"><img src="/img/icon-trash.png" alt="" width="16" height="16" class="nav__icon"> Кошче</a>
-          </div>
+          <div class="nav-dropdown nav-dropdown--center nav-dropdown--small" id="moreDropdown"></div>
         </li>
       </ul>
 
