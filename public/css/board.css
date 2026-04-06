@@ -18,7 +18,7 @@
   overflow: hidden;
 }
 .project-card-home:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.4); transform: translateY(-3px); }
-.project-card-home__header { padding: 14px 18px; background: rgba(28,176,246,0.12); text-align: center; }
+.project-card-home__header { padding: 14px 18px; background: #3F6B57; text-align: center; }
 .project-card-home__pin { position: absolute; top: 12px; right: 14px; color: var(--text-dim); opacity: 0.5; }
 .project-card-home__above { font-size: 11px; color: var(--text-dim); font-weight: 500; margin-bottom: 4px; letter-spacing: 0.04em; }
 .project-card-home__title { font-size: 14px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
