@@ -56,7 +56,14 @@ router.get('/folders', requireAuth, async (req, res) => {
     if (rootFolderId) {
       current_folder = await queryOne('SELECT * FROM vault_folders WHERE id = $1', [rootFolderId]);
     }
-    res.json({ folders, files, current_folder });
+    // Also load documents in this folder
+    const documents = await query(
+      rootFolderId
+        ? 'SELECT d.*, u.name as author_name FROM vault_documents d LEFT JOIN users u ON d.created_by = u.id WHERE d.folder_id = $1 ORDER BY d.updated_at DESC'
+        : 'SELECT d.*, u.name as author_name FROM vault_documents d LEFT JOIN users u ON d.created_by = u.id WHERE d.folder_id IS NULL ORDER BY d.updated_at DESC',
+      rootFolderId ? [rootFolderId] : []
+    );
+    res.json({ folders, files, documents, current_folder });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -136,6 +143,73 @@ router.delete('/files/:id', requireAuth, async (req, res) => {
 router.delete('/folders/:id', requireAuth, requireModerator, async (req, res) => {
   try {
     await execute('DELETE FROM vault_folders WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── DOCUMENTS (Rich Text) ─────────────────────────────────────────────────
+
+// POST /api/vault/documents — create new document
+router.post('/documents', requireAuth, async (req, res) => {
+  try {
+    const { title, folder_id } = req.body;
+    if (!title?.trim()) return res.status(400).json({ error: 'Title required' });
+    const doc = await queryOne(
+      `INSERT INTO vault_documents (title, folder_id, content, created_by, updated_by)
+       VALUES ($1, $2, '', $3, $3) RETURNING *`,
+      [title.trim(), folder_id || null, req.user.userId]
+    );
+    res.status(201).json(doc);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/vault/documents/:id — get document
+router.get('/documents/:id', requireAuth, async (req, res) => {
+  try {
+    const doc = await queryOne(
+      `SELECT d.*, u.name as author_name, u2.name as editor_name
+       FROM vault_documents d
+       LEFT JOIN users u ON d.created_by = u.id
+       LEFT JOIN users u2 ON d.updated_by = u2.id
+       WHERE d.id = $1`,
+      [req.params.id]
+    );
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
+    res.json(doc);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/vault/documents/:id — update document
+router.put('/documents/:id', requireAuth, async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    const doc = await queryOne(
+      `UPDATE vault_documents SET
+        title = COALESCE($1, title),
+        content = COALESCE($2, content),
+        updated_by = $3,
+        updated_at = NOW()
+       WHERE id = $4 RETURNING *`,
+      [title, content, req.user.userId, req.params.id]
+    );
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
+    res.json(doc);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/vault/documents/:id
+router.delete('/documents/:id', requireAuth, async (req, res) => {
+  try {
+    const doc = await queryOne('DELETE FROM vault_documents WHERE id = $1 RETURNING *', [req.params.id]);
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

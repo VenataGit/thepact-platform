@@ -233,6 +233,7 @@ function router() {
     case 'dashboard': return renderDashboard(el);
     case 'board': return id ? renderBoard(el, id) : renderHome(el);
     case 'docs': return id ? renderDocs(el, id, sub ? parseInt(sub) : null) : renderHome(el);
+    case 'doc': return id ? renderDocument(el, id) : renderHome(el);
     case 'card':
       if (sub === 'new') return renderCardCreate(el);
       return id ? renderCardPage(el, id) : renderHome(el);
@@ -519,10 +520,12 @@ async function renderDashboard(el) {
       (await fetch('/api/cards')).json()
     ]);
     allBoards = boards;
-    _dashBoards = boards;
+    // Filter out docs boards from dashboard — they have no cards/columns
+    var kanbanBoards = boards.filter(function(b) { return b.type !== 'docs'; });
+    _dashBoards = kanbanBoards;
     _dashCards = cards;
 
-    initDashDefaults(boards);
+    initDashDefaults(kanbanBoards);
 
     const _nowMidnight = new Date(); _nowMidnight.setHours(0,0,0,0);
     const totalActive = cards.filter(c => !c.completed_at && !c.archived_at).length;
@@ -534,7 +537,7 @@ async function renderDashboard(el) {
         '<div class="dash-stat"><span class="dash-stat__num">' + totalActive + '</span><span class="dash-stat__label">Активни</span></div>' +
         '<div class="dash-stat dash-stat--warn' + (totalOverdue > 0 ? ' dash-stat--clickable' : '') + '" id="dashOverdueStat" onclick="toggleDashOverdueFilter()" title="\u0424\u0438\u043b\u0442\u0440\u0438\u0440\u0430\u0439 \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438"><span class="dash-stat__num">' + totalOverdue + '</span><span class="dash-stat__label">\u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438</span></div>' +
         '<div class="dash-stat"><span class="dash-stat__num">' + totalOnHold + '</span><span class="dash-stat__label">Изчакване</span></div>' +
-        '<div class="dash-stat"><span class="dash-stat__num">' + boards.length + '</span><span class="dash-stat__label">Борда</span></div>' +
+        '<div class="dash-stat"><span class="dash-stat__num">' + kanbanBoards.length + '</span><span class="dash-stat__label">Борда</span></div>' +
         '<button class="dash-settings-btn" onclick="showDashSettings()" title="Настройки на Dashboard">⚙ Настройки</button>' +
       '</div>' +
       '<div class="dash-board" id="dashBoard"></div>' +
@@ -3618,6 +3621,7 @@ async function renderDocs(el, boardId, folderId) {
     var data = await (await fetch(url)).json();
     var folders = data.folders || [];
     var files = data.files || [];
+    var documents = data.documents || [];
     var currentFolder = data.current_folder;
 
     // Breadcrumb
@@ -3631,22 +3635,39 @@ async function renderDocs(el, boardId, folderId) {
     var rootFolderId = null;
     if (!folderId && currentFolder) rootFolderId = currentFolder.id;
     var uploadFolderId = folderId || rootFolderId || 'null';
+    var isEmpty = folders.length === 0 && files.length === 0 && documents.length === 0;
 
     el.innerHTML =
       '<div class="home-content-box">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">' +
-          '<button class="btn btn-primary btn-sm" onclick="createDocsFolder(' + boardId + ',' + (folderId || 'null') + ')">📁 Нова папка</button>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:8px;flex-wrap:wrap">' +
+          '<div style="display:flex;gap:8px">' +
+            '<button class="btn btn-primary btn-sm" onclick="createVaultDocument(' + uploadFolderId + ')">📝 Нов документ</button>' +
+            '<button class="btn btn-sm" onclick="createDocsFolder(' + boardId + ',' + (folderId || 'null') + ')">📁 Нова папка</button>' +
+          '</div>' +
           '<h1 style="font-size:22px;font-weight:800;color:#fff;text-align:center;flex:1">' + esc(boardTitle) + '</h1>' +
           '<label class="btn btn-sm" style="cursor:pointer">📎 Качи файл<input type="file" style="display:none" onchange="uploadDocsFile(this,' + uploadFolderId + ')" multiple></label>' +
         '</div>' +
         (folderId ? '<a href="#/docs/' + boardId + '" class="btn btn-sm" style="margin-bottom:16px;display:inline-flex">← Назад</a>' : '') +
         '<div class="vault-grid">' +
+          // Documents first
+          documents.map(function(d) {
+            var preview = (d.content || '').replace(/<[^>]*>/g, '').substring(0, 80);
+            return '<div class="vault-item vault-item--doc" style="position:relative" onclick="location.hash=\'#/doc/' + d.id + '\'">' +
+              '<span class="vault-icon">📝</span>' +
+              '<span class="vault-name">' + esc(d.title) + '</span>' +
+              (preview ? '<span class="vault-doc-preview">' + esc(preview) + '</span>' : '<span class="vault-doc-preview" style="opacity:0.3">Празен документ</span>') +
+              '<span class="hint">' + (d.author_name ? esc(d.author_name) + ' · ' : '') + timeAgo(d.updated_at) + '</span>' +
+              (canDel ? '<button onclick="event.stopPropagation();deleteVaultDocument(' + d.id + ')" style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;opacity:0;transition:opacity .15s" class="vault-del-btn" title="Изтрий документ">✕</button>' : '') +
+            '</div>';
+          }).join('') +
+          // Folders
           folders.map(function(f) {
             return '<div class="vault-item folder" style="position:relative">' +
               '<a href="#/docs/' + boardId + '/' + f.id + '" style="display:contents"><span class="vault-icon">📁</span><span class="vault-name">' + esc(f.name) + '</span></a>' +
               (canDel ? '<button onclick="deleteVaultFolder(' + f.id + ')" style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;opacity:0;transition:opacity .15s" class="vault-del-btn" title="Изтрий папка">✕</button>' : '') +
             '</div>';
           }).join('') +
+          // Files
           files.map(function(f) {
             var mime = (f.mime_type || '').toLowerCase();
             var isImage = mime.startsWith('image/');
@@ -3668,7 +3689,7 @@ async function renderDocs(el, boardId, folderId) {
               (canDel ? '<button onclick="event.stopPropagation();deleteVaultFile(' + f.id + ')" style="position:absolute;top:6px;right:6px;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:14px;opacity:0;transition:opacity .15s" class="vault-del-btn" title="Изтрий файл">✕</button>' : '') +
             '</div>';
           }).join('') +
-          (folders.length === 0 && files.length === 0 ? '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Празна папка — добави файлове или папки</div>' : '') +
+          (isEmpty ? '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">Празна папка — създай документ, добави файлове или папки</div>' : '') +
         '</div>' +
       '</div>';
   } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане</div>'; }
@@ -3695,6 +3716,87 @@ function uploadDocsFile(input, folderId) {
     showToast(input.files.length > 1 ? input.files.length + ' файла качени' : 'Файлът е качен', 'success');
     router();
   }).catch(function() { showToast('Грешка при качване', 'error'); });
+}
+
+// ─── Vault Documents ───
+function createVaultDocument(folderId) {
+  showPromptModal('Нов документ', 'Заглавие на документа…', '', async function(title) {
+    try {
+      var fid = (folderId && folderId !== 'null') ? folderId : null;
+      var res = await fetch('/api/vault/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title, folder_id: fid }) });
+      var doc = await res.json();
+      showToast('Документът е създаден', 'success');
+      location.hash = '#/doc/' + doc.id;
+    } catch { showToast('Грешка при създаване', 'error'); }
+  });
+}
+function deleteVaultDocument(id) {
+  showConfirmModal('Изтрий документа?', async function() {
+    try { await fetch('/api/vault/documents/' + id, { method: 'DELETE' }); showToast('Документът е изтрит', 'success'); router(); }
+    catch { showToast('Грешка при изтриване', 'error'); }
+  }, true);
+}
+
+var _docAutoSaveTimer = null;
+async function renderDocument(el, docId) {
+  el.className = '';
+  try {
+    var doc = await (await fetch('/api/vault/documents/' + docId)).json();
+    if (doc.error) { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Документът не е намерен</div>'; return; }
+    setBreadcrumb([{ label: '📝 ' + (doc.title || 'Документ') }]);
+
+    el.innerHTML =
+      '<div class="home-content-box" style="max-width:860px">' +
+        '<div class="doc-header">' +
+          '<input class="doc-title-input" id="docTitleInput" value="' + esc(doc.title || '').replace(/"/g, '&quot;') + '" placeholder="Заглавие…" onchange="docSave(' + docId + ')">' +
+          '<div class="doc-meta">' +
+            (doc.author_name ? esc(doc.author_name) : '') +
+            (doc.editor_name && doc.editor_name !== doc.author_name ? ' · Редактирано от ' + esc(doc.editor_name) : '') +
+            ' · ' + timeAgo(doc.updated_at) +
+          '</div>' +
+        '</div>' +
+        '<div class="doc-editor-wrap">' +
+          '<input type="hidden" id="docTrixInput" value="' + esc(doc.content || '').replace(/"/g, '&quot;') + '">' +
+          '<trix-editor input="docTrixInput" class="trix-dark" id="docTrixEditor" placeholder="Пиши тук…"></trix-editor>' +
+        '</div>' +
+        '<div class="doc-footer">' +
+          '<span class="doc-save-status" id="docSaveStatus"></span>' +
+          '<button class="btn btn-primary btn-sm" onclick="docSave(' + docId + ')">Запази</button>' +
+        '</div>' +
+      '</div>';
+
+    // Auto-save on content change (debounced 2s)
+    var trixEl = document.getElementById('docTrixEditor');
+    if (trixEl) {
+      trixEl.addEventListener('trix-change', function() {
+        clearTimeout(_docAutoSaveTimer);
+        var st = document.getElementById('docSaveStatus');
+        if (st) st.textContent = 'Незапазени промени…';
+        _docAutoSaveTimer = setTimeout(function() { docSave(docId); }, 2000);
+      });
+      // Inject color button
+      setTimeout(function() { if (typeof injectTrixColorButton === 'function') injectTrixColorButton(trixEl); }, 100);
+    }
+  } catch { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка при зареждане</div>'; }
+}
+
+async function docSave(docId) {
+  try {
+    var titleEl = document.getElementById('docTitleInput');
+    var trixInput = document.getElementById('docTrixInput');
+    var title = titleEl ? titleEl.value.trim() : null;
+    var content = trixInput ? trixInput.value : null;
+    await fetch('/api/vault/documents/' + docId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title || undefined, content: content })
+    });
+    var st = document.getElementById('docSaveStatus');
+    if (st) { st.textContent = 'Запазено'; setTimeout(function() { if (st) st.textContent = ''; }, 2000); }
+  } catch {
+    var st2 = document.getElementById('docSaveStatus');
+    if (st2) st2.textContent = 'Грешка при запазване';
+  }
 }
 
 // ==================== CAMPFIRE (Group Chat) ====================
