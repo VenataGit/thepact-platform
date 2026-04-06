@@ -4222,6 +4222,62 @@ async function loadAdminSettings() {
 
     el.innerHTML = `
       <div class="admin-settings-section">
+        <h3>🎨 Визуализация <span class="info-tooltip" title="Персонализирайте цветовете на интерфейса — начална страница и навигация.">ⓘ</span></h3>
+        <div class="admin-color-group-label">Бордове (начална страница)</div>
+        <div class="admin-setting-row">
+          <label>Фон на картата</label>
+          <input type="color" id="theme_card_bg_picker" value="${s.theme_card_bg || '#27353C'}"
+                 oninput="previewThemeColor('theme_card_bg', this.value)"
+                 onchange="saveThemeColor('theme_card_bg', this.value)">
+          <input class="input-sm" type="text" id="theme_card_bg_text" value="${esc(s.theme_card_bg || '#27353C')}"
+                 style="width:80px;font-family:monospace;font-size:12px"
+                 onblur="saveThemeColor('theme_card_bg', this.value, true)">
+          <button class="btn btn-ghost btn-sm" onclick="resetThemeColor('theme_card_bg','#27353C')" title="По подразбиране">↺</button>
+        </div>
+        <div class="admin-setting-row">
+          <label>Хедър на картата</label>
+          <input type="color" id="theme_card_header_picker" value="${s.theme_card_header || '#3F6B57'}"
+                 oninput="previewThemeColor('theme_card_header', this.value)"
+                 onchange="saveThemeColor('theme_card_header', this.value)">
+          <input class="input-sm" type="text" id="theme_card_header_text" value="${esc(s.theme_card_header || '#3F6B57')}"
+                 style="width:80px;font-family:monospace;font-size:12px"
+                 onblur="saveThemeColor('theme_card_header', this.value, true)">
+          <button class="btn btn-ghost btn-sm" onclick="resetThemeColor('theme_card_header','#3F6B57')" title="По подразбиране">↺</button>
+        </div>
+        <div class="admin-color-group-label" style="margin-top:16px">Навигация (горно меню)</div>
+        <div class="admin-setting-row">
+          <label>Фон</label>
+          <input type="color" id="theme_nav_bg_picker" value="${s.theme_nav_bg || '#1e3040'}"
+                 oninput="previewThemeColor('theme_nav_bg', this.value)"
+                 onchange="saveThemeColor('theme_nav_bg', this.value)">
+          <input class="input-sm" type="text" id="theme_nav_bg_text" value="${esc(s.theme_nav_bg || '#1e3040')}"
+                 style="width:80px;font-family:monospace;font-size:12px"
+                 onblur="saveThemeColor('theme_nav_bg', this.value, true)">
+          <button class="btn btn-ghost btn-sm" onclick="resetThemeColor('theme_nav_bg','#1e3040')" title="По подразбиране">↺</button>
+        </div>
+        <div class="admin-setting-row">
+          <label>Текст и икони</label>
+          <input type="color" id="theme_nav_text_picker" value="${s.theme_nav_text || '#8fa3b0'}"
+                 oninput="previewThemeColor('theme_nav_text', this.value)"
+                 onchange="saveThemeColor('theme_nav_text', this.value)">
+          <input class="input-sm" type="text" id="theme_nav_text_text" value="${esc(s.theme_nav_text || '#8fa3b0')}"
+                 style="width:80px;font-family:monospace;font-size:12px"
+                 onblur="saveThemeColor('theme_nav_text', this.value, true)">
+          <button class="btn btn-ghost btn-sm" onclick="resetThemeColor('theme_nav_text','#8fa3b0')" title="По подразбиране">↺</button>
+        </div>
+        <div class="admin-setting-row">
+          <label>Активно меню</label>
+          <input type="color" id="theme_nav_active_picker" value="${s.theme_nav_active || '#1cb0f6'}"
+                 oninput="previewThemeColor('theme_nav_active', this.value)"
+                 onchange="saveThemeColor('theme_nav_active', this.value)">
+          <input class="input-sm" type="text" id="theme_nav_active_text" value="${esc(s.theme_nav_active || '#1cb0f6')}"
+                 style="width:80px;font-family:monospace;font-size:12px"
+                 onblur="saveThemeColor('theme_nav_active', this.value, true)">
+          <button class="btn btn-ghost btn-sm" onclick="resetThemeColor('theme_nav_active','#1cb0f6')" title="По подразбиране">↺</button>
+        </div>
+      </div>
+
+      <div class="admin-settings-section">
         <h3>📊 Дневен отчет <span class="info-tooltip" title="Автоматично публикува сутрешен отчет в Campfire — задачи за деня, публикации и просрочени.">ⓘ</span></h3>
         <div class="admin-setting-row">
           <label>Активен</label>
@@ -4373,6 +4429,50 @@ async function saveSetting(key, value) {
     });
     if (!res.ok) console.error('Save setting failed:', key, value);
   } catch(e) { console.error('Save setting error:', e); }
+}
+
+// ==================== THEME COLOR CUSTOMIZATION ====================
+function applyThemeColors() {
+  var style = document.getElementById('themeOverrides');
+  if (!style) { style = document.createElement('style'); style.id = 'themeOverrides'; document.head.appendChild(style); }
+  var c = _platformConfig, css = '';
+  if (c.theme_card_bg) css += '.project-card-home { background: ' + c.theme_card_bg + '; }\n';
+  if (c.theme_card_header) css += '.project-card-home__header { background: ' + c.theme_card_header + '; }\n';
+  if (c.theme_nav_bg) css += '.nav__bar { background: ' + c.theme_nav_bg + ' !important; }\n';
+  if (c.theme_nav_text) {
+    css += '.nav__link { color: ' + c.theme_nav_text + '; }\n';
+    css += '.nav__link:hover { color: ' + c.theme_nav_text + '; }\n';
+  }
+  if (c.theme_nav_active) {
+    var hex = c.theme_nav_active.replace('#', '');
+    var r = parseInt(hex.substring(0,2), 16), g = parseInt(hex.substring(2,4), 16), b = parseInt(hex.substring(4,6), 16);
+    css += '.nav__link.active { background: rgba(' + r + ',' + g + ',' + b + ',0.15); color: ' + c.theme_nav_active + '; }\n';
+  }
+  style.textContent = css;
+}
+
+function previewThemeColor(key, value) {
+  _platformConfig[key] = value;
+  applyThemeColors();
+  var t = document.getElementById(key + '_text');
+  if (t) t.value = value;
+}
+
+function saveThemeColor(key, value, fromText) {
+  _platformConfig[key] = value;
+  saveSetting(key, value);
+  applyThemeColors();
+  if (!fromText) { var t = document.getElementById(key + '_text'); if (t) t.value = value; }
+  var p = document.getElementById(key + '_picker');
+  if (p && p.value !== value) p.value = value;
+}
+
+function resetThemeColor(key, defaultVal) {
+  _platformConfig[key] = '';
+  saveSetting(key, '');
+  applyThemeColors();
+  var t = document.getElementById(key + '_text'); if (t) t.value = defaultVal;
+  var p = document.getElementById(key + '_picker'); if (p) p.value = defaultVal;
 }
 
 async function testDailyReport(btn) {
@@ -6026,6 +6126,7 @@ function renderReleaseNotes(el) {
   if (!await checkAuth()) return;
   // Load platform config
   try { const r = await fetch('/api/settings'); _platformConfig = (await r.json()).settings || {}; } catch {}
+  applyThemeColors();
   if (!location.hash || location.hash === '#' || location.hash === '#/') location.hash = '#/home';
   router();
   connectWS();
