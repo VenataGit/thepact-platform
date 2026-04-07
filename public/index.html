@@ -112,6 +112,47 @@
     </nav>
   </div>
 
+  <!-- Nav state bootstrap: pre-apply active class + cached avatar BEFORE any JS
+       loads, so the nav looks identical during loading and after init. Prevents
+       the 'Home button unhighlighted / avatar empty' flash Ventsi reported. -->
+  <script>
+    (function() {
+      try {
+        // 1. Active menu item based on current URL hash
+        var hash = (location.hash || '#/home').split('?')[0].replace('#/', '').split('/');
+        var page = hash[0] || 'home';
+        // Home also highlights if hash is empty or explicit
+        var selector = '[data-nav="' + page + '"]';
+        var link = document.querySelector(selector) || document.querySelector('[data-nav="home"]');
+        if (link) link.classList.add('active');
+      } catch (e) {}
+
+      try {
+        // 2. Pre-populate avatar from localStorage cache (saved by auth.js on login)
+        var cached = localStorage.getItem('thepact-user');
+        if (cached) {
+          var u = JSON.parse(cached);
+          var av = document.getElementById('navAvatar');
+          if (av && u) {
+            if (u.avatar_url) {
+              av.innerHTML = '<img src="' + u.avatar_url + '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">';
+            } else if (u.name) {
+              av.textContent = u.name.split(' ').map(function(n){return n[0];}).join('').substring(0,2) || '?';
+            }
+          }
+        }
+      } catch (e) {}
+
+      try {
+        // 3. Optimistic "live" WS status so the right side isn't empty during load
+        var wsDot = document.getElementById('wsStatusDot');
+        var wsTxt = document.getElementById('wsStatus');
+        if (wsDot) wsDot.className = 'status-dot online';
+        if (wsTxt) wsTxt.textContent = 'live';
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- Breadcrumb Bar -->
   <div class="breadcrumb-bar hidden" id="breadcrumbBar">
     <div class="breadcrumb" id="breadcrumb"></div>
