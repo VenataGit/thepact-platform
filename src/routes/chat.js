@@ -50,9 +50,9 @@ router.get('/channels', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/chat/recent — channels for the Pings dropdown (Basecamp-style grid, up to 16 tiles).
-// Returns ALL channels the user is a member of, ordered by most recent activity first.
-// Channels without any messages still appear (so newly-created group chats are visible).
+// GET /api/chat/recent — channels for the Pings dropdown (Basecamp-style grid, up to 10 tiles = 5 cols × 2 rows).
+// Returns the 10 most recently active channels the user is a member of.
+// The full list lives on the /chat page (/api/chat/channels).
 router.get('/recent', requireAuth, async (req, res) => {
   try {
     const channels = await query(
@@ -73,7 +73,7 @@ router.get('/recent', requireAuth, async (req, res) => {
        JOIN chat_members cm ON cm.channel_id = ch.id AND cm.user_id = $1
        ORDER BY (SELECT MAX(created_at) FROM chat_messages WHERE channel_id = ch.id) DESC NULLS LAST,
                 ch.created_at DESC
-       LIMIT 16`,
+       LIMIT 10`,
       [req.user.userId]
     );
     res.json(channels);

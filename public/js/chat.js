@@ -65,8 +65,11 @@ async function populatePings(el) {
     } else {
       html += '<div class="pings-dd__empty">Все още нямате чатове. Започни нов отгоре.</div>';
     }
-    // Footer
-    html += '<a class="pings-dd__footer" href="#/chat" onclick="closeAllDropdowns()">Покажи всички чатове →</a>';
+    // Prominent "View all chats" footer — opens the full chat page
+    html += '<div class="pings-dd__footer-section">';
+    html += '<span class="pings-dd__footer-text">Показват се най-скорошните чатове.</span>';
+    html += '<a class="pings-dd__footer-btn" href="#/chat" onclick="closeAllDropdowns()">💬 Виж всички чатове</a>';
+    html += '</div>';
     html += '</div>';
     el.innerHTML = html;
   } catch (e) {
