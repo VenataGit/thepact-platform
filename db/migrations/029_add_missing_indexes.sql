@@ -30,9 +30,9 @@ CREATE INDEX IF NOT EXISTS idx_columns_board_position
 CREATE INDEX IF NOT EXISTS idx_chat_messages_channel_created
   ON chat_messages(channel_id, created_at DESC);
 
--- comments: card_id + created_at for paginated comment lists
-CREATE INDEX IF NOT EXISTS idx_comments_card_created
-  ON comments(card_id, created_at DESC);
+-- card_comments: card_id + created_at for paginated comment lists
+CREATE INDEX IF NOT EXISTS idx_card_comments_card_created
+  ON card_comments(card_id, created_at DESC);
 
 -- activity_log: created_at for the global activity feed
 CREATE INDEX IF NOT EXISTS idx_activity_log_created
