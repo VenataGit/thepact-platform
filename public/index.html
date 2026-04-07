@@ -159,7 +159,34 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="/js/app.js" defer></script>
+  <!-- Feature modules (split from monolithic app.js) — load order matters: state first, init last -->
+  <script src="/js/state.js" defer></script>
+  <script src="/js/utils.js" defer></script>
+  <script src="/js/auth.js" defer></script>
+  <script src="/js/modals.js" defer></script>
+  <script src="/js/websocket.js" defer></script>
+  <script src="/js/router.js" defer></script>
+  <script src="/js/hey-search.js" defer></script>
+  <script src="/js/home.js" defer></script>
+  <script src="/js/project.js" defer></script>
+  <script src="/js/dashboard.js" defer></script>
+  <script src="/js/kanban.js" defer></script>
+  <script src="/js/card-detail.js" defer></script>
+  <script src="/js/card-actions.js" defer></script>
+  <script src="/js/card-fields.js" defer></script>
+  <script src="/js/card-comments.js" defer></script>
+  <script src="/js/chat.js" defer></script>
+  <script src="/js/activity.js" defer></script>
+  <script src="/js/vault-docs.js" defer></script>
+  <script src="/js/schedule.js" defer></script>
+  <script src="/js/admin.js" defer></script>
+  <script src="/js/reports.js" defer></script>
+  <script src="/js/theme-data-core.js" defer></script>
+  <script src="/js/theme-data-rest.js" defer></script>
+  <script src="/js/theme-admin.js" defer></script>
+  <script src="/js/kp-auto.js" defer></script>
+  <script src="/js/sos.js" defer></script>
   <script src="/js/prod-calendar.js" defer></script>
+  <script src="/js/app-init.js" defer></script>
 </body>
 </html>
