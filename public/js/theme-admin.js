@@ -59,6 +59,10 @@ function applyThemeColors() {
     extraCss += '.nav__link.active { background: rgba(' + r + ',' + g + ',' + b + ',0.15); color: ' + c.theme_nav_active + '; }\n';
   }
   style.textContent = extraCss;
+  // Cache for the inline bootstrap script in index.html — prevents FOUC (flash of
+  // default theme) on next page load. The bootstrap reads this on DOM parse and
+  // injects the <style> before <body> renders.
+  try { localStorage.setItem('thepact-theme-css', extraCss); } catch (e) { /* quota / private mode */ }
 }
 
 // Текущ активен sub-tab в Персонализация (сесийно)

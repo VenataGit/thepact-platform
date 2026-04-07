@@ -22,6 +22,22 @@
   <link rel="stylesheet" href="/css/admin-theme.css">
   <link rel="stylesheet" href="/css/modals-toasts.css">
   <link rel="stylesheet" href="/css/board-responsive.css">
+  <!-- Theme bootstrap (FOUC guard): synchronously inject cached theme overrides
+       before <body> renders, so users don't see the default theme flash on reload.
+       The cache is populated by applyThemeColors() in theme-admin.js on every save. -->
+  <script>
+    (function() {
+      try {
+        var css = localStorage.getItem('thepact-theme-css');
+        if (css) {
+          var s = document.createElement('style');
+          s.id = 'themeOverrides';
+          s.textContent = css;
+          document.head.appendChild(s);
+        }
+      } catch (e) { /* private mode / disabled storage — fall back to default */ }
+    })();
+  </script>
   <!-- Trix editor: loaded async, only needed for card editing -->
   <link rel="stylesheet" href="https://unpkg.com/trix@2.1.8/dist/trix.css" media="print" onload="this.media='all'">
   <script src="https://unpkg.com/trix@2.1.8/dist/trix.umd.min.js" defer></script>
