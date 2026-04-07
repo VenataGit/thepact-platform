@@ -419,10 +419,10 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
 /* Tool pages (КП-Авто, бъдещи инструменти) — card style */
 #pageContent.page-tool {
   margin: 20px auto 24px;
-  background: linear-gradient(135deg, #1e3a4a 0%, #1a2f3d 50%, #1d2d35 100%);
+  background: linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-card) 50%, var(--bg) 100%);
   border: 1px solid var(--border);
   border-radius: 16px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+  box-shadow: var(--shadow-md);
 }
 
 /* ==================== PAGE HEADERS ==================== */
@@ -474,7 +474,7 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
 }
 .tool-card:hover {
   border-color: var(--border-hover);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
 .tool-card__header {

@@ -46,15 +46,51 @@
   --sidebar-width: 240px;
   --radius: 8px;
   --radius-lg: 12px;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+  --shadow-color-sm: rgba(0, 0, 0, 0.35);
+  --shadow-color-md: rgba(0, 0, 0, 0.45);
+  --shadow-color-lg: rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 1px 2px var(--shadow-color-sm);
+  --shadow-md: 0 4px 12px var(--shadow-color-md);
+  --shadow-lg: 0 8px 32px var(--shadow-color-lg);
+  --card-hover-shadow: rgba(0, 0, 0, 0.35);
+  --avatar-shadow: rgba(0, 0, 0, 0.20);
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
   --nav-height: 50px;
   --logo-height: 22px;
   --nav-icon-size: 16px;
   --nav-font-size: 13px;
+
+  /* ==================== OVERLAY / ALPHA SYSTEM ==================== */
+  /* Полупрозрачни наслагвания за суб-компоненти (hover tints, glass effects, и др.) */
+  --overlay-white-ultra: rgba(255, 255, 255, 0.06);
+  --overlay-white-faint: rgba(255, 255, 255, 0.10);
+  --overlay-white-light: rgba(255, 255, 255, 0.14);
+  --overlay-white-medium: rgba(255, 255, 255, 0.20);
+  --overlay-white-strong: rgba(255, 255, 255, 0.28);
+  --overlay-black-ultra: rgba(0, 0, 0, 0.12);
+  --overlay-black-faint: rgba(0, 0, 0, 0.20);
+  --overlay-black-light: rgba(0, 0, 0, 0.30);
+  --overlay-black-medium: rgba(0, 0, 0, 0.45);
+  --overlay-black-strong: rgba(0, 0, 0, 0.65);
+
+  /* ==================== DIVIDERS (тънки разделители) ==================== */
+  --divider-faint: rgba(255, 255, 255, 0.08);
+  --divider-light: rgba(255, 255, 255, 0.12);
+  --divider-medium: rgba(255, 255, 255, 0.18);
+
+  /* ==================== CODE BLOCKS ==================== */
+  --code-bg: rgba(255, 255, 255, 0.12);
+  --code-text: var(--text);
+
+  /* ==================== DRAG & DROP ==================== */
+  --drag-over-bg: rgba(28, 176, 246, 0.15);
+  --drag-over-border: var(--accent);
+
+  /* ==================== FOCUS RINGS ==================== */
+  --focus-ring-color: var(--accent);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
 
   /* ==================== TYPOGRAPHY ==================== */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -89,29 +125,30 @@
   --col-color: var(--accent);
 
   /* ==================== DEADLINE COLOR BACKGROUNDS (kanban + dash + pc) ==================== */
-  --dl-green-bg: rgba(45, 165, 98, 0.38);
-  --dl-yellow-bg: rgba(234, 179, 8, 0.42);
-  --dl-red-bg: rgba(239, 68, 68, 0.38);
-  --dl-black-bg: rgba(0, 0, 0, 0.50);
-  --dl-none-bg: rgba(136, 153, 166, 0.15);
-  --dl-green-bg-dash: rgba(45, 165, 98, 0.35);
-  --dl-yellow-bg-dash: rgba(234, 179, 8, 0.38);
-  --dl-red-bg-dash: rgba(239, 68, 68, 0.35);
-  --dl-black-bg-dash: rgba(0, 0, 0, 0.45);
-  --dl-green-bg-pc: rgba(45, 165, 98, 0.32);
-  --dl-yellow-bg-pc: rgba(234, 179, 8, 0.35);
-  --dl-red-bg-pc: rgba(239, 68, 68, 0.32);
-  --dl-black-bg-pc: rgba(0, 0, 0, 0.45);
-  --dl-green-badge: rgba(45, 165, 98, 0.60);
-  --dl-yellow-badge: rgba(180, 130, 0, 0.70);
-  --dl-red-badge: rgba(239, 68, 68, 0.60);
-  --dl-black-badge: rgba(0, 0, 0, 0.40);
+  /* Увеличени opacity стойности за по-добра видимост (премахва "опасити" усещането) */
+  --dl-green-bg: rgba(45, 165, 98, 0.48);
+  --dl-yellow-bg: rgba(234, 179, 8, 0.52);
+  --dl-red-bg: rgba(239, 68, 68, 0.48);
+  --dl-black-bg: rgba(0, 0, 0, 0.55);
+  --dl-none-bg: rgba(136, 153, 166, 0.22);
+  --dl-green-bg-dash: rgba(45, 165, 98, 0.45);
+  --dl-yellow-bg-dash: rgba(234, 179, 8, 0.48);
+  --dl-red-bg-dash: rgba(239, 68, 68, 0.45);
+  --dl-black-bg-dash: rgba(0, 0, 0, 0.50);
+  --dl-green-bg-pc: rgba(45, 165, 98, 0.42);
+  --dl-yellow-bg-pc: rgba(234, 179, 8, 0.45);
+  --dl-red-bg-pc: rgba(239, 68, 68, 0.42);
+  --dl-black-bg-pc: rgba(0, 0, 0, 0.50);
+  --dl-green-badge: rgba(45, 165, 98, 0.75);
+  --dl-yellow-badge: rgba(180, 130, 0, 0.80);
+  --dl-red-badge: rgba(239, 68, 68, 0.75);
+  --dl-black-badge: rgba(0, 0, 0, 0.55);
   --dl-green-border: var(--green);
   --dl-yellow-border: var(--yellow);
   --dl-red-border: var(--red);
   --dl-black-border: #888;
   --dl-none-border: #8899a6;
-  --priority-card-bg: rgba(255, 255, 255, 0.06);
+  --priority-card-bg: rgba(255, 255, 255, 0.10);
   --priority-card-border: #ffffff;
 
   /* ==================== DASHBOARD ==================== */
@@ -124,15 +161,16 @@
   --dash-priority-bg: #ffffff;
   --dash-priority-text: #111111;
   --dash-hold: #6b7280;
-  --dash-ok-bg: rgba(34, 197, 94, 0.08);
-  --dash-soon-bg: rgba(234, 179, 8, 0.08);
-  --dash-today-bg: rgba(239, 68, 68, 0.12);
-  --dash-hold-bg: rgba(107, 114, 128, 0.10);
+  --dash-hold-border: #4b5563;
+  --dash-ok-bg: rgba(34, 197, 94, 0.14);
+  --dash-soon-bg: rgba(234, 179, 8, 0.14);
+  --dash-today-bg: rgba(239, 68, 68, 0.18);
+  --dash-hold-bg: rgba(107, 114, 128, 0.16);
 
   /* ==================== HEY NOTIFICATIONS ==================== */
   --hey-dot: var(--accent);
-  --hey-unread-bg: rgba(70, 163, 116, 0.06);
-  --hey-bookmarks-bg: rgba(70, 163, 116, 0.04);
+  --hey-unread-bg: rgba(70, 163, 116, 0.12);
+  --hey-bookmarks-bg: rgba(70, 163, 116, 0.10);
 
   /* ==================== BREADCRUMB ==================== */
   --breadcrumb-bg: var(--bg-elevated);
@@ -156,16 +194,27 @@
   --chat-input-bg: transparent;
   --chat-send-bg: var(--accent);
   --chat-send-color: #ffffff;
+  --chat-unread-bg: rgba(70, 163, 116, 0.12);
+  --chat-system-msg-from: #2a4a5a;
+  --chat-system-msg-to: #1a3040;
 
   /* ==================== PRODUCTION CALENDAR ==================== */
   --pc-bg: var(--bg);
   --pc-sidebar-bg: var(--bg-card);
-  --pc-event-shadow: rgba(0, 0, 0, 0.40);
-  --pc-today-bg: rgba(70, 163, 116, 0.08);
-  --pc-grid-line: rgba(255, 255, 255, 0.07);
-  --pc-grid-half: rgba(255, 255, 255, 0.04);
-  --pc-event-done-bg: rgba(255, 255, 255, 0.18);
-  --pc-event-check: rgba(255, 255, 255, 0.25);
+  --pc-event-shadow: rgba(0, 0, 0, 0.50);
+  --pc-today-bg: rgba(70, 163, 116, 0.14);
+  --pc-grid-line: rgba(255, 255, 255, 0.12);
+  --pc-grid-half: rgba(255, 255, 255, 0.07);
+  --pc-event-done-bg: rgba(255, 255, 255, 0.24);
+  --pc-event-check: rgba(255, 255, 255, 0.32);
+  --pc-empty-day-bg: rgba(0, 0, 0, 0.18);
+  --pc-weekend-bg: rgba(0, 0, 0, 0.14);
+  --pc-dot-due-bg: rgba(59, 130, 246, 0.28);
+  --pc-dot-due-text: #60a5fa;
+  --pc-dot-publish-bg: rgba(70, 163, 116, 0.28);
+  --pc-dot-publish-text: #46a374;
+  --pc-dot-step-bg: rgba(234, 179, 8, 0.28);
+  --pc-dot-step-text: #eab308;
 
   /* ==================== MODALS / OVERLAYS / TOASTS ==================== */
   --modal-overlay: rgba(0, 0, 0, 0.6);
@@ -188,6 +237,40 @@
   --input-focus-border: var(--accent);
   --input-placeholder: var(--text-dim);
   --input-radius: 8px;
+
+  /* ==================== SOS / АВАРИЙНИ СИГНАЛИ ==================== */
+  --sos-alert-bg-from: #7f1d1d;
+  --sos-alert-bg-to: #991b1b;
+  --sos-alert-border: var(--red);
+  --sos-alert-text: #ffffff;
+  --sos-modal-bg: #1b2930;
+
+  /* ==================== КП / АВТОМАТИЗАЦИЯ ==================== */
+  --kp-warning-bg: rgba(220, 120, 0, 0.18);
+  --kp-warning-border: rgba(220, 120, 0, 0.45);
+  --kp-warning-text: #f59e0b;
+
+  /* ==================== EDITING BANNER ==================== */
+  --editing-banner-bg: rgba(234, 179, 8, 0.18);
+  --editing-banner-border: rgba(234, 179, 8, 0.45);
+  --editing-banner-text: var(--yellow);
+
+  /* ==================== TRASH / DANGER CARDS ==================== */
+  --trash-urgent-bg: rgba(239, 68, 68, 0.12);
+  --trash-urgent-border: rgba(239, 68, 68, 0.55);
+  --trash-warning-border: rgba(234, 179, 8, 0.50);
+  --trash-banner-bg: rgba(239, 68, 68, 0.18);
+  --trash-banner-border: rgba(239, 68, 68, 0.45);
+
+  /* ==================== KANBAN ДОПЪЛНИТЕЛНИ ==================== */
+  --kanban-preview-orange: rgba(249, 115, 22, 0.28);
+  --kanban-preview-blue: rgba(59, 130, 246, 0.28);
+  --kanban-preview-teal: rgba(20, 184, 166, 0.28);
+  --kanban-wip-bg: rgba(239, 68, 68, 0.22);
+  --kanban-wip-border: rgba(239, 68, 68, 0.45);
+  --kanban-on-hold-bg: rgba(255, 255, 255, 0.14);
+  --kanban-on-hold-border: rgba(255, 255, 255, 0.12);
+  --kanban-section-pill-bg: rgba(249, 115, 22, 0.20);
 
   color-scheme: dark;
 }
@@ -277,7 +360,7 @@ input::placeholder, textarea::placeholder { color: var(--text-dim); }
   font-size: 14px;
 }
 .empty-state p { margin-top: 8px; }
-.empty-state svg { opacity: 0.3; margin-bottom: 12px; }
+.empty-state svg { opacity: 0.5; margin-bottom: 12px; }
 
 /* Badges */
 .badge {
