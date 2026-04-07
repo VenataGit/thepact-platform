@@ -50,6 +50,16 @@ var THEME_TABS = [
       { key: 'theme_nav_icon_size', type: 'range', css: '--nav-icon-size', def: '16', label: 'Размер на иконите', unit: 'px', min: 12, max: 28, step: 1, hint: 'Иконите до текстовите линкове' },
       { key: 'theme_nav_font_size', type: 'range', css: '--nav-font-size', def: '13', label: 'Размер на текста', unit: 'px', min: 10, max: 18, step: 1, hint: 'Текст в линковете на навигацията' },
     ]},
+    { title: 'Разстояния и отстъпи', icon: '↔️', desc: 'Разстоянията между елементите в навигацията — padding на линковете, gap между тях, отстъпи от ръбовете.', items: [
+      { key: 'theme_nav_padding_x', type: 'range', css: '--nav-padding-x', def: '16', label: 'Странично отстояние на бара', unit: 'px', min: 0, max: 40, step: 1, hint: 'Ляв и десен padding на целия нав бар' },
+      { key: 'theme_nav_item_gap', type: 'range', css: '--nav-item-gap', def: '4', label: 'Разстояние между менютата', unit: 'px', min: 0, max: 24, step: 1, hint: 'Gap между Home, Lineup, Pings, Hey, и т.н.' },
+      { key: 'theme_nav_link_padding_y', type: 'range', css: '--nav-link-padding-y', def: '6', label: 'Вертикален padding на линк', unit: 'px', min: 0, max: 20, step: 1, hint: 'Отгоре и отдолу на всеки нав линк' },
+      { key: 'theme_nav_link_padding_x', type: 'range', css: '--nav-link-padding-x', def: '14', label: 'Хоризонтален padding на линк', unit: 'px', min: 0, max: 32, step: 1, hint: 'Ляво и дясно на всеки нав линк' },
+      { key: 'theme_nav_link_gap', type: 'range', css: '--nav-link-gap', def: '5', label: 'Иконa ↔ текст', unit: 'px', min: 0, max: 16, step: 1, hint: 'Разстояние между иконата и текста в линка' },
+      { key: 'theme_nav_link_radius', type: 'range', css: '--nav-link-radius', def: '6', label: 'Закръгленост на линк', unit: 'px', min: 0, max: 20, step: 1, hint: 'Border-radius на hover/active фона' },
+      { key: 'theme_nav_edge_offset', type: 'range', css: '--nav-edge-offset', def: '16', label: 'Отстъп от ръбовете', unit: 'px', min: 0, max: 40, step: 1, hint: 'Разстояние на логото отляво и аватара отдясно до ръба на екрана' },
+      { key: 'theme_nav_me_gap', type: 'range', css: '--nav-me-gap', def: '10', label: 'Разстояние на десния панел', unit: 'px', min: 0, max: 24, step: 1, hint: 'Gap между WS status, SOS и аватара отдясно' },
+    ]},
     { title: 'Подменю (Breadcrumb)', icon: '🔗', desc: 'Лентата под навигацията, която показва къде сте (Home > Boards > Project).', items: [
       { key: 'theme_breadcrumb_bg', type: 'color', css: '--breadcrumb-bg', def: '#1e3040', label: 'Фон', hint: 'Лента под нав бара' },
       { key: 'theme_breadcrumb_text', type: 'color', css: '--breadcrumb-text', def: '#8fa3b0', label: 'Линкове', hint: 'Линковете в breadcrumb пътеката' },

@@ -9,14 +9,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 16px;
-  gap: 4px;
+  padding: 0 var(--nav-padding-x);
+  gap: var(--nav-item-gap);
 }
 
 /* Logo (left) */
 .nav__logo {
   position: absolute;
-  left: 16px;
+  left: var(--nav-edge-offset);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -31,7 +31,7 @@
 .nav__main {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--nav-item-gap);
   list-style: none;
   padding: 0;
   margin: 0;
@@ -40,9 +40,9 @@
 .nav__link {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 14px;
-  border-radius: 6px;
+  gap: var(--nav-link-gap);
+  padding: var(--nav-link-padding-y) var(--nav-link-padding-x);
+  border-radius: var(--nav-link-radius);
   color: var(--text-secondary);
   font-size: var(--nav-font-size);
   font-weight: 500;
@@ -73,10 +73,10 @@
 /* Avatar (right) */
 .nav__me {
   position: absolute;
-  right: 16px;
+  right: var(--nav-edge-offset);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--nav-me-gap);
 }
 .nav__avatar {
   width: 32px;

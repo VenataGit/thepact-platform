@@ -60,6 +60,15 @@
   --logo-height: 22px;
   --nav-icon-size: 16px;
   --nav-font-size: 13px;
+  /* Spacing (customizable via admin) */
+  --nav-padding-x: 16px;       /* horizontal padding of the nav bar */
+  --nav-item-gap: 4px;         /* gap between main nav items */
+  --nav-link-padding-y: 6px;   /* vertical padding inside nav link */
+  --nav-link-padding-x: 14px;  /* horizontal padding inside nav link */
+  --nav-link-gap: 5px;          /* gap between icon and text in nav link */
+  --nav-link-radius: 6px;       /* border-radius of nav link */
+  --nav-edge-offset: 16px;      /* offset of logo (left) and avatar (right) from edges */
+  --nav-me-gap: 10px;           /* gap between ws status / sos / avatar on the right */
 
   /* ==================== OVERLAY / ALPHA SYSTEM ==================== */
   /* Полупрозрачни наслагвания за суб-компоненти (hover tints, glass effects, и др.) */
