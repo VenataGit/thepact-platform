@@ -78,23 +78,43 @@ async function renderHome(el) {
 
         <!-- Boards grid -->
         <div style="margin-bottom:32px">
-          ${canManage() ? '<div style="font-size:11px;color:var(--text-dim);margin:0 0 8px;text-align:center">↕ Можете да преподреждате бордовете чрез влачене (промяната е за всички)</div>' : ''}
-          <div class="projects-home-grid" id="homeBoardsGrid" style="grid-template-columns:repeat(4,1fr);gap:12px">
+          ${canManage() ? (_homeReorderMode
+            ? '<div class="home-reorder-banner">' +
+                '<span>🔧 <strong>Режим на подреждане</strong> — влачи бордовете за да промениш реда. Бутонът "+ Ново" винаги остава най-долу.</span>' +
+                '<button class="btn btn-sm btn-primary" onclick="exitHomeReorderMode()">✓ Готово</button>' +
+              '</div>'
+            : '<div class="home-reorder-hint">💡 Задръж бутона на мишката върху борд, за да влезеш в режим на подреждане</div>'
+          ) : ''}
+          <div class="projects-home-grid${_homeReorderMode ? ' projects-home-grid--reorder' : ''}" id="homeBoardsGrid" style="grid-template-columns:repeat(4,1fr);gap:12px">
             ${boards.map(b => {
               var isDocs = b.type === 'docs';
               var href = isDocs ? '#/docs/' + b.id : '#/board/' + b.id;
               var cardClass = isDocs ? 'project-card-home project-card-home--docs' : 'project-card-home';
-              // Drag attributes only for moderators/admins
-              var dragAttrs = canManage()
-                ? ' draggable="true" data-board-id="' + b.id + '"' +
-                  ' ondragstart="homeBoardDragStart(event,' + b.id + ')"' +
-                  ' ondragover="homeBoardDragOver(event)"' +
-                  ' ondragleave="homeBoardDragLeave(event)"' +
-                  ' ondrop="homeBoardDrop(event,' + b.id + ')"' +
-                  ' ondragend="homeBoardDragEnd(event)"'
-                : '';
+              // Two modes: normal (long-press to enter reorder) vs active reorder (drag enabled, no nav)
+              var dragAttrs = '';
+              var hrefAttr = ' href="' + href + '"';
+              if (canManage()) {
+                if (_homeReorderMode) {
+                  // ACTIVE reorder mode — enable drag, suppress link navigation
+                  hrefAttr = '';  // no href = clicking does nothing
+                  dragAttrs = ' draggable="true" data-board-id="' + b.id + '"' +
+                    ' ondragstart="homeBoardDragStart(event,' + b.id + ')"' +
+                    ' ondragover="homeBoardDragOver(event)"' +
+                    ' ondragleave="homeBoardDragLeave(event)"' +
+                    ' ondrop="homeBoardDrop(event,' + b.id + ')"' +
+                    ' ondragend="homeBoardDragEnd(event)"';
+                } else {
+                  // NORMAL mode — long-press handlers, normal click navigation
+                  dragAttrs = ' data-board-id="' + b.id + '"' +
+                    ' onpointerdown="homeLongPressStart(event,' + b.id + ')"' +
+                    ' onpointerup="homeLongPressCancel()"' +
+                    ' onpointerleave="homeLongPressCancel()"' +
+                    ' onpointercancel="homeLongPressCancel()"' +
+                    ' onclick="return homeBoardClickGuard(event)"';
+                }
+              }
               if (isDocs) {
-                return '<a href="' + href + '" class="' + cardClass + '"' + dragAttrs + '>' +
+                return '<a' + hrefAttr + ' class="' + cardClass + '"' + dragAttrs + '>' +
                   '<div class="project-card-home__header">' +
                     '<div class="project-card-home__title">📁 ' + esc(b.title) + '</div>' +
                   '</div>' +
@@ -105,7 +125,7 @@ async function renderHome(el) {
               }
               const bc = activeCards.filter(c => c.board_id === b.id);
               const bOver = bc.filter(c => isCardOverdue(c, now)).length;
-              return '<a href="' + href + '" class="' + cardClass + '"' + dragAttrs + '>' +
+              return '<a' + hrefAttr + ' class="' + cardClass + '"' + dragAttrs + '>' +
                 '<div class="project-card-home__header">' +
                   '<div class="project-card-home__title">' + esc(b.title) + '</div>' +
                 '</div>' +
@@ -398,9 +418,72 @@ function renderReleaseNotes(el) {
 }
 
 // ==================== HOME BOARDS DRAG & DROP (mod/admin only) ====================
-// Reorders board cards on the home page. Persists to /api/boards/reorder so the
-// new order applies to ALL users (broadcast via WebSocket).
+// Two-step UX:
+//   1. NORMAL: cards behave as normal links. Long-press (500ms) shows confirm modal.
+//   2. REORDER MODE: after confirm, cards become draggable. User clicks "Готово" to exit.
+// Persists to /api/boards/reorder. WebSocket broadcasts to all clients.
+var _homeReorderMode = false;
 var _homeDraggedBoardId = null;
+var _homeLongPressTimer = null;
+var _homeLongPressFired = false;
+
+// Long-press detection on board cards (only when canManage and NOT in reorder mode).
+function homeLongPressStart(e, boardId) {
+  // Mouse: only main button. Touch/pen: any.
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  _homeLongPressFired = false;
+  if (_homeLongPressTimer) clearTimeout(_homeLongPressTimer);
+  _homeLongPressTimer = setTimeout(function() {
+    _homeLongPressTimer = null;
+    _homeLongPressFired = true;
+    showConfirmModal(
+      'Влез в режим на подреждане? След потвърждение ще можеш да влачиш бордовете и да ги пренареждаш. Промяната е за всички потребители.',
+      enterHomeReorderMode,
+      false,
+      'Влез',
+      function() {
+        // Cancel — reset flag so the next click navigates normally
+        _homeLongPressFired = false;
+      }
+    );
+  }, 500);
+}
+
+function homeLongPressCancel() {
+  if (_homeLongPressTimer) {
+    clearTimeout(_homeLongPressTimer);
+    _homeLongPressTimer = null;
+  }
+}
+
+// Click guard — suppresses navigation if click is the residual after long-press fired
+function homeBoardClickGuard(e) {
+  if (_homeLongPressFired) {
+    e.preventDefault();
+    e.stopPropagation();
+    _homeLongPressFired = false;
+    return false;
+  }
+  return true;
+}
+
+function enterHomeReorderMode() {
+  _homeReorderMode = true;
+  _homeLongPressFired = false;
+  router();
+}
+
+function exitHomeReorderMode() {
+  _homeReorderMode = false;
+  router();
+}
+
+// Reset reorder mode when navigating away from home — so it doesn't persist on other pages
+window.addEventListener('hashchange', function() {
+  if (_homeReorderMode && !location.hash.startsWith('#/home')) {
+    _homeReorderMode = false;
+  }
+});
 
 function homeBoardDragStart(e, boardId) {
   if (!canManage()) { e.preventDefault(); return; }
@@ -460,11 +543,19 @@ async function homeBoardDrop(e, targetBoardId) {
   ids.splice(toIdx, 0, draggedId);
   _homeDraggedBoardId = null;
 
-  // Optimistic UI: reorder DOM immediately so user sees the change
+  // Optimistic UI: reorder DOM immediately so user sees the change.
+  // Use insertBefore the "+ Ново" button so it always stays at the END.
   var newOrder = ids.map(function(id) {
     return cards.find(function(el) { return parseInt(el.dataset.boardId, 10) === id; });
   });
-  newOrder.forEach(function(el) { grid.appendChild(el); });
+  var plusButton = grid.querySelector('.project-card-home--new');
+  newOrder.forEach(function(el) {
+    if (plusButton) {
+      grid.insertBefore(el, plusButton);
+    } else {
+      grid.appendChild(el);
+    }
+  });
 
   // Suppress next WS rerender (own action will trigger boards:reordered event)
   _suppressWsRerender = Date.now() + 1500;

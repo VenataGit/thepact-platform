@@ -16,7 +16,9 @@ function showToast(message, type, duration) {
 }
 
 // ==================== CONFIRM/PROMPT MODALS ====================
-function showConfirmModal(msg, onConfirm, danger, okLabel) {
+// showConfirmModal(msg, onConfirm, [danger], [okLabel], [onCancel])
+// onCancel is optional — fires on Cancel button, Escape key, or backdrop click.
+function showConfirmModal(msg, onConfirm, danger, okLabel, onCancel) {
   var ov = document.createElement('div');
   ov.className = 'modal-overlay';
   ov.innerHTML = '<div class="confirm-modal-box">' +
@@ -26,11 +28,19 @@ function showConfirmModal(msg, onConfirm, danger, okLabel) {
     '<button class="btn btn-ghost" id="cmCancelBtn">\u041e\u0442\u043a\u0430\u0437</button>' +
     '</div></div>';
   document.body.appendChild(ov);
-  function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
-  function onKey(e) { if (e.key === 'Escape') close(); }
-  ov.querySelector('#cmOkBtn').onclick = function() { close(); onConfirm(); };
-  ov.querySelector('#cmCancelBtn').onclick = close;
-  ov.onclick = function(e) { if (e.target === ov) close(); };
+  var dismissed = false;
+  function dismiss() {
+    if (dismissed) return;
+    dismissed = true;
+    ov.remove();
+    document.removeEventListener('keydown', onKey);
+  }
+  function doConfirm() { dismiss(); onConfirm(); }
+  function doCancel() { dismiss(); if (onCancel) onCancel(); }
+  function onKey(e) { if (e.key === 'Escape') doCancel(); }
+  ov.querySelector('#cmOkBtn').onclick = doConfirm;
+  ov.querySelector('#cmCancelBtn').onclick = doCancel;
+  ov.onclick = function(e) { if (e.target === ov) doCancel(); };
   document.addEventListener('keydown', onKey);
 }
 function showPromptModal(title, placeholder, defaultVal, onConfirm, inputType) {
