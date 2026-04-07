@@ -5,7 +5,6 @@
 .nav__bar {
   height: var(--nav-height);
   background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-card) 100%);
-  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
