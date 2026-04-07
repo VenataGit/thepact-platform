@@ -123,15 +123,19 @@ async function renderDocs(el, boardId, folderId) {
     var uploadFolderId = folderId || rootFolderId || 'null';
     var isEmpty = folders.length === 0 && files.length === 0 && documents.length === 0;
 
+    var showBoardMenu = canDel && !folderId;  // only on board root, not inside subfolders
     el.innerHTML =
       '<div class="home-content-box">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:8px;flex-wrap:wrap">' +
+        '<div class="board-page-header__actions" style="position:relative;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:8px;flex-wrap:wrap">' +
           '<div style="display:flex;gap:8px">' +
             '<button class="btn btn-primary btn-sm" onclick="createVaultDocument(' + uploadFolderId + ')">📝 Нов документ</button>' +
             '<button class="btn btn-sm" onclick="createDocsFolder(' + boardId + ',' + (folderId || 'null') + ')">📁 Нова папка</button>' +
           '</div>' +
           '<h1 style="font-size:22px;font-weight:800;color:#fff;text-align:center;flex:1">' + esc(boardTitle) + '</h1>' +
-          '<label class="btn btn-sm" style="cursor:pointer">📎 Качи файл<input type="file" style="display:none" onchange="uploadDocsFile(this,' + uploadFolderId + ')" multiple></label>' +
+          '<div style="display:flex;gap:8px;align-items:center">' +
+            '<label class="btn btn-sm" style="cursor:pointer">📎 Качи файл<input type="file" style="display:none" onchange="uploadDocsFile(this,' + uploadFolderId + ')" multiple></label>' +
+            (showBoardMenu ? '<button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event,' + boardId + ')" title="Опции на борда">⋯</button>' : '') +
+          '</div>' +
         '</div>' +
         (folderId ? '<a href="#/docs/' + boardId + '" class="btn btn-sm" style="margin-bottom:16px;display:inline-flex">← Назад</a>' : '') +
         '<div class="vault-grid">' +

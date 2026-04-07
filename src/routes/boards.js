@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth, requireModerator } = require('../middleware/auth');
 const { broadcast } = require('../ws/broadcast');
@@ -174,11 +176,66 @@ router.put('/:id/unarchive', requireAuth, requireModerator, async (req, res) => 
 // DELETE /api/boards/:id — delete board (and all columns/cards cascade)
 router.delete('/:id', requireAuth, requireModerator, async (req, res) => {
   try {
-    const board = await queryOne('DELETE FROM boards WHERE id = $1 RETURNING *', [req.params.id]);
+    const boardId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(boardId) || boardId <= 0) {
+      return res.status(400).json({ error: 'Invalid board id' });
+    }
+
+    // Look up the board first so we know its type (kanban vs docs)
+    const board = await queryOne('SELECT * FROM boards WHERE id = $1', [boardId]);
     if (!board) return res.status(404).json({ error: 'Board not found' });
-    broadcast({ type: 'board:deleted', boardId: board.id }, req.user.userId);
+
+    // === DOCS BOARDS: clean up vault items BEFORE deleting the board ===
+    // vault_folders has ON DELETE CASCADE, but vault_files and vault_documents
+    // have ON DELETE SET NULL — without explicit cleanup they become orphaned
+    // rows + files on disk that never get reclaimed.
+    if (board.type === 'docs') {
+      // 1) Collect all folder IDs belonging to this board (root + subfolders)
+      const folderRows = await query(
+        'SELECT id FROM vault_folders WHERE board_id = $1',
+        [boardId]
+      );
+      const folderIds = folderRows.map(r => r.id);
+
+      if (folderIds.length > 0) {
+        // 2) Fetch file paths so we can delete them from disk after the DB cleanup
+        const fileRows = await query(
+          'SELECT storage_path FROM vault_files WHERE folder_id = ANY($1)',
+          [folderIds]
+        );
+
+        // 3) Delete DB rows in dependency order
+        await execute('DELETE FROM vault_documents WHERE folder_id = ANY($1)', [folderIds]);
+        await execute('DELETE FROM vault_files WHERE folder_id = ANY($1)', [folderIds]);
+        // vault_folders will cascade-delete on board removal
+
+        // 4) Remove physical files from disk (best-effort, don't fail if missing)
+        const uploadsRoot = path.join(__dirname, '..', '..');
+        fileRows.forEach(f => {
+          if (!f.storage_path) return;
+          try {
+            // storage_path is stored as "/uploads/vault/XXXX" — strip leading slash
+            const filePath = path.join(uploadsRoot, f.storage_path.replace(/^\/+/, ''));
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          } catch (e) {
+            console.warn('[boards] failed to delete vault file on disk:', f.storage_path, e.message);
+          }
+        });
+      }
+    }
+
+    // Finally delete the board. Columns & vault_folders cascade via FK.
+    const deleted = await queryOne('DELETE FROM boards WHERE id = $1 RETURNING *', [boardId]);
+    if (!deleted) return res.status(404).json({ error: 'Board not found' });
+
+    broadcast({ type: 'board:deleted', boardId: deleted.id }, req.user.userId);
     res.json({ ok: true });
   } catch (err) {
+    console.error('[boards] delete error:', err.message);
+    // Foreign key violation on cards (kanban boards with cards can't be deleted)
+    if (err.code === '23503') {
+      return res.status(409).json({ error: 'Бордът има свързани карти. Първо ги изтрийте или преместете.' });
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 });

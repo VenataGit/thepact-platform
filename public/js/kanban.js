@@ -266,7 +266,20 @@ function toggleBoardMenu(e, bid) {
   html += '<button onclick="archiveBoardConfirm(' + bid + ');document.querySelectorAll(\'.board-context-menu\').forEach(m=>m.remove())">\ud83d\udce6 \u0410\u0440\u0445\u0438\u0432\u0438\u0440\u0430\u0439</button>';
   if (isAdmin) html += '<div style="border-top:1px solid var(--border);margin:4px 0"></div><button style="color:var(--red)" onclick="deleteBoardConfirm(' + bid + ');document.querySelectorAll(\'.board-context-menu\').forEach(m=>m.remove())">\ud83d\uddd1 \u0418\u0437\u0442\u0440\u0438\u0439 \u0431\u043e\u0440\u0434</button>';
   menu.innerHTML = html;
-  const anchor = e.target.closest('.board-page-header__actions');
+  // Prefer the board header container; fall back to a positioned wrapper around the button.
+  // The fallback keeps the menu working on the docs page (renderDocs) and any future page
+  // that hosts the ⋯ button without the kanban-specific .board-page-header__actions wrapper.
+  let anchor = e.target.closest('.board-page-header__actions');
+  if (!anchor) {
+    const btn = e.target.closest('button');
+    if (btn) {
+      // Wrap the button in a relative positioning context so the menu's absolute positioning works
+      if (getComputedStyle(btn.parentElement).position === 'static') {
+        btn.parentElement.style.position = 'relative';
+      }
+      anchor = btn.parentElement;
+    }
+  }
   if (anchor) anchor.appendChild(menu);
   setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
 }
@@ -291,14 +304,19 @@ function promptRenameBoard(bid) {
 }
 function deleteBoardConfirm(bid) {
   const board = allBoards.find(b => b.id === bid);
-  showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u0431\u043e\u0440\u0434 "' + (board ? board.title : '') + '"?\n\u0412\u0441\u0438\u0447\u043a\u0438 \u043a\u0430\u0440\u0442\u0438 \u0438 \u043a\u043e\u043b\u043e\u043d\u0438 \u0449\u0435 \u0431\u044a\u0434\u0430\u0442 \u0438\u0437\u0442\u0440\u0438\u0442\u0438!', async function() {
+  const isDocs = board && board.type === 'docs';
+  const warning = isDocs
+    ? 'Всички документи, файлове и папки в него ще бъдат изтрити за постоянно!'
+    : 'Всички карти и колони ще бъдат изтрити!';
+  showConfirmModal('Изтрий борд "' + (board ? board.title : '') + '"?\n' + warning, async function() {
     try {
       const r = await fetch('/api/boards/' + bid, { method: 'DELETE' });
-      if (!r.ok) { const d = await r.json(); showToast(d.error || '\u0413\u0440\u0435\u0448\u043a\u0430', 'error'); return; }
+      if (!r.ok) { const d = await r.json(); showToast(d.error || 'Грешка', 'error'); return; }
       allBoards = await (await fetch('/api/boards')).json();
+      showToast('Бордът е изтрит', 'success');
       location.hash = '#/home';
       router();
-    } catch { showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0438\u0437\u0442\u0440\u0438\u0432\u0430\u043d\u0435', 'error'); }
+    } catch { showToast('Грешка при изтриване', 'error'); }
   }, true);
 }
 
