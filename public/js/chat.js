@@ -29,39 +29,50 @@ async function updatePingsBadge() {
 }
 
 // --- Pings dropdown ---
+// Basecamp-style Pings grid: large composite avatars in a 4-column grid,
+// name centered below each tile, group chats show "X души" subtitle.
+// No previews, no timestamps — just visual recognition by avatar.
 async function populatePings(el) {
   _chatSelectedUsers = [];
   try {
     var channels = await (await fetch('/api/chat/recent')).json();
     var html = '<div class="pings-dd">';
-    // New chat input
+    // Search input row (still uses chips for multi-select)
     html += '<div class="pings-dd__new" onclick="event.stopPropagation()">';
     html += '<div class="pings-dd__chips" id="pingsChips"><input id="pingsNewInput" placeholder="Започни личен чат с..." autocomplete="off" oninput="pingsFilterUsers()" onfocus="pingsShowSuggestions()"></div>';
     html += '<button class="btn btn-primary btn-sm pings-dd__start-btn" id="pingsStartBtn" onclick="pingsStartChat(event)" style="display:none">Започни</button>';
     html += '<div class="pings-dd__suggestions" id="pingsSuggestions" style="display:none"></div>';
     html += '</div>';
-    // Recent chats
+    // Grid of chat tiles
     if (channels.length > 0) {
-      html += '<div class="pings-dd__list">';
+      html += '<div class="pings-dd__grid">';
       channels.forEach(function(ch) {
         var name = _chatChannelName(ch);
-        var preview = ch.last_message ? (ch.last_message_user_name ? ch.last_message_user_name.split(' ')[0]+': ' : '') + ch.last_message : 'Няма съобщения';
-        if (preview.length > 60) preview = preview.substring(0,60) + '…';
         var unread = parseInt(ch.unread_count) || 0;
-        html += '<a class="pings-dd__chat'+(unread?' pings-dd__chat--unread':'')+'" href="#/chat/'+ch.id+'" onclick="closeAllDropdowns()">';
-        html += '<div class="pings-dd__av">'+_chatAvatar(ch)+'</div>';
-        html += '<div class="pings-dd__info"><div class="pings-dd__name">'+esc(name)+'</div><div class="pings-dd__preview">'+esc(preview)+'</div></div>';
-        if (ch.last_message_at) html += '<div class="pings-dd__time">'+timeAgo(ch.last_message_at)+'</div>';
-        if (unread) html += '<div class="pings-dd__unread">'+unread+'</div>';
+        var memberCount = parseInt(ch.member_count) || (ch.members ? ch.members.length : 0);
+        // Show "X души" subtitle only for group chats (3+ members or has explicit name)
+        var isGroup = memberCount > 2 || !!ch.name;
+        var subtitle = isGroup ? memberCount + ' души' : '';
+        html += '<a class="pings-dd__tile'+(unread?' pings-dd__tile--unread':'')+'" href="#/chat/'+ch.id+'" onclick="closeAllDropdowns()" title="'+esc(name)+'">';
+        html += '<div class="pings-dd__tile-av">'+_chatAvatar(ch);
+        if (unread) html += '<span class="pings-dd__tile-badge">'+(unread > 99 ? '99+' : unread)+'</span>';
+        html += '</div>';
+        html += '<div class="pings-dd__tile-name">'+esc(name)+'</div>';
+        if (subtitle) html += '<div class="pings-dd__tile-meta">'+subtitle+'</div>';
         html += '</a>';
       });
       html += '</div>';
+    } else {
+      html += '<div class="pings-dd__empty">Все още нямате чатове. Започни нов отгоре.</div>';
     }
     // Footer
     html += '<a class="pings-dd__footer" href="#/chat" onclick="closeAllDropdowns()">Покажи всички чатове →</a>';
     html += '</div>';
     el.innerHTML = html;
-  } catch { el.innerHTML = '<div class="nav-dropdown__empty">Грешка</div>'; }
+  } catch (e) {
+    console.warn('[pings] populate failed:', e.message);
+    el.innerHTML = '<div class="nav-dropdown__empty">Грешка при зареждане</div>';
+  }
 }
 function pingsShowSuggestions() {
   var el = document.getElementById('pingsSuggestions');

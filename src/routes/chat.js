@@ -50,13 +50,16 @@ router.get('/channels', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/chat/recent — 2 most recent channels for dropdown
+// GET /api/chat/recent — channels for the Pings dropdown (Basecamp-style grid, up to 16 tiles).
+// Returns ALL channels the user is a member of, ordered by most recent activity first.
+// Channels without any messages still appear (so newly-created group chats are visible).
 router.get('/recent', requireAuth, async (req, res) => {
   try {
     const channels = await query(
       `SELECT ch.*,
         (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'avatar_url', u.avatar_url))
          FROM chat_members cm2 JOIN users u ON cm2.user_id = u.id WHERE cm2.channel_id = ch.id) as members,
+        (SELECT COUNT(*) FROM chat_members WHERE channel_id = ch.id) as member_count,
         (SELECT content FROM chat_messages WHERE channel_id = ch.id ORDER BY created_at DESC LIMIT 1) as last_message,
         (SELECT u.name FROM chat_messages cm3 JOIN users u ON cm3.user_id = u.id WHERE cm3.channel_id = ch.id ORDER BY cm3.created_at DESC LIMIT 1) as last_message_user_name,
         (SELECT created_at FROM chat_messages WHERE channel_id = ch.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
@@ -68,9 +71,9 @@ router.get('/recent', requireAuth, async (req, res) => {
          )) as unread_count
        FROM chat_channels ch
        JOIN chat_members cm ON cm.channel_id = ch.id AND cm.user_id = $1
-       WHERE EXISTS (SELECT 1 FROM chat_messages WHERE channel_id = ch.id)
-       ORDER BY (SELECT MAX(created_at) FROM chat_messages WHERE channel_id = ch.id) DESC
-       LIMIT 2`,
+       ORDER BY (SELECT MAX(created_at) FROM chat_messages WHERE channel_id = ch.id) DESC NULLS LAST,
+                ch.created_at DESC
+       LIMIT 16`,
       [req.user.userId]
     );
     res.json(channels);
