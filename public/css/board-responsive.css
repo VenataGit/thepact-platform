@@ -1,0 +1,817 @@
+/* ==================== COMPREHENSIVE RESPONSIVE ==================== */
+
+/* ============================================================
+   TABLET: 768px – 1200px
+   ============================================================ */
+@media (max-width: 1200px) {
+
+  /* Home content box */
+  .home-content-box {
+    padding: 22px 24px 28px;
+  }
+
+  /* Dashboard boards: narrower columns */
+  .dash-board {
+    gap: 6px;
+  }
+  .dash-col.collapsed {
+    flex: 0 0 42px;
+  }
+
+  /* Card detail page */
+  .card-page {
+    padding: 16px 18px 24px;
+  }
+  .card-page-main {
+    padding: 16px 18px 24px;
+  }
+  .bc-card__title {
+    font-size: 24px;
+  }
+
+  /* Kanban columns: tighter */
+  .kanban-column {
+    min-width: 250px;
+  }
+
+  /* Pinned sidebar smaller */
+  .bc-pinned-sidebar {
+    width: 320px;
+    flex-basis: 320px;
+    min-width: 220px;
+  }
+
+  /* Production calendar sidebar */
+  .pc-sidebar {
+    width: 240px;
+    min-width: 200px;
+  }
+
+  /* KP form grid */
+  .kp-form-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+
+  /* Admin table */
+  .admin-table {
+    font-size: 12px;
+  }
+  .admin-table th,
+  .admin-table td {
+    padding: 8px 10px;
+  }
+
+  /* Board page header */
+  .board-page-header {
+    padding: 16px 18px 12px;
+  }
+  .board-page-header__title {
+    font-size: 20px;
+  }
+
+  /* Vault: fewer columns */
+  .vault-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+
+  /* Reports/Comments filter: wrap */
+  .bc-comments-filter {
+    flex-wrap: wrap;
+  }
+
+  /* Dashboard stats bar */
+  .dash-stats-bar {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+
+/* ============================================================
+   MOBILE: < 768px
+   ============================================================ */
+@media (max-width: 767px) {
+
+  /* ---- HOME PAGE ---- */
+  .home-content-box {
+    padding: 16px 14px 20px;
+    border-radius: 10px;
+  }
+  .home-content-box--wide {
+    max-width: none;
+  }
+  .project-card-home {
+    min-height: 110px;
+    border-radius: 12px;
+  }
+  .project-card-home__header {
+    padding: 12px 14px;
+  }
+  .project-card-home__body {
+    padding: 10px 14px;
+  }
+  .home-panel {
+    padding: 14px;
+  }
+  .assignment-row {
+    padding: 10px 4px;
+    font-size: 12px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .assignment-title {
+    width: 100%;
+  }
+
+  /* ---- BOARDS GRID ---- */
+  .boards-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .board-box {
+    min-height: 100px;
+    padding: 14px;
+  }
+
+  /* ---- KANBAN BOARD ---- */
+  .board-kanban {
+    padding: 10px;
+    gap: 10px;
+    min-height: auto;
+  }
+  .kanban-column {
+    min-width: 260px;
+    flex: 0 0 260px;
+  }
+  .kanban-column__inner {
+    padding: 0 10px;
+  }
+  .column-header {
+    padding: 10px 0 8px;
+  }
+  .column-title-link {
+    font-size: 13px;
+  }
+  .kanban-card {
+    padding: 10px 12px;
+    margin-bottom: 6px;
+  }
+  .kanban-card__title {
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  /* Always show interactive elements on mobile (no hover) */
+  .kanban-card__menu-btn {
+    opacity: 1;
+  }
+  .col-menu-btn {
+    opacity: 1;
+  }
+  .add-card-btn {
+    opacity: 1;
+  }
+  .col-permalink-btn {
+    opacity: 1;
+  }
+
+  /* Board page header */
+  .board-page-header {
+    padding: 12px 14px;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .board-page-header__title {
+    font-size: 18px;
+  }
+  .board-page-header__actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* Kanban sidebar (Done/Not Now) */
+  .kanban-sidebar {
+    border-left: none;
+    border-top: 2px solid var(--border);
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .kanban-sidebar-tab {
+    writing-mode: horizontal-tb;
+    text-orientation: initial;
+    padding: 10px 16px;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .kanban-sidebar-tab:last-child {
+    border-right: none;
+  }
+
+  /* ---- CARD DETAIL PAGE ---- */
+  .card-page {
+    padding: 12px 10px 20px;
+    border-radius: 10px;
+  }
+  .card-page-wrapper {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .card-page-main {
+    max-width: 100%;
+    padding: 14px 12px 20px;
+    border-radius: 10px;
+  }
+  .bc-card__header {
+    margin-bottom: 18px;
+    gap: 8px;
+  }
+  .bc-card__title {
+    font-size: 22px;
+  }
+  .bc-card__title-input {
+    font-size: 22px;
+  }
+  .bc-card__toolbar {
+    flex-direction: column;
+    gap: 6px;
+    align-items: stretch;
+  }
+
+  /* Card fields: stack vertically on mobile */
+  .bc-field {
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 0;
+  }
+  .bc-field__label {
+    text-align: left;
+    min-width: auto;
+    font-size: 12px;
+    padding-top: 0;
+  }
+  .bc-field__value {
+    font-size: 13px;
+  }
+  .bc-inline-input {
+    max-width: 100%;
+  }
+
+  /* Production dates */
+  .bc-prod-date-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .bc-prod-date-label {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  /* Date changelog */
+  .bc-date-changelog__row {
+    flex-direction: column;
+    gap: 2px;
+    align-items: flex-start;
+  }
+
+  /* Card history modal */
+  .card-history-modal {
+    max-width: calc(100vw - 24px);
+  }
+  .card-history-row {
+    grid-template-columns: 20px 1fr;
+    gap: 6px;
+  }
+  .card-history-time {
+    grid-column: 1 / -1;
+    padding-left: 28px;
+  }
+
+  /* Editor: full width */
+  .bc-editor {
+    border-radius: 6px;
+  }
+  .bc-editor trix-editor.trix-dark {
+    padding: 10px;
+    font-size: 14px;
+    min-height: 120px;
+  }
+
+  /* Card actions */
+  .bc-card__actions {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 12px;
+  }
+
+  /* Pinned sidebar: full width, stacked above */
+  .bc-pinned-sidebar {
+    order: -1;
+    width: 100%;
+    flex-basis: auto;
+    flex-shrink: 1;
+    min-width: 0;
+    position: static;
+    max-height: 220px;
+    height: 220px;
+    border-radius: 10px;
+  }
+
+  /* ---- COMMENTS ---- */
+  .bc-comments {
+    margin-top: 20px;
+    padding-top: 16px;
+  }
+  .bc-comment {
+    grid-template-columns: 32px 1fr auto;
+    gap: 0 8px;
+    padding: 14px 0;
+  }
+  .bc-comment-date {
+    grid-column: 1 / -1;
+    text-align: left;
+    padding: 0 0 4px;
+    font-size: 10px;
+  }
+  .bc-comment-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+  }
+  .bc-comment-add {
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .bc-comments-filter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .bc-filter-user-select {
+    margin-left: 0;
+    width: 100%;
+  }
+  .bc-comment-dots-btn {
+    opacity: 1;
+  }
+
+  /* ---- CHAT / PINGS ---- */
+  .chat-main { border-left: none; border-right: none; }
+  .chat-msg--own, .chat-msg--other { max-width: 92%; }
+  .chat-msg-img { max-width: 200px; }
+  .chat-input__editor { min-height: 36px; padding: 8px 10px; font-size: 13px; }
+  .chat-messages { padding: 12px; }
+
+  /* ---- MESSAGE BOARD ---- */
+  .message-item {
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+  .message-item h3 {
+    font-size: 15px;
+  }
+
+  /* ---- VAULT ---- */
+  .vault-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
+  .vault-item {
+    padding: 16px 10px;
+    border-radius: 10px;
+  }
+  .vault-icon {
+    font-size: 28px;
+  }
+  .vault-name {
+    font-size: 11px;
+  }
+  /* Always show delete button on mobile */
+  .vault-del-btn {
+    opacity: 0.6 !important;
+  }
+
+  /* ---- SCHEDULE / CALENDAR ---- */
+  .schedule-calendar {
+    border-radius: 8px;
+  }
+  .schedule-header__day {
+    padding: 6px 2px;
+    font-size: 9px;
+  }
+  .schedule-day {
+    min-height: 50px;
+    padding: 3px 4px;
+  }
+  .schedule-day__num {
+    font-size: 10px;
+  }
+  .schedule-event {
+    font-size: 8px;
+    padding: 1px 3px;
+  }
+
+  /* ---- ADMIN PANEL ---- */
+  .admin-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    font-size: 11px;
+  }
+  .admin-table th,
+  .admin-table td {
+    padding: 6px 8px;
+    white-space: nowrap;
+  }
+  .admin-settings-section {
+    padding: 14px 16px;
+  }
+  .admin-setting-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .admin-setting-row > label:first-child {
+    min-width: auto;
+  }
+
+  /* ---- PRODUCTION CALENDAR (pc-wrap) ---- */
+  .pc-wrap {
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - 100px);
+  }
+  .pc-sidebar {
+    width: 100%;
+    min-width: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 250px;
+  }
+  .pc-sidebar__list {
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .pc-main {
+    min-height: 500px;
+  }
+  .pc-toolbar {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .pc-toolbar__title {
+    font-size: 13px;
+  }
+  /* Allow horizontal scroll on week view */
+  .pc-week-hdr {
+    min-width: 600px;
+  }
+  .pc-body {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pc-days {
+    min-width: 600px;
+  }
+  .pc-times {
+    min-width: 40px;
+    width: 40px;
+  }
+  .pc-time-label {
+    font-size: 9px;
+  }
+
+  /* ---- PRODUCTION CALENDAR (prod-cal month view) ---- */
+  .prod-cal {
+    border-radius: 8px;
+  }
+  .prod-cal-header__day {
+    padding: 6px 2px;
+    font-size: 9px;
+  }
+  .prod-cal-day {
+    min-height: 54px;
+    padding: 4px;
+  }
+  .prod-cal-day__num {
+    font-size: 11px;
+  }
+  .prod-cal-dot {
+    font-size: 8px;
+    padding: 0 4px;
+  }
+  .prod-cal-legend {
+    gap: 8px;
+    font-size: 10px;
+    flex-wrap: wrap;
+  }
+  .prod-cal-detail {
+    padding: 14px 16px;
+  }
+
+  /* ---- DASHBOARD (PRODUCTION) ---- */
+  .dash-wrap {
+    padding: 0 4px;
+  }
+  .dash-stats-bar {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .dash-stat {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+  .dash-stat__num {
+    font-size: 13px;
+  }
+  .dash-stat__label {
+    font-size: 10px;
+  }
+  .dash-board {
+    flex-direction: column;
+    min-height: auto;
+    gap: 8px;
+  }
+  .dash-col {
+    border-radius: 8px;
+  }
+  .dash-col.collapsed {
+    flex: 0 0 40px;
+  }
+  .dash-col.collapsed .dash-col-header {
+    writing-mode: horizontal-tb;
+    padding: 10px 14px;
+    height: auto;
+  }
+  .dash-col-header {
+    padding: 10px 12px;
+  }
+  .dash-col-title {
+    font-size: 12px;
+  }
+  .dash-col-body {
+    padding: 6px;
+    flex-direction: column;
+  }
+  .dash-subcol {
+    min-width: 0;
+  }
+  .dash-card__title {
+    font-size: 11px;
+  }
+  .dash-settings-panel {
+    width: calc(100vw - 24px);
+    max-width: 320px;
+  }
+
+  /* ---- DONE SIDEBAR PANEL ---- */
+  .done-sidebar-panel {
+    width: 100%;
+    left: 0;
+  }
+
+  /* ---- REPORT / FILTERS ---- */
+  .bc-filter-tabs {
+    flex-wrap: wrap;
+  }
+
+  /* ---- KP AUTO ---- */
+  .kp-auto-header {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .kp-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .kp-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ---- TOAST NOTIFICATIONS ---- */
+  .app-toast {
+    left: 12px;
+    right: 12px;
+    transform: translateY(20px);
+    max-width: none;
+    width: auto;
+  }
+  .app-toast--visible {
+    transform: translateY(0);
+  }
+
+  /* ---- MODAL OVERLAYS ---- */
+  .modal-overlay {
+    padding: 12px;
+  }
+  .confirm-modal-box {
+    padding: 18px 20px;
+    border-radius: 10px;
+  }
+  .confirm-modal-msg {
+    font-size: 14px;
+  }
+  .confirm-modal-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .confirm-modal-actions .btn,
+  .confirm-modal-actions .btn-danger {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* ---- BC OPTIONS MENU (card dropdown) ---- */
+  .bc-options-menu {
+    max-width: calc(100vw - 24px);
+    min-width: 200px;
+  }
+
+  /* ---- KANBAN CARD CONTEXT MENU ---- */
+  .kanban-card-context {
+    min-width: 170px;
+  }
+
+  /* ---- COMMENT CONTEXT MENU ---- */
+  .bc-comment-ctx-menu {
+    min-width: 160px;
+  }
+
+  /* ---- IMAGE LIGHTBOX ---- */
+  .bc-lightbox__img {
+    max-width: 95vw;
+    max-height: 80vh;
+  }
+  .bc-lightbox__close {
+    top: 10px;
+    right: 10px;
+    width: 38px;
+    height: 38px;
+    font-size: 24px;
+  }
+
+  /* ---- COLOR PICKER ---- */
+  .bc-color-picker {
+    width: 220px;
+    gap: 3px;
+  }
+
+  /* ---- ATTACHMENTS ---- */
+  .bc-attachments-list {
+    gap: 8px;
+  }
+  .bc-att-item {
+    max-width: 150px;
+  }
+  .bc-att-thumb {
+    width: 100px;
+    height: 75px;
+  }
+  .bc-att-video {
+    width: 100%;
+  }
+
+  /* ---- CARD CREATE FORM ---- */
+  .card-create-form {
+    padding: 18px 16px;
+    border-radius: 10px;
+  }
+
+  /* ---- TASK LIST (My Stuff) ---- */
+  .task-row {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .task-title {
+    white-space: normal;
+    width: 100%;
+  }
+  .task-meta {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* ---- ACTIVITY FEED ---- */
+  .activity-entry {
+    gap: 10px;
+    padding: 10px 0;
+  }
+  .activity-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 11px;
+  }
+
+  /* ---- TRASH VIEW ---- */
+  .trash-view {
+    padding: 20px 12px;
+  }
+  .trash-card {
+    flex-direction: column;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  .trash-card__right {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  /* ---- CHECK-INS ---- */
+  .checkin-question {
+    padding: 14px;
+  }
+  .checkin-question__text {
+    font-size: 14px;
+  }
+
+  /* ---- SOS SYSTEM ---- */
+  .sos-alert-banner {
+    padding: 10px 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .sos-alert-icon {
+    font-size: 20px;
+  }
+  .sos-alert-content strong {
+    font-size: 13px;
+  }
+  .sos-alert-content span {
+    font-size: 12px;
+  }
+  .sos-modal-box {
+    max-width: calc(100vw - 24px);
+  }
+
+  /* ---- DATE PICKER ---- */
+  .date-picker-popup {
+    max-width: calc(100vw - 24px);
+  }
+}
+
+/* ============================================================
+   SMALL MOBILE: < 480px
+   ============================================================ */
+@media (max-width: 480px) {
+  /* Kanban: narrower columns for very small screens */
+  .kanban-column {
+    min-width: 230px;
+    flex: 0 0 230px;
+  }
+  /* Card title: smaller */
+  .bc-card__title {
+    font-size: 20px;
+  }
+  .bc-card__title-input {
+    font-size: 20px;
+  }
+  /* Dashboard cards */
+  .dash-card {
+    padding: 6px 8px;
+  }
+  .dash-card__title {
+    font-size: 11px;
+  }
+  /* Vault: 2 columns minimum */
+  .vault-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  /* Pings grid */
+  .pings-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .ping-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+  /* Calendar: compact for small screens */
+  .schedule-day {
+    min-height: 40px;
+    padding: 2px;
+  }
+  .schedule-event {
+    display: none;
+  }
+  .schedule-event-more {
+    font-size: 8px;
+  }
+  /* Home project cards */
+  .project-card-home {
+    min-height: 100px;
+  }
+  /* Home panel: tighter padding on small screens */
+  .home-panel {
+    padding: 12px;
+  }
+}
