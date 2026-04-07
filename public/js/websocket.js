@@ -36,6 +36,15 @@ function handleWSEvent(ev) {
   if (t === 'card:moved' && location.hash === '#/calendar' && typeof _pcLoadEntries === 'function') {
     _pcLoadEntries().then(function() { _pcRefreshWeekView(); });
   }
+  // Boards reordered globally — refresh local cache then re-render current page
+  // (so the new order is visible everywhere, not only on the home page).
+  if (t === 'boards:reordered') {
+    fetch('/api/boards').then(function(r) { return r.json(); }).then(function(boards) {
+      allBoards = boards;
+      wsRouter();
+    }).catch(function(e) { console.warn('[ws] boards refresh failed:', e.message); });
+    return;
+  }
   // Core data events — re-render current page
   if (t.startsWith('card:') || t.startsWith('board:') || t.startsWith('column:') || t.startsWith('step:') || t.startsWith('comment:')) wsRouter();
   if (t === 'chat:message') { updatePingsBadge(); if (location.hash.startsWith('#/chat/' + ev.channelId)) { if (ev.message) appendChatMsg(ev.message); fetch('/api/chat/channels/'+ev.channelId+'/read',{method:'PUT'}).catch(function(){}); } return; }

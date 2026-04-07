@@ -78,13 +78,23 @@ async function renderHome(el) {
 
         <!-- Boards grid -->
         <div style="margin-bottom:32px">
-          <div class="projects-home-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
+          ${canManage() ? '<div style="font-size:11px;color:var(--text-dim);margin:0 0 8px;text-align:center">↕ Можете да преподреждате бордовете чрез влачене (промяната е за всички)</div>' : ''}
+          <div class="projects-home-grid" id="homeBoardsGrid" style="grid-template-columns:repeat(4,1fr);gap:12px">
             ${boards.map(b => {
               var isDocs = b.type === 'docs';
               var href = isDocs ? '#/docs/' + b.id : '#/board/' + b.id;
               var cardClass = isDocs ? 'project-card-home project-card-home--docs' : 'project-card-home';
+              // Drag attributes only for moderators/admins
+              var dragAttrs = canManage()
+                ? ' draggable="true" data-board-id="' + b.id + '"' +
+                  ' ondragstart="homeBoardDragStart(event,' + b.id + ')"' +
+                  ' ondragover="homeBoardDragOver(event)"' +
+                  ' ondragleave="homeBoardDragLeave(event)"' +
+                  ' ondrop="homeBoardDrop(event,' + b.id + ')"' +
+                  ' ondragend="homeBoardDragEnd(event)"'
+                : '';
               if (isDocs) {
-                return '<a href="' + href + '" class="' + cardClass + '">' +
+                return '<a href="' + href + '" class="' + cardClass + '"' + dragAttrs + '>' +
                   '<div class="project-card-home__header">' +
                     '<div class="project-card-home__title">📁 ' + esc(b.title) + '</div>' +
                   '</div>' +
@@ -95,7 +105,7 @@ async function renderHome(el) {
               }
               const bc = activeCards.filter(c => c.board_id === b.id);
               const bOver = bc.filter(c => isCardOverdue(c, now)).length;
-              return '<a href="' + href + '" class="' + cardClass + '">' +
+              return '<a href="' + href + '" class="' + cardClass + '"' + dragAttrs + '>' +
                 '<div class="project-card-home__header">' +
                   '<div class="project-card-home__title">' + esc(b.title) + '</div>' +
                 '</div>' +
@@ -385,4 +395,101 @@ function renderReleaseNotes(el) {
   html += '</div>';
 
   el.innerHTML = html;
+}
+
+// ==================== HOME BOARDS DRAG & DROP (mod/admin only) ====================
+// Reorders board cards on the home page. Persists to /api/boards/reorder so the
+// new order applies to ALL users (broadcast via WebSocket).
+var _homeDraggedBoardId = null;
+
+function homeBoardDragStart(e, boardId) {
+  if (!canManage()) { e.preventDefault(); return; }
+  _homeDraggedBoardId = boardId;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  // Some browsers need data set in dragstart, otherwise drop fires nothing
+  try { e.dataTransfer.setData('text/plain', String(boardId)); } catch (err) {}
+}
+
+function homeBoardDragOver(e) {
+  if (_homeDraggedBoardId === null) return;
+  e.preventDefault(); // required for drop to fire
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('home-board-drag-over');
+}
+
+function homeBoardDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    e.currentTarget.classList.remove('home-board-drag-over');
+  }
+}
+
+function homeBoardDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.home-board-drag-over').forEach(function(el) {
+    el.classList.remove('home-board-drag-over');
+  });
+  _homeDraggedBoardId = null;
+}
+
+async function homeBoardDrop(e, targetBoardId) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.remove('home-board-drag-over');
+  document.querySelectorAll('.home-board-drag-over').forEach(function(el) {
+    el.classList.remove('home-board-drag-over');
+  });
+
+  if (_homeDraggedBoardId === null || _homeDraggedBoardId === targetBoardId) {
+    _homeDraggedBoardId = null;
+    return;
+  }
+
+  // Build the new order from the current DOM (so we don't depend on stale state)
+  var grid = document.getElementById('homeBoardsGrid');
+  if (!grid) return;
+  var cards = Array.from(grid.querySelectorAll('[data-board-id]'));
+  var ids = cards.map(function(el) { return parseInt(el.dataset.boardId, 10); });
+
+  var fromIdx = ids.indexOf(_homeDraggedBoardId);
+  var toIdx = ids.indexOf(targetBoardId);
+  if (fromIdx < 0 || toIdx < 0) { _homeDraggedBoardId = null; return; }
+
+  // Move dragged in front of target
+  var draggedId = ids.splice(fromIdx, 1)[0];
+  ids.splice(toIdx, 0, draggedId);
+  _homeDraggedBoardId = null;
+
+  // Optimistic UI: reorder DOM immediately so user sees the change
+  var newOrder = ids.map(function(id) {
+    return cards.find(function(el) { return parseInt(el.dataset.boardId, 10) === id; });
+  });
+  newOrder.forEach(function(el) { grid.appendChild(el); });
+
+  // Suppress next WS rerender (own action will trigger boards:reordered event)
+  _suppressWsRerender = Date.now() + 1500;
+
+  try {
+    var res = await fetch('/api/boards/reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order: ids })
+    });
+    if (!res.ok) {
+      var err = await res.json().catch(function() { return {}; });
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    showToast('Бордовете са преподредени', 'success');
+    // Update the in-memory cache so navigation away+back shows new order
+    if (Array.isArray(allBoards)) {
+      allBoards.sort(function(a, b) {
+        return ids.indexOf(a.id) - ids.indexOf(b.id);
+      });
+    }
+  } catch (e) {
+    console.warn('[home] reorder failed:', e.message);
+    showToast('Грешка при преподреждане: ' + e.message, 'error');
+    // Re-render to revert optimistic change
+    router();
+  }
 }

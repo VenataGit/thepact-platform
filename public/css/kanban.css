@@ -18,6 +18,11 @@
   overflow: hidden;
 }
 .project-card-home:hover { box-shadow: 0 8px 30px var(--shadow-color-md); transform: translateY(-3px); }
+/* Drag & drop reordering (mod/admin only) */
+.project-card-home[draggable="true"] { cursor: grab; }
+.project-card-home[draggable="true"]:active { cursor: grabbing; }
+.project-card-home.dragging { opacity: 0.4; transform: scale(0.97); }
+.project-card-home.home-board-drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; box-shadow: 0 0 0 4px var(--accent-dim); }
 .project-card-home__header { padding: 14px 18px; background: var(--home-card-header); text-align: center; }
 .project-card-home__pin { position: absolute; top: 12px; right: 14px; color: var(--text-dim); opacity: 0.5; }
 .project-card-home__above { font-size: 11px; color: var(--text-dim); font-weight: 500; margin-bottom: 4px; letter-spacing: 0.04em; }

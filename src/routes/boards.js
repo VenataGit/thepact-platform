@@ -40,6 +40,52 @@ router.get('/columns/:id', requireAuth, async (req, res) => {
   }
 });
 
+// PUT /api/boards/reorder — reorder boards globally (mod/admin only).
+// Body: { order: [boardId1, boardId2, ...] }
+// The new position of each board is its index in the array.
+// Broadcasts boards:reordered to all clients via WebSocket.
+router.put('/reorder', requireAuth, requireModerator, async (req, res) => {
+  try {
+    const { order } = req.body || {};
+    if (!Array.isArray(order) || order.length === 0) {
+      return res.status(400).json({ error: 'Body must include { order: [boardId, ...] }' });
+    }
+
+    // Validate all entries are positive integers
+    const ids = order.map(x => parseInt(x, 10));
+    if (ids.some(id => !Number.isInteger(id) || id <= 0)) {
+      return res.status(400).json({ error: 'All board IDs must be positive integers' });
+    }
+
+    // Verify every ID exists and is not archived (so reorder can't resurrect archived boards)
+    const existing = await query(
+      'SELECT id FROM boards WHERE id = ANY($1) AND archived_at IS NULL',
+      [ids]
+    );
+    if (existing.length !== ids.length) {
+      return res.status(400).json({ error: 'One or more board IDs are invalid or archived' });
+    }
+
+    // Update positions in a single transaction-like batch.
+    // Using CASE so we do it in one query (no round-trip per board).
+    // Convert array to (id, pos) pairs for the CASE expression.
+    const cases = ids.map((id, i) => `WHEN ${id} THEN ${i}`).join(' ');
+    await execute(
+      `UPDATE boards SET position = CASE id ${cases} END, updated_at = NOW() WHERE id = ANY($1)`,
+      [ids]
+    );
+
+    // Broadcast to ALL clients (including the sender — no excludeUserId).
+    // Frontend re-fetches /api/boards on receipt to pick up the new order.
+    broadcast({ type: 'boards:reordered', order: ids });
+
+    res.json({ ok: true, order: ids });
+  } catch (err) {
+    console.error('[boards] reorder error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/boards/:id — single board with columns
 router.get('/:id', requireAuth, async (req, res) => {
   try {
