@@ -3,14 +3,33 @@ const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
-// GET /api/settings — get all settings
+// Settings keys that may contain secrets — never returned to non-admins.
+// Match anything containing one of these substrings (case-insensitive).
+const SENSITIVE_KEY_PATTERNS = [
+  'secret', 'password', 'pass', 'token', 'api_key', 'apikey',
+  'private', 'credential', 'webhook_url', 'smtp', 'jwt',
+];
+
+function isSensitiveKey(key) {
+  const k = (key || '').toLowerCase();
+  return SENSITIVE_KEY_PATTERNS.some(p => k.includes(p));
+}
+
+// GET /api/settings — get all settings.
+// Non-admins see everything EXCEPT keys matching sensitive patterns
+// (secrets, tokens, passwords). Admins see everything.
 router.get('/', requireAuth, async (req, res) => {
   try {
     const settings = await query('SELECT key, value, updated_at FROM settings ORDER BY key');
-    // Return as key-value object for convenience
+    const isAdmin = req.user?.role === 'admin';
+
+    const filteredRows = isAdmin
+      ? settings
+      : settings.filter(s => !isSensitiveKey(s.key));
+
     const obj = {};
-    for (const s of settings) obj[s.key] = s.value;
-    res.json({ settings: obj, rows: settings });
+    for (const s of filteredRows) obj[s.key] = s.value;
+    res.json({ settings: obj, rows: filteredRows });
   } catch (err) {
     console.error('Settings list error:', err.message);
     res.status(500).json({ error: 'Internal server error' });

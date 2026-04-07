@@ -7,6 +7,7 @@ const router = express.Router();
 const { queryOne, execute } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const config = require('../config');
+const { avatarFilter, MAX_AVATAR_SIZE } = require('../utils/upload-validator');
 
 // Avatar upload config
 const storage = multer.diskStorage({
@@ -16,17 +17,14 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
+    const ext = (path.extname(file.originalname) || '.jpg').toLowerCase().slice(0, 8);
     cb(null, `user-${req.user.userId}-${Date.now()}${ext}`);
   }
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'));
-  }
+  limits: { fileSize: MAX_AVATAR_SIZE },  // 5MB
+  fileFilter: avatarFilter,                // strict whitelist + MIME match
 });
 
 // GET /api/profile — current user profile
@@ -51,7 +49,17 @@ router.put('/', requireAuth, async (req, res) => {
 });
 
 // POST /api/profile/avatar — upload avatar
-router.post('/avatar', requireAuth, upload.single('avatar'), async (req, res) => {
+router.post('/avatar', requireAuth, (req, res, next) => {
+  upload.single('avatar')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'Снимката е твърде голяма (макс. 5MB)' });
+      }
+      return res.status(400).json({ error: err.message || 'Невалиден файл' });
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const avatarUrl = `/uploads/avatars/${req.file.filename}`;
 
@@ -59,7 +67,7 @@ router.post('/avatar', requireAuth, upload.single('avatar'), async (req, res) =>
   const old = await queryOne('SELECT avatar_url FROM users WHERE id = $1', [req.user.userId]);
   if (old?.avatar_url?.startsWith('/uploads/')) {
     const oldPath = path.join(__dirname, '..', '..', old.avatar_url);
-    try { fs.unlinkSync(oldPath); } catch {}
+    try { fs.unlinkSync(oldPath); } catch (e) { console.warn('[profile] Failed to delete old avatar:', oldPath, e.message); }
   }
 
   const user = await queryOne(

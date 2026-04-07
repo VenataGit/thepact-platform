@@ -6,6 +6,11 @@ const multer = require('multer');
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { broadcast } = require('../ws/broadcast');
+const {
+  attachmentFilter,
+  safeStorageFilename,
+  MAX_ATTACHMENT_SIZE,
+} = require('../utils/upload-validator');
 
 const ATTACHMENTS_DIR = path.join(__dirname, '..', '..', 'uploads', 'attachments');
 
@@ -14,12 +19,14 @@ if (!fs.existsSync(ATTACHMENTS_DIR)) fs.mkdirSync(ATTACHMENTS_DIR, { recursive: 
 
 const storage = multer.diskStorage({
   destination: ATTACHMENTS_DIR,
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  }
+  filename: (req, file, cb) => cb(null, safeStorageFilename(file.originalname)),
 });
-const upload = multer({ storage }); // no size limit
+
+const upload = multer({
+  storage,
+  fileFilter: attachmentFilter,
+  limits: { fileSize: MAX_ATTACHMENT_SIZE },
+});
 
 // GET /api/cards/:cardId/attachments — list attachments for a card
 router.get('/:cardId/attachments', requireAuth, async (req, res) => {
@@ -40,13 +47,28 @@ router.get('/:cardId/attachments', requireAuth, async (req, res) => {
 });
 
 // POST /api/cards/:cardId/attachments — upload attachment
-router.post('/:cardId/attachments', requireAuth, upload.single('file'), async (req, res) => {
+router.post('/:cardId/attachments', requireAuth, (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      // Multer file-too-large error or fileFilter rejection
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'Файлът е твърде голям (макс. 50MB)' });
+      }
+      return res.status(400).json({ error: err.message || 'Невалиден файл' });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file' });
 
     // Verify card exists
     const card = await queryOne('SELECT id, title FROM cards WHERE id = $1', [req.params.cardId]);
-    if (!card) return res.status(404).json({ error: 'Card not found' });
+    if (!card) {
+      // Cleanup orphan upload
+      try { fs.unlinkSync(req.file.path); } catch (e) { console.warn('Orphan attachment cleanup failed:', e.message); }
+      return res.status(404).json({ error: 'Card not found' });
+    }
 
     const attachment = await queryOne(
       `INSERT INTO attachments (card_id, filename, mime_type, size_bytes, storage_path, uploaded_by)

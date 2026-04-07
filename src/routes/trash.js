@@ -1,8 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireModerator } = require('../middleware/auth');
 const { broadcast } = require('../ws/broadcast');
+
+// Helper: can user act on this trashed card?
+// Allowed: card creator, current assignee, moderator/admin.
+async function canActOnTrashedCard(cardId, user) {
+  if (user.role === 'admin' || user.role === 'moderator') return true;
+  const row = await queryOne(
+    `SELECT c.creator_id,
+            EXISTS(SELECT 1 FROM card_assignees WHERE card_id = c.id AND user_id = $2) AS is_assignee
+     FROM cards c WHERE c.id = $1 AND c.trashed_at IS NOT NULL`,
+    [cardId, user.userId]
+  );
+  if (!row) return null; // not found / not in trash
+  return row.creator_id === user.userId || row.is_assignee === true;
+}
 
 // GET /api/trash — all cards in trash (last 30 days)
 router.get('/', requireAuth, async (req, res) => {
@@ -28,9 +42,14 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/trash/:id/restore — restore card from trash
+// POST /api/trash/:id/restore — restore card from trash.
+// Allowed: creator, current assignee, or moderator/admin.
 router.post('/:id/restore', requireAuth, async (req, res) => {
   try {
+    const allowed = await canActOnTrashedCard(req.params.id, req.user);
+    if (allowed === null) return res.status(404).json({ error: 'Card not found in trash' });
+    if (!allowed) return res.status(403).json({ error: 'Нямате права да възстановите тази карта' });
+
     const card = await queryOne(
       'UPDATE cards SET trashed_at = NULL WHERE id = $1 AND trashed_at IS NOT NULL RETURNING id, title, board_id',
       [req.params.id]
@@ -39,12 +58,14 @@ router.post('/:id/restore', requireAuth, async (req, res) => {
     broadcast({ type: 'card:restored', cardId: card.id, boardId: card.board_id });
     res.json({ ok: true, card });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[trash] restore error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// DELETE /api/trash/:id — permanently delete one card
-router.delete('/:id', requireAuth, async (req, res) => {
+// DELETE /api/trash/:id — permanently delete one card.
+// Restricted to moderator/admin (irreversible operation).
+router.delete('/:id', requireAuth, requireModerator, async (req, res) => {
   try {
     const card = await queryOne(
       'DELETE FROM cards WHERE id = $1 AND trashed_at IS NOT NULL RETURNING id',
@@ -54,7 +75,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
     broadcast({ type: 'card:deleted', cardId: parseInt(req.params.id) });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[trash] permanent delete error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

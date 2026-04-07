@@ -3,6 +3,7 @@ const router = express.Router();
 const { query, queryOne } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { createGCalEvent, updateGCalEvent, deleteGCalEvent } = require('../services/google-calendar');
+const { getPostProductionBoardId } = require('../utils/board-roles');
 
 // GET /api/production-calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
 router.get('/', requireAuth, async (req, res) => {
@@ -125,7 +126,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
 async function syncProdToGCal(action, entry) {
   try {
     const rawTitle = entry.card_title || `Card #${entry.card_id}`;
-    const isPostProd = (entry.board_title || '').toLowerCase() === 'post-production';
+    // Prefer settings.post_production_board_id; fall back to title match for legacy installs
+    const postProdBoardId = await getPostProductionBoardId();
+    const isPostProd = postProdBoardId
+      ? (entry.board_id === postProdBoardId)
+      : (entry.board_title || '').toLowerCase() === 'post-production';
     const date = entry.scheduled_date;
     // Convert to YYYY-MM-DD string if it's a Date object
     const dateStr = typeof date === 'string' ? date.split('T')[0] : new Date(date).toISOString().split('T')[0];

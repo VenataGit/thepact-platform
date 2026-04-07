@@ -30,7 +30,9 @@ function setupWebSocket(server) {
       try {
         const msg = JSON.parse(data.toString());
         handleClientMessage(ws, msg);
-      } catch {}
+      } catch (e) {
+        console.warn('[ws] malformed client message from user', ws.userId, '-', e.message);
+      }
     });
 
     ws.on('pong', () => { ws.isAlive = true; });
@@ -108,7 +110,7 @@ function broadcast(event, excludeUserId = null) {
     if (userId === excludeUserId) continue;
     for (const ws of sockets) {
       if (ws.readyState === 1) {
-        try { ws.send(message); } catch {}
+        try { ws.send(message); } catch (e) { console.warn('[ws] send failed:', e.message); }
       }
     }
   }
@@ -121,7 +123,7 @@ function sendToUser(userId, event) {
   const message = JSON.stringify(event);
   for (const ws of sockets) {
     if (ws.readyState === 1) {
-      try { ws.send(message); } catch {}
+      try { ws.send(message); } catch (e) { console.warn('[ws] send failed:', e.message); }
     }
   }
 }

@@ -94,7 +94,9 @@ async function notifyAssignment(userId, cardTitle, assignerName) {
       `<p><strong>${assignerName}</strong> ти възложи картата <strong>${cardTitle}</strong>.</p>
        <p><a href="https://thepact.pro" style="color:#1cb0f6">Виж в ThePact →</a></p>`
     );
-  } catch {}
+  } catch (e) {
+    console.warn('[email] notifyAssignment failed for user', userId, '-', e.message);
+  }
 }
 
 async function notifyMention(userId, cardTitle, mentionerName) {
@@ -106,7 +108,9 @@ async function notifyMention(userId, cardTitle, mentionerName) {
       `<p><strong>${mentionerName}</strong> те спомена в <strong>${cardTitle}</strong>.</p>
        <p><a href="https://thepact.pro" style="color:#1cb0f6">Виж в ThePact →</a></p>`
     );
-  } catch {}
+  } catch (e) {
+    console.warn('[email] notifyMention failed for user', userId, '-', e.message);
+  }
 }
 
 module.exports = { initEmail, sendEmail, notifyAssignment, notifyMention };

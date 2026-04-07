@@ -64,7 +64,7 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
 app.get('/api/health', async (req, res) => {
   const { pool } = require('./db/pool');
   let dbOk = false;
-  try { await pool.query('SELECT 1'); dbOk = true; } catch {}
+  try { await pool.query('SELECT 1'); dbOk = true; } catch (e) { console.warn('[health] db check failed:', e.message); }
   const healthy = dbOk;
   res.status(healthy ? 200 : 503).json({
     status: healthy ? 'ok' : 'degraded',
@@ -74,8 +74,31 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
-// Serve uploaded files (avatars, etc.)
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+// Serve uploaded files (avatars, attachments, vault).
+// Hardened: nosniff prevents MIME confusion attacks; HTML/SVG/scripts are forced
+// to download as text/plain so they cannot execute as XSS even if an attacker
+// somehow uploaded one before the new whitelist was in place.
+const DANGEROUS_UPLOAD_EXTS = new Set([
+  '.html', '.htm', '.xhtml', '.svg',
+  '.js', '.mjs', '.php', '.phtml', '.jsp', '.asp', '.aspx',
+  '.sh', '.bat', '.cmd', '.exe', '.com', '.dll', '.scr', '.ps1',
+]);
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), {
+  etag: true,
+  fallthrough: false,
+  index: false,           // never serve directory listings
+  dotfiles: 'deny',       // 403 on hidden files
+  setHeaders: (res, filePath) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox;");
+    const ext = path.extname(filePath).toLowerCase();
+    if (DANGEROUS_UPLOAD_EXTS.has(ext)) {
+      // Strip MIME, force download, never render in browser
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment');
+    }
+  }
+}));
 
 // Deploy endpoint (no auth needed, uses secret)
 app.post('/deploy', (req, res) => {

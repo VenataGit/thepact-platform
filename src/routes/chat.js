@@ -225,7 +225,9 @@ router.get('/channels/:id/messages', requireAuth, async (req, res) => {
     );
     if (!member) return res.status(403).json({ error: 'Not a member' });
 
-    const limit = parseInt(req.query.limit) || 50;
+    // Cap user-supplied limit to prevent DoS via huge result sets
+    const rawLimit = parseInt(req.query.limit, 10);
+    const limit = Math.min(Math.max(rawLimit > 0 ? rawLimit : 50, 1), 200);
     const before = req.query.before;
 
     let sql = `SELECT m.*, u.name as user_name, u.avatar_url as user_avatar

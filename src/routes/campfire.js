@@ -25,7 +25,9 @@ router.get('/rooms', requireAuth, async (req, res) => {
 // GET /api/campfire/rooms/:id/messages — paginated messages
 router.get('/rooms/:id/messages', requireAuth, async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;
+    // Cap user-supplied limit to prevent DoS via huge result sets
+    const rawLimit = parseInt(req.query.limit, 10);
+    const limit = Math.min(Math.max(rawLimit > 0 ? rawLimit : 50, 1), 200);
     const before = req.query.before;
 
     let sql = `SELECT m.*, u.name as user_name, u.avatar_url as user_avatar

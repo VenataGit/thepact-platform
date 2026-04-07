@@ -34,12 +34,15 @@ async function initKpScheduler() {
 
 async function runKpAutoCreate() {
   try {
-    // Load settings
-    const settingsRows = await query("SELECT key, value FROM settings WHERE key IN ('kp_days_before_next_kp', 'kp_izmislyane_column_id')");
+    // Load ALL settings used by this job in a single query (was 2 separate queries per run + 1 per client)
+    const settingsRows = await query(
+      "SELECT key, value FROM settings WHERE key IN ('kp_days_before_next_kp', 'kp_izmislyane_column_id', 'kp_calendar_window')"
+    );
     const settings = {};
     for (const r of settingsRows) settings[r.key] = r.value;
     const daysBeforeNextKp = parseInt(settings.kp_days_before_next_kp) || 15;
     const izmislianeColId = settings.kp_izmislyane_column_id ? parseInt(settings.kp_izmislyane_column_id) : null;
+    const calendarWindow = settings.kp_calendar_window ? parseInt(settings.kp_calendar_window) : 30;
 
     if (!izmislianeColId) {
       console.log('[KP Scheduler] No kp_izmislyane_column_id configured, skipping');
@@ -58,15 +61,32 @@ async function runKpAutoCreate() {
       return;
     }
 
+    // Eliminate N+1: load existing-card flags for ALL clients in ONE query
+    // (was: SELECT existing card per client → N queries for N clients)
+    const existingRows = clients.length > 0
+      ? await query(
+          `SELECT lower(client_name) AS cn FROM cards
+           WHERE column_id = $1 AND archived_at IS NULL AND completed_at IS NULL
+                 AND client_name = ANY($2)`,
+          [izmislianeColId, clients.map(c => c.name)]
+        )
+      : [];
+    const clientsWithCards = new Set(existingRows.map(r => r.cn));
+
+    // Cache the column lookup (was queried once per client)
+    const izmislianeCol = await queryOne(
+      'SELECT id, board_id FROM columns WHERE id = $1',
+      [izmislianeColId]
+    );
+    if (!izmislianeCol) {
+      console.log('[KP Scheduler] Column not found:', izmislianeColId);
+      return;
+    }
+
     let created = 0;
     for (const client of clients) {
-      // Check if card already exists in Измисляне
-      const existing = await queryOne(
-        `SELECT id FROM cards WHERE column_id = $1 AND archived_at IS NULL AND completed_at IS NULL AND title ILIKE $2 LIMIT 1`,
-        [izmislianeColId, `%${client.name}%`]
-      );
-
-      if (existing) continue; // already has a card, skip
+      // Check if card already exists in Измисляне (now O(1) lookup instead of DB roundtrip)
+      if (clientsWithCards.has((client.name || '').toLowerCase())) continue;
 
       // No card exists — check if we should create
       let shouldCreate = false;
@@ -99,10 +119,7 @@ async function runKpAutoCreate() {
 
         const firstPublishDate = (rawDate instanceof Date ? rawDate.toISOString() : String(rawDate)).split('T')[0];
 
-        // Load settings for distribution
-        const schedRows = await query("SELECT key, value FROM settings WHERE key = 'kp_calendar_window'");
-        const calendarWindow = schedRows[0]?.value ? parseInt(schedRows[0].value) : 30;
-
+        // calendarWindow already loaded once at top of function (was per-client query — N+1 fix)
         const videoCount = client.videos_per_month || 10;
         const kpNumber = client.current_kp_number || 1;
 
@@ -123,9 +140,7 @@ async function runKpAutoCreate() {
           `<div><br></div>` +
           Array.from({ length: videoCount }, (_, i) => `<div>Видео ${i + 1} - ХХХ</div>`).join('');
 
-        const izmislianeCol = await queryOne('SELECT id, board_id FROM columns WHERE id = $1', [izmislianeColId]);
-        if (!izmislianeCol) continue;
-
+        // izmislianeCol already loaded once at top of function (was per-client query — N+1 fix)
         const maxPos = await queryOne(
           'SELECT COALESCE(MAX(position), -1) + 1 as pos FROM cards WHERE column_id = $1', [izmislianeCol.id]
         );

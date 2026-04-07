@@ -156,8 +156,14 @@ function playSosSound() {
 }
 
 // ==================== DASHBOARD TIMER TICKER ====================
+// 1-second ticker that updates "X дни, Y часа..." labels on the dashboard.
+// Skips DOM work when the page isn't visible (tab in background) or when the
+// dashboard view isn't active — saves CPU on long-running sessions.
 setInterval(function() {
-  document.querySelectorAll('.dash-timer-bar--clean[data-since]').forEach(function(el) {
+  if (document.hidden) return;
+  var bars = document.querySelectorAll('.dash-timer-bar--clean[data-since]');
+  if (bars.length === 0) return; // not on dashboard or no clean timers
+  bars.forEach(function(el) {
     var since = el.dataset.since;
     if (!since) return;
     var diff = Math.floor((Date.now() - new Date(since).getTime()) / 1000);

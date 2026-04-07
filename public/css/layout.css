@@ -450,9 +450,9 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
 .page-header .avatar-group {
   display: flex;
   justify-content: center;
-  gap: -4px;
   margin-top: 12px;
 }
+.page-header .avatar-group > * + * { margin-left: -4px; }
 
 /* ==================== PROJECT TOOL GRID ==================== */
 .project-tools {

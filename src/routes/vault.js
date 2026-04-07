@@ -5,6 +5,11 @@ const fs = require('fs');
 const multer = require('multer');
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth, requireModerator } = require('../middleware/auth');
+const {
+  attachmentFilter,
+  safeStorageFilename,
+  MAX_VAULT_SIZE,
+} = require('../utils/upload-validator');
 
 const VAULT_DIR = path.join(__dirname, '..', '..', 'uploads', 'vault');
 
@@ -13,12 +18,14 @@ if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: VAULT_DIR,
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  }
+  filename: (req, file, cb) => cb(null, safeStorageFilename(file.originalname)),
 });
-const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
+
+const upload = multer({
+  storage,
+  fileFilter: attachmentFilter,
+  limits: { fileSize: MAX_VAULT_SIZE },
+});
 
 // GET /api/vault/folders
 // ?parent_id=X — browse subfolder

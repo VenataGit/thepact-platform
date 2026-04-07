@@ -4,6 +4,7 @@ const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { broadcast, getCardEditor } = require('../ws/broadcast');
 const { updateGCalEvent, createGCalEvent } = require('../services/google-calendar');
+const { getPostProductionBoardId } = require('../utils/board-roles');
 
 // GET /api/cards — all active cards grouped by board/column
 router.get('/', requireAuth, async (req, res) => {
@@ -357,10 +358,16 @@ router.post('/:id/move', requireAuth, async (req, res) => {
     });
 
     // Sync Google Calendar when moving to/from Post-Production
+    // Uses settings.post_production_board_id with title fallback (survives renames)
     const targetBoard = await queryOne('SELECT title FROM boards WHERE id = $1', [targetBoardId]);
     const fromBoard = await queryOne('SELECT title FROM boards WHERE id = $1', [card.board_id]);
-    const toPostProd = targetBoard && targetBoard.title.toLowerCase() === 'post-production';
-    const fromPostProd = fromBoard && fromBoard.title.toLowerCase() === 'post-production';
+    const postProdBoardId = await getPostProductionBoardId();
+    const toPostProd = postProdBoardId
+      ? (targetBoardId === postProdBoardId)
+      : (targetBoard && targetBoard.title.toLowerCase() === 'post-production');
+    const fromPostProd = postProdBoardId
+      ? (card.board_id === postProdBoardId)
+      : (fromBoard && fromBoard.title.toLowerCase() === 'post-production');
 
     if (toPostProd || fromPostProd) {
       const calEntries = await query(
