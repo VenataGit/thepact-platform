@@ -546,7 +546,7 @@ async function renderDashboard(el) {
     // Load + sync board timers
     try {
       var now = new Date(); now.setHours(0,0,0,0);
-      var syncPayload = boards.map(function(board) {
+      var syncPayload = kanbanBoards.map(function(board) {
         var boardCards = cards.filter(function(c) { return c.board_id === board.id && !c.completed_at && !c.archived_at; });
         var hasOverdue = boardCards.some(function(c) { return isCardOverdueForTimer(c, now); });
         return { board_id: board.id, has_overdue: hasOverdue };
@@ -561,7 +561,7 @@ async function renderDashboard(el) {
       timerRows.forEach(function(t) { _dashTimers[t.board_id] = t; });
     } catch (e) { console.warn('Timer sync failed', e); }
 
-    renderDashboardBoard(boards, cards, _dashStageColors);
+    renderDashboardBoard(kanbanBoards, cards, _dashStageColors);
 
     // Start auto-refresh for live dashboard (studio screen mode)
     _dashStartAutoRefresh();
@@ -580,11 +580,13 @@ async function _dashRefresh() {
       fetch('/api/boards').then(r => r.json()),
       fetch('/api/cards').then(r => r.json())
     ]);
-    _dashBoards = boards; _dashCards = cards; allBoards = boards;
+    // Filter out docs boards — they have no cards/columns
+    var kanbanBoards = boards.filter(function(b) { return b.type !== 'docs'; });
+    _dashBoards = kanbanBoards; _dashCards = cards; allBoards = boards;
 
     // Re-sync timers with correct overdue status
     var now = new Date(); now.setHours(0,0,0,0);
-    var syncPayload = boards.map(function(board) {
+    var syncPayload = kanbanBoards.map(function(board) {
       var boardCards = cards.filter(function(c) { return c.board_id === board.id && !c.completed_at && !c.archived_at; });
       var hasOverdue = boardCards.some(function(c) { return isCardOverdueForTimer(c, now); });
       return { board_id: board.id, has_overdue: hasOverdue };
@@ -606,7 +608,7 @@ async function _dashRefresh() {
     if (nums[0]) nums[0].textContent = totalActive;
     if (nums[1]) nums[1].textContent = totalOverdue;
     if (nums[2]) nums[2].textContent = totalOnHold;
-    if (nums[3]) nums[3].textContent = boards.length;
+    if (nums[3]) nums[3].textContent = kanbanBoards.length;
     // Update overdue stat styling
     var overdueEl = document.getElementById('dashOverdueStat');
     if (overdueEl) {
@@ -615,7 +617,7 @@ async function _dashRefresh() {
     }
 
     // Re-render board (cards, colors, timers)
-    renderDashboardBoard(boards, cards, _dashStageColors);
+    renderDashboardBoard(kanbanBoards, cards, _dashStageColors);
   } catch (e) { console.warn('Dashboard refresh failed', e); }
 }
 
@@ -848,7 +850,11 @@ function toggleDashCol(boardId) {
   expandedDashCol = expandedDashCol === boardId ? null : boardId;
   if (_dashBoards.length) { renderDashboardBoard(_dashBoards, _dashCards, _dashStageColors); return; }
   Promise.all([fetch('/api/boards').then(r=>r.json()), fetch('/api/cards').then(r=>r.json())])
-    .then(res => { _dashBoards=res[0]; _dashCards=res[1]; renderDashboardBoard(res[0], res[1], _dashStageColors); });
+    .then(res => {
+      var kb = res[0].filter(function(b) { return b.type !== 'docs'; });
+      _dashBoards = kb; _dashCards = res[1];
+      renderDashboardBoard(kb, res[1], _dashStageColors);
+    });
 }
 
 function toggleDashSubCol(boardId, colId) {
@@ -858,7 +864,11 @@ function toggleDashSubCol(boardId, colId) {
   localStorage.setItem('thepact-collapsed-subcols', JSON.stringify(collapsedSubCols));
   if (_dashBoards.length) { renderDashboardBoard(_dashBoards, _dashCards, _dashStageColors); return; }
   Promise.all([fetch('/api/boards').then(r=>r.json()), fetch('/api/cards').then(r=>r.json())])
-    .then(res => { _dashBoards=res[0]; _dashCards=res[1]; renderDashboardBoard(res[0], res[1], _dashStageColors); });
+    .then(res => {
+      var kb = res[0].filter(function(b) { return b.type !== 'docs'; });
+      _dashBoards = kb; _dashCards = res[1];
+      renderDashboardBoard(kb, res[1], _dashStageColors);
+    });
 }
 
 function toggleDashDone(boardId, doneColId) {
