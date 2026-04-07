@@ -4663,101 +4663,242 @@ async function saveSetting(key, value) {
 }
 
 // ==================== THEME CUSTOMIZATION ENGINE ====================
-var THEME_CONFIG = [
-  { title: 'Основни фонове', icon: '🖥️', items: [
-    { key: 'theme_bg', type: 'color', css: '--bg', def: '#0b151b', label: 'Основен фон на страницата' },
-    { key: 'theme_bg_card', type: 'color', css: '--bg-card', def: '#1b2930', label: 'Фон на карти и панели' },
-    { key: 'theme_bg_elevated', type: 'color', css: '--bg-elevated', def: '#1e3040', label: 'Повдигнат фон (бутони, полета)' },
-    { key: 'theme_bg_hover', type: 'color', css: '--bg-hover', def: '#243848', label: 'Ховър ефект' },
-    { key: 'theme_bg_active', type: 'color', css: '--bg-active', def: '#2c4858', label: 'Активен елемент' },
+// ==================== THEME TABS — пълна структура с подменюта ====================
+// Всяка категория съдържа групи (с описание) и items (всеки item е настройка).
+// Описанията обясняват КЪДЕ се вижда настройката в платформата.
+var THEME_TABS = [
+  // ---------- ГЛОБАЛНИ ----------
+  { id: 'global', icon: '🎨', label: 'Глобални', description: 'Базови цветове и фонове, които се използват навсякъде в платформата.', groups: [
+    { title: 'Основни фонове', icon: '🖥️', desc: 'Главни фонове на страницата, картите и панелите. Влияят на цялата платформа.', items: [
+      { key: 'theme_bg', type: 'color', css: '--bg', def: '#0b151b', label: 'Основен фон на страницата', hint: 'Целия body — задният фон, който се вижда зад всичко' },
+      { key: 'theme_bg_card', type: 'color', css: '--bg-card', def: '#1b2930', label: 'Фон на карти и панели', hint: 'Карти, панели, контейнери — заглавия и съдържание' },
+      { key: 'theme_bg_elevated', type: 'color', css: '--bg-elevated', def: '#1e3040', label: 'Повдигнат фон', hint: 'Бутони, dropdown менюта, повдигнати елементи' },
+      { key: 'theme_bg_hover', type: 'color', css: '--bg-hover', def: '#243848', label: 'Ховър ефект', hint: 'Когато курсорът мине върху интерактивен елемент' },
+      { key: 'theme_bg_active', type: 'color', css: '--bg-active', def: '#2c4858', label: 'Активен елемент', hint: 'Натиснат бутон или активна опция' },
+    ]},
+    { title: 'Текст', icon: '✏️', desc: 'Цветове на текста — основен, вторичен и приглушен (за помощни надписи).', items: [
+      { key: 'theme_text', type: 'color', css: '--text', def: '#e8ecee', label: 'Основен текст', hint: 'Главният текст в платформата — заглавия, съдържание' },
+      { key: 'theme_text_secondary', type: 'color', css: '--text-secondary', def: '#8fa3b0', label: 'Вторичен текст', hint: 'Подзаглавия, метаданни, мета информация' },
+      { key: 'theme_text_dim', type: 'color', css: '--text-dim', def: '#566d7a', label: 'Приглушен текст', hint: 'Дати, hints, неактивни елементи, placeholder' },
+    ]},
+    { title: 'Рамки', icon: '🔲', desc: 'Цветове на рамките около карти, бутони и контейнери.', items: [
+      { key: 'theme_border', type: 'color', css: '--border', def: '#1e3040', label: 'Рамки', hint: 'Стандартна рамка около всичко — карти, инпути, бутони' },
+      { key: 'theme_border_hover', type: 'color', css: '--border-hover', def: '#2c4858', label: 'Рамки при ховър', hint: 'Цвят на рамката, когато курсорът е върху елемент' },
+    ]},
+    { title: 'Акценти и линкове', icon: '💎', desc: 'Главни акцентни цветове за линкове, фокус и активни елементи.', items: [
+      { key: 'theme_accent', type: 'color', css: '--accent', def: '#1cb0f6', label: 'Основен акцент', hint: 'Линкове, фокус ринг, селекции, активни икони' },
+      { key: 'theme_accent_hover', type: 'color', css: '--accent-hover', def: '#3dc0ff', label: 'Акцент при ховър', hint: 'Когато курсорът е върху линк' },
+    ]},
+    { title: 'Статус цветове', icon: '🚦', desc: 'Цветове за състояния — успех, внимание, грешка, информация. Използват се в badges, индикатори, deadlines.', items: [
+      { key: 'theme_green', type: 'color', css: '--green', def: '#22c55e', label: 'Зелено (успех)', hint: 'Завършени задачи, успешни действия' },
+      { key: 'theme_yellow', type: 'color', css: '--yellow', def: '#eab308', label: 'Жълто (внимание)', hint: 'Предупреждения, наближаващи дедлайни' },
+      { key: 'theme_red', type: 'color', css: '--red', def: '#ef4444', label: 'Червено (грешка)', hint: 'Грешки, просрочени задачи, опасни действия' },
+      { key: 'theme_orange', type: 'color', css: '--orange', def: '#f97316', label: 'Оранжево', hint: 'Втори тон за внимание' },
+      { key: 'theme_blue', type: 'color', css: '--blue', def: '#3b82f6', label: 'Синьо', hint: 'Информационни badges' },
+      { key: 'theme_purple', type: 'color', css: '--purple', def: '#a855f7', label: 'Лилаво', hint: 'Допълнителен акцент за специални категории' },
+      { key: 'theme_teal', type: 'color', css: '--teal', def: '#14b8a6', label: 'Тийл', hint: 'Допълнителен акцент' },
+    ]},
+    { title: 'Скролбар', icon: '📜', desc: 'Цветове на лентата за превъртане (вертикална и хоризонтална).', items: [
+      { key: 'theme_scrollbar', type: 'color', css: '--scrollbar-thumb', def: '#2a3f4d', label: 'Цвят на скролбара', hint: 'Видимият палец на лентата' },
+      { key: 'theme_scrollbar_hover', type: 'color', css: '--scrollbar-thumb-hover', def: '#3a5565', label: 'Скролбар ховър', hint: 'Когато курсорът е върху скролбара' },
+    ]},
   ]},
-  { title: 'Текст', icon: '✏️', items: [
-    { key: 'theme_text', type: 'color', css: '--text', def: '#e8ecee', label: 'Основен текст' },
-    { key: 'theme_text_secondary', type: 'color', css: '--text-secondary', def: '#8fa3b0', label: 'Вторичен текст' },
-    { key: 'theme_text_dim', type: 'color', css: '--text-dim', def: '#566d7a', label: 'Приглушен текст' },
+
+  // ---------- НАВИГАЦИЯ ----------
+  { id: 'nav', icon: '🧭', label: 'Навигация', description: 'Горната лента с логото и менютата (Pings, Hey, Home, Boards, и т.н.).', groups: [
+    { title: 'Цветове на навигацията', icon: '🎨', desc: 'Фон, текст и активна опция на горната навигационна лента.', items: [
+      { key: 'theme_nav_bg', type: 'color', css: null, def: '#1e3040', label: 'Фон на навигацията', hint: 'Целият хоризонтален бар отгоре' },
+      { key: 'theme_nav_text', type: 'color', css: null, def: '#8fa3b0', label: 'Текст и икони', hint: 'Цвят на линковете и иконите в нав бара' },
+      { key: 'theme_nav_active', type: 'color', css: null, def: '#1cb0f6', label: 'Активно меню', hint: 'Цвят на текущо отворената страница' },
+    ]},
+    { title: 'Размери на навигацията', icon: '📐', desc: 'Височина на бара, размер на логото и иконите.', items: [
+      { key: 'theme_nav_height', type: 'range', css: '--nav-height', def: '50', label: 'Височина на навигацията', unit: 'px', min: 36, max: 70, step: 1, hint: 'Колко висок е горният бар' },
+      { key: 'theme_logo_height', type: 'range', css: '--logo-height', def: '22', label: 'Размер на логото', unit: 'px', min: 14, max: 40, step: 1, hint: 'Височина на логото в нав бара' },
+      { key: 'theme_nav_icon_size', type: 'range', css: '--nav-icon-size', def: '16', label: 'Размер на иконите', unit: 'px', min: 12, max: 28, step: 1, hint: 'Иконите до текстовите линкове' },
+      { key: 'theme_nav_font_size', type: 'range', css: '--nav-font-size', def: '13', label: 'Размер на текста', unit: 'px', min: 10, max: 18, step: 1, hint: 'Текст в линковете на навигацията' },
+    ]},
+    { title: 'Подменю (Breadcrumb)', icon: '🔗', desc: 'Лентата под навигацията, която показва къде сте (Home > Boards > Project).', items: [
+      { key: 'theme_breadcrumb_bg', type: 'color', css: '--breadcrumb-bg', def: '#1e3040', label: 'Фон', hint: 'Лента под нав бара' },
+      { key: 'theme_breadcrumb_text', type: 'color', css: '--breadcrumb-text', def: '#8fa3b0', label: 'Линкове', hint: 'Линковете в breadcrumb пътеката' },
+      { key: 'theme_breadcrumb_active', type: 'color', css: '--breadcrumb-active', def: '#e8ecee', label: 'Текуща страница', hint: 'Името на текущата страница (последния елемент)' },
+      { key: 'theme_breadcrumb_sep', type: 'color', css: '--breadcrumb-sep', def: '#566d7a', label: 'Разделител', hint: 'Символ "/" между елементите' },
+    ]},
+    { title: 'Dropdown менюта', icon: '📃', desc: 'Падащите менюта (профил, акаунт, навигационни менюта).', items: [
+      { key: 'theme_dropdown_bg', type: 'color', css: '--dropdown-bg', def: '#1e3040', label: 'Фон на dropdown', hint: 'Контейнерът на падащото меню' },
+      { key: 'theme_dropdown_text', type: 'color', css: '--dropdown-text', def: '#e8ecee', label: 'Текст', hint: 'Текст на опциите' },
+      { key: 'theme_dropdown_hover', type: 'color', css: '--dropdown-hover', def: '#243848', label: 'Ховър фон', hint: 'Когато курсорът е върху опция' },
+      { key: 'theme_dropdown_dim', type: 'color', css: '--dropdown-dim', def: '#566d7a', label: 'Приглушен текст', hint: 'Метаданни и subitems' },
+    ]},
   ]},
-  { title: 'Рамки', icon: '🔲', items: [
-    { key: 'theme_border', type: 'color', css: '--border', def: '#1e3040', label: 'Рамки' },
-    { key: 'theme_border_hover', type: 'color', css: '--border-hover', def: '#2c4858', label: 'Рамки при ховър' },
+
+  // ---------- НАЧАЛНА СТРАНИЦА ----------
+  { id: 'home', icon: '🏠', label: 'Начална страница', description: 'Главната страница с бордовете и docs картите (мрежата от карти).', groups: [
+    { title: 'Борд карти', icon: '🃏', desc: 'Картите за всеки борд на началната страница (виждат се при логване).', items: [
+      { key: 'theme_card_bg', type: 'color', css: '--home-card-bg', def: '#27353C', label: 'Фон на борд карта', hint: 'Тялото на картата под хедъра' },
+      { key: 'theme_card_header', type: 'color', css: '--home-card-header', def: '#3F6B57', label: 'Хедър на борд карта', hint: 'Цветната лента отгоре с името на борда' },
+      { key: 'theme_home_card_docs', type: 'color', css: '--home-card-docs', def: '#3a5565', label: 'Хедър на docs карта', hint: 'Документационните бордове' },
+    ]},
   ]},
-  { title: 'Акценти и бутони', icon: '💎', items: [
-    { key: 'theme_accent', type: 'color', css: '--accent', def: '#1cb0f6', label: 'Основен акцент (линкове, фокус)' },
-    { key: 'theme_accent_hover', type: 'color', css: '--accent-hover', def: '#3dc0ff', label: 'Акцент при ховър' },
-    { key: 'theme_btn_primary', type: 'color', css: '--btn-primary-bg', def: '#46a374', label: 'Основен бутон (зелен)' },
-    { key: 'theme_btn_primary_hover', type: 'color', css: '--btn-primary-hover', def: '#3d9168', label: 'Основен бутон ховър' },
+
+  // ---------- DASHBOARD ----------
+  { id: 'dashboard', icon: '📊', label: 'Dashboard', description: 'Главното табло с задачи групирани по борд и колона.', groups: [
+    { title: 'Карти на Dashboard', icon: '🃏', desc: 'Малките карти показвани на dashboard-а, групирани по състояние.', items: [
+      { key: 'theme_dash_bg', type: 'color', css: '--dash-card-bg', def: '#0b151b', label: 'Фон на карта', hint: 'Малките карти на dashboard' },
+      { key: 'theme_dash_title', type: 'color', css: '--dash-card-title', def: '#ffffff', label: 'Заглавие на карта', hint: 'Името на задачата' },
+    ]},
+    { title: 'Цветове по състояние', icon: '🚦', desc: 'Линията отляво на картата показва спешност спрямо deadline.', items: [
+      { key: 'theme_dash_ok', type: 'color', css: '--dash-ok', def: '#22c55e', label: 'Има време (зелено)', hint: 'Карти с дни до дедлайна' },
+      { key: 'theme_dash_soon', type: 'color', css: '--dash-soon', def: '#eab308', label: 'Наближава (жълто)', hint: 'Карти с няколко дни до дедлайна' },
+      { key: 'theme_dash_today', type: 'color', css: '--dash-today', def: '#ef4444', label: 'Днес (червено)', hint: 'Карти с дедлайн днес' },
+      { key: 'theme_dash_overdue', type: 'color', css: '--dash-overdue', def: '#ff0a0a', label: 'Просрочено', hint: 'Закъснели карти (с пулсираща анимация)' },
+      { key: 'theme_dash_hold', type: 'color', css: '--dash-hold', def: '#6b7280', label: 'На изчакване', hint: 'Паузирани/spaced карти' },
+    ]},
+    { title: 'Приоритетни карти', icon: '⭐', desc: 'Карти с приоритет (urgent, high) — показват се в специален стил.', items: [
+      { key: 'theme_dash_priority_bg', type: 'color', css: '--dash-priority-bg', def: '#ffffff', label: 'Приоритет: фон', hint: 'Бял фон за приоритетни карти' },
+      { key: 'theme_dash_priority_text', type: 'color', css: '--dash-priority-text', def: '#111111', label: 'Приоритет: текст', hint: 'Тъмен текст върху белия фон' },
+    ]},
   ]},
-  { title: 'Статус цветове', icon: '🚦', items: [
-    { key: 'theme_green', type: 'color', css: '--green', def: '#22c55e', label: 'Зелено (успех)' },
-    { key: 'theme_yellow', type: 'color', css: '--yellow', def: '#eab308', label: 'Жълто (внимание)' },
-    { key: 'theme_red', type: 'color', css: '--red', def: '#ef4444', label: 'Червено (грешка)' },
-    { key: 'theme_orange', type: 'color', css: '--orange', def: '#f97316', label: 'Оранжево' },
-    { key: 'theme_blue', type: 'color', css: '--blue', def: '#3b82f6', label: 'Синьо' },
+
+  // ---------- KANBAN ----------
+  { id: 'kanban', icon: '📋', label: 'Kanban борд', description: 'Бордът с колони и карти (drag & drop таблото).', groups: [
+    { title: 'Цветове на борда', icon: '🎨', desc: 'Главните фонове на kanban борда и колоните.', items: [
+      { key: 'theme_kanban_bg', type: 'color', css: '--kanban-bg', def: '#0d1a22', label: 'Фон на борда', hint: 'Зад колоните' },
+      { key: 'theme_kanban_col', type: 'color', css: '--kanban-col-bg', def: '#1a2e3d', label: 'Фон на колоната', hint: 'Контейнерът на всяка колона' },
+    ]},
+    { title: 'Kanban карти', icon: '🃏', desc: 'Картите вътре в колоните на kanban борда.', items: [
+      { key: 'theme_kcard_bg', type: 'color', css: '--kcard-bg', def: '#1b2930', label: 'Фон на картата', hint: 'Тялото на kanban картата' },
+      { key: 'theme_kcard_border', type: 'color', css: '--kcard-border', def: '#1e3040', label: 'Рамка', hint: 'Рамка около kanban картата' },
+      { key: 'theme_kcard_title', type: 'color', css: '--kcard-title', def: '#e8ecee', label: 'Заглавие', hint: 'Текстът на името на картата' },
+    ]},
+    { title: 'Deadline фонове — Kanban', icon: '⏰', desc: 'Цветни фонове на картите спрямо борд-специфичен дедлайн (Снимачен ден, Монтаж, и т.н.).', items: [
+      { key: 'theme_dl_green_bg', type: 'color', css: '--dl-green-bg', def: 'rgba(45, 165, 98, 0.38)', label: 'Зелен фон', hint: 'Карти с дни до дедлайна — kanban' },
+      { key: 'theme_dl_yellow_bg', type: 'color', css: '--dl-yellow-bg', def: 'rgba(234, 179, 8, 0.42)', label: 'Жълт фон', hint: 'Карти с няколко дни до дедлайна — kanban' },
+      { key: 'theme_dl_red_bg', type: 'color', css: '--dl-red-bg', def: 'rgba(239, 68, 68, 0.38)', label: 'Червен фон', hint: 'Карти с дедлайн днес — kanban' },
+      { key: 'theme_dl_black_bg', type: 'color', css: '--dl-black-bg', def: 'rgba(0, 0, 0, 0.50)', label: 'Черен фон (просрочено)', hint: 'Закъснели карти — kanban' },
+      { key: 'theme_dl_none_bg', type: 'color', css: '--dl-none-bg', def: 'rgba(136, 153, 166, 0.15)', label: 'Без дедлайн', hint: 'Карти без зададен дедлайн' },
+    ]},
+    { title: 'Deadline badges', icon: '🏷️', desc: 'Малките етикетчета върху картата с надписи за deadline.', items: [
+      { key: 'theme_dl_green_badge', type: 'color', css: '--dl-green-badge', def: 'rgba(45, 165, 98, 0.60)', label: 'Зелен badge', hint: 'Добро състояние' },
+      { key: 'theme_dl_yellow_badge', type: 'color', css: '--dl-yellow-badge', def: 'rgba(180, 130, 0, 0.70)', label: 'Жълт badge', hint: 'Внимание' },
+      { key: 'theme_dl_red_badge', type: 'color', css: '--dl-red-badge', def: 'rgba(239, 68, 68, 0.60)', label: 'Червен badge', hint: 'Критично' },
+      { key: 'theme_dl_black_badge', type: 'color', css: '--dl-black-badge', def: 'rgba(0, 0, 0, 0.40)', label: 'Черен badge', hint: 'Просрочено' },
+    ]},
+    { title: 'Приоритет', icon: '⭐', desc: 'Карти маркирани като приоритетни (с бяла лява лента).', items: [
+      { key: 'theme_priority_bg', type: 'color', css: '--priority-card-bg', def: 'rgba(255, 255, 255, 0.06)', label: 'Фон на приоритетна карта', hint: 'Полупрозрачен бял gradient фон' },
+      { key: 'theme_priority_border', type: 'color', css: '--priority-card-border', def: '#ffffff', label: 'Лява лента', hint: 'Цвят на бялата лента отляво' },
+    ]},
   ]},
-  { title: 'Навигация', icon: '🧭', items: [
-    { key: 'theme_nav_bg', type: 'color', css: null, def: '#1e3040', label: 'Фон на навигацията' },
-    { key: 'theme_nav_text', type: 'color', css: null, def: '#8fa3b0', label: 'Текст и икони' },
-    { key: 'theme_nav_active', type: 'color', css: null, def: '#1cb0f6', label: 'Активно меню' },
+
+  // ---------- ПРОИЗВОДСТВЕН КАЛЕНДАР ----------
+  { id: 'calendar', icon: '📅', label: 'Производствен календар', description: 'Седмичният календар със scheduled задачи (drag & drop в часови блокове).', groups: [
+    { title: 'Цветове на календара', icon: '🎨', desc: 'Главните фонове и линии на седмичния изглед.', items: [
+      { key: 'theme_pc_bg', type: 'color', css: '--pc-bg', def: '#0b151b', label: 'Фон на календара', hint: 'Цялата календарна област' },
+      { key: 'theme_pc_sidebar_bg', type: 'color', css: '--pc-sidebar-bg', def: '#1b2930', label: 'Странична лента', hint: 'Колоната с unscheduled карти отляво' },
+      { key: 'theme_pc_today_bg', type: 'color', css: '--pc-today-bg', def: 'rgba(70, 163, 116, 0.08)', label: 'Фон на днешния ден', hint: 'Колоната за днешния ден е леко оцветена' },
+    ]},
+    { title: 'Линии на грид-а', icon: '📏', desc: 'Линиите между часовете в седмичния изглед.', items: [
+      { key: 'theme_pc_grid_line', type: 'color', css: '--pc-grid-line', def: 'rgba(255, 255, 255, 0.07)', label: 'Главни линии', hint: 'Линии на всеки час' },
+      { key: 'theme_pc_grid_half', type: 'color', css: '--pc-grid-half', def: 'rgba(255, 255, 255, 0.04)', label: 'Половин линии', hint: 'Линии на половин час (по-приглушени)' },
+    ]},
+    { title: 'Събития в календара', icon: '🎫', desc: 'Цветни блокове за scheduled карти.', items: [
+      { key: 'theme_pc_event_done_bg', type: 'color', css: '--pc-event-done-bg', def: 'rgba(255, 255, 255, 0.18)', label: 'Завършено събитие', hint: 'Рамка на завършените събития' },
+      { key: 'theme_pc_event_check', type: 'color', css: '--pc-event-check', def: 'rgba(255, 255, 255, 0.25)', label: 'Чекмарк бутон', hint: 'Кръгчето за маркиране като завършено' },
+    ]},
+    { title: 'Deadline фонове — Календар', icon: '⏰', desc: 'Цветовете на mini-картите в страничната лента (по дедлайн).', items: [
+      { key: 'theme_dl_green_bg_pc', type: 'color', css: '--dl-green-bg-pc', def: 'rgba(45, 165, 98, 0.32)', label: 'Зелен фон (PC)', hint: 'Mini-карти зелено състояние' },
+      { key: 'theme_dl_yellow_bg_pc', type: 'color', css: '--dl-yellow-bg-pc', def: 'rgba(234, 179, 8, 0.35)', label: 'Жълт фон (PC)', hint: 'Mini-карти жълто състояние' },
+      { key: 'theme_dl_red_bg_pc', type: 'color', css: '--dl-red-bg-pc', def: 'rgba(239, 68, 68, 0.32)', label: 'Червен фон (PC)', hint: 'Mini-карти червено състояние' },
+      { key: 'theme_dl_black_bg_pc', type: 'color', css: '--dl-black-bg-pc', def: 'rgba(0, 0, 0, 0.45)', label: 'Черен фон (PC)', hint: 'Mini-карти просрочени' },
+    ]},
   ]},
-  { title: 'Начална страница', icon: '🏠', items: [
-    { key: 'theme_card_bg', type: 'color', css: '--home-card-bg', def: '#27353C', label: 'Фон на борд карта' },
-    { key: 'theme_card_header', type: 'color', css: '--home-card-header', def: '#3F6B57', label: 'Хедър на борд карта' },
+
+  // ---------- ЧАТ И CAMPFIRE ----------
+  { id: 'chat', icon: '💬', label: 'Чат и Campfire', description: 'Чат балончетата в Campfire (комуникация на екипа) и в карти.', groups: [
+    { title: 'Цветове на съобщения', icon: '🎨', desc: 'Фоновете на балончетата за чужди и собствени съобщения.', items: [
+      { key: 'theme_chat_msg_other', type: 'color', css: '--chat-msg-other-bg', def: '#27353C', label: 'Балонче — другите', hint: 'Съобщения от други хора (отляво)' },
+      { key: 'theme_chat_msg_own', type: 'color', css: '--chat-msg-own-bg', def: '#293F54', label: 'Балонче — мое', hint: 'Собствените съобщения (отдясно)' },
+    ]},
+    { title: 'Текст в чата', icon: '✏️', desc: 'Цветове на имената и текста на съобщенията.', items: [
+      { key: 'theme_chat_msg_name_other', type: 'color', css: '--chat-msg-name-other', def: '#8fa3b0', label: 'Име — другите', hint: 'Името на изпращача (отляво)' },
+      { key: 'theme_chat_msg_name_own', type: 'color', css: '--chat-msg-name-own', def: '#ffffff', label: 'Име — мое', hint: 'Собственото име (отдясно)' },
+    ]},
   ]},
-  { title: 'Kanban борд', icon: '📋', items: [
-    { key: 'theme_kanban_bg', type: 'color', css: '--kanban-bg', def: '#0d1a22', label: 'Фон на борда' },
-    { key: 'theme_kanban_col', type: 'color', css: '--kanban-col-bg', def: '#1a2e3d', label: 'Фон на колоната' },
+
+  // ---------- HEY ИЗВЕСТИЯ ----------
+  { id: 'hey', icon: '🔔', label: 'Hey известия', description: 'Страницата с непрочетени mentions, ping-ове и bookmarks.', groups: [
+    { title: 'Известия', icon: '🔔', desc: 'Цветове на различните секции в Hey страницата.', items: [
+      { key: 'theme_hey_unread', type: 'color', css: null, def: '#46a374', label: 'Фон на непрочетено', hint: 'Списъкът с непрочетени известия (леко оцветен)' },
+      { key: 'theme_hey_bookmarks', type: 'color', css: null, def: '#46a374', label: 'Секция отметки', hint: 'Bookmarks секцията (леко оцветена)' },
+      { key: 'theme_hey_dot', type: 'color', css: '--hey-dot', def: '#1cb0f6', label: 'Точка непрочетено', hint: 'Малката цветна точка до известието' },
+    ]},
   ]},
-  { title: 'Скролбар', icon: '📜', items: [
-    { key: 'theme_scrollbar', type: 'color', css: '--scrollbar-thumb', def: '#2a3f4d', label: 'Цвят' },
-    { key: 'theme_scrollbar_hover', type: 'color', css: '--scrollbar-thumb-hover', def: '#3a5565', label: 'Ховър' },
+
+  // ---------- БУТОНИ ----------
+  { id: 'buttons', icon: '🔘', label: 'Бутони и форми', description: 'Бутони, инпути, селект полета и форми.', groups: [
+    { title: 'Главен бутон', icon: '✅', desc: 'Зеленият Action бутон — Запази, Създай, Прати.', items: [
+      { key: 'theme_btn_primary', type: 'color', css: '--btn-primary-bg', def: '#46a374', label: 'Фон на главен бутон', hint: 'Зелените CTA бутони' },
+      { key: 'theme_btn_primary_hover', type: 'color', css: '--btn-primary-hover', def: '#3d9168', label: 'Главен бутон — ховър', hint: 'Когато курсорът е върху бутона' },
+      { key: 'theme_btn_text', type: 'color', css: '--btn-text', def: '#ffffff', label: 'Текст на бутона', hint: 'Цвят на надписа' },
+    ]},
+    { title: 'Полета (input/textarea)', icon: '⌨️', desc: 'Текстовите полета за въвеждане.', items: [
+      { key: 'theme_input_bg', type: 'color', css: '--input-bg', def: '#0b151b', label: 'Фон на полето', hint: 'Вътрешният фон на input' },
+      { key: 'theme_input_border', type: 'color', css: '--input-border', def: '#1e3040', label: 'Рамка на полето', hint: 'Рамката около input' },
+      { key: 'theme_input_text', type: 'color', css: '--input-text', def: '#e8ecee', label: 'Текст в полето', hint: 'Цвят на въведения текст' },
+      { key: 'theme_input_focus_border', type: 'color', css: '--input-focus-border', def: '#1cb0f6', label: 'Рамка при фокус', hint: 'Когато потребителят кликне в полето' },
+      { key: 'theme_input_placeholder', type: 'color', css: '--input-placeholder', def: '#566d7a', label: 'Placeholder текст', hint: 'Помощният текст преди писане' },
+    ]},
   ]},
-  { title: 'Подменю (Breadcrumb)', icon: '🔗', items: [
-    { key: 'theme_breadcrumb_bg', type: 'color', css: '--breadcrumb-bg', def: '#1e3040', label: 'Фон' },
-    { key: 'theme_breadcrumb_text', type: 'color', css: '--breadcrumb-text', def: '#8fa3b0', label: 'Линкове' },
-    { key: 'theme_breadcrumb_active', type: 'color', css: '--breadcrumb-active', def: '#e8ecee', label: 'Текуща страница' },
-    { key: 'theme_breadcrumb_sep', type: 'color', css: '--breadcrumb-sep', def: '#566d7a', label: 'Разделител' },
+
+  // ---------- МОДАЛИ И TOAST ----------
+  { id: 'modals', icon: '🪟', label: 'Модали и Toast', description: 'Изскачащи прозорци (модали), потвърждения и Toast съобщения.', groups: [
+    { title: 'Модали', icon: '🪟', desc: 'Изскачащите прозорци за потвърждение, въвеждане, и т.н.', items: [
+      { key: 'theme_modal_overlay', type: 'color', css: '--modal-overlay', def: 'rgba(0, 0, 0, 0.6)', label: 'Затъмнение зад модала', hint: 'Полупрозрачният фон зад модала' },
+      { key: 'theme_modal_bg', type: 'color', css: '--modal-bg', def: '#1b2930', label: 'Фон на модала', hint: 'Самият контейнер на модала' },
+    ]},
+    { title: 'Toast съобщения', icon: '📢', desc: 'Малките известия в горния десен ъгъл.', items: [
+      { key: 'theme_toast_bg', type: 'color', css: '--toast-bg', def: '#1e3040', label: 'Фон на Toast', hint: 'Фонът на toast съобщенията' },
+      { key: 'theme_toast_success', type: 'color', css: '--toast-success', def: '#22c55e', label: 'Лента — успех', hint: 'Зелена лева лента' },
+      { key: 'theme_toast_error', type: 'color', css: '--toast-error', def: '#ef4444', label: 'Лента — грешка', hint: 'Червена лева лента' },
+      { key: 'theme_toast_info', type: 'color', css: '--toast-info', def: '#1cb0f6', label: 'Лента — инфо', hint: 'Синя лева лента' },
+      { key: 'theme_toast_warning', type: 'color', css: '--toast-warning', def: '#eab308', label: 'Лента — внимание', hint: 'Жълта лева лента' },
+    ]},
   ]},
-  { title: 'Dropdown менюта', icon: '📃', items: [
-    { key: 'theme_dropdown_bg', type: 'color', css: '--dropdown-bg', def: '#1e3040', label: 'Фон' },
-    { key: 'theme_dropdown_text', type: 'color', css: '--dropdown-text', def: '#e8ecee', label: 'Текст' },
-    { key: 'theme_dropdown_hover', type: 'color', css: '--dropdown-hover', def: '#243848', label: 'Ховър' },
-    { key: 'theme_dropdown_dim', type: 'color', css: '--dropdown-dim', def: '#566d7a', label: 'Приглушен текст' },
+
+  // ---------- ТИПОГРАФИЯ ----------
+  { id: 'typography', icon: '🔤', label: 'Типография', description: 'Шрифт, размер на текста, височина на ред, дебелина на заглавия.', groups: [
+    { title: 'Шрифт', icon: '🔤', desc: 'Семейство и базов размер на шрифта в платформата.', items: [
+      { key: 'theme_font_family', type: 'select', css: '--font-family', def: 'Inter', label: 'Шрифт', options: ['Inter','Roboto','Open Sans','Nunito','Poppins','Lato','Montserrat','Source Sans Pro','Fira Sans','IBM Plex Sans'], hint: 'Google Fonts шрифт' },
+      { key: 'theme_font_size', type: 'range', css: '--font-size-base', def: '13.5', label: 'Основен размер', unit: 'px', min: 11, max: 18, step: 0.5, hint: 'Базов размер на текста' },
+      { key: 'theme_line_height', type: 'range', css: '--line-height-base', def: '1.6', label: 'Височина на ред', unit: '', min: 1.2, max: 2.2, step: 0.1, hint: 'Колко на ред да заема текста' },
+      { key: 'theme_heading_weight', type: 'select', css: '--heading-weight', def: '700', label: 'Дебелина на заглавия', options: ['400','500','600','700','800','900'], hint: 'От тънки (400) до удебелени (900)' },
+    ]},
   ]},
-  { title: 'Kanban карти', icon: '🃏', items: [
-    { key: 'theme_kcard_bg', type: 'color', css: '--kcard-bg', def: '#1b2930', label: 'Фон на картата' },
-    { key: 'theme_kcard_border', type: 'color', css: '--kcard-border', def: '#1e3040', label: 'Рамка' },
-    { key: 'theme_kcard_title', type: 'color', css: '--kcard-title', def: '#e8ecee', label: 'Заглавие' },
-  ]},
-  { title: 'Dashboard', icon: '📊', items: [
-    { key: 'theme_dash_bg', type: 'color', css: '--dash-card-bg', def: '#0b151b', label: 'Фон на карта' },
-    { key: 'theme_dash_title', type: 'color', css: '--dash-card-title', def: '#ffffff', label: 'Заглавие' },
-    { key: 'theme_dash_ok', type: 'color', css: '--dash-ok', def: '#22c55e', label: 'Има време (зелено)' },
-    { key: 'theme_dash_soon', type: 'color', css: '--dash-soon', def: '#eab308', label: 'Наближава (жълто)' },
-    { key: 'theme_dash_today', type: 'color', css: '--dash-today', def: '#ef4444', label: 'Днес (червено)' },
-    { key: 'theme_dash_overdue', type: 'color', css: '--dash-overdue', def: '#ff0a0a', label: 'Просрочено' },
-    { key: 'theme_dash_priority_bg', type: 'color', css: '--dash-priority-bg', def: '#ffffff', label: 'Приоритет: фон' },
-    { key: 'theme_dash_priority_text', type: 'color', css: '--dash-priority-text', def: '#111111', label: 'Приоритет: текст' },
-    { key: 'theme_dash_hold', type: 'color', css: '--dash-hold', def: '#6b7280', label: 'На изчакване' },
-  ]},
-  { title: 'Hey известия', icon: '🔔', items: [
-    { key: 'theme_hey_unread', type: 'color', css: null, def: '#46a374', label: 'Фон непрочетено' },
-    { key: 'theme_hey_bookmarks', type: 'color', css: null, def: '#46a374', label: 'Секция отметки' },
-    { key: 'theme_hey_dot', type: 'color', css: '--hey-dot', def: '#1cb0f6', label: 'Точка непрочетено' },
-  ]},
-  { title: 'Шрифт', icon: '🔤', items: [
-    { key: 'theme_font_family', type: 'select', css: '--font-family', def: 'Inter', label: 'Шрифт', options: ['Inter','Roboto','Open Sans','Nunito','Poppins','Lato','Montserrat','Source Sans Pro','Fira Sans','IBM Plex Sans'] },
-    { key: 'theme_font_size', type: 'range', css: '--font-size-base', def: '13.5', label: 'Основен размер текст', unit: 'px', min: 11, max: 18, step: 0.5 },
-    { key: 'theme_line_height', type: 'range', css: '--line-height-base', def: '1.6', label: 'Височина на ред', unit: '', min: 1.2, max: 2.2, step: 0.1 },
-    { key: 'theme_heading_weight', type: 'select', css: '--heading-weight', def: '700', label: 'Дебелина на заглавия', options: ['400','500','600','700','800','900'] },
-  ]},
-  { title: 'Размери', icon: '📐', items: [
-    { key: 'theme_radius', type: 'range', css: '--radius', def: '8', label: 'Закръгленост (малка)', unit: 'px', min: 0, max: 20, step: 1 },
-    { key: 'theme_radius_lg', type: 'range', css: '--radius-lg', def: '12', label: 'Закръгленост (голяма)', unit: 'px', min: 0, max: 24, step: 1 },
-    { key: 'theme_nav_height', type: 'range', css: '--nav-height', def: '50', label: 'Височина на навигацията', unit: 'px', min: 36, max: 70, step: 1 },
-    { key: 'theme_logo_height', type: 'range', css: '--logo-height', def: '22', label: 'Размер на логото', unit: 'px', min: 14, max: 40, step: 1 },
-    { key: 'theme_nav_icon_size', type: 'range', css: '--nav-icon-size', def: '16', label: 'Навигационни икони', unit: 'px', min: 12, max: 28, step: 1 },
-    { key: 'theme_nav_font_size', type: 'range', css: '--nav-font-size', def: '13', label: 'Навигационен текст', unit: 'px', min: 10, max: 18, step: 1 },
+
+  // ---------- РАЗМЕРИ ----------
+  { id: 'sizing', icon: '📐', label: 'Размери и закръгленост', description: 'Закръгленост на ъглите, отстояния, шадоу.', groups: [
+    { title: 'Закръгленост', icon: '⚪', desc: 'Радиусите на ъглите за карти, бутони и контейнери.', items: [
+      { key: 'theme_radius', type: 'range', css: '--radius', def: '8', label: 'Малка закръгленост', unit: 'px', min: 0, max: 20, step: 1, hint: 'За бутони и малки елементи' },
+      { key: 'theme_radius_lg', type: 'range', css: '--radius-lg', def: '12', label: 'Голяма закръгленост', unit: 'px', min: 0, max: 24, step: 1, hint: 'За карти и панели' },
+      { key: 'theme_btn_radius', type: 'range', css: '--btn-radius', def: '8', label: 'Закръгленост на бутон', unit: 'px', min: 0, max: 30, step: 1, hint: 'Само за бутоните' },
+      { key: 'theme_input_radius', type: 'range', css: '--input-radius', def: '8', label: 'Закръгленост на полета', unit: 'px', min: 0, max: 20, step: 1, hint: 'Само за input/textarea' },
+      { key: 'theme_modal_radius', type: 'range', css: '--modal-radius', def: '12', label: 'Закръгленост на модал', unit: 'px', min: 0, max: 24, step: 1, hint: 'Само за изскачащи прозорци' },
+      { key: 'theme_home_card_radius', type: 'range', css: '--home-card-radius', def: '14', label: 'Закръгленост на home карта', unit: 'px', min: 0, max: 24, step: 1, hint: 'Картите на началната страница' },
+      { key: 'theme_kcard_radius', type: 'range', css: '--kcard-radius', def: '8', label: 'Закръгленост на kanban карта', unit: 'px', min: 0, max: 20, step: 1, hint: 'Картите в kanban борда' },
+    ]},
   ]},
 ];
+
+// ---------- BACKWARDS COMPATIBILITY ----------
+// Запазваме THEME_CONFIG като flatten на THEME_TABS (за функции които използват директно)
+var THEME_CONFIG = (function() {
+  var result = [];
+  THEME_TABS.forEach(function(tab) {
+    tab.groups.forEach(function(group) {
+      result.push({ title: group.title, icon: group.icon, items: group.items });
+    });
+  });
+  return result;
+})();
 
 function _hexToRgba(hex, alpha) {
   hex = (hex || '').replace('#', '');
@@ -4780,27 +4921,34 @@ function applyThemeColors() {
   var style = document.getElementById('themeOverrides');
   if (!style) { style = document.createElement('style'); style.id = 'themeOverrides'; document.head.appendChild(style); }
   var c = _platformConfig, rootVars = '', extraCss = '';
-  THEME_CONFIG.forEach(function(group) {
-    group.items.forEach(function(item) {
-      if (!item.css || !c[item.key]) return;
-      var val = c[item.key];
-      if (item.type === 'range' && item.unit) val = val + item.unit;
-      else if (item.type === 'select' && item.css === '--font-family') {
-        _loadGoogleFont(val);
-        val = '"' + val + '", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      }
-      rootVars += '  ' + item.css + ': ' + val + ';\n';
+  // Apply all theme settings — обхожда THEME_TABS вместо THEME_CONFIG за пълно покритие
+  THEME_TABS.forEach(function(tab) {
+    tab.groups.forEach(function(group) {
+      group.items.forEach(function(item) {
+        if (!item.css || !c[item.key]) return;
+        var val = c[item.key];
+        if (item.type === 'range' && item.unit) val = val + item.unit;
+        else if (item.type === 'select' && item.css === '--font-family') {
+          _loadGoogleFont(val);
+          val = '"' + val + '", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        }
+        rootVars += '  ' + item.css + ': ' + val + ';\n';
+      });
     });
   });
-  var dimMap = { theme_accent: '--accent-dim', theme_green: '--green-dim', theme_yellow: '--yellow-dim', theme_red: '--red-dim', theme_blue: '--blue-dim' };
+  // Auto-derive dim/tint variants when главните цветове са променени
+  var dimMap = { theme_accent: '--accent-dim', theme_green: '--green-dim', theme_yellow: '--yellow-dim', theme_red: '--red-dim', theme_blue: '--blue-dim', theme_orange: '--orange-dim', theme_purple: '--purple-dim', theme_teal: '--teal-dim' };
   Object.keys(dimMap).forEach(function(k) { if (c[k]) rootVars += '  ' + dimMap[k] + ': ' + _hexToRgba(c[k], 0.12) + ';\n'; });
   // Dashboard auto-derive tint backgrounds from border colors
   var dashDerive = { theme_dash_ok: ['--dash-ok-bg', 0.08], theme_dash_soon: ['--dash-soon-bg', 0.08], theme_dash_today: ['--dash-today-bg', 0.12], theme_dash_hold: ['--dash-hold-bg', 0.1] };
   Object.keys(dashDerive).forEach(function(k) { if (c[k]) rootVars += '  ' + dashDerive[k][0] + ': ' + _hexToRgba(c[k], dashDerive[k][1]) + ';\n'; });
+  // Auto-derive deadline-dash backgrounds from main deadline backgrounds (за визуална консистентност между kanban и dashboard)
+  // Само ако потребителят не е задал директно стойност за dash вариант
   // Hey auto-derive tints
   if (c.theme_hey_unread) rootVars += '  --hey-unread-bg: ' + _hexToRgba(c.theme_hey_unread, 0.06) + ';\n';
   if (c.theme_hey_bookmarks) rootVars += '  --hey-bookmarks-bg: ' + _hexToRgba(c.theme_hey_bookmarks, 0.04) + ';\n';
   if (rootVars) extraCss += ':root {\n' + rootVars + '}\n';
+  // Navigation overrides (използва се special CSS защото няма .nav__bar var директно)
   if (c.theme_nav_bg) extraCss += '.nav__bar { background: ' + c.theme_nav_bg + ' !important; }\n';
   if (c.theme_nav_text) {
     extraCss += '.nav__link { color: ' + c.theme_nav_text + '; }\n';
@@ -4814,45 +4962,120 @@ function applyThemeColors() {
   style.textContent = extraCss;
 }
 
+// Текущ активен sub-tab в Персонализация (сесийно)
+var _currentThemeTab = 'global';
+
 function loadAdminColors() {
   var el = document.getElementById('adminColorsContent');
   if (!el) return;
+  // Общ контейнер: header + sub-tabs + content
+  var html = '<div class="theme-admin-wrap">';
+  // Header
+  html += '<div class="theme-admin-hdr">' +
+    '<div class="theme-admin-hint">💡 Промените се прилагат на живо. Кликнете ↺ за връщане към стойност по подразбиране.</div>' +
+    '<button class="btn btn-sm theme-reset-all" onclick="resetAllTheme()">↺ Нулирай всичко</button>' +
+    '</div>';
+  // Sub-tab buttons
+  html += '<div class="theme-tabs-nav">';
+  THEME_TABS.forEach(function(tab) {
+    var isActive = (tab.id === _currentThemeTab) ? ' active' : '';
+    html += '<button class="theme-tab-btn' + isActive + '" onclick="showThemeTab(\'' + tab.id + '\')" title="' + esc(tab.description) + '">' +
+      '<span class="theme-tab-icon">' + tab.icon + '</span>' +
+      '<span class="theme-tab-label">' + esc(tab.label) + '</span>' +
+      '</button>';
+  });
+  html += '</div>';
+  // Content area (filled by renderThemeTabContent)
+  html += '<div id="themeTabContent" class="theme-tab-content"></div>';
+  html += '</div>';
+  el.innerHTML = html;
+  renderThemeTabContent();
+}
+
+function showThemeTab(tabId) {
+  _currentThemeTab = tabId;
+  // Update tab button active states
+  var btns = document.querySelectorAll('.theme-tab-btn');
+  btns.forEach(function(b) { b.classList.remove('active'); });
+  var idx = 0;
+  THEME_TABS.forEach(function(t, i) { if (t.id === tabId) idx = i; });
+  if (btns[idx]) btns[idx].classList.add('active');
+  renderThemeTabContent();
+}
+
+function renderThemeTabContent() {
+  var contentEl = document.getElementById('themeTabContent');
+  if (!contentEl) return;
   var s = _platformConfig;
-  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">' +
-    '<div style="font-size:12px;color:var(--text-dim)">Промените се прилагат на живо. Натиснете ↺ за стойност по подразбиране.</div>' +
-    '<button class="btn btn-sm" onclick="resetAllTheme()" style="color:var(--red)">↺ Нулирай всичко</button></div>';
-  THEME_CONFIG.forEach(function(group) {
-    html += '<div class="admin-settings-section"><h3>' + group.icon + ' ' + group.title + '</h3>';
+  var tab = null;
+  for (var i = 0; i < THEME_TABS.length; i++) {
+    if (THEME_TABS[i].id === _currentThemeTab) { tab = THEME_TABS[i]; break; }
+  }
+  if (!tab) tab = THEME_TABS[0];
+  var html = '';
+  // Tab header with icon, label, description
+  html += '<div class="theme-tab-hdr">' +
+    '<div class="theme-tab-hdr-icon">' + tab.icon + '</div>' +
+    '<div class="theme-tab-hdr-text">' +
+      '<h3>' + esc(tab.label) + '</h3>' +
+      '<p>' + esc(tab.description) + '</p>' +
+    '</div>' +
+    '</div>';
+  // Render groups
+  tab.groups.forEach(function(group) {
+    html += '<div class="theme-group">';
+    html += '<div class="theme-group-hdr">' +
+      '<h4>' + (group.icon || '') + ' ' + esc(group.title) + '</h4>' +
+      (group.desc ? '<p class="theme-group-desc">' + esc(group.desc) + '</p>' : '') +
+      '</div>';
+    html += '<div class="theme-group-items">';
     group.items.forEach(function(item) {
       var val = s[item.key] || item.def;
-      html += '<div class="admin-setting-row"><label>' + esc(item.label) + '</label>';
+      html += '<div class="theme-row">';
+      html += '<div class="theme-row-label">' +
+        '<div class="theme-row-name">' + esc(item.label) + '</div>' +
+        (item.hint ? '<div class="theme-row-hint">' + esc(item.hint) + '</div>' : '') +
+        '</div>';
+      html += '<div class="theme-row-control">';
       if (item.type === 'color') {
-        html += '<input type="color" id="' + item.key + '_picker" value="' + esc(val) + '" ' +
-          'oninput="previewTheme(\'' + item.key + '\',this.value)" onchange="saveTheme(\'' + item.key + '\',this.value)">' +
-          '<input class="input-sm" type="text" id="' + item.key + '_text" value="' + esc(val) + '" ' +
-          'style="width:80px;font-family:monospace;font-size:12px" onblur="saveTheme(\'' + item.key + '\',this.value,true)">' +
-          '<button class="btn btn-ghost btn-sm" onclick="resetTheme(\'' + item.key + '\',\'' + item.def + '\')" title="По подразбиране">↺</button>';
+        // Detect if value is rgba — show only text input + transparent picker fallback
+        var isRgba = (val + '').indexOf('rgba') === 0 || (val + '').indexOf('rgb(') === 0;
+        var hexForPicker = isRgba ? _rgbaToHex(val) : val;
+        html += '<input type="color" class="theme-color-picker" id="' + item.key + '_picker" value="' + esc(hexForPicker) + '" ' +
+          'oninput="previewTheme(\'' + item.key + '\',this.value)" onchange="saveTheme(\'' + item.key + '\',this.value)">';
+        html += '<input class="theme-color-text" type="text" id="' + item.key + '_text" value="' + esc(val) + '" ' +
+          'onblur="saveTheme(\'' + item.key + '\',this.value,true)">';
+        html += '<button class="theme-reset-btn" onclick="resetTheme(\'' + item.key + '\',\'' + esc(item.def) + '\')" title="По подразбиране">↺</button>';
       } else if (item.type === 'range') {
-        html += '<input type="range" id="' + item.key + '_range" value="' + esc(val) + '" ' +
+        html += '<input type="range" class="theme-range" id="' + item.key + '_range" value="' + esc(val) + '" ' +
           'min="' + item.min + '" max="' + item.max + '" step="' + item.step + '" ' +
-          'style="flex:1;max-width:180px;accent-color:var(--accent)" ' +
           'oninput="previewTheme(\'' + item.key + '\',this.value);document.getElementById(\'' + item.key + '_val\').textContent=this.value+\'' + (item.unit || '') + '\'" ' +
-          'onchange="saveTheme(\'' + item.key + '\',this.value)">' +
-          '<span id="' + item.key + '_val" style="font-size:12px;font-family:monospace;min-width:50px;color:var(--text-secondary)">' + esc(val) + (item.unit || '') + '</span>' +
-          '<button class="btn btn-ghost btn-sm" onclick="resetThemeRange(\'' + item.key + '\',\'' + item.def + '\',\'' + (item.unit || '') + '\')" title="По подразбиране">↺</button>';
-      } else if (item.type === 'select') {
-        html += '<select class="input-sm" id="' + item.key + '_select" style="max-width:200px" ' +
           'onchange="saveTheme(\'' + item.key + '\',this.value)">';
+        html += '<span class="theme-range-val" id="' + item.key + '_val">' + esc(val) + (item.unit || '') + '</span>';
+        html += '<button class="theme-reset-btn" onclick="resetThemeRange(\'' + item.key + '\',\'' + item.def + '\',\'' + (item.unit || '') + '\')" title="По подразбиране">↺</button>';
+      } else if (item.type === 'select') {
+        html += '<select class="theme-select" id="' + item.key + '_select" onchange="saveTheme(\'' + item.key + '\',this.value)">';
         item.options.forEach(function(opt) {
           html += '<option value="' + opt + '"' + (val === opt ? ' selected' : '') + '>' + opt + '</option>';
         });
-        html += '</select><button class="btn btn-ghost btn-sm" onclick="resetThemeSelect(\'' + item.key + '\',\'' + item.def + '\')" title="По подразбиране">↺</button>';
+        html += '</select>';
+        html += '<button class="theme-reset-btn" onclick="resetThemeSelect(\'' + item.key + '\',\'' + item.def + '\')" title="По подразбиране">↺</button>';
       }
-      html += '</div>';
+      html += '</div></div>'; // /control /row
     });
-    html += '</div>';
+    html += '</div></div>'; // /items /group
   });
-  el.innerHTML = html;
+  contentEl.innerHTML = html;
+}
+
+// Helper: rgba string to approximate hex (за color picker)
+function _rgbaToHex(rgba) {
+  var m = (rgba + '').match(/rgba?\(([^)]+)\)/);
+  if (!m) return '#000000';
+  var parts = m[1].split(',').map(function(s) { return parseFloat(s.trim()); });
+  var r = Math.round(parts[0] || 0), g = Math.round(parts[1] || 0), b = Math.round(parts[2] || 0);
+  function pad(n) { var h = n.toString(16); return h.length < 2 ? '0' + h : h; }
+  return '#' + pad(r) + pad(g) + pad(b);
 }
 
 function previewTheme(key, value) {
@@ -4868,7 +5091,8 @@ function saveTheme(key, value, fromText) {
   applyThemeColors();
   if (!fromText) { var t = document.getElementById(key + '_text'); if (t) t.value = value; }
   var p = document.getElementById(key + '_picker');
-  if (p && p.value !== value) p.value = value;
+  // Update picker only if value is hex (picker не приема rgba)
+  if (p && /^#[0-9a-fA-F]{6}$/.test(value) && p.value !== value) p.value = value;
 }
 
 function resetTheme(key, def) {
@@ -4876,7 +5100,11 @@ function resetTheme(key, def) {
   saveSetting(key, '');
   applyThemeColors();
   var t = document.getElementById(key + '_text'); if (t) t.value = def;
-  var p = document.getElementById(key + '_picker'); if (p) p.value = def;
+  var p = document.getElementById(key + '_picker');
+  if (p) {
+    if (/^#[0-9a-fA-F]{6}$/.test(def)) { p.value = def; }
+    else { p.value = _rgbaToHex(def); }
+  }
 }
 
 function resetThemeRange(key, def, unit) {
@@ -4895,10 +5123,12 @@ function resetThemeSelect(key, def) {
 }
 
 function resetAllTheme() {
-  THEME_CONFIG.forEach(function(group) {
-    group.items.forEach(function(item) {
-      _platformConfig[item.key] = '';
-      saveSetting(item.key, '');
+  THEME_TABS.forEach(function(tab) {
+    tab.groups.forEach(function(group) {
+      group.items.forEach(function(item) {
+        _platformConfig[item.key] = '';
+        saveSetting(item.key, '');
+      });
     });
   });
   applyThemeColors();

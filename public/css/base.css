@@ -5,6 +5,7 @@
 /* Font loaded via <link> in index.html for faster preconnect */
 
 :root {
+  /* ==================== GLOBAL FOUNDATIONS ==================== */
   --bg: #0b151b;
   --bg-card: #1b2930;
   --bg-elevated: #1e3040;
@@ -15,6 +16,8 @@
   --text: #e8ecee;
   --text-secondary: #8fa3b0;
   --text-dim: #566d7a;
+
+  /* ==================== ACCENT & STATUS COLORS ==================== */
   --accent: #1cb0f6;
   --accent-hover: #3dc0ff;
   --accent-dim: rgba(28, 176, 246, 0.12);
@@ -25,12 +28,21 @@
   --red: #ef4444;
   --red-dim: rgba(239, 68, 68, 0.12);
   --orange: #f97316;
+  --orange-dim: rgba(249, 115, 22, 0.12);
   --blue: #3b82f6;
   --blue-dim: rgba(59, 130, 246, 0.12);
+  --purple: #a855f7;
+  --purple-dim: rgba(168, 85, 247, 0.12);
+  --teal: #14b8a6;
+  --teal-dim: rgba(20, 184, 166, 0.12);
+
+  /* ==================== LEGACY CARD ACCENTS ==================== */
   --card-green: #4a6d5d;
   --card-gold: #8c734b;
   --card-red: #8c4b4b;
   --card-teal: #3d6b6b;
+
+  /* ==================== LAYOUT & SIZING ==================== */
   --sidebar-width: 240px;
   --radius: 8px;
   --radius-lg: 12px;
@@ -39,22 +51,144 @@
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-size-base: 13.5px;
-  --line-height-base: 1.6;
-  --heading-weight: 700;
-  --btn-primary-bg: #46a374;
-  --btn-primary-hover: #3d9168;
-  --scrollbar-thumb: #2a3f4d;
-  --scrollbar-thumb-hover: #3a5565;
-  --home-card-bg: #27353C;
-  --home-card-header: #3F6B57;
-  --kanban-bg: #0d1a22;
-  --kanban-col-bg: #1a2e3d;
   --nav-height: 50px;
   --logo-height: 22px;
   --nav-icon-size: 16px;
   --nav-font-size: 13px;
+
+  /* ==================== TYPOGRAPHY ==================== */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-base: 13.5px;
+  --line-height-base: 1.6;
+  --heading-weight: 700;
+
+  /* ==================== BUTTONS ==================== */
+  --btn-primary-bg: #46a374;
+  --btn-primary-hover: #3d9168;
+  --btn-text: #ffffff;
+  --btn-radius: 8px;
+
+  /* ==================== SCROLLBAR ==================== */
+  --scrollbar-thumb: #2a3f4d;
+  --scrollbar-thumb-hover: #3a5565;
+
+  /* ==================== HOME PAGE ==================== */
+  --home-card-bg: #27353C;
+  --home-card-header: #3F6B57;
+  --home-card-docs: #3a5565;
+  --home-card-radius: 14px;
+
+  /* ==================== KANBAN BOARD ==================== */
+  --kanban-bg: #0d1a22;
+  --kanban-col-bg: #1a2e3d;
+  --kanban-col-border: rgba(255,255,255,0.07);
+  --kcard-bg: #1b2930;
+  --kcard-border: #1e3040;
+  --kcard-title: #e8ecee;
+  --kcard-radius: 8px;
+  --col-color: var(--accent);
+
+  /* ==================== DEADLINE COLOR BACKGROUNDS (kanban + dash + pc) ==================== */
+  --dl-green-bg: rgba(45, 165, 98, 0.38);
+  --dl-yellow-bg: rgba(234, 179, 8, 0.42);
+  --dl-red-bg: rgba(239, 68, 68, 0.38);
+  --dl-black-bg: rgba(0, 0, 0, 0.50);
+  --dl-none-bg: rgba(136, 153, 166, 0.15);
+  --dl-green-bg-dash: rgba(45, 165, 98, 0.35);
+  --dl-yellow-bg-dash: rgba(234, 179, 8, 0.38);
+  --dl-red-bg-dash: rgba(239, 68, 68, 0.35);
+  --dl-black-bg-dash: rgba(0, 0, 0, 0.45);
+  --dl-green-bg-pc: rgba(45, 165, 98, 0.32);
+  --dl-yellow-bg-pc: rgba(234, 179, 8, 0.35);
+  --dl-red-bg-pc: rgba(239, 68, 68, 0.32);
+  --dl-black-bg-pc: rgba(0, 0, 0, 0.45);
+  --dl-green-badge: rgba(45, 165, 98, 0.60);
+  --dl-yellow-badge: rgba(180, 130, 0, 0.70);
+  --dl-red-badge: rgba(239, 68, 68, 0.60);
+  --dl-black-badge: rgba(0, 0, 0, 0.40);
+  --dl-green-border: var(--green);
+  --dl-yellow-border: var(--yellow);
+  --dl-red-border: var(--red);
+  --dl-black-border: #888;
+  --dl-none-border: #8899a6;
+  --priority-card-bg: rgba(255, 255, 255, 0.06);
+  --priority-card-border: #ffffff;
+
+  /* ==================== DASHBOARD ==================== */
+  --dash-card-bg: #0b151b;
+  --dash-card-title: #ffffff;
+  --dash-ok: #22c55e;
+  --dash-soon: #eab308;
+  --dash-today: #ef4444;
+  --dash-overdue: #ff0a0a;
+  --dash-priority-bg: #ffffff;
+  --dash-priority-text: #111111;
+  --dash-hold: #6b7280;
+  --dash-ok-bg: rgba(34, 197, 94, 0.08);
+  --dash-soon-bg: rgba(234, 179, 8, 0.08);
+  --dash-today-bg: rgba(239, 68, 68, 0.12);
+  --dash-hold-bg: rgba(107, 114, 128, 0.10);
+
+  /* ==================== HEY NOTIFICATIONS ==================== */
+  --hey-dot: var(--accent);
+  --hey-unread-bg: rgba(70, 163, 116, 0.06);
+  --hey-bookmarks-bg: rgba(70, 163, 116, 0.04);
+
+  /* ==================== BREADCRUMB ==================== */
+  --breadcrumb-bg: var(--bg-elevated);
+  --breadcrumb-text: var(--text-secondary);
+  --breadcrumb-active: var(--text);
+  --breadcrumb-sep: var(--text-dim);
+
+  /* ==================== DROPDOWN MENUS ==================== */
+  --dropdown-bg: var(--bg-elevated);
+  --dropdown-text: var(--text);
+  --dropdown-hover: var(--bg-hover);
+  --dropdown-dim: var(--text-dim);
+
+  /* ==================== CHAT / CAMPFIRE ==================== */
+  --chat-bg: var(--bg-card);
+  --chat-msg-other-bg: #27353C;
+  --chat-msg-own-bg: #293F54;
+  --chat-msg-text: var(--text);
+  --chat-msg-name-other: var(--text-secondary);
+  --chat-msg-name-own: #ffffff;
+  --chat-input-bg: transparent;
+  --chat-send-bg: var(--accent);
+  --chat-send-color: #ffffff;
+
+  /* ==================== PRODUCTION CALENDAR ==================== */
+  --pc-bg: var(--bg);
+  --pc-sidebar-bg: var(--bg-card);
+  --pc-event-shadow: rgba(0, 0, 0, 0.40);
+  --pc-today-bg: rgba(70, 163, 116, 0.08);
+  --pc-grid-line: rgba(255, 255, 255, 0.07);
+  --pc-grid-half: rgba(255, 255, 255, 0.04);
+  --pc-event-done-bg: rgba(255, 255, 255, 0.18);
+  --pc-event-check: rgba(255, 255, 255, 0.25);
+
+  /* ==================== MODALS / OVERLAYS / TOASTS ==================== */
+  --modal-overlay: rgba(0, 0, 0, 0.6);
+  --modal-bg: var(--bg-card);
+  --modal-radius: 12px;
+  --toast-bg: var(--bg-elevated);
+  --toast-success: var(--green);
+  --toast-error: var(--red);
+  --toast-info: var(--accent);
+  --toast-warning: var(--yellow);
+
+  /* ==================== CARD PAGE (BC) ==================== */
+  --card-page-bg: var(--bg-card);
+  --card-page-radius: 12px;
+
+  /* ==================== INPUT / FORM CONTROLS ==================== */
+  --input-bg: var(--bg);
+  --input-border: var(--border);
+  --input-text: var(--text);
+  --input-focus-border: var(--accent);
+  --input-placeholder: var(--text-dim);
+  --input-radius: 8px;
+
   color-scheme: dark;
 }
 
