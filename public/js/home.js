@@ -111,19 +111,6 @@ async function renderHome(el) {
           </div>
         </div>
 
-        <!-- Quick access -->
-        <div style="margin-bottom:32px">
-          <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Бърз достъп</div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <a href="#/dashboard" class="btn btn-sm">📊 Dashboard</a>
-            <a href="#/calendar" class="btn btn-sm">📅 Календар</a>
-            <a href="#/reports?tab=overdue" class="btn btn-sm">🔴 Просрочени</a>
-            <a href="#/campfire/1" class="btn btn-sm">🔥 Campfire</a>
-            <a href="#/tools/kp-auto" class="btn btn-sm">🤖 КП-Автоматизация</a>
-            <a href="#/vault" class="btn btn-sm">📁 Документи</a>
-          </div>
-        </div>
-
         <!-- My upcoming tasks -->
         ${myUpcoming.length > 0 ? `
         <div style="margin-bottom:32px">
