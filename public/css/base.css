@@ -124,7 +124,7 @@
   --home-card-radius: 14px;
 
   /* ==================== KANBAN BOARD ==================== */
-  --kanban-bg: #0d1a22;
+  --kanban-bg: transparent;
   --kanban-col-bg: #1a2e3d;
   --kanban-col-border: rgba(255,255,255,0.07);
   --kcard-bg: #1b2930;
