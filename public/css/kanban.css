@@ -126,7 +126,7 @@
 .board-watching__avatar:first-child { margin-left: 0; }
 
 /* ==================== KANBAN BOARD ==================== */
-.board-kanban { display: flex; gap: 10px; overflow-x: auto; min-height: calc(100vh - 180px); align-items: stretch; padding: 16px; background: var(--kanban-bg); }
+.board-kanban { display: flex; gap: 10px; overflow-x: auto; align-items: flex-start; padding: 16px; background: var(--kanban-bg); }
 
 /* Board page header */
 .board-page-header {
@@ -163,9 +163,8 @@
 .column-title-link .col-count { font-weight: 500; color: var(--text-dim); font-size: 11px; background: var(--bg-hover); padding: 2px 8px; border-radius: 9999px; }
 .column-title-link .col-count--wip { background: var(--kanban-wip-bg); color: var(--red); border: 1px solid var(--kanban-wip-border); }
 .column-header-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.col-menu-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; padding: 2px 6px; border-radius: 4px; opacity: 0; transition: opacity var(--transition-fast); line-height: 1; }
-.kanban-column:hover .col-menu-btn { opacity: 1; }
-.col-menu-btn:hover { background: var(--bg-hover); color: var(--text); }
+.col-menu-btn { background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; font-size: 16px; padding: 2px 10px; border-radius: 9999px; line-height: 1; transition: background var(--transition-fast), color var(--transition-fast); }
+.col-menu-btn:hover { background: var(--bg-elevated); color: var(--text); }
 .col-permalink-btn { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 4px; color: var(--text-dim); text-decoration: none; font-size: 11px; opacity: 0; transition: opacity var(--transition-fast); }
 .kanban-column:hover .col-permalink-btn { opacity: 1; }
 .col-permalink-btn:hover { background: var(--bg-hover); color: var(--accent); }
@@ -178,6 +177,15 @@
 /* Column cards */
 .column-cards { flex: 1; min-height: 40px; padding: 8px 0 2px; transition: background var(--transition-normal); }
 .column-cards.drag-over { background: var(--drag-over-bg); outline: 2px dashed var(--drag-over-border); outline-offset: -2px; border-radius: 6px; }
+/* Empty state — dashed placeholder that mimics a card slot (~230px tall) */
+.column-cards:empty {
+  min-height: 230px;
+  border: 1px dashed var(--border-hover);
+  border-radius: 8px;
+  background: transparent;
+  margin: 8px 0;
+  padding: 0;
+}
 
 /* ON HOLD section */
 .on-hold-section { margin-top: 6px; border-top: 1px solid var(--kanban-col-border); }
@@ -186,8 +194,10 @@
 .on-hold-toggle__icon { font-size: 10px; flex-shrink: 0; }
 .on-hold-toggle__count { margin-left: auto; background: var(--kanban-on-hold-bg); border-radius: 9999px; padding: 1px 7px; font-size: 11px; }
 .on-hold-cards { }
-.on-hold-drop { min-height: 36px; border: 1px dashed var(--kanban-on-hold-border); border-radius: 6px; padding: 4px; margin-bottom: 6px; position: relative; }
-.on-hold-drop-hint { font-size: 11px; color: var(--text-dim); text-align: center; padding: 6px; opacity: 0.5; pointer-events: none; }
+.on-hold-drop { min-height: 230px; border: 1px dashed var(--border-hover); border-radius: 8px; padding: 4px; margin-bottom: 6px; position: relative; display: flex; flex-direction: column; }
+/* When the drop zone has cards, shrink it to the cards' natural height */
+.on-hold-drop:has(.kanban-card-wrap) { min-height: 36px; }
+.on-hold-drop-hint { font-size: 11px; color: var(--text-dim); text-align: center; padding: 6px; opacity: 0.5; pointer-events: none; margin: auto; }
 .on-hold-drop:has(.kanban-card-wrap) .on-hold-drop-hint { display: none; }
 
 /* Kanban card wrap + menu button */

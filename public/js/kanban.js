@@ -62,7 +62,7 @@ async function renderBoard(el, boardId) {
                   </div>
                   <div class="column-header-right">
                     <a class="col-permalink-btn" href="#/column/${col.id}" target="_blank" title="Отвори само тази колона" onclick="event.stopPropagation()">↗</a>
-                    ${manage ? `<button class="col-menu-btn" onclick="showColMenu(event, ${boardId}, ${col.id})">⋮</button>` : ''}
+                    ${manage ? `<button class="col-menu-btn" onclick="showColMenu(event, ${boardId}, ${col.id})" title="Опции на колоната">⋯</button>` : ''}
                   </div>
                 </div>
                 <div class="column-cards" data-column-id="${col.id}" data-board-id="${boardId}" data-is-hold="false"
