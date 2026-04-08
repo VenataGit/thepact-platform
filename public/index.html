@@ -24,10 +24,18 @@
   <link rel="stylesheet" href="/css/board-responsive.css">
   <!-- Theme bootstrap (FOUC guard): synchronously inject cached theme overrides
        before <body> renders, so users don't see the default theme flash on reload.
-       The cache is populated by applyThemeColors() in theme-admin.js on every save. -->
+       The cache is populated by applyThemeColors() in theme-admin.js on every save.
+       'thepact-theme-cv' is a cache version — bump it to invalidate stale caches
+       on all users after a change in how applyThemeColors() generates CSS. -->
   <script>
     (function() {
+      var CACHE_VERSION = '2';
       try {
+        var stored = localStorage.getItem('thepact-theme-cv');
+        if (stored !== CACHE_VERSION) {
+          localStorage.removeItem('thepact-theme-css');
+          localStorage.setItem('thepact-theme-cv', CACHE_VERSION);
+        }
         var css = localStorage.getItem('thepact-theme-css');
         if (css) {
           var s = document.createElement('style');

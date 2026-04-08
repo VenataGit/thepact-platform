@@ -51,13 +51,12 @@ function applyThemeColors() {
   if (c.theme_nav_bg) extraCss += '.nav__bar { background: ' + c.theme_nav_bg + ' !important; }\n';
   if (c.theme_nav_text) {
     extraCss += '.nav__link { color: ' + c.theme_nav_text + '; }\n';
-    extraCss += '.nav__link:hover { color: ' + c.theme_nav_text + '; }\n';
+    // Hover is intentionally NOT overridden — Ventsi prefers no hover/active
+    // coloring on the main nav. Keep the base layout.css rule (transparent bg).
   }
-  if (c.theme_nav_active) {
-    var hex = c.theme_nav_active.replace('#', '');
-    var r = parseInt(hex.substring(0,2), 16), g = parseInt(hex.substring(2,4), 16), b = parseInt(hex.substring(4,6), 16);
-    extraCss += '.nav__link.active { background: rgba(' + r + ',' + g + ',' + b + ',0.15); color: ' + c.theme_nav_active + '; }\n';
-  }
+  // Note: active menu coloring is disabled per user request. The .nav__link.active
+  // class is still added by router.js for future styling hooks, but no background
+  // or color change is applied here anymore.
   style.textContent = extraCss;
   // Cache for the inline bootstrap script in index.html — prevents FOUC (flash of
   // default theme) on next page load. The bootstrap reads this on DOM parse and
