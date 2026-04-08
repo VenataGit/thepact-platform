@@ -126,12 +126,12 @@
 .board-watching__avatar:first-child { margin-left: 0; }
 
 /* ==================== KANBAN BOARD ==================== */
-.board-kanban { display: flex; gap: 10px; overflow-x: auto; align-items: flex-start; padding: 16px; background: var(--kanban-bg); }
+.board-kanban { display: flex; gap: 10px; overflow-x: auto; align-items: flex-start; padding: 8px 16px 16px; background: var(--kanban-bg); }
 
 /* Board page header */
 .board-page-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 24px 16px; border-bottom: 1px solid var(--border);
+  padding: 12px 24px 10px;
 }
 .board-page-header__title { font-size: 24px; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
 .board-page-header__actions { display: flex; align-items: center; gap: 10px; position: relative; }

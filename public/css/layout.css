@@ -409,6 +409,8 @@
 }
 #pageContent.wide { max-width: 1400px; }
 #pageContent.full-width { max-width: none; }
+/* Board pages — tight padding so empty boards don't force page scroll */
+#pageContent.page-board { padding: 8px 0 12px; }
 #pageContent.page-chat { max-width: none; padding: 0; height: calc(100vh - var(--nav-height)); overflow: hidden; }
 .with-breadcrumb #pageContent.page-chat { height: calc(100vh - var(--nav-height) - 40px); }
 body:has(#pageContent.page-chat) { overflow: hidden; }

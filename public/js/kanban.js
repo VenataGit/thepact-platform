@@ -1,6 +1,6 @@
 // ==================== KANBAN BOARD + KANBAN CARD + COL/BOARD MENUS + DRAG&DROP ====================
 async function renderBoard(el, boardId) {
-  el.className = 'full-width';
+  el.className = 'full-width page-board';
   const COLUMN_COLORS = ['#f97316','#3b82f6','#14b8a6','#a855f7','#22c55e','#eab308','#ec4899','#06b6d4','#ef4444','#8b5cf6'];
   try {
     const [boards, cards] = await Promise.all([
