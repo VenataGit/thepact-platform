@@ -392,14 +392,18 @@
 .breadcrumb__jump-btn:hover { background: var(--bg-hover); border-color: var(--border-hover); }
 
 /* ==================== MAIN CONTENT AREA ==================== */
+/* Uses padding-top + box-sizing: border-box (NOT margin-top) so the fixed
+   nav/breadcrumb space is reserved INSIDE the box. With margin-top the
+   browser treated those pixels as extra scrollable area, causing a phantom
+   83px scroll on otherwise-fitting pages. */
 .main-area {
-  margin-top: var(--nav-height);
-  min-height: calc(100vh - var(--nav-height));
+  padding-top: var(--nav-height);
+  min-height: 100vh;
+  box-sizing: border-box;
   background: var(--bg);
 }
 .main-area.with-breadcrumb {
-  margin-top: calc(var(--nav-height) + 40px);
-  min-height: calc(100vh - var(--nav-height) - 40px);
+  padding-top: calc(var(--nav-height) + 40px);
 }
 
 #pageContent {
@@ -623,12 +627,10 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
 
   /* Main area: adjust for smaller nav + breadcrumb */
   .main-area {
-    margin-top: 46px;
-    min-height: calc(100vh - 46px);
+    padding-top: 46px;
   }
   .main-area.with-breadcrumb {
-    margin-top: 82px;
-    min-height: calc(100vh - 82px);
+    padding-top: 82px;
   }
 
   /* Main content area */
@@ -750,10 +752,10 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
     height: 34px;
   }
   .main-area {
-    margin-top: 44px;
+    padding-top: 44px;
   }
   .main-area.with-breadcrumb {
-    margin-top: 78px;
+    padding-top: 78px;
   }
   #pageContent {
     padding: 10px 8px;
