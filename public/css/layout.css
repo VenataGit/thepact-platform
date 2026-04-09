@@ -379,6 +379,10 @@ body:has(#pageContent.page-board) .breadcrumb-bar {
   background: #152229;
   border-radius: 12px 12px 0 0;
 }
+@media (max-width: 940px) {
+  #pageContent.page-board { --backdrop-inset: 0px; }
+  #pageContent.page-board::before { border-radius: 0; }
+}
 @media (max-width: 840px) {
   body:has(#pageContent.page-board) .breadcrumb-bar {
     left: 0;
@@ -387,7 +391,6 @@ body:has(#pageContent.page-board) .breadcrumb-bar {
     transform: none;
     border-radius: 0;
   }
-  #pageContent.page-board::before { border-radius: 0; }
 }
 .breadcrumb-bar.hidden { display: none; }
 .breadcrumb {
