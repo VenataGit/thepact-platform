@@ -413,8 +413,10 @@
 }
 #pageContent.wide { max-width: 1400px; }
 #pageContent.full-width { max-width: none; }
-/* Board pages — tight padding so empty boards don't force page scroll */
-#pageContent.page-board { padding: 8px 0 12px; }
+/* Board pages — tight vertical padding so empty boards don't force page scroll,
+   plus a responsive horizontal gutter: 100px on wide screens, shrinking to 16px
+   on narrow viewports (clamp preferred = 5.5vw, caps at ~1820px wide). */
+#pageContent.page-board { padding: 8px clamp(16px, 5.5vw, 100px) 12px; }
 #pageContent.page-chat { max-width: none; padding: 0; height: calc(100vh - var(--nav-height)); overflow: hidden; }
 .with-breadcrumb #pageContent.page-chat { height: calc(100vh - var(--nav-height) - 40px); }
 body:has(#pageContent.page-chat) { overflow: hidden; }
