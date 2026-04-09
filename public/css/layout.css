@@ -365,6 +365,17 @@
   justify-content: center;
   z-index: 899;
 }
+/* Board pages: 840px centered breadcrumb with rounded top that connects
+   visually to the backdrop panel below (Basecamp "Video Production" bar). */
+body:has(#pageContent.page-board) .breadcrumb-bar {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: 840px;
+  max-width: calc(100% - 32px);
+  background: var(--kanban-backdrop-bg, #121e26);
+  border-radius: 12px 12px 0 0;
+}
 .breadcrumb-bar.hidden { display: none; }
 .breadcrumb {
   display: flex;
