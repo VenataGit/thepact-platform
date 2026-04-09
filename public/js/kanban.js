@@ -24,6 +24,7 @@ async function renderBoard(el, boardId) {
     const boardOverdueCount = cards.filter(c => isCardOverdue(c, nowB)).length;
 
     el.innerHTML = `
+      <h1 class="board-title">${esc(board.title)}</h1>
       <div class="board-toolbar">
         <input id="boardFilterInput" type="search" placeholder="Филтрирай карти..." oninput="filterBoardCards(this.value)">
         ${boardOverdueCount > 0 ? `<button class="btn btn-sm btn-ghost" id="overdueFilterBtn" onclick="toggleOverdueFilter(this)" title="\u041f\u043e\u043a\u0430\u0436\u0438 \u0441\u0430\u043c\u043e \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438">\u26a0 ${boardOverdueCount}</button>` : ''}

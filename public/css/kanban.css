@@ -126,6 +126,20 @@
 .board-watching__avatar:first-child { margin-left: 0; }
 
 /* ==================== KANBAN BOARD ==================== */
+/* Board title: large centered heading, Basecamp-style. Sits inside page-board
+   so it scrolls with the columns. position: relative for z-index above ::before. */
+.board-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  margin: 0;
+  padding: 20px 0 10px;
+  letter-spacing: -0.02em;
+  position: relative;
+  z-index: 1;
+}
+
 /* Board toolbar: compact row of actions above columns, inside the board area.
    position: relative keeps it above the ::before backdrop in the stacking context. */
 .board-toolbar {
@@ -133,7 +147,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 10px 4px 6px;
+  padding: 4px 4px 8px;
   position: relative;
   z-index: 1;
   flex-wrap: wrap;
