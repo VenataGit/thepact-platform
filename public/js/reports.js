@@ -64,7 +64,7 @@ async function renderReports(el) {
 
 // ==================== COLUMN PERMALINK VIEW ====================
 async function renderColumnView(el, id) {
-  setBreadcrumb(null); el.className = '';
+  setBreadcrumb(null); el.className = 'page-column';
   try {
     const [col, cards] = await Promise.all([
       (await fetch(`/api/boards/columns/${id}`)).json(),
@@ -77,40 +77,78 @@ async function renderColumnView(el, id) {
       { label: col.title }
     ]);
 
-    const activeCards = Array.isArray(cards) ? cards.filter(c => !c.is_on_hold) : [];
-    const holdCards = Array.isArray(cards) ? cards.filter(c => c.is_on_hold) : [];
+    const allCards = Array.isArray(cards) ? cards : [];
+    const isDone = !!col.is_done_column;
+    let cardsHtml = '';
 
-    const renderRow = (c) => `
-      <a class="task-row" href="#/card/${c.id}">
-        <span class="task-title">${esc(c.title)}</span>
-        <span class="task-meta">
-          ${c.due_on ? `<span class="task-due">${formatDate(c.due_on)}</span>` : ''}
-          ${c.publish_date ? `<span style="color:var(--accent)">📅 ${formatDate(c.publish_date)}</span>` : ''}
-          ${c.client_name ? `<span class="task-board">${esc(c.client_name)}</span>` : ''}
-          ${c.priority === 'high' ? `<span style="color:var(--red)">↑</span>` : ''}
-        </span>
-      </a>`;
+    if (isDone) {
+      // Done column: group cards by completion date, newest first
+      const sorted = allCards.slice().sort((a, b) => {
+        const da = a.completed_at ? new Date(a.completed_at) : new Date(0);
+        const db = b.completed_at ? new Date(b.completed_at) : new Date(0);
+        return db - da;
+      });
+      const groups = {};
+      sorted.forEach(c => {
+        const d = c.completed_at ? new Date(c.completed_at) : null;
+        const key = d ? d.toISOString().slice(0, 10) : 'unknown';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(c);
+      });
+      const dateKeys = Object.keys(groups).sort().reverse();
+      if (dateKeys.length === 0) {
+        cardsHtml = '<div class="column-view__empty">Няма завършени карти</div>';
+      } else {
+        cardsHtml = dateKeys.map(key => {
+          const label = key === 'unknown' ? 'Без дата' : _formatDoneDate(key);
+          return `<div class="column-view__date-group">
+            <div class="column-view__date-label">${label}</div>
+            ${groups[key].map(c => renderKanbanCard(c, null)).join('')}
+          </div>`;
+        }).join('');
+      }
+    } else {
+      // Regular column: active cards then on-hold
+      const activeCards = allCards.filter(c => !c.is_on_hold);
+      const holdCards = allCards.filter(c => c.is_on_hold);
+      if (activeCards.length === 0 && holdCards.length === 0) {
+        cardsHtml = '<div class="column-view__empty">Няма задачи в тази колона</div>';
+      } else {
+        cardsHtml = activeCards.map(c => renderKanbanCard(c, null)).join('');
+        if (holdCards.length > 0) {
+          cardsHtml += `<div class="column-view__section-label">На изчакване (${holdCards.length})</div>`;
+          cardsHtml += holdCards.map(c => renderKanbanCard(c, null)).join('');
+        }
+      }
+    }
+
+    const subtitle = isDone
+      ? `${allCards.length} завършени`
+      : `${allCards.filter(c=>!c.is_on_hold).length} задачи${allCards.filter(c=>c.is_on_hold).length > 0 ? ` · ${allCards.filter(c=>c.is_on_hold).length} на изчакване` : ''}`;
 
     el.innerHTML = `
-      <div style="max-width:820px;margin:0 auto">
-        <div class="page-header">
-          <h1>${esc(col.title)}</h1>
-          <div class="page-subtitle">${esc(col.board_title)} · ${activeCards.length} задачи${holdCards.length > 0 ? ` · ${holdCards.length} на изчакване` : ''}</div>
+      <div class="column-view">
+        <div class="column-view__header">
+          <h1 class="column-view__title">${esc(col.title)}</h1>
+          <div class="column-view__subtitle">${esc(col.board_title)} · ${subtitle}</div>
         </div>
-        <div class="task-list">
-          ${activeCards.length === 0 && holdCards.length === 0
-            ? '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма задачи в тази колона</div>'
-            : activeCards.map(renderRow).join('')}
-          ${holdCards.length > 0 ? `
-            <div style="margin-top:16px;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em">
-              На изчакване (${holdCards.length})
-            </div>
-            ${holdCards.map(renderRow).join('')}` : ''}
+        <div class="column-view__cards">
+          ${cardsHtml}
         </div>
       </div>`;
   } catch(e) {
     el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--red)">Грешка: ${esc(e.message)}</div>`;
   }
+}
+
+function _formatDoneDate(isoDate) {
+  const d = new Date(isoDate + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+  if (d.getTime() === today.getTime()) return 'Днес';
+  if (d.getTime() === yesterday.getTime()) return 'Вчера';
+  const months = ['януари','февруари','март','април','май','юни','юли','август','септември','октомври','ноември','декември'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 // ==================== КП АВТОМАТИЗАЦИЯ ====================

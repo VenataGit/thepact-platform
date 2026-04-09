@@ -518,6 +518,25 @@
   #pageContent.page-board { --backdrop-inset: 0px; --board-gutter: 10px; }
   #pageContent.page-board::before { border-radius: 0; }
 }
+/* Column view — board-like backdrop, 1080px wide, rounded top, flat bottom */
+#pageContent.page-column {
+  max-width: 1080px;
+  padding: 0 24px;
+  position: relative;
+  min-height: calc(100vh - var(--nav-height) - 40px);
+  box-sizing: border-box;
+}
+#pageContent.page-column::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--kanban-backdrop-bg);
+  border-radius: 0;
+  pointer-events: none;
+}
 #pageContent.page-chat { max-width: none; padding: 0; height: calc(100vh - var(--nav-height)); overflow: hidden; }
 .with-breadcrumb #pageContent.page-chat { height: calc(100vh - var(--nav-height) - 40px); }
 body:has(#pageContent.page-chat) { overflow: hidden; }
