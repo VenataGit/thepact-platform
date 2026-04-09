@@ -368,11 +368,15 @@
 /* Board pages: 840px centered breadcrumb with rounded top that connects
    visually to the backdrop panel below (Basecamp "Video Production" bar). */
 body:has(#pageContent.page-board) .breadcrumb-bar {
+  /* Match the backdrop panel width (viewport minus 2 × inset), capped at 840px.
+     Uses the same gutter/inset formula as #pageContent.page-board so the bar
+     sits perfectly on top of the backdrop at every viewport size. */
+  --_gutter: clamp(16px, 5.5vw, 100px);
+  --_inset: max(0px, calc(var(--_gutter) - 20px));
   left: 50%;
   right: auto;
   transform: translateX(-50%);
-  width: 840px;
-  max-width: 100%;
+  width: min(840px, calc(100vw - 2 * var(--_inset)));
   background: #152229;
   border-radius: 12px 12px 0 0;
 }
@@ -385,7 +389,7 @@ body:has(#pageContent.page-board) .breadcrumb-bar {
     transform: none;
     border-radius: 0;
   }
-  #pageContent.page-board { --backdrop-inset: 0px; }
+  #pageContent.page-board { --board-gutter: 8px; --backdrop-inset: 0px; }
   #pageContent.page-board::before { border-radius: 0; }
 }
 .breadcrumb-bar.hidden { display: none; }
