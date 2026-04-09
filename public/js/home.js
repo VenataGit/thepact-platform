@@ -83,7 +83,7 @@ async function renderHome(el) {
                 '<span>🔧 <strong>Режим на подреждане</strong> — влачи бордовете за да промениш реда. Бутонът "+ Ново" винаги остава най-долу.</span>' +
                 '<button class="btn btn-sm btn-primary" onclick="exitHomeReorderMode()">✓ Готово</button>' +
               '</div>'
-            : '<div class="home-reorder-hint">💡 Задръж бутона на мишката върху борд, за да влезеш в режим на подреждане</div>'
+            : ''
           ) : ''}
           <div class="projects-home-grid${_homeReorderMode ? ' projects-home-grid--reorder' : ''}" id="homeBoardsGrid" style="grid-template-columns:repeat(4,1fr);gap:12px">
             ${boards.map(b => {
