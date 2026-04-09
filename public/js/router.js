@@ -98,7 +98,13 @@ function toggleBoardJumpMenu(e) {
   });
   if (!boards.length) html += '<div class="breadcrumb-jump-dropdown__empty">Няма бордове</div>';
   dd.innerHTML = html;
+  var btn = e.currentTarget;
   var bar = document.getElementById('breadcrumbBar');
+  // Position dropdown directly under the button
+  var btnRect = btn.getBoundingClientRect();
+  var barRect = bar.getBoundingClientRect();
+  dd.style.left = (btnRect.left - barRect.left) + 'px';
+  dd.style.transform = 'none';
   bar.appendChild(dd);
   // Close on any click outside
   setTimeout(function() {
