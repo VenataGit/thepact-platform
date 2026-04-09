@@ -51,7 +51,7 @@ async function renderBoard(el, boardId) {
                     <span class="column-title-dot"></span>
                     <h2 class="column-title-link">
                       <span ${manage ? `ondblclick="editColumnTitle(${boardId}, ${col.id}, this)"` : ''}>${esc(col.title)}</span>
-                      <span class="col-count${col.wip_limit && (colCards.length + holdCards.length) >= col.wip_limit ? ' col-count--wip' : ''}">${colCards.length + holdCards.length}${col.wip_limit ? `/${col.wip_limit}` : ''}</span>
+                      <span class="col-count">${colCards.length + holdCards.length}</span>
                     </h2>
                   </div>
                   <div class="column-header-right">
@@ -110,8 +110,7 @@ function filterBoardCards(q) {
     if (query) {
       if (!countEl.dataset.originalCount) countEl.dataset.originalCount = countEl.textContent;
       const visible = col.querySelectorAll('.column-cards:not(.on-hold-drop) .kanban-card:not([style*="display: none"]):not([style*="display:none"])').length;
-      const wip = countEl.dataset.originalCount.includes('/') ? '/' + countEl.dataset.originalCount.split('/')[1] : '';
-      countEl.textContent = visible + wip;
+      countEl.textContent = visible;
     } else if (countEl.dataset.originalCount) {
       countEl.textContent = countEl.dataset.originalCount;
       delete countEl.dataset.originalCount;
@@ -230,22 +229,12 @@ function showColMenu(e,bid,cid) {
   menu.className='col-context-menu';
   const board = allBoards.find(b=>b.id===bid);
   const col = board && board.columns ? board.columns.find(c=>c.id===cid) : null;
-  const wipCurrent = col && col.wip_limit ? col.wip_limit : '';
   menu.innerHTML = '<button onclick="promptRenameColumn(' + bid + ',' + cid + ');this.parentElement.remove()">\u270e Преименувай</button>' +
-    '<button onclick="promptSetWipLimit(' + bid + ',' + cid + ');this.parentElement.remove()">\ud83d\udea6 WIP лимит' + (wipCurrent ? ' (' + wipCurrent + ')' : '') + '</button>' +
     '<button style="color:var(--red)" onclick="deleteColumn(' + bid + ',' + cid + ');this.parentElement.remove()">\ud83d\uddd1 Изтрий</button>';
   e.target.closest('.column-header-right').appendChild(menu);
   setTimeout(()=>document.addEventListener('click',()=>menu.remove(),{once:true}),10);
 }
-function promptSetWipLimit(bid,cid) {
-  const board = allBoards.find(b=>b.id===bid);
-  const col = board && board.columns ? board.columns.find(c=>c.id===cid) : null;
-  const current = col && col.wip_limit ? String(col.wip_limit) : '';
-  showPromptModal('WIP \u043b\u0438\u043c\u0438\u0442 (0 = \u0431\u0435\u0437 \u043b\u0438\u043c\u0438\u0442)', '\u041d\u0430\u043f\u0440. 3', current, async function(val) {
-    const limit = parseInt(val) || 0;
-    try { await fetch('/api/boards/' + bid + '/columns/' + cid, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({wip_limit: limit || null})}); allBoards=await(await fetch('/api/boards')).json(); router(); } catch {}
-  }, 'number');
-}
+
 function promptRenameColumn(bid,cid) { showPromptModal('\u041f\u0440\u0435\u0438\u043c\u0435\u043d\u0443\u0432\u0430\u0439 \u043a\u043e\u043b\u043e\u043d\u0430', '\u041d\u043e\u0432\u043e \u0438\u043c\u0435\u2026', '', async function(t) { try{await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})}); allBoards=await(await fetch('/api/boards')).json(); router();}catch{} }); }
 function deleteColumn(bid,cid) { showConfirmModal('\u0418\u0437\u0442\u0440\u0438\u0439 \u043a\u043e\u043b\u043e\u043d\u0430 \u0438 \u0432\u0441\u0438\u0447\u043a\u0438 \u043a\u0430\u0440\u0442\u0438 \u0432 \u043d\u0435\u044f?', async function() { try{const r=await fetch(`/api/boards/${bid}/columns/${cid}`,{method:'DELETE'}); if(!r.ok){const d=await r.json();showToast(d.error||'\u0413\u0440\u0435\u0448\u043a\u0430','error');return;} allBoards=await(await fetch('/api/boards')).json(); router();}catch{showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0438\u0437\u0442\u0440\u0438\u0432\u0430\u043d\u0435','error');} }, true); }
 function toggleBoardMenu(e, bid) {

@@ -81,12 +81,10 @@ THEME_TABS.push(
     { title: 'Фокус рингове', icon: '🎯', desc: 'Индикатори при клавиатурна навигация (Tab ключ).', items: [
       { key: 'theme_focus_ring_color', type: 'color', css: '--focus-ring-color', def: '#1cb0f6', label: 'Цвят на focus ring', hint: 'Цветът на полето при фокус с клавиатурата' },
     ]},
-    { title: 'Kanban допълнителни', icon: '📋', desc: 'Цветни малки елементи на kanban борда — preview bars, WIP limit, section pills.', items: [
+    { title: 'Kanban допълнителни', icon: '📋', desc: 'Цветни малки елементи на kanban борда — preview bars, section pills.', items: [
       { key: 'theme_kanban_preview_orange', type: 'color', css: '--kanban-preview-orange', def: 'rgba(249, 115, 22, 0.28)', label: 'Preview лента — оранжево', hint: 'Първата колона в boards grid preview' },
       { key: 'theme_kanban_preview_blue', type: 'color', css: '--kanban-preview-blue', def: 'rgba(59, 130, 246, 0.28)', label: 'Preview лента — синьо', hint: 'Втора колона в boards grid preview' },
       { key: 'theme_kanban_preview_teal', type: 'color', css: '--kanban-preview-teal', def: 'rgba(20, 184, 166, 0.28)', label: 'Preview лента — тийл', hint: 'Пета колона в boards grid preview' },
-      { key: 'theme_kanban_wip_bg', type: 'color', css: '--kanban-wip-bg', def: 'rgba(239, 68, 68, 0.22)', label: 'WIP limit — фон', hint: 'Показва се когато колоната има твърде много карти' },
-      { key: 'theme_kanban_wip_border', type: 'color', css: '--kanban-wip-border', def: 'rgba(239, 68, 68, 0.45)', label: 'WIP limit — рамка', hint: 'Червена рамка на overloaded колона' },
       { key: 'theme_kanban_on_hold_bg', type: 'color', css: '--kanban-on-hold-bg', def: 'rgba(255, 255, 255, 0.14)', label: 'On-hold секция — фон', hint: 'Pill с брой на пауза' },
       { key: 'theme_kanban_on_hold_border', type: 'color', css: '--kanban-on-hold-border', def: 'rgba(255, 255, 255, 0.12)', label: 'On-hold секция — рамка', hint: 'Dashed рамка на drop zone' },
       { key: 'theme_kanban_col_border', type: 'color', css: '--kanban-col-border', def: 'rgba(255, 255, 255, 0.07)', label: 'Рамка на kanban колона', hint: 'Тънката рамка около всяка колона' },

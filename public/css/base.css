@@ -276,9 +276,7 @@
   --kanban-preview-orange: rgba(249, 115, 22, 0.28);
   --kanban-preview-blue: rgba(59, 130, 246, 0.28);
   --kanban-preview-teal: rgba(20, 184, 166, 0.28);
-  --kanban-wip-bg: rgba(239, 68, 68, 0.22);
-  --kanban-wip-border: rgba(239, 68, 68, 0.45);
-  --kanban-on-hold-bg: rgba(255, 255, 255, 0.14);
+--kanban-on-hold-bg: rgba(255, 255, 255, 0.14);
   --kanban-on-hold-border: rgba(255, 255, 255, 0.12);
   --kanban-section-pill-bg: rgba(249, 115, 22, 0.20);
 
