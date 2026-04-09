@@ -239,7 +239,7 @@ window.newChatFilter = function() {
 // --- Chat conversation page ---
 async function renderChatChannel(el, channelId) {
   _activeChatChannel = channelId;
-  setBreadcrumb([{label:'Пингове',href:'#/chat'}]); el.className = 'page-chat'; window.scrollTo(0, 0);
+  setBreadcrumb(null); el.className = 'page-chat'; window.scrollTo(0, 0);
   try {
     var [msgs, channels] = await Promise.all([
       (await fetch('/api/chat/channels/'+channelId+'/messages')).json(),

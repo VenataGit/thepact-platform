@@ -448,6 +448,7 @@
   margin: 0 auto;
   padding: 30px 24px;
 }
+.with-breadcrumb #pageContent { padding-top: 10px; }
 #pageContent.wide { max-width: 1400px; }
 #pageContent.full-width { max-width: none; }
 /* Board pages — responsive horizontal gutter (100px on wide, shrinks to 16px

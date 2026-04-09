@@ -25,7 +25,7 @@ let _dashBoards = [], _dashCards = [], _dashTimers = {};
 const _dashStageColors = { 0: 'var(--blue)', 1: 'var(--orange)', 2: '#a78bfa', 3: 'var(--green)' };
 
 async function renderDashboard(el) {
-  setBreadcrumb([{ label: 'Начало', href: '#/home' }, { label: 'Dashboard', href: '#/dashboard' }]);
+  setBreadcrumb(null);
   el.className = 'full-width';
   try {
     const [boards, cards] = await Promise.all([

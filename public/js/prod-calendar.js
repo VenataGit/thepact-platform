@@ -353,7 +353,7 @@ function _pcFullRender(el) {
 // ─── main entry point (overrides renderCalendar in app.js) ───────────────────
 
 async function renderCalendar(el) {
-  setBreadcrumb([{ label: 'Производствен Календар' }]);
+  setBreadcrumb(null);
   el.className = 'full-width';
 
   // init week to current Monday
