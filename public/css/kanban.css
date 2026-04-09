@@ -271,7 +271,7 @@
 
 /* Done/Not Now sidebar */
 .kanban-sidebar { display: flex; flex-direction: column; border-left: 2px solid var(--border); flex-shrink: 0; }
-.kanban-sidebar-tab { writing-mode: vertical-rl; text-orientation: mixed; padding: 20px 11px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; text-align: center; border-bottom: 1px solid var(--border); transition: background var(--transition-fast), color var(--transition-fast); }
+.kanban-sidebar-tab { writing-mode: vertical-rl; text-orientation: mixed; padding: 20px 11px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; text-align: center; border-bottom: 1px solid var(--border); transition: background var(--transition-fast), color var(--transition-fast); text-decoration: none; }
 .kanban-sidebar-tab:hover { background: var(--bg-hover); color: #fff; }
 .done-tab { background: var(--green-dim); color: var(--green); border-left: 3px solid var(--green); }
 .sidebar-count { display: block; font-weight: 400; margin-bottom: 4px; }

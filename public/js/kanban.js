@@ -80,10 +80,10 @@ async function renderBoard(el, boardId) {
 
         ${doneCol ? `
         <div class="kanban-sidebar">
-          <div class="kanban-sidebar-tab done-tab" onclick='showDoneCards(${JSON.stringify(doneCards.map(c=>({id:c.id,title:c.title,completed_at:c.completed_at})))}, ${boardId})'>
+          <a class="kanban-sidebar-tab done-tab" href="#/column/${doneCol.id}" title="Отвори Done колоната">
             <span class="sidebar-count">(${doneCards.length})</span>
-            <span class="sidebar-label">ГОТОВО</span>
-          </div>
+            <span class="sidebar-label">DONE</span>
+          </a>
         </div>` : ''}
       </div>
     `;
