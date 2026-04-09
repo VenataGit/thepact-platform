@@ -372,9 +372,21 @@ body:has(#pageContent.page-board) .breadcrumb-bar {
   right: auto;
   transform: translateX(-50%);
   width: 840px;
-  max-width: calc(100% - 32px);
+  max-width: 100%;
   background: #152229;
   border-radius: 12px 12px 0 0;
+}
+/* Under 840px: breadcrumb bar + backdrop go edge-to-edge, no rounded top */
+@media (max-width: 840px) {
+  body:has(#pageContent.page-board) .breadcrumb-bar {
+    left: 0;
+    right: 0;
+    width: auto;
+    transform: none;
+    border-radius: 0;
+  }
+  #pageContent.page-board { --backdrop-inset: 0px; }
+  #pageContent.page-board::before { border-radius: 0; }
 }
 .breadcrumb-bar.hidden { display: none; }
 .breadcrumb {
