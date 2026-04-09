@@ -126,7 +126,7 @@
 .board-watching__avatar:first-child { margin-left: 0; }
 
 /* ==================== KANBAN BOARD ==================== */
-.board-kanban { display: flex; gap: 10px; overflow-x: auto; align-items: flex-start; padding: 8px 16px 16px; background: var(--kanban-bg); }
+.board-kanban { display: flex; gap: 4px; overflow-x: auto; align-items: flex-start; padding: 8px 16px 16px; background: var(--kanban-bg); }
 
 /* Board page header */
 .board-page-header {
@@ -143,19 +143,19 @@
 
 /* Column color bar — driven by --col-color CSS variable */
 .kanban-column {
-  flex: 1; min-width: 280px;
+  flex: 1; min-width: 260px;
   display: flex; flex-direction: column; position: relative;
   background: var(--kanban-col-bg);
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid var(--kanban-col-border);
+  overflow: hidden; /* so the footer's darker bg clips cleanly to the rounded corners */
 }
-.kanban-column__inner { display: flex; flex-direction: column; flex: 1; padding: 0 14px; }
+.kanban-column__inner { display: flex; flex-direction: column; flex: 1; padding: 0 10px; }
 
 
 .column-header {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 14px 0 10px; margin-bottom: 4px; position: relative;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 4px 8px; margin-bottom: 2px; position: relative;
 }
 .column-title-wrap { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .column-title-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--col-color, var(--accent)); flex-shrink: 0; }
@@ -175,7 +175,7 @@
 .kanban-column.col-drag-over { outline: 2px dashed var(--drag-over-border); outline-offset: -2px; background: var(--drag-over-bg); }
 
 /* Column cards */
-.column-cards { flex: 1; min-height: 40px; padding: 8px 0 2px; transition: background var(--transition-normal); }
+.column-cards { flex: 1; min-height: 40px; padding: 6px 0 2px; transition: background var(--transition-normal); }
 .column-cards.drag-over { background: var(--drag-over-bg); outline: 2px dashed var(--drag-over-border); outline-offset: -2px; border-radius: 6px; }
 /* Empty state — dashed placeholder that mimics a card slot (~230px tall) */
 .column-cards:empty {
@@ -187,16 +187,23 @@
   padding: 0;
 }
 
-/* ON HOLD section */
-.on-hold-section { margin-top: 6px; border-top: 1px solid var(--kanban-col-border); }
-.on-hold-toggle { width: 100%; display: flex; align-items: center; gap: 6px; background: none; border: none; color: var(--text-dim); font-size: 12px; font-weight: 600; padding: 8px 4px; cursor: pointer; text-align: left; letter-spacing: 0.03em; transition: color 0.15s; }
+/* ON HOLD section — footer zone sitting BELOW the main column body with its
+   own darker background. The negative margins + padding make it stretch to
+   the column edges so the bg appears as a band under the cards. */
+.on-hold-section {
+  margin: 10px -10px 0;
+  padding: 6px 10px 10px;
+  background: var(--kanban-footer-bg);
+  border-top: 1px solid var(--kanban-col-border);
+}
+.on-hold-toggle { width: 100%; display: flex; align-items: center; gap: 6px; background: none; border: none; color: var(--text-dim); font-size: 11px; font-weight: 700; padding: 6px 2px; cursor: pointer; text-align: left; letter-spacing: 0.08em; text-transform: uppercase; transition: color 0.15s; }
 .on-hold-toggle:hover { color: var(--text); }
 .on-hold-toggle__icon { font-size: 10px; flex-shrink: 0; }
-.on-hold-toggle__count { margin-left: auto; background: var(--kanban-on-hold-bg); border-radius: 9999px; padding: 1px 7px; font-size: 11px; }
+.on-hold-toggle__count { margin-left: auto; background: var(--kanban-on-hold-bg); border-radius: 9999px; padding: 1px 7px; font-size: 10px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 .on-hold-cards { }
-.on-hold-drop { min-height: 230px; border: 1px dashed var(--border-hover); border-radius: 8px; padding: 4px; margin-bottom: 6px; position: relative; display: flex; flex-direction: column; }
+.on-hold-drop { min-height: 180px; border: 1px dashed var(--border-hover); border-radius: 6px; padding: 4px; margin-bottom: 2px; position: relative; display: flex; flex-direction: column; }
 /* When the drop zone has cards, shrink it to the cards' natural height */
-.on-hold-drop:has(.kanban-card-wrap) { min-height: 36px; }
+.on-hold-drop:has(.kanban-card-wrap) { min-height: 36px; border: none; }
 .on-hold-drop-hint { font-size: 11px; color: var(--text-dim); text-align: center; padding: 6px; opacity: 0.5; pointer-events: none; margin: auto; }
 .on-hold-drop:has(.kanban-card-wrap) .on-hold-drop-hint { display: none; }
 
@@ -225,21 +232,32 @@
 .sidebar-label { display: block; }
 
 /* ==================== KANBAN CARD ==================== */
+/* Two-zone structure mirrors the column: title zone on top (base bg),
+   footer zone on the bottom with a darker band (var(--kanban-footer-bg))
+   — same visual pattern as the column's on-hold footer. */
 .kanban-card {
   display: block; background: var(--kcard-bg, var(--bg-card)); border: 1px solid var(--kcard-border, var(--border));
-  border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
+  border-radius: var(--kcard-radius, 6px); padding: 0; margin-bottom: 6px;
   text-decoration: none; color: var(--text);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
   cursor: grab;
+  overflow: hidden; /* so the inner footer's dark bg clips to the card's rounded corners */
 }
 .kanban-card:hover { border-color: var(--border-hover); box-shadow: 0 3px 10px var(--card-hover-shadow); transform: translateY(-2px); }
 .kanban-card:active { cursor: grabbing; transform: scale(0.98); }
 .kanban-card.dragging { opacity: 0.35; }
-.kanban-card__content { min-width: 0; }
-.kanban-card__title { font-size: 13.5px; font-weight: 600; color: var(--kcard-title, var(--text)); margin-bottom: 10px; line-height: 1.4; }
+.kanban-card__content { min-width: 0; padding: 10px 12px 8px; }
+.kanban-card__title { font-size: 13.5px; font-weight: 600; color: var(--kcard-title, var(--text)); margin-bottom: 8px; line-height: 1.4; }
 
-/* Card footer: avatars left + badges right */
-.kanban-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* Card footer — same band pattern as the column's on-hold footer:
+   darker background, separator top, stretches to card edges. */
+.kanban-card__footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 2px -12px -8px;
+  padding: 8px 12px;
+  background: var(--kanban-footer-bg);
+  border-top: 1px solid var(--kanban-col-border);
+}
 
 /* Stacked assignee avatars */
 .kanban-card__avatars { display: flex; align-items: center; }
