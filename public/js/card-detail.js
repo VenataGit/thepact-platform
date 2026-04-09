@@ -27,8 +27,7 @@ async function renderCardPage(el, cardId) {
 
     setBreadcrumb([
       { label: board ? board.title : 'Борд', href: '#/board/' + card.board_id },
-      { label: col ? col.title : '\u2014', href: '#/board/' + card.board_id },
-      { label: card.title.substring(0, 40) + (card.title.length > 40 ? '…' : '') }
+      { label: col ? col.title : '\u2014' }
     ]);
 
     var manage = canManage();

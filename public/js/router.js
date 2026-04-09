@@ -64,21 +64,48 @@ function setBreadcrumb(items) {
     return;
   }
   bar.classList.remove('hidden'); main.classList.add('with-breadcrumb');
-  // Skip auto-prepended "Home" — show just current context, Basecamp-style centered link
+  // Skip auto-prepended "Home" — show just current context
   var parts = items.slice();
-  // Strip any leading "Home" entries so the bar shows only the meaningful context
   while (parts.length && parts[0].href === '#/home') parts.shift();
-  // Prefix with a small grid-style icon (Basecamp "Video Production" bar look)
-  var html = '<span class="breadcrumb__icon" aria-hidden="true">'
+  // Grid icon button — opens a dropdown with all boards
+  var html = '<button class="breadcrumb__jump-btn" onclick="toggleBoardJumpMenu(event)" title="Всички бордове">'
     + '<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
     + '<rect x="1.5" y="1.5" width="4" height="4" rx="0.8"/>'
     + '<rect x="8.5" y="1.5" width="4" height="4" rx="0.8"/>'
     + '<rect x="1.5" y="8.5" width="4" height="4" rx="0.8"/>'
     + '<rect x="8.5" y="8.5" width="4" height="4" rx="0.8"/>'
-    + '</svg></span>';
+    + '</svg></button>';
   html += parts.map(function(item, i) {
-    if (i === parts.length - 1 || !item.href) return '<span class="current">' + esc(item.label) + '</span>';
-    return '<a href="' + item.href + '">' + esc(item.label) + '</a><span class="sep">›</span>';
+    var sep = '<span class="sep">/</span>';
+    if (i === parts.length - 1 || !item.href) return sep + '<span class="current">' + esc(item.label) + '</span>';
+    return sep + '<a href="' + item.href + '">' + esc(item.label) + '</a>';
   }).join('');
   bc.innerHTML = html;
+}
+
+// Board jump dropdown — lists all boards for quick navigation
+function toggleBoardJumpMenu(e) {
+  e.stopPropagation();
+  var existing = document.getElementById('boardJumpDropdown');
+  if (existing) { existing.remove(); return; }
+  var boards = (allBoards || []).filter(function(b) { return !b.archived; });
+  var dd = document.createElement('div');
+  dd.className = 'breadcrumb-jump-dropdown';
+  dd.id = 'boardJumpDropdown';
+  var html = '<div class="breadcrumb-jump-dropdown__title">Бордове</div>';
+  boards.forEach(function(b) {
+    html += '<a class="breadcrumb-jump-dropdown__item" href="#/board/' + b.id + '">' + esc(b.title) + '</a>';
+  });
+  if (!boards.length) html += '<div class="breadcrumb-jump-dropdown__empty">Няма бордове</div>';
+  dd.innerHTML = html;
+  var bar = document.getElementById('breadcrumbBar');
+  bar.appendChild(dd);
+  // Close on any click outside
+  setTimeout(function() {
+    document.addEventListener('click', function handler(ev) {
+      if (!dd.contains(ev.target)) { dd.remove(); document.removeEventListener('click', handler); }
+    });
+  }, 0);
+  // Close when navigating
+  dd.addEventListener('click', function(ev) { if (ev.target.tagName === 'A') dd.remove(); });
 }

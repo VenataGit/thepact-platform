@@ -365,6 +365,7 @@
   max-width: 100%;
   margin: 0 auto;
   border-radius: 12px 12px 0 0;
+  position: relative;
 }
 @media (max-width: 840px) {
   .breadcrumb-bar {
@@ -396,21 +397,71 @@
   font-weight: 600;
 }
 .breadcrumb a:hover { color: var(--accent-hover); }
-.breadcrumb .sep { color: var(--breadcrumb-sep, var(--text-dim)); font-size: 11px; display: none; }
+.breadcrumb .sep { color: var(--breadcrumb-sep, var(--text-dim)); font-size: 14px; margin: 0 2px; }
 .breadcrumb .current { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
 /* Jump menu in breadcrumb */
+/* Grid icon button — opens board jump menu */
 .breadcrumb__jump-btn {
   background: none;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 2px 6px;
-  color: var(--text-dim);
+  border: none;
+  padding: 4px;
+  color: var(--accent);
   cursor: pointer;
-  font-size: 12px;
-  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background var(--transition-fast);
+  font-family: inherit;
+  line-height: 1;
 }
-.breadcrumb__jump-btn:hover { background: var(--bg-hover); border-color: var(--border-hover); }
+.breadcrumb__jump-btn:hover { background: var(--bg-hover); }
+.breadcrumb__jump-btn svg { display: block; }
+
+/* Board jump dropdown */
+.breadcrumb-jump-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  min-width: 220px;
+  max-width: 320px;
+  padding: 6px 0;
+  z-index: 960;
+  margin-top: 4px;
+}
+.breadcrumb-jump-dropdown__title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 14px 4px;
+}
+.breadcrumb-jump-dropdown__item {
+  display: block;
+  padding: 8px 14px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  transition: background var(--transition-fast);
+}
+.breadcrumb-jump-dropdown__item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  text-decoration: none;
+}
+.breadcrumb-jump-dropdown__empty {
+  padding: 12px 14px;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
+}
 
 /* ==================== MAIN CONTENT AREA ==================== */
 /* Uses padding-top + box-sizing: border-box (NOT margin-top) so the fixed
