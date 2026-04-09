@@ -120,6 +120,14 @@ router.post('/', requireAuth, requireModerator, async (req, res) => {
       );
     }
 
+    // For regular boards, auto-create a Done column
+    if (boardType === 'board') {
+      await queryOne(
+        'INSERT INTO columns (board_id, title, position, is_done_column) VALUES ($1, $2, 0, TRUE) RETURNING *',
+        [board.id, 'Done']
+      );
+    }
+
     broadcast({ type: 'board:created', board }, req.user.userId);
     res.status(201).json(board);
   } catch (err) {

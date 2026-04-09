@@ -270,8 +270,8 @@
 .kanban-card-context__sep { height: 1px; background: var(--border); margin: 4px 0; }
 
 /* Done/Not Now sidebar */
-.kanban-sidebar { display: flex; flex-direction: column; border-left: 2px solid var(--border); flex-shrink: 0; }
-.kanban-sidebar-tab { writing-mode: vertical-rl; text-orientation: mixed; padding: 20px 11px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; text-align: center; border-bottom: 1px solid var(--border); transition: background var(--transition-fast), color var(--transition-fast); text-decoration: none; }
+.kanban-sidebar { display: flex; flex-direction: column; border-left: 2px solid var(--border); flex-shrink: 0; align-self: stretch; min-height: 200px; }
+.kanban-sidebar-tab { writing-mode: vertical-rl; text-orientation: mixed; padding: 20px 11px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; text-align: center; transition: background var(--transition-fast), color var(--transition-fast); text-decoration: none; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
 .kanban-sidebar-tab:hover { background: var(--bg-hover); color: #fff; }
 .done-tab { background: var(--green-dim); color: var(--green); border-left: 3px solid var(--green); }
 .sidebar-count { display: block; font-weight: 400; margin-bottom: 4px; }
