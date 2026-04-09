@@ -141,24 +141,17 @@
   position: relative;
 }
 
-/* Board page header — darker toolbar band sitting ON TOP of the backdrop panel.
-   - 3-column grid so the title is perfectly centered:
-     [1fr empty] [auto title] [1fr actions, right-aligned]
-   - Background is a darker overlay so the toolbar reads as its own layer
-   - margin + padding use the shared --backdrop-ext variable so the toolbar
-     extends out to match the backdrop's edges exactly (same left/right as the
-     ::before), while the inner grid content stays in the page-board content box
-   - Rounded top corners (the bottom is flat so it docks onto the backdrop)
-   - position: relative keeps the toolbar above the ::before in stacking order */
+/* Board page header — 3-column grid so the title is perfectly centered:
+   [1fr empty] [auto title] [1fr actions, right-aligned]. The empty left
+   column balances the actions column so the auto title column sits exactly
+   in the middle of the header. position: relative keeps the header above
+   the ::before backdrop in the stacking context. */
 .board-page-header {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
-  padding: 18px var(--backdrop-ext, 20px) 14px;
-  margin: 0 calc(0px - var(--backdrop-ext, 20px));
-  background: var(--kanban-toolbar-bg);
-  border-radius: 12px 12px 0 0;
+  padding: 18px 0 14px;
   position: relative;
 }
 .board-page-header__title { grid-column: 2; margin: 0; text-align: center; font-size: 24px; font-weight: 800; color: #fff; letter-spacing: -0.02em; }

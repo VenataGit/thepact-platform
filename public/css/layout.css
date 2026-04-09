@@ -421,9 +421,6 @@
 #pageContent.page-board {
   --board-gutter: clamp(16px, 5.5vw, 100px);
   --backdrop-inset: max(0px, calc(var(--board-gutter) - 20px));
-  /* How much the backdrop/toolbar sticks out beyond page-board's content box.
-     Equals 20px when the gutter is wide enough, or shrinks with the gutter. */
-  --backdrop-ext: calc(var(--board-gutter) - var(--backdrop-inset));
   padding: 0 var(--board-gutter) 0;
   display: flex;
   flex-direction: column;
