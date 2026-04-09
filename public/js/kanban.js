@@ -180,7 +180,6 @@ function renderKanbanCard(card, colColor) {
           <div class="kanban-card__footer">
             <div class="kanban-card__avatars">${avatarsHtml}</div>
             <div class="kanban-card__badges">
-              ${card.client_name ? `<span class="kanban-card__client">${esc(card.client_name)}</span>` : ''}
               ${stepsStr ? `<span class="kanban-card__steps">✓ ${stepsStr}</span>` : ''}
               ${dlDateStr ? `<span class="kanban-card__dl-badge ${dlClass}">${dlDateStr}</span>` : publishStr ? `<span class="kanban-card__publish">📅 ${publishStr}</span>` : dueStr ? `<span class="kanban-card__due${dueClass}">${isDueOverdue ? '⚠ ' : isDueToday ? '⏰ ' : ''}${dueStr}</span>` : ''}
               ${card.comment_count ? `<span class="kanban-card__comments">💬 ${card.comment_count}</span>` : ''}
