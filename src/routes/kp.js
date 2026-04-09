@@ -22,12 +22,18 @@ const KP_DEFAULT_TEMPLATE = `Дата за публикуване на първ�
 
 {video_sections}`;
 
-// Convert plain-text (with \n) to Trix-compatible HTML so card content renders properly
+// Convert plain-text (with \n) to Trix-compatible HTML so card content renders properly.
+// Lines matching "Видео N - ..." are highlighted in gold (inline style) so video
+// titles stand out visually in the card body.
 function textToHtml(text) {
   if (!text) return '';
   return text.split('\n').map(line => {
     const esc = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return esc === '' ? '<div><br></div>' : `<div>${esc}</div>`;
+    if (esc === '') return '<div><br></div>';
+    if (/^Видео\s+\d+\s*[-–—]/.test(line)) {
+      return `<div><strong style="color:#DAA520">` + esc + `</strong></div>`;
+    }
+    return `<div>${esc}</div>`;
   }).join('');
 }
 
@@ -399,7 +405,11 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
 
     const title = `${client.name} КП-${kpNumber}`;
 
-    // KP cards: NO due_on — deadlines are tracked via production dates only
+    // Calculate brainstorm_date from the first publish date so the KP card
+    // shows up with the correct "Дати Измисляне" deadline in the board.
+    const offsets = await loadKpDayOffsets();
+    const firstPubDate = new Date(firstPublishDate + 'T12:00:00');
+    const brainstormDate = subtractWorkingDays(firstPubDate, offsets.brainstorm).toISOString().split('T')[0];
 
     // Find target column: setting (by ID) first, then fall back to name search
     let izmislianeCol = null;
@@ -421,12 +431,12 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
       [izmislianeCol.id]
     );
 
-    // Create the card (no due_on for KP cards)
+    // Create the card with brainstorm_date so it shows in "Дати Измисляне"
     const card = await queryOne(
-      `INSERT INTO cards (board_id, column_id, title, content, creator_id, client_name, kp_number, position)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      `INSERT INTO cards (board_id, column_id, title, content, creator_id, client_name, kp_number, position, brainstorm_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [izmislianeCol.board_id, izmislianeCol.id, title, textToHtml(content),
-       req.user.userId, client.name, kpNumber, maxPos.pos]
+       req.user.userId, client.name, kpNumber, maxPos.pos, brainstormDate]
     );
 
     // Update client: increment KP number, update dates from distribution
