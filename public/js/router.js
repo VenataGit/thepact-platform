@@ -52,13 +52,22 @@ function router() {
 }
 window.addEventListener('hashchange', router);
 
-function setBreadcrumb(items) {
+function setBreadcrumb(items, rightHTML) {
   const bar = document.getElementById('breadcrumbBar');
   const bc = document.getElementById('breadcrumb');
   const main = document.getElementById('mainArea');
+  // Hide the breadcrumb bar entirely when no items were passed (home, admin, etc)
+  if (!items || !items.length) {
+    bar.classList.add('hidden');
+    main.classList.remove('with-breadcrumb');
+    bc.innerHTML = '';
+    var rightEmpty = document.getElementById('breadcrumbRight');
+    if (rightEmpty) rightEmpty.innerHTML = '';
+    return;
+  }
   bar.classList.remove('hidden'); main.classList.add('with-breadcrumb');
   // Skip auto-prepended "Home" — show just current context, Basecamp-style centered link
-  var parts = items && items.length ? items.slice() : [];
+  var parts = items.slice();
   // Strip any leading "Home" entries so the bar shows only the meaningful context
   while (parts.length && parts[0].href === '#/home') parts.shift();
   // Prefix with a small grid-style icon (Basecamp "Video Production" bar look)
@@ -74,4 +83,16 @@ function setBreadcrumb(items) {
     return '<a href="' + item.href + '">' + esc(item.label) + '</a><span class="sep">›</span>';
   }).join('');
   bc.innerHTML = html;
+
+  // Right-aligned contextual actions (e.g. board toolbar). Slot lives in the
+  // breadcrumb bar as an absolutely-positioned strip so it doesn't break the
+  // centered breadcrumb link.
+  var right = document.getElementById('breadcrumbRight');
+  if (!right) {
+    right = document.createElement('div');
+    right.id = 'breadcrumbRight';
+    right.className = 'breadcrumb-right';
+    bar.appendChild(right);
+  }
+  right.innerHTML = rightHTML || '';
 }
