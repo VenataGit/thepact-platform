@@ -125,13 +125,12 @@
 
   /* ==================== KANBAN BOARD ==================== */
   --kanban-bg: transparent;
-  --kanban-col-bg: #283c46;            /* Basecamp-style tinted column frame */
+  --kanban-col-bg: #1a2e3d;
   --kanban-col-border: rgba(255,255,255,0.07);
-  --kanban-footer-bg: rgba(0,0,0,0.22); /* Darker footer layer under column/card body */
   --kcard-bg: #1b2930;
-  --kcard-border: rgba(255,255,255,0.08);
+  --kcard-border: #1e3040;
   --kcard-title: #e8ecee;
-  --kcard-radius: 6px;
+  --kcard-radius: 8px;
   --col-color: var(--accent);
 
   /* ==================== DEADLINE COLOR BACKGROUNDS (kanban + dash + pc) ==================== */
