@@ -364,7 +364,6 @@
   align-items: center;
   justify-content: center;
   z-index: 899;
-  padding: 0 clamp(12px, 3vw, 24px);
 }
 .breadcrumb-bar.hidden { display: none; }
 .breadcrumb {
@@ -392,32 +391,6 @@
 .breadcrumb a:hover { color: var(--accent-hover); }
 .breadcrumb .sep { color: var(--breadcrumb-sep, var(--text-dim)); font-size: 11px; display: none; }
 .breadcrumb .current { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
-/* Right-aligned actions slot in the breadcrumb bar. Absolutely positioned
-   so it doesn't nudge the centered breadcrumb link off-center. Used by
-   pages (e.g. boards) that want a compact toolbar (filter, + buttons)
-   to sit inline with the breadcrumb instead of taking a whole header row. */
-.breadcrumb-right {
-  position: absolute;
-  top: 50%;
-  right: clamp(12px, 3vw, 24px);
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.breadcrumb-right:empty { display: none; }
-.breadcrumb-right .btn { padding: 4px 10px; font-size: 12px; }
-.breadcrumb-right input[type="search"] {
-  background: var(--bg-hover);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
-  color: var(--text);
-  width: 160px;
-  outline: none;
-}
-.breadcrumb-right input[type="search"]:focus { border-color: var(--accent); }
 
 /* Jump menu in breadcrumb */
 .breadcrumb__jump-btn {

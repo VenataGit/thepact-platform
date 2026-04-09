@@ -11,6 +11,10 @@ async function renderBoard(el, boardId) {
     const board = boards.find(b => b.id === boardId);
     if (!board) { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Бордът не е намерен</div>'; return; }
 
+    setBreadcrumb([
+      { label: board.title }
+    ]);
+
     const manage = canManage();
     const edit = canEdit();
     const visibleCols = board.columns.filter(c => !c.is_done_column);
@@ -19,18 +23,18 @@ async function renderBoard(el, boardId) {
     const nowB = new Date(); nowB.setHours(0,0,0,0);
     const boardOverdueCount = cards.filter(c => isCardOverdue(c, nowB)).length;
 
-    // Board toolbar lives in the breadcrumb bar (right-aligned) so the
-    // columns start flush with the top of the backdrop panel instead of
-    // being pushed down by a full header row.
-    const toolbarHTML = ''
-      + `<input id="boardFilterInput" type="search" placeholder="Филтрирай карти..." oninput="filterBoardCards(this.value)">`
-      + (boardOverdueCount > 0 ? `<button class="btn btn-sm btn-ghost" id="overdueFilterBtn" onclick="toggleOverdueFilter(this)" title="\u041f\u043e\u043a\u0430\u0436\u0438 \u0441\u0430\u043c\u043e \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438">\u26a0 ${boardOverdueCount}</button>` : '')
-      + (edit ? `<a class="btn btn-sm" href="#/card/0/new?board=${boardId}">+ Нова карта</a>` : '')
-      + (manage ? `<button class="btn btn-sm btn-ghost" onclick="showAddColumnModal(${boardId})">+ Колона</button>` : '')
-      + (manage ? `<button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>` : '');
-    setBreadcrumb([{ label: board.title }], toolbarHTML);
-
     el.innerHTML = `
+      <div class="board-page-header">
+        <h1 class="board-page-header__title">${esc(board.title)}</h1>
+        <div class="board-page-header__actions">
+          <input id="boardFilterInput" type="search" placeholder="Филтрирай карти..." style="background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text);width:160px;outline:none" oninput="filterBoardCards(this.value)">
+          ${boardOverdueCount > 0 ? `<button class="btn btn-sm btn-ghost" id="overdueFilterBtn" onclick="toggleOverdueFilter(this)" title="\u041f\u043e\u043a\u0430\u0436\u0438 \u0441\u0430\u043c\u043e \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438">\u26a0 ${boardOverdueCount}</button>` : ''}
+          ${edit ? `<a class="btn btn-sm" href="#/card/0/new?board=${boardId}">+ Нова карта</a>` : ''}
+          ${manage ? `<button class="btn btn-sm btn-ghost" onclick="showAddColumnModal(${boardId})">+ Колона</button>` : ''}
+          ${manage ? `<button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event, ${boardId})">⋯</button>` : ''}
+        </div>
+      </div>
+
       <div class="board-kanban">
         ${visibleCols.map((col, i) => {
           const colColor = COLUMN_COLORS[i % COLUMN_COLORS.length];
@@ -256,10 +260,10 @@ function toggleBoardMenu(e, bid) {
   html += '<button onclick="archiveBoardConfirm(' + bid + ');document.querySelectorAll(\'.board-context-menu\').forEach(m=>m.remove())">\ud83d\udce6 \u0410\u0440\u0445\u0438\u0432\u0438\u0440\u0430\u0439</button>';
   if (isAdmin) html += '<div style="border-top:1px solid var(--border);margin:4px 0"></div><button style="color:var(--red)" onclick="deleteBoardConfirm(' + bid + ');document.querySelectorAll(\'.board-context-menu\').forEach(m=>m.remove())">\ud83d\uddd1 \u0418\u0437\u0442\u0440\u0438\u0439 \u0431\u043e\u0440\u0434</button>';
   menu.innerHTML = html;
-  // Prefer the breadcrumb-right toolbar slot (new kanban layout puts the board
-  // actions in the breadcrumb bar). Fall back to a positioned wrapper around
-  // the button for pages like renderDocs that host the ⋯ button elsewhere.
-  let anchor = e.target.closest('.breadcrumb-right') || e.target.closest('.board-page-header__actions');
+  // Prefer the board header container; fall back to a positioned wrapper around the button.
+  // The fallback keeps the menu working on the docs page (renderDocs) and any future page
+  // that hosts the ⋯ button without the kanban-specific .board-page-header__actions wrapper.
+  let anchor = e.target.closest('.board-page-header__actions');
   if (!anchor) {
     const btn = e.target.closest('button');
     if (btn) {
