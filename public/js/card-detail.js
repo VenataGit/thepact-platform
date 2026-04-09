@@ -12,7 +12,7 @@ var _cardEditMode = false;
 const cardEditingPresence = new Map(); // cardId -> { userId, userName }
 
 async function renderCardPage(el, cardId) {
-  el.className = '';
+  el.className = 'page-card';
   try {
     const card = await (await fetch('/api/cards/' + cardId)).json();
     var comments = [];
@@ -20,7 +20,7 @@ async function renderCardPage(el, cardId) {
 
     // Load pinned comment from API
     _cardPinnedComment = card.pinned_comment || null;
-    if (_cardPinnedComment) el.className = 'card-sidebar';
+    if (_cardPinnedComment) el.className = 'page-card card-sidebar';
 
     var board = allBoards.find(function(b) { return b.id === card.board_id; });
     var col = board && board.columns ? board.columns.find(function(c) { return c.id === card.column_id; }) : null;
