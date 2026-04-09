@@ -126,6 +126,7 @@
   /* ==================== KANBAN BOARD ==================== */
   --kanban-bg: transparent;
   --kanban-backdrop-bg: #121e26;         /* panel behind the columns */
+  --kanban-toolbar-bg: rgba(0, 0, 0, 0.22); /* darker band behind the board header */
   --kanban-col-bg: #1a2e3d;
   --kanban-col-border: rgba(255,255,255,0.07);
   --kcard-bg: #1b2930;
