@@ -367,10 +367,10 @@
 }
 /* Board pages: 840px centered breadcrumb with rounded top that connects
    visually to the backdrop panel below (Basecamp "Video Production" bar). */
-/* Board breadcrumb bar: 840px centered. Below 1040px viewport the side
-   margins (100px each) start shrinking to 0 at 840px, then full-width.
-   The backdrop uses the same 840px cap so they always align perfectly. */
-body:has(#pageContent.page-board) .breadcrumb-bar {
+/* Breadcrumb bar: 840px centered with dark bg and rounded top on ALL
+   pages that show the bar (boards, cards, docs, etc). Below 840px it
+   goes full-width edge-to-edge. */
+.breadcrumb-bar:not(.hidden) {
   left: 50%;
   right: auto;
   transform: translateX(-50%);
@@ -380,7 +380,7 @@ body:has(#pageContent.page-board) .breadcrumb-bar {
   border-radius: 12px 12px 0 0;
 }
 @media (max-width: 840px) {
-  body:has(#pageContent.page-board) .breadcrumb-bar {
+  .breadcrumb-bar:not(.hidden) {
     left: 0;
     right: 0;
     width: auto;
