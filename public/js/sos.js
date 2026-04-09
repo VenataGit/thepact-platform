@@ -21,7 +21,7 @@ function generateVideoCards(cardId, cardTitle, btn) {
 // ==================== SOS СИСТЕМА ====================
 function openSosModal(cardId, cardTitle) {
   document.querySelectorAll('#sosModal').forEach(m => m.remove());
-  fetch('/api/users').then(r => r.json()).then(function(users) {
+  fetch('/api/users/team').then(r => r.json()).then(function(users) {
     var userOpts = users.filter(function(u) { return u.id !== currentUser.id; }).map(function(u) {
       return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">' +
         '<input type="checkbox" value="' + u.id + '" style="accent-color:var(--red)"> ' + esc(u.name) + '</label>';
