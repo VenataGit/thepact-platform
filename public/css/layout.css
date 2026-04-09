@@ -413,19 +413,33 @@
 }
 #pageContent.wide { max-width: 1400px; }
 #pageContent.full-width { max-width: none; }
-/* Board pages — tight vertical padding so empty boards don't force page scroll,
-   plus a responsive horizontal gutter: 100px on wide screens, shrinking to 16px
-   on narrow viewports (clamp preferred = 5.5vw, caps at ~1820px wide).
-   The flex column + min-height lets the board-kanban backdrop stretch all the
-   way down to the bottom of the main-area, and overflow-x: hidden clips the
-   backdrop's negative-margin overflow on narrow viewports. */
+/* Board pages — responsive horizontal gutter (100px on wide, shrinks to 16px
+   on narrow) + flex column so the kanban fills the remaining vertical space.
+   The dark backdrop panel sits on a ::before pseudo-element that covers the
+   ENTIRE page-board area (header + columns) from right below the breadcrumb
+   all the way to the bottom of the viewport. */
 #pageContent.page-board {
-  padding: 8px clamp(16px, 5.5vw, 100px) 0;
+  --board-gutter: clamp(16px, 5.5vw, 100px);
+  --backdrop-inset: max(0px, calc(var(--board-gutter) - 20px));
+  padding: 0 var(--board-gutter) 0;
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - var(--nav-height) - 40px);
   box-sizing: border-box;
   overflow-x: hidden;
+  position: relative; /* anchor for the ::before backdrop */
+}
+#pageContent.page-board::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: var(--backdrop-inset);
+  right: var(--backdrop-inset);
+  bottom: 0;
+  background: var(--kanban-backdrop-bg);
+  border-radius: 12px 12px 0 0;
+  pointer-events: none;
+  /* no z-index needed — DOM-order stacking puts siblings above ::before */
 }
 #pageContent.page-chat { max-width: none; padding: 0; height: calc(100vh - var(--nav-height)); overflow: hidden; }
 .with-breadcrumb #pageContent.page-chat { height: calc(100vh - var(--nav-height) - 40px); }
