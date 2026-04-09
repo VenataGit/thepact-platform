@@ -353,38 +353,22 @@
    an accent-colored link showing the current board context. No hard border
    at the bottom (blends into the page) and the link is styled with an
    underline so it reads as clickable navigation. */
+/* Breadcrumb bar: in normal page flow (NOT fixed). Scrolls with content.
+   840px centered, dark bg, rounded top. */
 .breadcrumb-bar {
-  position: fixed;
-  top: var(--nav-height);
-  left: 0;
-  right: 0;
   height: 40px;
-  background: var(--breadcrumb-bg, var(--bg-elevated));
+  background: #152229;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 899;
-}
-/* Board pages: 840px centered breadcrumb with rounded top that connects
-   visually to the backdrop panel below (Basecamp "Video Production" bar). */
-/* Breadcrumb bar: 840px centered with dark bg and rounded top on ALL
-   pages that show the bar (boards, cards, docs, etc). Below 840px it
-   goes full-width edge-to-edge. */
-.breadcrumb-bar:not(.hidden) {
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%);
   width: 840px;
   max-width: 100%;
-  background: #152229;
+  margin: 0 auto;
   border-radius: 12px 12px 0 0;
 }
 @media (max-width: 840px) {
-  .breadcrumb-bar:not(.hidden) {
-    left: 0;
-    right: 0;
-    width: auto;
-    transform: none;
+  .breadcrumb-bar {
+    width: 100%;
     border-radius: 0;
   }
 }
@@ -440,7 +424,7 @@
   background: var(--bg);
 }
 .main-area.with-breadcrumb {
-  padding-top: calc(var(--nav-height) + 40px);
+  padding-top: var(--nav-height);
 }
 
 #pageContent {
