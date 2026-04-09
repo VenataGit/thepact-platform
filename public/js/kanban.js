@@ -165,7 +165,7 @@ function renderKanbanCard(card, colColor) {
   const avatarsHtml = assignees.length
     ? shown.map(a => `<div class="kanban-card__av" style="background:${a.avatar_url ? 'none' : _avColor(a.name)}" title="${esc(a.name)}">${_avInner(a.name, a.avatar_url)}</div>`).join('')
       + (extra > 0 ? `<div class="kanban-card__av kanban-card__av--more">+${extra}</div>` : '')
-    : `<div class="kanban-card__av kanban-card__av--empty">–</div>`;
+    : '';
 
   const holdLabel = card.is_on_hold ? `<span class="kanban-card__hold-badge">⏸ На изчакване</span>` : '';
   const priorityBadge = card.priority === 'urgent' ? '<span class="kanban-card__priority-badge kanban-card__priority-badge--urgent">\ud83d\udd34 \u0421\u043f\u0435\u0448\u043d\u043e</span>' : card.priority === 'high' ? '<span class="kanban-card__priority-badge kanban-card__priority-badge--high">\u2191 \u0412\u0438\u0441\u043e\u043a</span>' : '';
