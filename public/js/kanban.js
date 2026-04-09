@@ -20,7 +20,6 @@ async function renderBoard(el, boardId) {
     const visibleCols = board.columns.filter(c => !c.is_done_column);
     const doneCol = board.columns.find(c => c.is_done_column);
     const doneCards = doneCol ? cards.filter(c => c.column_id === doneCol.id) : [];
-    const wColors = ['#2da562','#e8912d','#3b82f6','#ef4444','#a855f7','#eab308'];
     const nowB = new Date(); nowB.setHours(0,0,0,0);
     const boardOverdueCount = cards.filter(c => isCardOverdue(c, nowB)).length;
 
@@ -29,11 +28,6 @@ async function renderBoard(el, boardId) {
         <h1 class="board-page-header__title">${esc(board.title)}</h1>
         <div class="board-page-header__actions">
           <input id="boardFilterInput" type="search" placeholder="Филтрирай карти..." style="background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text);width:160px;outline:none" oninput="filterBoardCards(this.value)">
-          <div class="board-page-header__watchers">
-            <div class="board-page-header__watcher-avatars">
-              ${allUsers.slice(0,6).map((u,i) => `<div class="board-page-header__watcher-av" style="background:${u.avatar_url ? 'none' : wColors[i%wColors.length]}" title="${esc(u.name)}">${_avInner(u.name, u.avatar_url)}</div>`).join('')}
-            </div>
-          </div>
           ${boardOverdueCount > 0 ? `<button class="btn btn-sm btn-ghost" id="overdueFilterBtn" onclick="toggleOverdueFilter(this)" title="\u041f\u043e\u043a\u0430\u0436\u0438 \u0441\u0430\u043c\u043e \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u0438">\u26a0 ${boardOverdueCount}</button>` : ''}
           ${edit ? `<a class="btn btn-sm" href="#/card/0/new?board=${boardId}">+ Нова карта</a>` : ''}
           ${manage ? `<button class="btn btn-sm btn-ghost" onclick="showAddColumnModal(${boardId})">+ Колона</button>` : ''}
