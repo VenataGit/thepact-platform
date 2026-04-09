@@ -56,9 +56,16 @@ function setBreadcrumb(items) {
   const bar = document.getElementById('breadcrumbBar');
   const bc = document.getElementById('breadcrumb');
   const main = document.getElementById('mainArea');
+  // Hide breadcrumb bar when no items (home, admin, etc.)
+  if (!items || !items.length) {
+    bar.classList.add('hidden');
+    main.classList.remove('with-breadcrumb');
+    bc.innerHTML = '';
+    return;
+  }
   bar.classList.remove('hidden'); main.classList.add('with-breadcrumb');
   // Skip auto-prepended "Home" — show just current context, Basecamp-style centered link
-  var parts = items && items.length ? items.slice() : [];
+  var parts = items.slice();
   // Strip any leading "Home" entries so the bar shows only the meaningful context
   while (parts.length && parts[0].href === '#/home') parts.shift();
   // Prefix with a small grid-style icon (Basecamp "Video Production" bar look)
