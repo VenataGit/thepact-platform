@@ -373,7 +373,7 @@ body:has(#pageContent.page-board) .breadcrumb-bar {
   transform: translateX(-50%);
   width: 840px;
   max-width: calc(100% - 32px);
-  background: var(--kanban-backdrop-bg, #121e26);
+  background: #152229;
   border-radius: 12px 12px 0 0;
 }
 .breadcrumb-bar.hidden { display: none; }
