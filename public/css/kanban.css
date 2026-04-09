@@ -152,7 +152,10 @@
   align-items: center;
   gap: 12px;
   padding: 18px 0 14px;
-  position: relative;
+  position: sticky;
+  top: calc(var(--nav-height) + 40px);
+  z-index: 10;
+  background: var(--kanban-backdrop-bg);
 }
 .board-page-header__title { grid-column: 2; margin: 0; text-align: center; font-size: 24px; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
 .board-page-header__actions { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 10px; position: relative; flex-wrap: nowrap; white-space: nowrap; }

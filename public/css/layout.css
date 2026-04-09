@@ -353,23 +353,38 @@
    an accent-colored link showing the current board context. No hard border
    at the bottom (blends into the page) and the link is styled with an
    underline so it reads as clickable navigation. */
-/* Breadcrumb bar: NOT fixed — scrolls together with the page content.
-   840px centered with dark bg and rounded top on pages that show it.
-   Only the main nav bar is fixed; everything below it moves as one. */
 .breadcrumb-bar {
+  position: fixed;
+  top: var(--nav-height);
+  left: 0;
+  right: 0;
   height: 40px;
-  background: #152229;
+  background: var(--breadcrumb-bg, var(--bg-elevated));
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 899;
+}
+/* Board pages: 840px centered breadcrumb with rounded top that connects
+   visually to the backdrop panel below (Basecamp "Video Production" bar). */
+/* Breadcrumb bar: 840px centered with dark bg and rounded top on ALL
+   pages that show the bar (boards, cards, docs, etc). Below 840px it
+   goes full-width edge-to-edge. */
+.breadcrumb-bar:not(.hidden) {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
   width: 840px;
   max-width: 100%;
-  margin: 0 auto;
+  background: #152229;
   border-radius: 12px 12px 0 0;
 }
 @media (max-width: 840px) {
-  .breadcrumb-bar {
-    width: 100%;
+  .breadcrumb-bar:not(.hidden) {
+    left: 0;
+    right: 0;
+    width: auto;
+    transform: none;
     border-radius: 0;
   }
 }
@@ -425,7 +440,7 @@
   background: var(--bg);
 }
 .main-area.with-breadcrumb {
-  padding-top: var(--nav-height);
+  padding-top: calc(var(--nav-height) + 40px);
 }
 
 #pageContent {
@@ -433,6 +448,7 @@
   margin: 0 auto;
   padding: 30px 24px;
 }
+.with-breadcrumb #pageContent { padding-top: 10px; }
 #pageContent.wide { max-width: 1400px; }
 #pageContent.full-width { max-width: none; }
 /* Board pages — responsive horizontal gutter (100px on wide, shrinks to 16px
@@ -446,7 +462,7 @@
   padding: 0 var(--board-gutter) 0;
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - var(--nav-height));
+  min-height: calc(100vh - var(--nav-height) - 40px);
   box-sizing: border-box;
   overflow-x: hidden;
   position: relative; /* anchor for the ::before backdrop */
