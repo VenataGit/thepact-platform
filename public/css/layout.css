@@ -479,9 +479,8 @@ body:has(#pageContent.page-board) .breadcrumb-bar {
 }
 /* Under 940px: backdrop fills full screen width, no rounded corners */
 @media (max-width: 940px) {
-  #pageContent.page-board { --backdrop-inset: 0px; }
+  #pageContent.page-board { --backdrop-inset: 0px; --board-gutter: 10px; }
   #pageContent.page-board::before { border-radius: 0; }
-  /* no z-index needed — DOM-order stacking puts siblings above ::before */
 }
 #pageContent.page-chat { max-width: none; padding: 0; height: calc(100vh - var(--nav-height)); overflow: hidden; }
 .with-breadcrumb #pageContent.page-chat { height: calc(100vh - var(--nav-height) - 40px); }
