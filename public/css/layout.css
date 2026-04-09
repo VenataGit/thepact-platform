@@ -473,6 +473,8 @@
   min-height: 100vh;
   box-sizing: border-box;
   background: var(--bg);
+  position: relative;
+  z-index: 1;
 }
 .main-area.with-breadcrumb {
   padding-top: var(--nav-height);
