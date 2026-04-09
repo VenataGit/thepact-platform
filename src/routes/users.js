@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const { query, queryOne, execute } = require('../db/pool');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin, invalidateUserCache } = require('../middleware/auth');
+const { disconnectUser } = require('../ws/broadcast');
 const config = require('../config');
 
 // GET /api/users — list all users (admin only)
@@ -73,11 +74,21 @@ router.put('/:id/role', requireAuth, requireAdmin, async (req, res) => {
 router.put('/:id/active', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { is_active } = req.body;
+    const userId = parseInt(req.params.id);
     const user = await queryOne(
       'UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, name, role, is_active',
-      [is_active, req.params.id]
+      [is_active, userId]
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // If deactivating: kick them out immediately
+    if (!is_active) {
+      invalidateUserCache(userId);
+      disconnectUser(userId);
+      // Remove their push subscriptions
+      await execute('DELETE FROM push_subscriptions WHERE user_id = $1', [userId]);
+    }
+
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

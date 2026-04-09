@@ -143,4 +143,22 @@ function getCardEditor(cardId) {
   return cardEditors.get(parseInt(cardId)) || null;
 }
 
-module.exports = { setupWebSocket, broadcast, sendToUser, getConnectedCount, getOnlineUserIds, getCardEditor };
+// Force-disconnect a user (e.g., when deactivated by admin)
+function disconnectUser(userId) {
+  const sockets = clients.get(userId);
+  if (!sockets) return;
+  for (const ws of sockets) {
+    try { ws.close(4003, 'Account deactivated'); } catch (e) {}
+  }
+  clients.delete(userId);
+  // Clean up any card editing presence
+  for (const [cardId, editor] of cardEditors.entries()) {
+    if (editor.userId === userId) {
+      cardEditors.delete(cardId);
+      broadcast({ type: 'card:editing:stop', cardId }, null);
+    }
+  }
+  broadcast({ type: 'presence:offline', userId }, null);
+}
+
+module.exports = { setupWebSocket, broadcast, sendToUser, getConnectedCount, getOnlineUserIds, getCardEditor, disconnectUser };

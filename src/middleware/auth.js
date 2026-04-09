@@ -27,6 +27,10 @@ function clearTokenCookie(res) {
 }
 
 // Middleware: require any authenticated user
+// Also checks is_active in DB (cached for 60s to avoid hitting DB on every request)
+const activeUserCache = new Map(); // userId -> { active: bool, checkedAt: ms }
+const ACTIVE_CHECK_TTL = 60_000;   // re-check every 60 seconds
+
 function requireAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
@@ -42,10 +46,40 @@ function requireAuth(req, res, next) {
       setTokenCookie(res, newToken);
     }
 
+    // Check if user is still active (cached, non-blocking for speed)
+    const cached = activeUserCache.get(payload.userId);
+    if (cached && Date.now() - cached.checkedAt < ACTIVE_CHECK_TTL) {
+      if (!cached.active) {
+        clearTokenCookie(res);
+        return res.status(401).json({ error: 'Account deactivated' });
+      }
+      return next();
+    }
+
+    // Async DB check — don't block the request, but update cache
+    const { queryOne: qo } = require('../db/pool');
+    qo('SELECT is_active FROM users WHERE id = $1', [payload.userId])
+      .then(user => {
+        const isActive = user?.is_active !== false;
+        activeUserCache.set(payload.userId, { active: isActive, checkedAt: Date.now() });
+        if (!isActive) {
+          // Force disconnect on next request (this one already passed)
+          // Also clear their push subscriptions
+          const { execute: exec } = require('../db/pool');
+          exec('DELETE FROM push_subscriptions WHERE user_id = $1', [payload.userId]).catch(() => {});
+        }
+      })
+      .catch(() => {}); // silent fail — don't break requests if DB hiccups
+
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
+}
+
+// Call this when deactivating a user to immediately invalidate their cache
+function invalidateUserCache(userId) {
+  activeUserCache.set(userId, { active: false, checkedAt: Date.now() });
 }
 
 // Middleware: require moderator or admin role
@@ -78,5 +112,6 @@ function verifyFromCookieHeader(cookieHeader) {
 
 module.exports = {
   COOKIE_NAME, signToken, setTokenCookie, clearTokenCookie,
-  requireAuth, requireModerator, requireAdmin, verifyFromCookieHeader
+  requireAuth, requireModerator, requireAdmin, verifyFromCookieHeader,
+  invalidateUserCache
 };
