@@ -47,3 +47,28 @@
 textarea.confirm-modal-input { resize: vertical; min-height: 80px; }
 .btn-danger { background: var(--red); color: #fff; border: none; padding: 8px 20px; border-radius: 20px; font-weight: 700; cursor: pointer; font-size: 13px; transition: background 0.15s; }
 .btn-danger:hover { background: #dc2626; }
+
+/* ==================== PUSH NOTIFICATION PROMPT ==================== */
+.push-prompt {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  background: var(--bg-card, #1e2f3a);
+  border: 1px solid var(--border, #2a3f4d);
+  border-radius: 14px;
+  padding: 16px 20px;
+  min-width: 320px;
+  max-width: 440px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  animation: pushPromptIn 0.3s ease;
+}
+@keyframes pushPromptIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.push-prompt__content { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.push-prompt__icon { font-size: 22px; }
+.push-prompt__text { color: var(--text, #e8ecee); font-size: 14px; line-height: 1.4; }
+.push-prompt__actions { display: flex; gap: 8px; justify-content: flex-end; }

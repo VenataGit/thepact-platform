@@ -3,6 +3,7 @@
 const cron = require('node-cron');
 const db = require('../db/pool');
 const { broadcast } = require('../ws/broadcast');
+const { sendPushToUser } = require('./push');
 
 const activeJobs = new Map(); // questionId -> cronJob
 
@@ -53,6 +54,12 @@ async function triggerCheckIn(questionId, questionText) {
          VALUES ($1, 'system', 'Check-in', $2, 'checkin', $3)`,
         [user.id, questionText, questionId]
       );
+      sendPushToUser(user.id, {
+        title: 'Check-in',
+        body: questionText,
+        tag: `checkin-${questionId}`,
+        url: '/#/checkins',
+      });
     }
 
     // Broadcast WS event

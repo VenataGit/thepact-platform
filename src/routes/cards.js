@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const { broadcast, getCardEditor } = require('../ws/broadcast');
 const { updateGCalEvent, createGCalEvent } = require('../services/google-calendar');
 const { getPostProductionBoardId } = require('../utils/board-roles');
+const { sendPushToUser } = require('../services/push');
 
 // GET /api/cards — all active cards grouped by board/column
 router.get('/', requireAuth, async (req, res) => {
@@ -141,6 +142,12 @@ router.post('/', requireAuth, async (req, res) => {
              VALUES ($1, 'assigned', $2, $3, 'card', $4, $5)`,
             [uid, `${req.user.name} те назначи на задача`, card.title, card.id, req.user.name]
           );
+          sendPushToUser(uid, {
+            title: 'Нова задача',
+            body: `${req.user.name} те назначи на: ${card.title}`,
+            tag: `assigned-${card.id}`,
+            url: `/#/card/${card.id}`,
+          });
         }
       }
     }

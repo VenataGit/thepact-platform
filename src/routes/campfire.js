@@ -3,6 +3,7 @@ const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth, requireModerator } = require('../middleware/auth');
 const { broadcast, sendToUser } = require('../ws/broadcast');
+const { sendPushToAllExcept } = require('../services/push');
 
 // GET /api/campfire/rooms — list all campfire rooms
 router.get('/rooms', requireAuth, async (req, res) => {
@@ -71,6 +72,12 @@ router.post('/rooms/:id/messages', requireAuth, async (req, res) => {
     msg.user_avatar = user.avatar_url;
 
     broadcast({ type: 'campfire:message', roomId: parseInt(req.params.id), message: msg }, req.user.userId);
+    sendPushToAllExcept(req.user.userId, {
+      title: `Campfire: ${user.name}`,
+      body: content.trim().replace(/<[^>]*>/g, '').substring(0, 120),
+      tag: `campfire-${req.params.id}`,
+      url: '/#/campfire',
+    });
     res.status(201).json(msg);
   } catch (err) {
     console.error('Campfire send error:', err.message);

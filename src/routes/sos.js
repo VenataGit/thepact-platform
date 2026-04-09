@@ -3,6 +3,7 @@ const router = express.Router();
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { query, queryOne, execute } = require('../db/pool');
 const { broadcast } = require('../ws/broadcast');
+const { sendPushToAllExcept } = require('../services/push');
 
 // POST /api/sos — fire SOS alert
 router.post('/', requireAuth, async (req, res) => {
@@ -37,6 +38,14 @@ router.post('/', requireAuth, async (req, res) => {
       targetAll: alert.target_all,
       targetUserIds: alert.target_user_ids,
       createdAt: alert.created_at
+    });
+
+    // Push SOS to everyone (critical)
+    sendPushToAllExcept(req.user.userId, {
+      title: '🚨 SOS!',
+      body: `${sender?.name || 'Някой'}: ${message || 'Спешен сигнал!'}`,
+      tag: `sos-${alert.id}`,
+      url: '/#/home',
     });
 
     res.status(201).json({ ok: true, alertId: alert.id });

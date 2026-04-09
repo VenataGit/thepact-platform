@@ -158,6 +158,7 @@ app.use('/api/kp', require('./routes/kp'));
 app.use('/api/sos', require('./routes/sos'));
 app.use('/api/production-calendar', require('./routes/production-calendar'));
 app.use('/api/trash', require('./routes/trash'));
+app.use('/api/push', require('./routes/push'));
 // Online users endpoint
 app.get('/api/users/online', require('./middleware/auth').requireAuth, (req, res) => {
   const { getOnlineUserIds } = require('./ws/broadcast');

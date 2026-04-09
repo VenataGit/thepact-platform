@@ -21,6 +21,10 @@ module.exports = {
   BOARD_ORDER: ['Pre-Production', 'Production', 'Post-Production', 'Акаунт Мениджмънт', 'Задачи'],
   DEPLOY_SECRET: process.env.DEPLOY_SECRET || null,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || null,
+  // Web Push (optional — generate keys with: node scripts/generate-vapid-keys.js)
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || null,
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || null,
+  VAPID_EMAIL: process.env.VAPID_EMAIL || 'mailto:admin@thepact.pro',
   // Email (optional)
   SMTP_HOST: process.env.SMTP_HOST || null,
   SMTP_PORT: parseInt(process.env.SMTP_PORT) || 587,

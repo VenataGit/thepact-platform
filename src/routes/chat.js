@@ -6,6 +6,7 @@ const multer = require('multer');
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { broadcast, sendToUser } = require('../ws/broadcast');
+const { sendPushToUser } = require('../services/push');
 
 // File uploads for chat
 const CHAT_UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads', 'chat');
@@ -289,6 +290,12 @@ router.post('/channels/:id/messages', requireAuth, async (req, res) => {
     for (const m of members) {
       if (m.user_id !== req.user.userId) {
         sendToUser(m.user_id, { type: 'chat:message', channelId: parseInt(req.params.id), message: msg });
+        sendPushToUser(m.user_id, {
+          title: `${user.name}`,
+          body: msg.body?.replace(/<[^>]*>/g, '').substring(0, 120) || 'Ново съобщение',
+          tag: `chat-${req.params.id}`,
+          url: `/#/chat/${req.params.id}`,
+        });
       }
     }
 

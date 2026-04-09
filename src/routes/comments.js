@@ -3,6 +3,7 @@ const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { broadcast } = require('../ws/broadcast');
+const { sendPushToUser } = require('../services/push');
 
 // GET /api/cards/:cardId/comments
 router.get('/:cardId/comments', requireAuth, async (req, res) => {
@@ -51,6 +52,12 @@ router.post('/:cardId/comments', requireAuth, async (req, res) => {
            VALUES ($1, 'reply', $2, $3, 'card', $4, $5, $6)`,
           [parentComment.user_id, `${user.name} отговори на твой коментар`, card?.title || '', parseInt(req.params.cardId), user.name, comment.id]
         );
+        sendPushToUser(parentComment.user_id, {
+          title: 'Отговор на коментар',
+          body: `${user.name} отговори на твой коментар в: ${card?.title || 'карта'}`,
+          tag: `reply-${comment.id}`,
+          url: `/#/card/${req.params.cardId}`,
+        });
       }
     }
 
@@ -63,6 +70,12 @@ router.post('/:cardId/comments', requireAuth, async (req, res) => {
              VALUES ($1, 'mentioned', $2, $3, 'card', $4, $5, $6)`,
             [userId, `${user.name} те спомена в коментар`, card?.title || '', parseInt(req.params.cardId), user.name, comment.id]
           );
+          sendPushToUser(userId, {
+            title: 'Споменат/а си',
+            body: `${user.name} те спомена в: ${card?.title || 'карта'}`,
+            tag: `mention-${comment.id}`,
+            url: `/#/card/${req.params.cardId}`,
+          });
         }
       }
     }
