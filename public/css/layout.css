@@ -415,8 +415,18 @@
 #pageContent.full-width { max-width: none; }
 /* Board pages — tight vertical padding so empty boards don't force page scroll,
    plus a responsive horizontal gutter: 100px on wide screens, shrinking to 16px
-   on narrow viewports (clamp preferred = 5.5vw, caps at ~1820px wide). */
-#pageContent.page-board { padding: 8px clamp(16px, 5.5vw, 100px) 12px; }
+   on narrow viewports (clamp preferred = 5.5vw, caps at ~1820px wide).
+   The flex column + min-height lets the board-kanban backdrop stretch all the
+   way down to the bottom of the main-area, and overflow-x: hidden clips the
+   backdrop's negative-margin overflow on narrow viewports. */
+#pageContent.page-board {
+  padding: 8px clamp(16px, 5.5vw, 100px) 0;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--nav-height) - 40px);
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
 #pageContent.page-chat { max-width: none; padding: 0; height: calc(100vh - var(--nav-height)); overflow: hidden; }
 .with-breadcrumb #pageContent.page-chat { height: calc(100vh - var(--nav-height) - 40px); }
 body:has(#pageContent.page-chat) { overflow: hidden; }

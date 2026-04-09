@@ -126,7 +126,26 @@
 .board-watching__avatar:first-child { margin-left: 0; }
 
 /* ==================== KANBAN BOARD ==================== */
-.board-kanban { display: flex; gap: 10px; overflow-x: auto; align-items: flex-start; padding: 8px 0 16px; background: var(--kanban-bg); }
+/* The board-kanban element doubles as the backdrop panel BEHIND the columns:
+   - margin: 0 -20px extends the panel 20px beyond the parent's content box
+     on each side (so it's 40px wider than the columns area)
+   - padding: 8px 20px 16px restores the 20px gutter INSIDE so columns sit
+     back where they were, relative to the parent's content box
+   - border-radius 12 on the top corners, 0 on the bottom so it visually
+     "docks" at the bottom of the page
+   - flex: 1 so it fills the remaining vertical space after the header */
+.board-kanban {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  align-items: flex-start;
+  padding: 8px 20px 16px;
+  margin: 0 -20px;
+  background: var(--kanban-backdrop-bg);
+  border-radius: 12px 12px 0 0;
+  flex: 1 1 0;
+  min-height: 0;
+}
 
 /* Board page header — horizontal padding comes from #pageContent.page-board
    so the title aligns with the columns' left edge. */
