@@ -349,6 +349,10 @@
 }
 
 /* ==================== BREADCRUMB BAR ==================== */
+/* Breadcrumb bar — Basecamp-style: a thin centered strip with an icon and
+   an accent-colored link showing the current board context. No hard border
+   at the bottom (blends into the page) and the link is styled with an
+   underline so it reads as clickable navigation. */
 .breadcrumb-bar {
   position: fixed;
   top: var(--nav-height);
@@ -356,7 +360,6 @@
   right: 0;
   height: 40px;
   background: var(--breadcrumb-bg, var(--bg-elevated));
-  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -366,17 +369,28 @@
 .breadcrumb {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 8px;
+  font-size: 14px;
 }
+.breadcrumb__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.breadcrumb__icon svg { display: block; width: 14px; height: 14px; }
 .breadcrumb a {
-  color: var(--breadcrumb-text, var(--text-secondary));
-  text-decoration: none;
-  font-weight: 500;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
 }
-.breadcrumb a:hover { color: var(--accent); text-decoration: underline; }
-.breadcrumb .sep { color: var(--breadcrumb-sep, var(--text-dim)); font-size: 11px; }
-.breadcrumb .current { color: var(--breadcrumb-active, var(--text)); font-weight: 600; }
+.breadcrumb a:hover { color: var(--accent-hover); }
+.breadcrumb .sep { color: var(--breadcrumb-sep, var(--text-dim)); font-size: 11px; display: none; }
+.breadcrumb .current { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
 /* Jump menu in breadcrumb */
 .breadcrumb__jump-btn {

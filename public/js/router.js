@@ -57,12 +57,21 @@ function setBreadcrumb(items) {
   const bc = document.getElementById('breadcrumb');
   const main = document.getElementById('mainArea');
   bar.classList.remove('hidden'); main.classList.add('with-breadcrumb');
-  var parts = [];
-  var firstIsHome = items?.length && items[0].href === '#/home';
-  if (!firstIsHome) parts.push({ href: '#/home', label: 'Home' });
-  if (items?.length) parts = parts.concat(items);
-  bc.innerHTML = parts.map(function(item, i) {
-    if (i === parts.length - 1) return '<span class="current">' + esc(item.label) + '</span>';
+  // Skip auto-prepended "Home" — show just current context, Basecamp-style centered link
+  var parts = items && items.length ? items.slice() : [];
+  // Strip any leading "Home" entries so the bar shows only the meaningful context
+  while (parts.length && parts[0].href === '#/home') parts.shift();
+  // Prefix with a small grid-style icon (Basecamp "Video Production" bar look)
+  var html = '<span class="breadcrumb__icon" aria-hidden="true">'
+    + '<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+    + '<rect x="1.5" y="1.5" width="4" height="4" rx="0.8"/>'
+    + '<rect x="8.5" y="1.5" width="4" height="4" rx="0.8"/>'
+    + '<rect x="1.5" y="8.5" width="4" height="4" rx="0.8"/>'
+    + '<rect x="8.5" y="8.5" width="4" height="4" rx="0.8"/>'
+    + '</svg></span>';
+  html += parts.map(function(item, i) {
+    if (i === parts.length - 1 || !item.href) return '<span class="current">' + esc(item.label) + '</span>';
     return '<a href="' + item.href + '">' + esc(item.label) + '</a><span class="sep">›</span>';
   }).join('');
+  bc.innerHTML = html;
 }
