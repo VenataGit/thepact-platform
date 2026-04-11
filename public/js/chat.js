@@ -272,34 +272,20 @@ async function renderChatChannel(el, channelId) {
     // Messages with date dividers
     var msgsHtml = _renderMessagesWithDividers(msgs, channelId);
 
-    // Input footer — format bar ABOVE editor, emoji picker inside actions
+    // Input footer — Trix editor (same as card notes), emoji/GIF/file actions
     var inputHtml = '<div class="chat-footer">' +
-      '<div class="chat-format-bar" id="chatFormatBar">' +
-        '<div class="chat-format-group">' +
-          '<button class="chat-fmt-btn chat-fmt-btn--bold" onmousedown="event.preventDefault();document.execCommand(\'bold\')" title="Удебелен"></button>' +
-          '<button class="chat-fmt-btn chat-fmt-btn--italic" onmousedown="event.preventDefault();document.execCommand(\'italic\')" title="Курсив"></button>' +
-          '<button class="chat-fmt-btn chat-fmt-btn--strike" onmousedown="event.preventDefault();document.execCommand(\'strikeThrough\')" title="Зачертан"></button>' +
-          '<button class="chat-fmt-btn chat-fmt-btn--link" onmousedown="event.preventDefault();chatInsertLink()" title="Линк"></button>' +
-        '</div>' +
-        '<div class="chat-format-group">' +
-          '<button class="chat-fmt-btn chat-fmt-btn--quote" onmousedown="event.preventDefault();document.execCommand(\'formatBlock\',false,\'blockquote\')" title="Цитат"></button>' +
-          '<button class="chat-fmt-btn chat-fmt-btn--code" onmousedown="event.preventDefault();document.execCommand(\'formatBlock\',false,\'pre\')" title="Код"></button>' +
-          '<button class="chat-fmt-btn chat-fmt-btn--ul" onmousedown="event.preventDefault();document.execCommand(\'insertUnorderedList\')" title="Списък"></button>' +
-          '<button class="chat-fmt-btn chat-fmt-btn--ol" onmousedown="event.preventDefault();document.execCommand(\'insertOrderedList\')" title="Номериран списък"></button>' +
-        '</div>' +
+      '<div class="chat-editor-wrap bc-editor">' +
+        '<input id="chatTrixInput" type="hidden" value="">' +
+        '<trix-editor input="chatTrixInput" class="trix-dark" placeholder="Напиши съобщение\u2026"></trix-editor>' +
       '</div>' +
-      '<div class="chat-input" id="chatInputBar">' +
-        '<div class="chat-input__area">' +
-          '<div class="chat-input__editor" id="chatEditor" contenteditable="true" data-placeholder="Напиши съобщение..." onkeydown="chatInputKeydown(event,'+channelId+')" onpaste="chatPaste(event,'+channelId+')" oninput="chatInputChange('+channelId+')"></div>' +
-        '</div>' +
-        '<div class="chat-input__actions">' +
-          '<button class="chat-input__btn chat-input__btn--text" onclick="chatToggleFormatting()" title="Форматиране">A</button>' +
-          '<button class="chat-input__btn" onclick="chatToggleEmoji()" title="Емоджи">😊</button>' +
-          '<button class="chat-input__btn" onclick="document.getElementById(\'chatFileInput\').click()" title="Прикачи файл">📎</button>' +
-          '<input type="file" id="chatFileInput" multiple style="display:none" onchange="chatUploadFiles(this,'+channelId+')">' +
-          '<div class="chat-emoji-picker" id="chatEmojiPicker"></div>' +
-          '<button class="chat-input__send" onclick="sendChatMsg('+channelId+')" title="Изпрати (Enter)">➤</button>' +
-        '</div>' +
+      '<div class="chat-input__actions">' +
+        '<button class="chat-input__btn" onclick="chatToggleEmoji()" title="Емоджи">😊</button>' +
+        '<button class="chat-input__btn chat-input__btn--gif" onclick="chatToggleGif()" title="GIF">GIF</button>' +
+        '<button class="chat-input__btn" onclick="document.getElementById(\'chatFileInput\').click()" title="Прикачи файл">📎</button>' +
+        '<input type="file" id="chatFileInput" multiple style="display:none" onchange="chatUploadFiles(this,'+channelId+')">' +
+        '<div class="chat-emoji-picker" id="chatEmojiPicker"></div>' +
+        '<div class="chat-gif-picker" id="chatGifPicker"></div>' +
+        '<button class="chat-input__send" onclick="sendChatMsg('+channelId+')" title="Изпрати (Enter)">➤</button>' +
       '</div>' +
     '</div>' +
     '<div class="chat-typing" id="chatTyping"></div>';
@@ -312,6 +298,9 @@ async function renderChatChannel(el, channelId) {
 
     var msgsEl = document.getElementById('chatMessages');
     if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+
+    // Setup Trix editor for chat (inject color button, handle Enter-to-send)
+    setTimeout(function() { chatSetupTrix(channelId); }, 300);
   } catch(e) { console.error(e); el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Грешка</div>'; }
 }
 
@@ -395,45 +384,86 @@ function chatAddReaction(msgId, emoji, btn) {
 function _chatFormatText(text) {
   if (!text) return '';
   var s = esc(text);
+  // Code blocks (triple backticks) — process first to avoid inner formatting
+  s = s.replace(/```\n?([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+  // Inline formatting
   s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
   s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
   s = s.replace(/`(.+?)`/g, '<code>$1</code>');
   s = s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank">$1</a>');
+  // Blockquotes (lines starting with >)
+  s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+  // Numbered lists
+  s = s.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  // Bullet lists
+  s = s.replace(/^• (.+)$/gm, '<li>$1</li>');
   s = s.replace(/\n/g, '<br>');
   return s;
 }
 
-// --- Chat input ---
-function chatInputKeydown(e, chId) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendChatMsg(chId);
-  }
-  // Typing indicator
-  if (ws && ws.readyState === 1) {
-    clearTimeout(typingTimeout);
-    ws.send(JSON.stringify({type:'typing:start', channelId: chId}));
-    typingTimeout = setTimeout(function(){ ws.send(JSON.stringify({type:'typing:stop', channelId: chId})); }, 2000);
-  }
+// --- Chat input (Trix-based) ---
+function chatSetupTrix(channelId) {
+  var trixEl = document.querySelector('trix-editor[input="chatTrixInput"]');
+  if (!trixEl) return;
+
+  // Enter = send, Shift+Enter = new line
+  trixEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMsg(channelId);
+    }
+    // Typing indicator
+    if (ws && ws.readyState === 1) {
+      clearTimeout(typingTimeout);
+      ws.send(JSON.stringify({type:'typing:start', channelId: channelId}));
+      typingTimeout = setTimeout(function(){ ws.send(JSON.stringify({type:'typing:stop', channelId: channelId})); }, 2000);
+    }
+  });
+
+  // Handle file attachments via Trix drag/paste
+  trixEl.addEventListener('trix-attachment-add', function(e) {
+    if (e.attachment.file) chatUploadTrixFile(channelId, e.attachment);
+  });
+
+  // Inject color button (same as card notes)
+  if (typeof injectTrixColorButton === 'function') injectTrixColorButton(trixEl);
 }
-function chatInputChange() { /* placeholder toggle handled by CSS */ }
+
+function chatUploadTrixFile(chId, attachment) {
+  var fd = new FormData();
+  fd.append('file', attachment.file);
+  fetch('/api/chat/channels/'+chId+'/upload', {method:'POST', body: fd})
+    .then(function(r){ return r.json(); })
+    .then(function(uploaded) {
+      // Remove from Trix editor, send as chat attachment instead
+      attachment.remove();
+      return fetch('/api/chat/channels/'+chId+'/messages', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+        content: '', message_type: 'attachment',
+        attachment_url: uploaded.url, attachment_name: uploaded.name, attachment_mime: uploaded.mime, attachment_size: uploaded.size
+      })});
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(msg) { if (msg && msg.id) appendChatMsg(msg); })
+    .catch(function() { showToast('Грешка при качване', 'error'); });
+}
+
 async function sendChatMsg(chId) {
-  var editor = document.getElementById('chatEditor');
-  if (!editor) return;
-  var html = editor.innerHTML.trim();
-  if (!html || html === '<br>' || html === '<div><br></div>') return;
+  var trixEl = document.querySelector('trix-editor[input="chatTrixInput"]');
+  if (!trixEl || !trixEl.editor) return;
+  var html = document.getElementById('chatTrixInput').value.trim();
+  if (!html || html === '<div><br></div>' || html === '<br>') return;
   var text = _htmlToMarkdown(html);
   if (!text.trim()) return;
-  var savedHtml = editor.innerHTML;
-  editor.innerHTML = '';
+  var savedHtml = html;
+  trixEl.editor.loadHTML('');
   try {
     var res = await fetch('/api/chat/channels/'+chId+'/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:text})});
-    if (!res.ok) { editor.innerHTML = savedHtml; showToast('Грешка при изпращане','error'); return; }
+    if (!res.ok) { trixEl.editor.loadHTML(savedHtml); showToast('Грешка при изпращане','error'); return; }
     var msg = await res.json();
     if (msg && msg.id) appendChatMsg(msg);
-    else { editor.innerHTML = savedHtml; showToast('Грешка при изпращане','error'); }
-  } catch(err) { console.error('Chat send error:', err); editor.innerHTML = savedHtml; showToast('Грешка при изпращане','error'); }
+    else { trixEl.editor.loadHTML(savedHtml); showToast('Грешка при изпращане','error'); }
+  } catch(err) { console.error('Chat send error:', err); trixEl.editor.loadHTML(savedHtml); showToast('Грешка при изпращане','error'); }
 }
 function _htmlToMarkdown(html) {
   var tmp = document.createElement('div');
@@ -442,8 +472,27 @@ function _htmlToMarkdown(html) {
   tmp.querySelectorAll('div, p').forEach(function(el){
     el.insertAdjacentText('afterend', '\n');
   });
+  // Blockquotes → > prefix
+  tmp.querySelectorAll('blockquote').forEach(function(el){
+    var lines = el.textContent.split('\n').map(function(l){ return '> ' + l; }).join('\n');
+    el.replaceWith(lines + '\n');
+  });
+  // Code blocks → triple backticks
+  tmp.querySelectorAll('pre').forEach(function(el){
+    el.replaceWith('```\n' + el.textContent + '\n```\n');
+  });
+  // Links → preserve URL
+  tmp.querySelectorAll('a').forEach(function(el){
+    el.replaceWith(el.getAttribute('href') || el.textContent);
+  });
   tmp.querySelectorAll('li').forEach(function(el){
-    el.insertAdjacentText('beforebegin', '• ');
+    var parent = el.closest('ol');
+    if (parent) {
+      var idx = Array.from(parent.children).indexOf(el) + 1;
+      el.insertAdjacentText('beforebegin', idx + '. ');
+    } else {
+      el.insertAdjacentText('beforebegin', '• ');
+    }
     el.insertAdjacentText('afterend', '\n');
   });
   // Convert basic formatting
@@ -468,30 +517,7 @@ function appendChatMsg(msg) {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
-// --- Formatting, emoji, files ---
-function chatToggleFormatting() {
-  var bar = document.getElementById('chatFormatBar');
-  var editor = document.getElementById('chatEditor');
-  var btn = document.querySelector('.chat-input__btn--text');
-  if (!bar) return;
-  var isOpen = bar.classList.contains('open');
-  if (isOpen) {
-    bar.classList.remove('open');
-    if (editor) editor.classList.remove('expanded');
-    if (btn) btn.classList.remove('active');
-  } else {
-    bar.classList.add('open');
-    if (editor) editor.classList.add('expanded');
-    if (btn) btn.classList.add('active');
-    // Close emoji picker if open
-    var emojiPicker = document.getElementById('chatEmojiPicker');
-    if (emojiPicker) emojiPicker.classList.remove('open');
-  }
-}
-function chatInsertLink() {
-  var url = prompt('URL:');
-  if (url) document.execCommand('createLink', false, url);
-}
+// --- Emoji, GIF, files ---
 function chatToggleEmoji() {
   var picker = document.getElementById('chatEmojiPicker');
   if (!picker) return;
@@ -506,8 +532,11 @@ function chatToggleEmoji() {
   setTimeout(function(){ document.addEventListener('click', function handler(e) { if (!picker.contains(e.target) && !e.target.closest('.chat-input__btn')) { picker.classList.remove('open'); document.removeEventListener('click', handler); } }); }, 10);
 }
 function chatInsertEmoji(emoji) {
-  var editor = document.getElementById('chatEditor');
-  if (editor) { editor.focus(); document.execCommand('insertText', false, emoji); }
+  var trixEl = document.querySelector('trix-editor[input="chatTrixInput"]');
+  if (trixEl && trixEl.editor) {
+    trixEl.editor.insertString(emoji);
+    trixEl.focus();
+  }
   var picker = document.getElementById('chatEmojiPicker');
   if (picker) picker.classList.remove('open');
 }
@@ -528,25 +557,75 @@ async function chatUploadFiles(input, chId) {
   }
   input.value = '';
 }
-async function chatPaste(e, chId) {
-  var items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
-  if (!items) return;
-  for (var i = 0; i < items.length; i++) {
-    if (items[i].type.indexOf('image') !== -1) {
-      e.preventDefault();
-      var file = items[i].getAsFile();
-      var fd = new FormData();
-      fd.append('file', file, 'pasted-image.png');
-      try {
-        var uploaded = await (await fetch('/api/chat/channels/'+chId+'/upload', {method:'POST', body: fd})).json();
-        var msg = await (await fetch('/api/chat/channels/'+chId+'/messages', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
-          content: '', message_type: 'attachment',
-          attachment_url: uploaded.url, attachment_name: uploaded.name, attachment_mime: uploaded.mime, attachment_size: uploaded.size
-        })})).json();
-        if (msg && msg.id) appendChatMsg(msg);
-      } catch {}
-      break;
+// --- GIF search & send ---
+var _gifSearchTimeout;
+function chatToggleGif() {
+  var picker = document.getElementById('chatGifPicker');
+  if (!picker) return;
+  var isOpen = picker.classList.contains('open');
+  // Close emoji if open
+  var emojiPicker = document.getElementById('chatEmojiPicker');
+  if (emojiPicker) emojiPicker.classList.remove('open');
+  if (isOpen) { picker.classList.remove('open'); return; }
+  if (!picker.innerHTML) {
+    picker.innerHTML = '<div class="gif-picker">' +
+      '<div class="gif-picker__header"><input class="gif-picker__search" placeholder="Търси GIF..." oninput="chatSearchGif(this.value)"></div>' +
+      '<div class="gif-picker__results" id="gifResults"><div class="gif-picker__loading">Зареждане...</div></div>' +
+      '<div class="gif-picker__powered">Powered by GIPHY</div>' +
+    '</div>';
+    _chatDoGifSearch('');
+  }
+  picker.classList.add('open');
+  setTimeout(function(){
+    var inp = picker.querySelector('.gif-picker__search');
+    if (inp) inp.focus();
+    document.addEventListener('click', function handler(e) {
+      if (!picker.contains(e.target) && !e.target.closest('.chat-input__btn--gif')) {
+        picker.classList.remove('open');
+        document.removeEventListener('click', handler);
+      }
+    });
+  }, 10);
+}
+function chatSearchGif(query) {
+  clearTimeout(_gifSearchTimeout);
+  _gifSearchTimeout = setTimeout(function() { _chatDoGifSearch(query); }, 350);
+}
+async function _chatDoGifSearch(query) {
+  var results = document.getElementById('gifResults');
+  if (!results) return;
+  results.innerHTML = '<div class="gif-picker__loading">Зареждане...</div>';
+  try {
+    var url = '/api/chat/gif-search?q=' + encodeURIComponent(query || '');
+    var data = await (await fetch(url)).json();
+    if (!data.results || !data.results.length) {
+      results.innerHTML = '<div class="gif-picker__empty">Няма резултати</div>';
+      return;
     }
+    results.innerHTML = data.results.map(function(gif) {
+      return '<img class="gif-picker__img" src="'+gif.preview+'" data-url="'+gif.url+'" onclick="chatSendGif(\''+gif.url.replace(/'/g,"\\'")+'\')" title="'+esc(gif.title || '')+'" loading="lazy">';
+    }).join('');
+  } catch(e) {
+    console.error('[gif-search]', e);
+    results.innerHTML = '<div class="gif-picker__empty">Грешка при търсене</div>';
+  }
+}
+async function chatSendGif(gifUrl) {
+  var chId = _activeChatChannel;
+  if (!chId) return;
+  var picker = document.getElementById('chatGifPicker');
+  if (picker) picker.classList.remove('open');
+  try {
+    var msg = await (await fetch('/api/chat/channels/'+chId+'/messages', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        content: '', message_type: 'attachment',
+        attachment_url: gifUrl, attachment_name: 'GIF', attachment_mime: 'image/gif'
+      })
+    })).json();
+    if (msg && msg.id) appendChatMsg(msg);
+  } catch(e) {
+    showToast('Грешка при изпращане на GIF', 'error');
   }
 }
 

@@ -394,4 +394,32 @@ router.delete('/channels/:id/members/:userId', requireAuth, async (req, res) => 
   }
 });
 
+// GET /api/chat/gif-search — proxy GIF search (Giphy API)
+router.get('/gif-search', requireAuth, async (req, res) => {
+  try {
+    const q = req.query.q || '';
+    const apiKey = process.env.GIPHY_API_KEY || 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65';
+    const endpoint = q
+      ? `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${encodeURIComponent(q)}&limit=20&rating=g&lang=bg`
+      : `https://api.giphy.com/v1/gifs/trending?api_key=${apiKey}&limit=20&rating=g`;
+
+    const response = await fetch(endpoint);
+    const data = await response.json();
+
+    const results = (data.data || []).map(g => ({
+      id: g.id,
+      title: g.title || '',
+      url: g.images?.original?.url || g.images?.downsized?.url || '',
+      preview: g.images?.fixed_width_small?.url || g.images?.fixed_width?.url || g.images?.preview_gif?.url || '',
+      width: parseInt(g.images?.original?.width) || 0,
+      height: parseInt(g.images?.original?.height) || 0
+    }));
+
+    res.json({ results });
+  } catch (err) {
+    console.error('[gif-search]', err.message);
+    res.status(500).json({ error: 'GIF search failed', results: [] });
+  }
+});
+
 module.exports = router;
