@@ -137,7 +137,19 @@
 /* Editor — Basecamp Trix style */
 .bc-editor { border: 1px solid var(--divider-medium); border-radius: 6px; background: var(--overlay-black-faint); overflow-x: clip; overflow-y: visible; width: 100%; max-width: 100%; box-sizing: border-box; }
 .bc-editor trix-toolbar { border: none; border-bottom: 1px solid var(--divider-light); border-radius: 6px 6px 0 0; padding: 6px 4px; position: sticky; top: var(--nav-height); z-index: 5; background: var(--bg-card); }
-.bc-editor trix-toolbar .trix-button-group { flex-wrap: wrap; }
+.bc-editor trix-toolbar .trix-button-group { flex-wrap: wrap; border: none !important; margin-bottom: 0 !important; border-radius: 0 !important; background: transparent !important; }
+.bc-editor trix-toolbar .trix-button-group:not(:first-child) { margin-left: 8px; }
+.bc-editor trix-toolbar .trix-button {
+  background: transparent !important;
+  border: none !important;
+  padding: 4px 7px;
+  filter: invert(0.85);
+  border-radius: 3px;
+  width: 32px;
+  height: 32px;
+}
+.bc-editor trix-toolbar .trix-button:hover { filter: invert(1); background: var(--overlay-white-ultra, rgba(255,255,255,0.08)) !important; }
+.bc-editor trix-toolbar .trix-button.trix-active { filter: invert(1); background: var(--overlay-white-faint, rgba(255,255,255,0.12)) !important; }
 .bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; max-height: none !important; overflow-y: visible !important; height: auto; padding: 14px; color: var(--text); font-size: 14px; line-height: 1.6; min-width: 0; box-sizing: border-box; }
 
 /* Steps — expandable items */
