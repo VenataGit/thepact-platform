@@ -504,9 +504,9 @@ function injectTrixColorButton(trixEl) {
   if (!group) return;
   var btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'trix-button bc-trix-color-btn';
+  btn.className = 'trix-button trix-button--icon bc-trix-color-btn';
   btn.title = 'Маркиране';
-  btn.textContent = '';
+  btn.textContent = 'Color';
   btn.addEventListener('click', function(e) {
     e.preventDefault();
     e.stopPropagation();
