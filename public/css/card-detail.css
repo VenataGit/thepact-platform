@@ -47,7 +47,7 @@
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
 }
 .bc-field__value--vertical { flex-direction: column; align-items: flex-start; gap: 6px; }
-.bc-field__value--full { flex-direction: column; align-items: stretch; overflow: hidden; }
+.bc-field__value--full { flex-direction: column; align-items: stretch; overflow-x: clip; }
 .bc-field__hint { color: var(--text-dim); font-size: 13px; }
 .bc-field--light { opacity: 0.7; }
 .bc-field__placeholder { color: var(--text-dim); font-style: normal; }
@@ -135,8 +135,8 @@
 .card-history-time { color: var(--text-dim); font-size: 11px; white-space: nowrap; line-height: 1.8; }
 
 /* Editor — Basecamp Trix style */
-.bc-editor { border: 1px solid var(--divider-medium); border-radius: 6px; background: var(--overlay-black-faint); overflow-x: hidden; overflow-y: visible; width: 100%; max-width: 100%; box-sizing: border-box; }
-.bc-editor trix-toolbar { border: none; border-bottom: 1px solid var(--divider-light); background: transparent; border-radius: 0; padding: 6px 4px; }
+.bc-editor { border: 1px solid var(--divider-medium); border-radius: 6px; background: var(--overlay-black-faint); overflow-x: clip; overflow-y: visible; width: 100%; max-width: 100%; box-sizing: border-box; }
+.bc-editor trix-toolbar { border: none; border-bottom: 1px solid var(--divider-light); border-radius: 6px 6px 0 0; padding: 6px 4px; position: sticky; top: var(--nav-height); z-index: 5; background: var(--bg-card); }
 .bc-editor trix-toolbar .trix-button-group { flex-wrap: wrap; }
 .bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; max-height: none !important; overflow-y: visible !important; height: auto; padding: 14px; color: var(--text); font-size: 14px; line-height: 1.6; min-width: 0; box-sizing: border-box; }
 
