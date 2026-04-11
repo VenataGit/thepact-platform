@@ -151,6 +151,9 @@
 .bc-editor trix-toolbar .trix-button:hover { filter: invert(1); background: var(--overlay-white-ultra, rgba(255,255,255,0.08)) !important; }
 .bc-editor trix-toolbar .trix-button.trix-active { filter: invert(1); background: var(--overlay-white-faint, rgba(255,255,255,0.12)) !important; }
 .bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; max-height: none !important; overflow-y: visible !important; height: auto; padding: 14px; color: var(--text); font-size: 14px; line-height: 1.6; min-width: 0; box-sizing: border-box; }
+.bc-editor trix-editor ol, .bc-editor trix-editor ul { padding-left: 24px; margin: 4px 0; }
+.bc-editor trix-editor ol ol, .bc-editor trix-editor ul ul,
+.bc-editor trix-editor ol ul, .bc-editor trix-editor ul ol { padding-left: 20px; }
 
 /* Steps — expandable items */
 .bc-checklist { list-style: none; padding: 0; margin: 0 0 8px; }
@@ -342,8 +345,7 @@
   transition: background var(--transition-fast);
 }
 .bc-color-swatch--reset:hover { background: var(--bg-hover); color: var(--text); }
-.bc-trix-color-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; padding: 4px 7px; cursor: pointer; border: none !important; background: transparent !important; border-radius: 3px; filter: invert(0.85); }
-.bc-trix-color-btn:hover { filter: invert(1); background: var(--overlay-white-ultra, rgba(255,255,255,0.08)) !important; }
+.bc-trix-color-btn { display: flex !important; align-items: center; justify-content: center; }
 
 /* Notes file attach button */
 .bc-attach-row { margin-top: 6px; }
