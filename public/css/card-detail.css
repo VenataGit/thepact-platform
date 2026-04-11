@@ -150,7 +150,7 @@
 }
 .bc-editor trix-toolbar .trix-button:hover { filter: invert(1); background: var(--overlay-white-ultra, rgba(255,255,255,0.08)) !important; }
 .bc-editor trix-toolbar .trix-button.trix-active { filter: invert(1); background: var(--overlay-white-faint, rgba(255,255,255,0.12)) !important; }
-.bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; max-height: none !important; overflow-y: visible !important; height: auto; padding: 14px; color: var(--text); font-size: 14px; line-height: 1.6; min-width: 0; box-sizing: border-box; }
+.bc-editor trix-editor.trix-dark { border: none; border-radius: 0; min-height: 150px; max-height: none !important; overflow-y: visible !important; height: auto; padding: 14px; color: var(--text); font-size: 14px; line-height: 1.6; min-width: 0; box-sizing: border-box; background: transparent; }
 .bc-editor trix-editor ol, .bc-editor trix-editor ul { padding-left: 24px; margin: 4px 0; }
 .bc-editor trix-editor ol ol, .bc-editor trix-editor ul ul,
 .bc-editor trix-editor ol ul, .bc-editor trix-editor ul ol { padding-left: 20px; }
