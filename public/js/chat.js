@@ -275,11 +275,18 @@ async function renderChatChannel(el, channelId) {
     // Input footer — format bar ABOVE editor, emoji picker inside actions
     var inputHtml = '<div class="chat-footer">' +
       '<div class="chat-format-bar" id="chatFormatBar">' +
-        '<button onmousedown="event.preventDefault();document.execCommand(\'bold\')"><b>B</b></button>' +
-        '<button onmousedown="event.preventDefault();document.execCommand(\'italic\')"><i>I</i></button>' +
-        '<button onmousedown="event.preventDefault();document.execCommand(\'strikeThrough\')"><s>S</s></button>' +
-        '<button onmousedown="event.preventDefault();document.execCommand(\'insertUnorderedList\')">• List</button>' +
-        '<button onmousedown="event.preventDefault();chatInsertLink()">🔗 Link</button>' +
+        '<div class="chat-format-group">' +
+          '<button class="chat-fmt-btn chat-fmt-btn--bold" onmousedown="event.preventDefault();document.execCommand(\'bold\')" title="Удебелен"></button>' +
+          '<button class="chat-fmt-btn chat-fmt-btn--italic" onmousedown="event.preventDefault();document.execCommand(\'italic\')" title="Курсив"></button>' +
+          '<button class="chat-fmt-btn chat-fmt-btn--strike" onmousedown="event.preventDefault();document.execCommand(\'strikeThrough\')" title="Зачертан"></button>' +
+          '<button class="chat-fmt-btn chat-fmt-btn--link" onmousedown="event.preventDefault();chatInsertLink()" title="Линк"></button>' +
+        '</div>' +
+        '<div class="chat-format-group">' +
+          '<button class="chat-fmt-btn chat-fmt-btn--quote" onmousedown="event.preventDefault();document.execCommand(\'formatBlock\',false,\'blockquote\')" title="Цитат"></button>' +
+          '<button class="chat-fmt-btn chat-fmt-btn--code" onmousedown="event.preventDefault();document.execCommand(\'formatBlock\',false,\'pre\')" title="Код"></button>' +
+          '<button class="chat-fmt-btn chat-fmt-btn--ul" onmousedown="event.preventDefault();document.execCommand(\'insertUnorderedList\')" title="Списък"></button>' +
+          '<button class="chat-fmt-btn chat-fmt-btn--ol" onmousedown="event.preventDefault();document.execCommand(\'insertOrderedList\')" title="Номериран списък"></button>' +
+        '</div>' +
       '</div>' +
       '<div class="chat-input" id="chatInputBar">' +
         '<div class="chat-input__area">' +
