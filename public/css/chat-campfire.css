@@ -293,7 +293,7 @@
 .chat-editor-wrap.bc-editor trix-toolbar { position: static; background: var(--bg-card); border-bottom: 1px solid var(--border); border-radius: 0; padding: 4px 4px; display: none; }
 .chat-editor-wrap.bc-editor.toolbar-visible trix-toolbar { display: flex; }
 .chat-editor-wrap.bc-editor trix-toolbar .trix-button-group--file-tools { display: none; } /* hide file button — we have our own */
-.chat-editor-wrap.bc-editor trix-editor.trix-dark { min-height: 44px; max-height: 440px; overflow-y: auto !important; padding: 10px 16px; font-size: 15px; line-height: 1.5; }
+.chat-editor-wrap.bc-editor trix-editor.trix-dark { min-height: 44px; max-height: 440px !important; overflow-y: auto !important; padding: 10px 16px; font-size: 15px; line-height: 1.5; }
 .chat-editor-wrap.bc-editor trix-editor.trix-dark:empty::before { color: var(--text-dim); }
 
 /* Action buttons */
