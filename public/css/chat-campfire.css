@@ -222,7 +222,7 @@
 .chat-msg-av { width: 36px; height: 36px; flex-shrink: 0; margin-top: 18px; overflow: hidden; border-radius: 50%; }
 
 /* Message body */
-.chat-msg-body { min-width: 0; }
+.chat-msg-body { min-width: 0; max-width: 100%; overflow: hidden; }
 .chat-msg-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
 .chat-msg--own .chat-msg-meta { justify-content: flex-end; }
 .chat-msg-name { font-size: 13px; font-weight: 700; color: var(--text-secondary); }
@@ -230,7 +230,7 @@
 .chat-msg-time { font-size: 12px; color: var(--text-dim); font-weight: 400; }
 
 /* Message text bubble */
-.chat-msg-text { font-size: 14.5px; color: var(--text); line-height: 1.6; padding: 10px 16px; word-wrap: break-word; display: inline-block; }
+.chat-msg-text { font-size: 14.5px; color: var(--text); line-height: 1.6; padding: 10px 16px; word-wrap: break-word; overflow-wrap: anywhere; display: inline-block; max-width: 100%; box-sizing: border-box; }
 .chat-msg-text a { color: var(--accent); text-decoration: underline; }
 .chat-msg-text strong { font-weight: 700; }
 .chat-msg-text code { background: var(--code-bg); color: var(--code-text); padding: 1px 5px; border-radius: 3px; font-size: 13px; }
