@@ -279,8 +279,8 @@ async function renderCardPage(el, cardId) {
     }
 
     // ===== BUILD PAGE =====
-    var wrapperStart = pinnedSidebarHtml ? '<div class="card-page-wrapper">' : '';
-    var wrapperEnd = pinnedSidebarHtml ? pinnedSidebarHtml + '</div>' : '';
+    var wrapperStart = '';
+    var wrapperEnd = pinnedSidebarHtml || '';
 
     var titleEsc = esc(card.title).replace(/'/g, "\\'");
 
@@ -303,7 +303,7 @@ async function renderCardPage(el, cardId) {
     }
 
     el.innerHTML = wrapperStart +
-      '<div class="' + (pinnedSidebarHtml ? 'card-page-main' : 'card-page') + '">' +
+      '<div class="card-page">' +
         '<div class="card-page__toolbar" id="cardPageToolbar_' + cardId + '"></div>' +
         '<div id="cardEditingBanner" class="card-editing-banner" style="display:none"></div>' +
         trashBannerHtml +
