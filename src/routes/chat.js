@@ -347,7 +347,10 @@ router.delete('/channels/:id/messages/:msgId', requireAuth, async (req, res) => 
     if (!msg) return res.status(404).json({ error: 'Message not found' });
     if (msg.user_id !== req.user.userId) return res.status(403).json({ error: 'Not your message' });
 
-    await execute('DELETE FROM chat_messages WHERE id = $1', [req.params.msgId]);
+    await execute(
+      `UPDATE chat_messages SET content = '', message_type = 'deleted', attachment_url = NULL, attachment_name = NULL, attachment_mime = NULL WHERE id = $1`,
+      [req.params.msgId]
+    );
 
     // Notify all channel members
     const members = await query('SELECT user_id FROM chat_members WHERE channel_id = $1', [req.params.id]);

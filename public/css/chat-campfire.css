@@ -239,6 +239,10 @@
 .chat-msg-text pre { background: var(--code-bg); border-radius: 6px; padding: 8px 12px; margin: 4px 0; overflow-x: auto; }
 .chat-msg-text pre code { background: none; padding: 0; }
 
+/* Deleted message */
+.chat-msg--deleted { opacity: 0.55; }
+.chat-msg-text--deleted { font-style: italic; color: var(--text-dim) !important; }
+
 /* Edited indicator */
 .chat-msg-edited { font-size: 11px; color: var(--text-dim); font-weight: 400; font-style: italic; margin-left: 4px; }
 

@@ -311,6 +311,17 @@ function _renderChatMessage(m, channelId) {
   if (isSystem) {
     return '<div class="chat-msg chat-msg--system"><div class="chat-msg-sys-text">'+esc(m.content)+'</div></div>';
   }
+  if (m.message_type === 'deleted') {
+    var delAv = m.user_avatar ? '<img src="'+m.user_avatar+'" class="chat-av-img">' : '<div class="chat-av-initials" style="background:'+_chatColor(m.user_id)+'">'+initials(m.user_name)+'</div>';
+    var delTime = new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'});
+    var delName = isOwn ? 'Me' : esc(m.user_name);
+    return '<div class="chat-msg'+(isOwn?' chat-msg--own':' chat-msg--other')+' chat-msg--deleted" data-msg-id="'+m.id+'">' +
+      '<div class="chat-msg-av">'+delAv+'</div>' +
+      '<div class="chat-msg-body">' +
+        '<div class="chat-msg-meta"><span class="chat-msg-name">'+delName+'</span><span class="chat-msg-time">'+delTime+'</span></div>' +
+        '<div class="chat-msg-text chat-msg-text--deleted">🚫 Изтрито съобщение</div>' +
+      '</div></div>';
+  }
   var av = m.user_avatar ? '<img src="'+m.user_avatar+'" class="chat-av-img">' : '<div class="chat-av-initials" style="background:'+_chatColor(m.user_id)+'">'+initials(m.user_name)+'</div>';
   var time = new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'});
   var editedTag = m.is_edited ? ' <span class="chat-msg-edited">(редактирано)</span>' : '';
@@ -604,8 +615,7 @@ async function chatDeleteMsg(msgId, channelId) {
   try {
     var res = await fetch('/api/chat/channels/'+channelId+'/messages/'+msgId, { method: 'DELETE' });
     if (!res.ok) { showToast('Грешка при изтриване','error'); return; }
-    var msgEl = document.querySelector('.chat-msg[data-msg-id="'+msgId+'"]');
-    if (msgEl) msgEl.remove();
+    _markMsgDeleted(msgId);
   } catch(e) { showToast('Грешка при изтриване','error'); }
 }
 
@@ -621,8 +631,24 @@ function chatHandleEdited(ev) {
   msgEl.setAttribute('data-msg-content', ev.message.content || '');
 }
 function chatHandleDeleted(ev) {
-  var msgEl = document.querySelector('.chat-msg[data-msg-id="'+ev.messageId+'"]');
-  if (msgEl) msgEl.remove();
+  _markMsgDeleted(ev.messageId);
+}
+
+function _markMsgDeleted(msgId) {
+  var msgEl = document.querySelector('.chat-msg[data-msg-id="'+msgId+'"]');
+  if (!msgEl) return;
+  msgEl.classList.add('chat-msg--deleted');
+  // Replace body content — keep avatar and name/time, replace text + reactions + menu
+  var textEl = msgEl.querySelector('.chat-msg-text');
+  if (textEl) { textEl.className = 'chat-msg-text chat-msg-text--deleted'; textEl.innerHTML = '🚫 Изтрито съобщение'; }
+  // Remove attachment if any
+  var att = msgEl.querySelector('.chat-msg-attachment');
+  if (att) att.remove();
+  // Remove reactions and menu button
+  var reactions = msgEl.querySelector('.chat-msg-reactions');
+  if (reactions) reactions.remove();
+  var menuBtn = msgEl.querySelector('.chat-msg-menu-btn');
+  if (menuBtn) menuBtn.remove();
 }
 
 // --- Formatting toggle (show/hide Trix toolbar) ---
