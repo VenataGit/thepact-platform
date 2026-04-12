@@ -313,6 +313,7 @@ function _renderChatMessage(m, channelId) {
   }
   var av = m.user_avatar ? '<img src="'+m.user_avatar+'" class="chat-av-img">' : '<div class="chat-av-initials" style="background:'+_chatColor(m.user_id)+'">'+initials(m.user_name)+'</div>';
   var time = new Date(m.created_at).toLocaleTimeString('bg',{hour:'2-digit',minute:'2-digit'});
+  var editedTag = m.is_edited ? ' <span class="chat-msg-edited">(редактирано)</span>' : '';
   var displayName = isOwn ? 'Me' : esc(m.user_name);
   var contentHtml = '';
   if (m.message_type === 'attachment' && m.attachment_url) {
@@ -322,14 +323,19 @@ function _renderChatMessage(m, channelId) {
     } else {
       contentHtml = '<div class="chat-msg-attachment"><a href="'+m.attachment_url+'" target="_blank" class="chat-msg-file">📄 '+esc(m.attachment_name||'Файл')+'</a></div>';
     }
-    if (m.content) contentHtml += '<div class="chat-msg-text">'+_chatFormatText(m.content)+'</div>';
+    if (m.content) contentHtml += '<div class="chat-msg-text">'+_chatFormatText(m.content)+editedTag+'</div>';
   } else {
-    contentHtml = '<div class="chat-msg-text">'+_chatFormatText(m.content)+'</div>';
+    contentHtml = '<div class="chat-msg-text">'+_chatFormatText(m.content)+editedTag+'</div>';
   }
-  return '<div class="chat-msg'+(isOwn?' chat-msg--own':' chat-msg--other')+'" data-msg-id="'+m.id+'">' +
+  // Actions menu (edit/delete) for own messages
+  var actionsHtml = '';
+  if (isOwn && m.message_type !== 'system') {
+    actionsHtml = '<button class="chat-msg-menu-btn" onclick="chatMsgMenu('+m.id+',this,'+channelId+')" title="Опции">⋮</button>';
+  }
+  return '<div class="chat-msg'+(isOwn?' chat-msg--own':' chat-msg--other')+'" data-msg-id="'+m.id+'" data-msg-content="'+esc(m.content || '')+'">' +
     '<div class="chat-msg-av">'+av+'</div>' +
     '<div class="chat-msg-body">' +
-      '<div class="chat-msg-meta"><span class="chat-msg-name">'+displayName+'</span><span class="chat-msg-time">'+time+'</span></div>' +
+      '<div class="chat-msg-meta"><span class="chat-msg-name">'+displayName+'</span><span class="chat-msg-time">'+time+'</span>'+actionsHtml+'</div>' +
       contentHtml +
       '<div class="chat-msg-reactions"><button class="chat-msg-boost-trigger" onclick="chatBoostMsg('+m.id+',this)" title="Реагирай">😊</button></div>' +
     '</div>' +
@@ -516,6 +522,107 @@ function appendChatMsg(msg) {
   tmp.innerHTML = _renderChatMessage(msg, chId);
   if (tmp.firstChild) msgs.appendChild(tmp.firstChild);
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+// --- Message edit/delete ---
+function chatMsgMenu(msgId, btn, channelId) {
+  // Remove any existing menu
+  var existing = document.querySelector('.chat-msg-dropdown');
+  if (existing) { existing.remove(); return; }
+  var dd = document.createElement('div');
+  dd.className = 'chat-msg-dropdown';
+  dd.innerHTML =
+    '<button onclick="chatEditMsg('+msgId+','+channelId+')"><span>✏️</span> Редактирай</button>' +
+    '<button class="chat-msg-dropdown--danger" onclick="chatDeleteMsg('+msgId+','+channelId+')"><span>🗑</span> Изтрий</button>';
+  btn.parentElement.style.position = 'relative';
+  btn.parentElement.appendChild(dd);
+  setTimeout(function(){
+    document.addEventListener('click', function handler(e) {
+      if (!dd.contains(e.target) && e.target !== btn) { dd.remove(); document.removeEventListener('click', handler); }
+    });
+  }, 10);
+}
+
+function chatEditMsg(msgId, channelId) {
+  // Close dropdown
+  var dd = document.querySelector('.chat-msg-dropdown');
+  if (dd) dd.remove();
+  var msgEl = document.querySelector('.chat-msg[data-msg-id="'+msgId+'"]');
+  if (!msgEl) return;
+  var textEl = msgEl.querySelector('.chat-msg-text');
+  if (!textEl) return;
+  var rawContent = msgEl.getAttribute('data-msg-content') || '';
+  // Save original HTML for cancel
+  var originalHtml = textEl.innerHTML;
+  // Replace with edit form
+  textEl.innerHTML = '<textarea class="chat-msg-edit-input" rows="3">'+esc(rawContent)+'</textarea>' +
+    '<div class="chat-msg-edit-actions">' +
+      '<button class="chat-msg-edit-save" onclick="chatSaveEdit('+msgId+','+channelId+')">Запази</button>' +
+      '<button class="chat-msg-edit-cancel" onclick="chatCancelEdit('+msgId+')">Откажи</button>' +
+    '</div>';
+  textEl.dataset.originalHtml = originalHtml;
+  var textarea = textEl.querySelector('textarea');
+  if (textarea) { textarea.focus(); textarea.setSelectionRange(textarea.value.length, textarea.value.length); }
+}
+
+async function chatSaveEdit(msgId, channelId) {
+  var msgEl = document.querySelector('.chat-msg[data-msg-id="'+msgId+'"]');
+  if (!msgEl) return;
+  var textarea = msgEl.querySelector('.chat-msg-edit-input');
+  if (!textarea) return;
+  var newContent = textarea.value.trim();
+  if (!newContent) return;
+  try {
+    var res = await fetch('/api/chat/channels/'+channelId+'/messages/'+msgId, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content: newContent })
+    });
+    if (!res.ok) { showToast('Грешка при редактиране','error'); return; }
+    var updated = await res.json();
+    // Re-render the message in place
+    var textEl = msgEl.querySelector('.chat-msg-text');
+    var editedTag = '<span class="chat-msg-edited">(редактирано)</span>';
+    textEl.innerHTML = _chatFormatText(updated.content) + editedTag;
+    delete textEl.dataset.originalHtml;
+    msgEl.setAttribute('data-msg-content', updated.content || '');
+  } catch(e) { showToast('Грешка при редактиране','error'); }
+}
+
+function chatCancelEdit(msgId) {
+  var msgEl = document.querySelector('.chat-msg[data-msg-id="'+msgId+'"]');
+  if (!msgEl) return;
+  var textEl = msgEl.querySelector('.chat-msg-text');
+  if (!textEl || !textEl.dataset.originalHtml) return;
+  textEl.innerHTML = textEl.dataset.originalHtml;
+  delete textEl.dataset.originalHtml;
+}
+
+async function chatDeleteMsg(msgId, channelId) {
+  var dd = document.querySelector('.chat-msg-dropdown');
+  if (dd) dd.remove();
+  if (!confirm('Сигурен ли си, че искаш да изтриеш това съобщение?')) return;
+  try {
+    var res = await fetch('/api/chat/channels/'+channelId+'/messages/'+msgId, { method: 'DELETE' });
+    if (!res.ok) { showToast('Грешка при изтриване','error'); return; }
+    var msgEl = document.querySelector('.chat-msg[data-msg-id="'+msgId+'"]');
+    if (msgEl) msgEl.remove();
+  } catch(e) { showToast('Грешка при изтриване','error'); }
+}
+
+// Handle WS events for edit/delete (called from websocket.js)
+function chatHandleEdited(ev) {
+  if (!ev.message) return;
+  var msgEl = document.querySelector('.chat-msg[data-msg-id="'+ev.message.id+'"]');
+  if (!msgEl) return;
+  var textEl = msgEl.querySelector('.chat-msg-text');
+  if (!textEl) return;
+  var editedTag = '<span class="chat-msg-edited">(редактирано)</span>';
+  textEl.innerHTML = _chatFormatText(ev.message.content) + editedTag;
+  msgEl.setAttribute('data-msg-content', ev.message.content || '');
+}
+function chatHandleDeleted(ev) {
+  var msgEl = document.querySelector('.chat-msg[data-msg-id="'+ev.messageId+'"]');
+  if (msgEl) msgEl.remove();
 }
 
 // --- Formatting toggle (show/hide Trix toolbar) ---

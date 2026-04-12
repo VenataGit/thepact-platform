@@ -239,6 +239,30 @@
 .chat-msg-text pre { background: var(--code-bg); border-radius: 6px; padding: 8px 12px; margin: 4px 0; overflow-x: auto; }
 .chat-msg-text pre code { background: none; padding: 0; }
 
+/* Edited indicator */
+.chat-msg-edited { font-size: 11px; color: var(--text-dim); font-weight: 400; font-style: italic; margin-left: 4px; }
+
+/* Message actions menu button */
+.chat-msg-menu-btn { opacity: 0; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 16px; padding: 0 4px; border-radius: 4px; transition: opacity var(--transition-fast), background var(--transition-fast); line-height: 1; margin-left: auto; }
+.chat-msg:hover .chat-msg-menu-btn { opacity: 1; }
+.chat-msg-menu-btn:hover { background: var(--bg-hover); color: var(--text); }
+
+/* Message actions dropdown */
+.chat-msg-dropdown { position: absolute; right: 0; top: 100%; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-lg); z-index: 50; min-width: 160px; padding: 4px 0; }
+.chat-msg--own .chat-msg-dropdown { right: 0; left: auto; }
+.chat-msg-dropdown button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--text); font-size: 13px; cursor: pointer; font-family: inherit; transition: background var(--transition-fast); }
+.chat-msg-dropdown button:hover { background: var(--bg-hover); }
+.chat-msg-dropdown--danger { color: var(--red) !important; }
+.chat-msg-dropdown--danger:hover { background: var(--red-dim) !important; }
+
+/* Inline edit form */
+.chat-msg-edit-input { width: 100%; background: var(--bg); border: 1px solid var(--accent); border-radius: 6px; padding: 8px 10px; color: var(--text); font-size: 14px; font-family: inherit; line-height: 1.5; resize: vertical; outline: none; box-sizing: border-box; }
+.chat-msg-edit-actions { display: flex; gap: 6px; margin-top: 6px; }
+.chat-msg-edit-save { padding: 4px 14px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.chat-msg-edit-save:hover { background: var(--accent-hover); }
+.chat-msg-edit-cancel { padding: 4px 14px; background: none; color: var(--text-dim); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.chat-msg-edit-cancel:hover { background: var(--bg-hover); }
+
 /* Reactions/Boosts */
 .chat-msg-reactions { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; position: relative; }
 .chat-msg--own .chat-msg-reactions { justify-content: flex-end; }

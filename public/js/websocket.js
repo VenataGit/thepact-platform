@@ -48,6 +48,8 @@ function handleWSEvent(ev) {
   // Core data events — re-render current page
   if (t.startsWith('card:') || t.startsWith('board:') || t.startsWith('column:') || t.startsWith('step:') || t.startsWith('comment:')) wsRouter();
   if (t === 'chat:message') { updatePingsBadge(); if (location.hash.startsWith('#/chat/' + ev.channelId)) { if (ev.message) appendChatMsg(ev.message); fetch('/api/chat/channels/'+ev.channelId+'/read',{method:'PUT'}).catch(function(){}); } return; }
+  if (t === 'chat:message:edited') { if (location.hash.startsWith('#/chat/' + ev.channelId)) chatHandleEdited(ev); return; }
+  if (t === 'chat:message:deleted') { if (location.hash.startsWith('#/chat/' + ev.channelId)) chatHandleDeleted(ev); return; }
   if (t === 'chat:channel:updated' || t === 'chat:member:added' || t === 'chat:member:removed') { if (location.hash.startsWith('#/chat')) wsRouter(); return; }
   if (t === 'campfire:message' && location.hash.startsWith('#/campfire/')) { if (ev.message) appendCampfireMsg(ev.message); return; }
   if (t === 'checkin:reminder') wsRouter();

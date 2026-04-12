@@ -306,6 +306,62 @@ router.post('/channels/:id/messages', requireAuth, async (req, res) => {
   }
 });
 
+// PUT /api/chat/channels/:id/messages/:msgId — edit message
+router.put('/channels/:id/messages/:msgId', requireAuth, async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ error: 'Content required' });
+
+    // Verify ownership
+    const msg = await queryOne('SELECT * FROM chat_messages WHERE id = $1 AND channel_id = $2', [req.params.msgId, req.params.id]);
+    if (!msg) return res.status(404).json({ error: 'Message not found' });
+    if (msg.user_id !== req.user.userId) return res.status(403).json({ error: 'Not your message' });
+
+    const updated = await queryOne(
+      `UPDATE chat_messages SET content = $1, is_edited = true, edited_at = NOW() WHERE id = $2 RETURNING *`,
+      [content.trim(), req.params.msgId]
+    );
+
+    const user = await queryOne('SELECT name, avatar_url FROM users WHERE id = $1', [req.user.userId]);
+    updated.user_name = user.name;
+    updated.user_avatar = user.avatar_url;
+
+    // Notify all channel members
+    const members = await query('SELECT user_id FROM chat_members WHERE channel_id = $1', [req.params.id]);
+    for (const m of members) {
+      sendToUser(m.user_id, { type: 'chat:message:edited', channelId: parseInt(req.params.id), message: updated });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error('Chat edit error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/chat/channels/:id/messages/:msgId — delete message
+router.delete('/channels/:id/messages/:msgId', requireAuth, async (req, res) => {
+  try {
+    // Verify ownership
+    const msg = await queryOne('SELECT * FROM chat_messages WHERE id = $1 AND channel_id = $2', [req.params.msgId, req.params.id]);
+    if (!msg) return res.status(404).json({ error: 'Message not found' });
+    if (msg.user_id !== req.user.userId) return res.status(403).json({ error: 'Not your message' });
+
+    await execute('DELETE FROM chat_messages WHERE id = $1', [req.params.msgId]);
+
+    // Notify all channel members
+    const members = await query('SELECT user_id FROM chat_members WHERE channel_id = $1', [req.params.id]);
+    for (const m of members) {
+      sendToUser(m.user_id, { type: 'chat:message:deleted', channelId: parseInt(req.params.id), messageId: parseInt(req.params.msgId) });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Chat delete error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/chat/channels/:id/upload — upload file to chat
 router.post('/channels/:id/upload', requireAuth, upload.single('file'), async (req, res) => {
   try {
