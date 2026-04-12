@@ -279,6 +279,7 @@ async function renderChatChannel(el, channelId) {
         '<trix-editor input="chatTrixInput" class="trix-dark" placeholder="Напиши съобщение\u2026"></trix-editor>' +
       '</div>' +
       '<div class="chat-input__actions">' +
+        '<button class="chat-input__btn chat-input__btn--text" onclick="chatToggleFormatting()" title="Форматиране">A</button>' +
         '<button class="chat-input__btn" onclick="chatToggleEmoji()" title="Емоджи">😊</button>' +
         '<button class="chat-input__btn chat-input__btn--gif" onclick="chatToggleGif()" title="GIF">GIF</button>' +
         '<button class="chat-input__btn" onclick="document.getElementById(\'chatFileInput\').click()" title="Прикачи файл">📎</button>' +
@@ -515,6 +516,21 @@ function appendChatMsg(msg) {
   tmp.innerHTML = _renderChatMessage(msg, chId);
   if (tmp.firstChild) msgs.appendChild(tmp.firstChild);
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+// --- Formatting toggle (show/hide Trix toolbar) ---
+function chatToggleFormatting() {
+  var wrap = document.querySelector('.chat-editor-wrap.bc-editor');
+  var btn = document.querySelector('.chat-input__btn--text');
+  if (!wrap) return;
+  var isOpen = wrap.classList.contains('toolbar-visible');
+  if (isOpen) {
+    wrap.classList.remove('toolbar-visible');
+    if (btn) btn.classList.remove('active');
+  } else {
+    wrap.classList.add('toolbar-visible');
+    if (btn) btn.classList.add('active');
+  }
 }
 
 // --- Emoji, GIF, files ---

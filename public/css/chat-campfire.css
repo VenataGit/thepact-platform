@@ -258,7 +258,8 @@
 
 /* Chat Trix editor — override bc-editor defaults for compact chat usage */
 .chat-editor-wrap.bc-editor { flex: 1; min-width: 0; border: none; border-radius: 0; background: var(--bg-card); overflow: visible; }
-.chat-editor-wrap.bc-editor trix-toolbar { position: static; background: var(--bg-card); border-bottom: 1px solid var(--border); border-radius: 0; padding: 4px 4px; }
+.chat-editor-wrap.bc-editor trix-toolbar { position: static; background: var(--bg-card); border-bottom: 1px solid var(--border); border-radius: 0; padding: 4px 4px; display: none; }
+.chat-editor-wrap.bc-editor.toolbar-visible trix-toolbar { display: flex; }
 .chat-editor-wrap.bc-editor trix-toolbar .trix-button-group--file-tools { display: none; } /* hide file button — we have our own */
 .chat-editor-wrap.bc-editor trix-editor.trix-dark { min-height: 44px; max-height: 200px; overflow-y: auto !important; padding: 10px 16px; font-size: 15px; line-height: 1.5; }
 .chat-editor-wrap.bc-editor trix-editor.trix-dark:empty::before { color: var(--text-dim); }
@@ -267,6 +268,8 @@
 .chat-input__actions { display: flex; gap: 0; flex-shrink: 0; padding: 6px 8px; align-items: flex-end; position: relative; }
 .chat-input__btn { width: 36px; height: 36px; border: none; background: none; border-radius: 8px; cursor: pointer; font-size: 17px; color: var(--text-dim); transition: background var(--transition-fast), color var(--transition-fast); display: flex; align-items: center; justify-content: center; }
 .chat-input__btn:hover { background: var(--bg-hover); color: var(--text); }
+.chat-input__btn--text { font-weight: 700; font-size: 16px; font-family: serif; }
+.chat-input__btn--text.active { color: var(--accent); }
 .chat-input__btn--gif { font-size: 11px; font-weight: 800; letter-spacing: -0.5px; font-family: inherit; }
 .chat-input__send { width: 36px; height: 36px; border: none; background: var(--accent); border-radius: 50%; cursor: pointer; font-size: 16px; color: #fff; display: flex; align-items: center; justify-content: center; margin-left: 4px; transition: background var(--transition-fast), transform 0.1s; flex-shrink: 0; }
 .chat-input__send:hover { background: var(--accent-hover, #3a9466); transform: scale(1.05); }
