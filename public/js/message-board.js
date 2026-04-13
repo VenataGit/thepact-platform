@@ -11,10 +11,20 @@ async function renderMsgBoard(el, boardId) {
 
     var msgs = await (await fetch('/api/messageboard?board_id=' + boardId)).json();
 
+    var isAdmin = currentUser && currentUser.role === 'admin';
+    var boardMenuBtn = canManage()
+      ? '<div style="position:relative;display:inline-block">' +
+          '<button class="btn btn-sm btn-ghost" onclick="toggleBoardMenu(event,' + boardId + ')" title="Настройки" style="font-size:18px;padding:2px 8px">\u22ef</button>' +
+        '</div>'
+      : '';
+
     el.innerHTML =
       '<div class="card-page">' +
         '<div class="msgboard-header">' +
-          '<h1 class="msgboard-title">' + esc(board.title) + '</h1>' +
+          '<div style="display:flex;align-items:center;justify-content:center;gap:12px">' +
+            '<h1 class="msgboard-title">' + esc(board.title) + '</h1>' +
+            boardMenuBtn +
+          '</div>' +
           '<p class="msgboard-subtitle">Публикувай обявления, предложи идеи и води дискусии</p>' +
         '</div>' +
         '<div style="text-align:center;margin-bottom:24px">' +

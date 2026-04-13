@@ -283,8 +283,11 @@ function promptRenameBoard(bid) {
 function deleteBoardConfirm(bid) {
   const board = allBoards.find(b => b.id === bid);
   const isDocs = board && board.type === 'docs';
+  const isMsgBoard = board && board.type === 'message_board';
   const warning = isDocs
     ? 'Всички документи, файлове и папки в него ще бъдат изтрити за постоянно!'
+    : isMsgBoard
+    ? 'Всички съобщения и коментари ще бъдат изтрити!'
     : 'Всички карти и колони ще бъдат изтрити!';
   showConfirmModal('Изтрий борд "' + (board ? board.title : '') + '"?\n' + warning, async function() {
     try {
