@@ -172,27 +172,132 @@ router.delete('/:id/comments/:commentId', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/messageboard/daily-report — auto-generate daily report
+// POST /api/messageboard/daily-report — generate structured daily report
+// Query: ?board_id=23 — post into specific message board
 router.post('/daily-report', requireAuth, requireModerator, async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const [movedCards, createdCards, completedCards] = await Promise.all([
-      query(`SELECT COUNT(*) as count FROM card_events WHERE event_type = 'moved' AND created_at::date = $1`, [today]),
-      query(`SELECT COUNT(*) as count FROM cards WHERE created_at::date = $1 AND archived_at IS NULL`, [today]),
-      query(`SELECT COUNT(*) as count FROM cards WHERE completed_at::date = $1`, [today])
-    ]);
-    const overdueCards = await query(
-      `SELECT COUNT(*) as count FROM cards WHERE due_on < $1 AND archived_at IS NULL AND completed_at IS NULL AND is_on_hold = FALSE`, [today]
-    );
-    const content = `📊 Дневен отчет — ${today}\n\n` +
-      `✅ Завършени карти: ${completedCards[0]?.count || 0}\n` +
-      `📝 Нови карти: ${createdCards[0]?.count || 0}\n` +
-      `🔄 Преместени карти: ${movedCards[0]?.count || 0}\n` +
-      `⚠️ Просрочени: ${overdueCards[0]?.count || 0}`;
+    const boardId = req.query.board_id ? parseInt(req.query.board_id) : (req.body.board_id || null);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const day3 = new Date(today);
+    day3.setDate(day3.getDate() + 3);
+    const day3Str = day3.toISOString().split('T')[0];
+
+    // Fetch all active cards with deadlines, board, column, assignees
+    const cards = await query(`
+      SELECT c.id, c.title, c.board_id, c.column_id, c.priority,
+        c.due_on, c.publish_date, c.brainstorm_date, c.filming_date, c.editing_date, c.upload_date,
+        c.completed_at, c.is_on_hold,
+        b.title as board_title, col.title as column_title,
+        COALESCE(
+          (SELECT string_agg(u.name, ', ')
+           FROM card_assignees ca JOIN users u ON ca.user_id = u.id WHERE ca.card_id = c.id),
+          ''
+        ) as assignee_names
+      FROM cards c
+      JOIN boards b ON c.board_id = b.id
+      JOIN columns col ON c.column_id = col.id
+      WHERE c.archived_at IS NULL AND c.trashed_at IS NULL AND c.completed_at IS NULL
+      ORDER BY c.due_on ASC NULLS LAST, c.title
+    `);
+
+    // Helper: get earliest relevant deadline for a card
+    function getEarliest(c) {
+      const dates = [c.brainstorm_date, c.filming_date, c.editing_date, c.upload_date, c.publish_date, c.due_on]
+        .filter(Boolean)
+        .map(d => new Date(d));
+      if (dates.length === 0) return null;
+      dates.sort((a, b) => a - b);
+      // Return first non-passed date, or the latest passed one
+      const future = dates.find(d => d >= today);
+      return future || dates[dates.length - 1];
+    }
+
+    // Categorize cards
+    const overdue = [];
+    const dueToday = [];
+    const dueTomorrow = [];
+    const due2to3 = [];
+
+    for (const c of cards) {
+      if (c.is_on_hold) continue;
+      const deadline = getEarliest(c);
+      if (!deadline) continue;
+
+      const deadlineStr = deadline.toISOString().split('T')[0];
+
+      if (deadline < today) {
+        const diffDays = Math.floor((today - deadline) / (1000 * 60 * 60 * 24));
+        overdue.push({ ...c, deadline, diffDays });
+      } else if (deadlineStr === todayStr) {
+        dueToday.push({ ...c, deadline });
+      } else if (deadlineStr === tomorrowStr) {
+        dueTomorrow.push({ ...c, deadline });
+      } else if (deadline <= day3) {
+        due2to3.push({ ...c, deadline });
+      }
+    }
+
+    // Sort overdue by most days first
+    overdue.sort((a, b) => b.diffDays - a.diffDays);
+
+    // Build HTML content with clickable links
+    function cardLine(c, showDays) {
+      const link = `<a href="#/card/${c.id}" style="color:#6fb3e0;text-decoration:none;font-weight:600">${escHtml(c.title)}</a>`;
+      const days = showDays ? ` <em style="color:#e07070">(${c.diffDays} дни закъснение)</em>` : '';
+      const location = ` · ${escHtml(c.board_title)} → ${escHtml(c.column_title)}`;
+      const assignees = c.assignee_names ? ` · <span style="color:#a0c4e0">${escHtml(c.assignee_names)}</span>` : '';
+      return `<div style="padding:4px 0">${link}${days}${location}${assignees}</div>`;
+    }
+
+    function escHtml(s) {
+      return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    let html = '';
+
+    if (overdue.length > 0) {
+      html += `<h3 style="color:#e07070">⛔ Просрочени карти (${overdue.length})</h3>`;
+      html += overdue.map(c => cardLine(c, true)).join('');
+      html += '<br>';
+    }
+
+    if (dueToday.length > 0) {
+      html += `<h3 style="color:#e0c040">🔴 Краен срок днес (${dueToday.length})</h3>`;
+      html += dueToday.map(c => cardLine(c, false)).join('');
+      html += '<br>';
+    }
+
+    if (dueTomorrow.length > 0) {
+      html += `<h3 style="color:#e0c040">🟡 Краен срок утре (${dueTomorrow.length})</h3>`;
+      html += dueTomorrow.map(c => cardLine(c, false)).join('');
+      html += '<br>';
+    }
+
+    if (due2to3.length > 0) {
+      html += `<h3 style="color:#e0a040">🟠 Краен срок след 2-3 дни (${due2to3.length})</h3>`;
+      html += due2to3.map(c => cardLine(c, false)).join('');
+    }
+
+    if (!html) {
+      html = '<div style="padding:20px;text-align:center;color:#888">Няма задачи с наближаващи крайни срокове.</div>';
+    }
+
+    // Format date in Bulgarian
+    const dateOpts = { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' };
+    const dateBg = today.toLocaleDateString('bg-BG', dateOpts);
+    const title = `📊 Дневен отчет — ${dateBg}`;
+
     const msg = await queryOne(
-      `INSERT INTO message_board (user_id, title, content, category) VALUES ($1, $2, $3, 'daily-report') RETURNING *`,
-      [req.user.userId, `Дневен отчет — ${today}`, content]
+      `INSERT INTO message_board (user_id, title, content, category, board_id)
+       VALUES ($1, $2, $3, 'daily-report', $4) RETURNING *`,
+      [req.user.userId, title, html, boardId]
     );
+
     res.status(201).json(msg);
   } catch (err) {
     console.error('[messageboard] daily-report error:', err);
