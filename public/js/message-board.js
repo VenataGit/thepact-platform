@@ -95,17 +95,22 @@ async function renderMsgPage(el, msgId) {
     var commentsHtml = (msg.comments || []).map(function(c) {
       var cInit = (c.user_name || '?').split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
       var cOwner = currentUser && c.user_id === currentUser.id;
-      var cDel = (cOwner || isMod) ? '<button class="msgboard-comment__del" onclick="msgDeleteComment(' + msg.id + ',' + c.id + ')" title="Изтрий">&times;</button>' : '';
+      var canEditComment = cOwner || isMod;
+      var cActions = canEditComment
+        ? '<button class="msgboard-comment__action" onclick="msgEditComment(' + msg.id + ',' + c.id + ')" title="Редактирай">✏️</button>' +
+          '<button class="msgboard-comment__action msgboard-comment__action--del" onclick="msgDeleteComment(' + msg.id + ',' + c.id + ')" title="Изтрий">&times;</button>'
+        : '';
       var cContent = /<[a-z][\s\S]*>/i.test(c.content) ? c.content : esc(c.content).replace(/\n/g, '<br>');
+      var editedTag = c.updated_at && c.updated_at !== c.created_at ? '<span class="msgboard-comment__edited">(редактирано)</span>' : '';
       return '<div class="msgboard-comment" id="msgComment_' + c.id + '">' +
         '<div class="msgboard-comment__avatar" style="background:' + _avatarColor(c.user_name) + '">' + cInit + '</div>' +
         '<div class="msgboard-comment__body">' +
           '<div class="msgboard-comment__header">' +
             '<strong>' + esc(c.user_name || 'Анонимен') + '</strong>' +
-            '<span class="msgboard-comment__time">' + timeAgo(c.created_at) + '</span>' +
-            cDel +
+            '<span class="msgboard-comment__time">' + timeAgo(c.created_at) + editedTag + '</span>' +
+            '<span class="msgboard-comment__actions">' + cActions + '</span>' +
           '</div>' +
-          '<div class="msgboard-comment__content">' + cContent + '</div>' +
+          '<div class="msgboard-comment__content" id="msgCommentContent_' + c.id + '">' + cContent + '</div>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -235,13 +240,13 @@ async function msgEditPost(msgId) {
 
 // Delete message
 async function msgDeletePost(msgId, boardId) {
-  showConfirmModal('Изтриване на съобщение', 'Сигурен ли си, че искаш да изтриеш това съобщение?', async function() {
+  showConfirmModal('Сигурен ли си, че искаш да изтриеш това съобщение?', async function() {
     try {
       await fetch('/api/messageboard/' + msgId, { method: 'DELETE' });
       showToast('Съобщението е изтрито', 'success');
       location.hash = boardId ? '#/msgboard/' + boardId : '#/messages';
     } catch { showToast('Грешка при изтриване', 'error'); }
-  });
+  }, true);
 }
 
 // Post comment on message
@@ -262,13 +267,55 @@ async function msgPostComment(msgId) {
 
 // Delete comment
 async function msgDeleteComment(msgId, commentId) {
-  showConfirmModal('Изтриване', 'Изтрий коментара?', async function() {
+  showConfirmModal('Изтрий този коментар?', async function() {
     try {
       await fetch('/api/messageboard/' + msgId + '/comments/' + commentId, { method: 'DELETE' });
       showToast('Коментарът е изтрит', 'success');
       router();
     } catch { showToast('Грешка', 'error'); }
-  });
+  }, true);
+}
+
+// Edit comment — inline replace with Trix editor
+async function msgEditComment(msgId, commentId) {
+  try {
+    // Fetch current comment content
+    var msg = await (await fetch('/api/messageboard/' + msgId)).json();
+    var comment = (msg.comments || []).find(function(c) { return c.id === commentId; });
+    if (!comment) { showToast('Коментарът не е намерен', 'error'); return; }
+
+    var container = document.getElementById('msgComment_' + commentId);
+    var contentEl = document.getElementById('msgCommentContent_' + commentId);
+    if (!container || !contentEl) return;
+
+    // Replace content with edit form
+    var editId = 'msgCommentEdit_' + commentId;
+    contentEl.innerHTML =
+      '<div class="msgboard-comment-editor" style="margin-top:6px">' +
+        '<input id="' + editId + '" type="hidden" value="' + (comment.content || '').replace(/"/g, '&quot;') + '">' +
+        '<trix-editor input="' + editId + '" class="trix-dark" placeholder="Редактирай коментар\u2026"></trix-editor>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button class="btn btn-primary btn-sm" onclick="msgSaveComment(' + msgId + ',' + commentId + ',\'' + editId + '\')">Запази</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="router()">Отказ</button>' +
+      '</div>';
+  } catch { showToast('Грешка', 'error'); }
+}
+
+// Save edited comment
+async function msgSaveComment(msgId, commentId, inputId) {
+  var input = document.getElementById(inputId);
+  var content = input ? input.value.trim() : '';
+  if (!content) return;
+  try {
+    await fetch('/api/messageboard/' + msgId + '/comments/' + commentId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: content })
+    });
+    showToast('Коментарът е обновен', 'success');
+    router();
+  } catch { showToast('Грешка при запис', 'error'); }
 }
 
 // Avatar color helper

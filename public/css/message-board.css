@@ -46,9 +46,12 @@
 .msgboard-comment__header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .msgboard-comment__header strong { font-size: 13px; color: var(--text); }
 .msgboard-comment__time { font-size: 11px; color: var(--text-dim); }
-.msgboard-comment__del { background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; padding: 0 4px; margin-left: auto; opacity: 0; transition: opacity 0.15s, color 0.15s; }
-.msgboard-comment:hover .msgboard-comment__del { opacity: 1; }
-.msgboard-comment__del:hover { color: var(--red); }
+.msgboard-comment__actions { display: flex; gap: 2px; margin-left: auto; opacity: 0; transition: opacity 0.15s; }
+.msgboard-comment:hover .msgboard-comment__actions { opacity: 1; }
+.msgboard-comment__action { background: none; border: none; color: var(--text-dim); font-size: 13px; cursor: pointer; padding: 2px 5px; border-radius: 4px; transition: background 0.1s, color 0.1s; }
+.msgboard-comment__action:hover { background: var(--bg-hover); color: var(--text); }
+.msgboard-comment__action--del:hover { color: var(--red); background: var(--red-dim); }
+.msgboard-comment__edited { font-size: 10px; color: var(--text-dim); font-style: italic; margin-left: 4px; }
 .msgboard-comment__content { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
 .msgboard-comment__content img { max-width: 100%; border-radius: 4px; }
 

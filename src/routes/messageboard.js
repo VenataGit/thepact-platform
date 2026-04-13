@@ -135,6 +135,27 @@ router.post('/:id/comments', requireAuth, async (req, res) => {
   }
 });
 
+// PUT /api/messageboard/:id/comments/:commentId — edit comment
+router.put('/:id/comments/:commentId', requireAuth, async (req, res) => {
+  try {
+    const comment = await queryOne('SELECT * FROM message_comments WHERE id = $1 AND message_id = $2', [req.params.commentId, req.params.id]);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+    if (comment.user_id !== req.user.userId && req.user.role !== 'admin' && req.user.role !== 'moderator') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ error: 'Content required' });
+    const updated = await queryOne(
+      'UPDATE message_comments SET content = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [content.trim(), req.params.commentId]
+    );
+    res.json(updated);
+  } catch (err) {
+    console.error('[messageboard] PUT comment error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // DELETE /api/messageboard/:id/comments/:commentId — delete comment
 router.delete('/:id/comments/:commentId', requireAuth, async (req, res) => {
   try {
