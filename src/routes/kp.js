@@ -23,15 +23,15 @@ const KP_DEFAULT_TEMPLATE = `Дата за публикуване на първ�
 {video_sections}`;
 
 // Convert plain-text (with \n) to Trix-compatible HTML so card content renders properly.
-// Lines matching "Видео N - ..." are highlighted in gold (inline style) so video
-// titles stand out visually in the card body.
+// Lines matching "Видео N - ..." are marked with "Злато" highlight (background-color)
+// using the same marking system as the Trix editor color picker.
 function textToHtml(text) {
   if (!text) return '';
   return text.split('\n').map(line => {
     const esc = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     if (esc === '') return '<div><br></div>';
     if (/^Видео\s+\d+\s*[-–—]/.test(line)) {
-      return `<div><strong style="color:#DAA520">` + esc + `</strong></div>`;
+      return `<div><strong><span style="background-color:#9B7D44;color:#fff">` + esc + `</span></strong></div>`;
     }
     return `<div>${esc}</div>`;
   }).join('');
