@@ -27,9 +27,8 @@ async function renderMsgBoard(el, boardId) {
           '</div>' +
           '<p class="msgboard-subtitle">Публикувай обявления, предложи идеи и води дискусии</p>' +
         '</div>' +
-        '<div style="text-align:center;margin-bottom:24px;display:flex;gap:10px;justify-content:center">' +
+        '<div style="text-align:center;margin-bottom:24px">' +
           '<button class="btn btn-primary" onclick="msgCreatePost(' + boardId + ')">+ Ново съобщение</button>' +
-          (canManage() ? '<button class="btn btn-sm" onclick="msgGenerateDailyReport(' + boardId + ')">📊 Дневен отчет</button>' : '') +
         '</div>' +
         '<div class="msgboard-list" id="msgboardList">' +
           (msgs.length === 0
@@ -327,18 +326,6 @@ async function msgSaveComment(msgId, commentId, inputId) {
     showToast('Коментарът е обновен', 'success');
     router();
   } catch { showToast('Грешка при запис', 'error'); }
-}
-
-// Generate daily report for this board
-async function msgGenerateDailyReport(boardId) {
-  try {
-    showToast('Генериране на отчет…', 'info');
-    var r = await fetch('/api/messageboard/daily-report?board_id=' + boardId, { method: 'POST' });
-    if (!r.ok) { var d = await r.json(); showToast(d.error || 'Грешка', 'error'); return; }
-    var msg = await r.json();
-    showToast('Дневният отчет е публикуван', 'success');
-    location.hash = '#/msg/' + msg.id;
-  } catch { showToast('Грешка при генериране', 'error'); }
 }
 
 // Avatar color helper
