@@ -242,7 +242,7 @@ async function renderHomeTasks(el) {
   };
 
   setBreadcrumb([{ label: 'Начало', href: '#/home' }, { label: filterLabels[filter] || 'Задачи' }]);
-  el.className = '';
+  el.className = 'page-card';
 
   try {
     const cards = await (await fetch('/api/cards')).json();
@@ -311,7 +311,7 @@ async function renderHomeTasks(el) {
     ];
 
     el.innerHTML = `
-      <div class="home-content-box" style="max-width:800px">
+      <div class="card-page">
         <div class="page-header"><h1>${filterLabels[filter] || 'Задачи'}</h1><div class="page-subtitle">${filtered.length} резултата</div></div>
         <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px;flex-wrap:wrap">
           ${tabs.map(t => `<a href="#/home-tasks?filter=${t.key}" class="btn btn-sm ${filter === t.key ? 'btn-primary' : ''}">${t.icon} ${t.label}</a>`).join('')}
