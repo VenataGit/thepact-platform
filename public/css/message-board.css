@@ -54,9 +54,13 @@
 
 /* Comment form */
 .msgboard-comment-form { margin-top: 20px; }
-.msgboard-comment-editor { border-radius: 8px; overflow: hidden; }
-.msgboard-comment-editor trix-editor.trix-dark { min-height: 80px; max-height: 300px; overflow-y: auto; }
+.msgboard-comment-editor { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg); }
+.msgboard-comment-editor trix-toolbar { position: static; background: var(--bg-card); border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; padding: 6px 4px; }
+.msgboard-comment-editor trix-toolbar .trix-button-group--file-tools { display: none; }
+.msgboard-comment-editor trix-editor.trix-dark { min-height: 80px; max-height: 300px; overflow-y: auto; padding: 12px 14px; font-size: 14px; line-height: 1.5; background: var(--bg); color: var(--text); border: none; }
 
-/* Modal editor */
-.msgboard-modal-editor { border-radius: 8px; overflow: hidden; }
-.msgboard-modal-editor trix-editor.trix-dark { min-height: 120px; max-height: 400px; overflow-y: auto; }
+/* Modal editor — toolbar above, editor below, clear separation */
+.msgboard-modal-editor { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg); }
+.msgboard-modal-editor trix-toolbar { position: static; background: var(--bg-card); border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; padding: 6px 4px; }
+.msgboard-modal-editor trix-toolbar .trix-button-group--file-tools { display: none; }
+.msgboard-modal-editor trix-editor.trix-dark { min-height: 200px; max-height: 500px; overflow-y: auto; padding: 14px 16px; font-size: 15px; line-height: 1.6; background: var(--bg); color: var(--text); border: none; }

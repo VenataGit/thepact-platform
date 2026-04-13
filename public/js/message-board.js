@@ -160,10 +160,10 @@ async function renderMsgPage(el, msgId) {
 function msgCreatePost(boardId) {
   var ov = document.createElement('div');
   ov.className = 'modal-overlay';
-  ov.innerHTML = '<div class="confirm-modal-box" style="max-width:560px">' +
+  ov.innerHTML = '<div class="confirm-modal-box" style="max-width:840px">' +
     '<p class="confirm-modal-msg" style="margin-bottom:16px">Ново съобщение</p>' +
     '<input class="confirm-modal-input" id="msgNewTitle" placeholder="Заглавие\u2026" style="margin-bottom:10px">' +
-    '<div class="bc-editor msgboard-modal-editor" style="margin-bottom:10px">' +
+    '<div class="msgboard-modal-editor" style="margin-bottom:10px">' +
       '<input id="msgNewContent" type="hidden" value="">' +
       '<trix-editor input="msgNewContent" class="trix-dark" placeholder="Съдържание\u2026"></trix-editor>' +
     '</div>' +
@@ -199,10 +199,10 @@ async function msgEditPost(msgId) {
     var msg = await (await fetch('/api/messageboard/' + msgId)).json();
     var ov = document.createElement('div');
     ov.className = 'modal-overlay';
-    ov.innerHTML = '<div class="confirm-modal-box" style="max-width:560px">' +
+    ov.innerHTML = '<div class="confirm-modal-box" style="max-width:840px">' +
       '<p class="confirm-modal-msg" style="margin-bottom:16px">Редактирай съобщение</p>' +
       '<input class="confirm-modal-input" id="msgEditTitle" placeholder="Заглавие\u2026" value="' + esc(msg.title).replace(/"/g, '&quot;') + '" style="margin-bottom:10px">' +
-      '<div class="bc-editor msgboard-modal-editor" style="margin-bottom:10px">' +
+      '<div class="msgboard-modal-editor" style="margin-bottom:10px">' +
         '<input id="msgEditContent" type="hidden" value="' + (msg.content || '').replace(/"/g, '&quot;') + '">' +
         '<trix-editor input="msgEditContent" class="trix-dark" placeholder="Съдържание\u2026"></trix-editor>' +
       '</div>' +
