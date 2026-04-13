@@ -34,6 +34,8 @@ function router() {
     case 'chat': return id ? renderChatChannel(el, id) : renderChatList(el);
     case 'notifications': return renderNotifications(el);
     case 'messages': return renderMessageBoard(el);
+    case 'msgboard': return id ? renderMsgBoard(el, id) : renderHome(el);
+    case 'msg': return id ? renderMsgPage(el, id) : renderHome(el);
     case 'vault': return renderVault(el, id);
     case 'campfire': return renderCampfire(el, id || 1);
     case 'schedule': return renderSchedule(el);
@@ -94,7 +96,9 @@ function toggleBoardJumpMenu(e) {
   dd.id = 'boardJumpDropdown';
   var html = '<div class="breadcrumb-jump-dropdown__title">Бордове</div>';
   boards.forEach(function(b) {
-    html += '<a class="breadcrumb-jump-dropdown__item" href="#/board/' + b.id + '">' + esc(b.title) + '</a>';
+    var bHref = b.type === 'docs' ? '#/docs/' + b.id : b.type === 'message_board' ? '#/msgboard/' + b.id : '#/board/' + b.id;
+    var bIcon = b.type === 'docs' ? '📁 ' : b.type === 'message_board' ? '💬 ' : '';
+    html += '<a class="breadcrumb-jump-dropdown__item" href="' + bHref + '">' + bIcon + esc(b.title) + '</a>';
   });
   if (!boards.length) html += '<div class="breadcrumb-jump-dropdown__empty">Няма бордове</div>';
   dd.innerHTML = html;

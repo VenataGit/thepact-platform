@@ -112,6 +112,11 @@ function promptCreateBoard() {
         '<div><div class="btn-create-choice__title">Борд</div>' +
         '<div class="btn-create-choice__desc">Kanban борд с колони за управление на задачи</div></div>' +
       '</button>' +
+      '<button class="btn-create-choice" onclick="promptCreateBoardType(\'message_board\');this.closest(\'.modal-overlay\').remove()">' +
+        '<span class="btn-create-choice__icon">💬</span>' +
+        '<div><div class="btn-create-choice__title">Message Board</div>' +
+        '<div class="btn-create-choice__desc">Публикувай обявления, предложи идеи и води дискусии</div></div>' +
+      '</button>' +
       '<button class="btn-create-choice" onclick="promptCreateBoardType(\'docs\');this.closest(\'.modal-overlay\').remove()">' +
         '<span class="btn-create-choice__icon">📁</span>' +
         '<div><div class="btn-create-choice__title">Docs & Files</div>' +
@@ -124,11 +129,11 @@ function promptCreateBoard() {
   ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
 }
 function promptCreateBoardType(type) {
-  var label = type === 'docs' ? 'Docs & Files' : 'Нов борд';
+  var label = type === 'docs' ? 'Docs & Files' : type === 'message_board' ? 'Message Board' : 'Нов борд';
   showPromptModal(label, 'Въведи заглавие…', '', async function(title) {
     try {
       await fetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title, type: type }) });
-      showToast(type === 'docs' ? 'Docs & Files е създаден' : 'Бордът е създаден', 'success');
+      showToast(type === 'message_board' ? 'Message Board е създаден' : type === 'docs' ? 'Docs & Files е създаден' : 'Бордът е създаден', 'success');
       router();
     } catch { showToast('Грешка при създаване', 'error'); }
   });

@@ -105,7 +105,7 @@ router.post('/', requireAuth, requireModerator, async (req, res) => {
   try {
     const { title, color, type } = req.body;
     if (!title) return res.status(400).json({ error: 'Title required' });
-    const boardType = (type === 'docs') ? 'docs' : 'board';
+    const boardType = (type === 'docs') ? 'docs' : (type === 'message_board') ? 'message_board' : 'board';
     const maxPos = await queryOne('SELECT COALESCE(MAX(position), -1) + 1 as pos FROM boards');
     const board = await queryOne(
       'INSERT INTO boards (title, color, position, type) VALUES ($1, $2, $3, $4) RETURNING *',

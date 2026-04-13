@@ -88,8 +88,9 @@ async function renderHome(el) {
           <div class="projects-home-grid${_homeReorderMode ? ' projects-home-grid--reorder' : ''}" id="homeBoardsGrid" style="grid-template-columns:repeat(4,1fr);gap:12px">
             ${boards.map(b => {
               var isDocs = b.type === 'docs';
-              var href = isDocs ? '#/docs/' + b.id : '#/board/' + b.id;
-              var cardClass = isDocs ? 'project-card-home project-card-home--docs' : 'project-card-home';
+              var isMsgBoard = b.type === 'message_board';
+              var href = isDocs ? '#/docs/' + b.id : isMsgBoard ? '#/msgboard/' + b.id : '#/board/' + b.id;
+              var cardClass = isDocs ? 'project-card-home project-card-home--docs' : isMsgBoard ? 'project-card-home project-card-home--msgboard' : 'project-card-home';
               // Two modes: normal (long-press to enter reorder) vs active reorder (drag enabled, no nav)
               var dragAttrs = '';
               var hrefAttr = ' href="' + href + '"';
@@ -112,6 +113,16 @@ async function renderHome(el) {
                     ' onpointercancel="homeLongPressCancel()"' +
                     ' onclick="return homeBoardClickGuard(event)"';
                 }
+              }
+              if (isMsgBoard) {
+                return '<a' + hrefAttr + ' class="' + cardClass + '"' + dragAttrs + '>' +
+                  '<div class="project-card-home__header">' +
+                    '<div class="project-card-home__title">💬 ' + esc(b.title) + '</div>' +
+                  '</div>' +
+                  '<div class="project-card-home__body">' +
+                    '<div style="font-size:11px;color:var(--text-dim);text-align:center">Message Board</div>' +
+                  '</div>' +
+                '</a>';
               }
               if (isDocs) {
                 return '<a' + hrefAttr + ' class="' + cardClass + '"' + dragAttrs + '>' +
