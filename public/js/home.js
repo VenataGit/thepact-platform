@@ -311,7 +311,7 @@ async function renderHomeTasks(el) {
     ];
 
     el.innerHTML = `
-      <div style="max-width:800px;margin:0 auto">
+      <div class="home-content-box" style="max-width:800px">
         <div class="page-header"><h1>${filterLabels[filter] || 'Задачи'}</h1><div class="page-subtitle">${filtered.length} резултата</div></div>
         <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px;flex-wrap:wrap">
           ${tabs.map(t => `<a href="#/home-tasks?filter=${t.key}" class="btn btn-sm ${filter === t.key ? 'btn-primary' : ''}">${t.icon} ${t.label}</a>`).join('')}
