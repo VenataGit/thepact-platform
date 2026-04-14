@@ -21,7 +21,7 @@ function isSensitiveKey(key) {
 router.get('/', requireAuth, async (req, res) => {
   try {
     const settings = await query('SELECT key, value, updated_at FROM settings ORDER BY key');
-    const isAdmin = req.user?.role === 'admin';
+    const isAdmin = req.user?.role === 'admin' || req.user?.role === 'mini_admin';
 
     const filteredRows = isAdmin
       ? settings

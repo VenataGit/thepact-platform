@@ -22,7 +22,7 @@ async function checkAuth() {
     return true;
   } catch { window.location.href = '/login.html'; return false; }
 }
-function canManage() { return currentUser?.role === 'admin' || currentUser?.role === 'moderator'; }
+function canManage() { return currentUser?.role === 'admin' || currentUser?.role === 'mini_admin' || currentUser?.role === 'moderator'; }
 function canEdit() { return !!currentUser; }
 async function logout() {
   try { localStorage.removeItem('thepact-user'); } catch (e) {}

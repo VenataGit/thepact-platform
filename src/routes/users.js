@@ -2,12 +2,12 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const { query, queryOne, execute } = require('../db/pool');
-const { requireAuth, requireAdmin, invalidateUserCache } = require('../middleware/auth');
+const { requireAuth, requireAdmin, requireMiniAdmin, invalidateUserCache } = require('../middleware/auth');
 const { disconnectUser } = require('../ws/broadcast');
 const config = require('../config');
 
-// GET /api/users — list all users (admin only)
-router.get('/', requireAuth, requireAdmin, async (req, res) => {
+// GET /api/users — list all users (admin or mini_admin)
+router.get('/', requireAuth, requireMiniAdmin, async (req, res) => {
   try {
     const users = await query(
       'SELECT id, email, name, avatar_url, role, is_active, last_login_at, created_at FROM users ORDER BY name'
@@ -30,12 +30,12 @@ router.get('/team', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/users — create user (admin only)
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+// POST /api/users — create user (admin or mini_admin)
+router.post('/', requireAuth, requireMiniAdmin, async (req, res) => {
   try {
     const { email, password, name, role } = req.body;
     if (!email || !password || !name) return res.status(400).json({ error: 'email, password, name required' });
-    const validRoles = ['admin', 'moderator', 'member'];
+    const validRoles = ['admin', 'mini_admin', 'moderator', 'member'];
     const userRole = validRoles.includes(role) ? role : 'member';
 
     const existing = await queryOne('SELECT id FROM users WHERE email = $1', [email]);
@@ -52,12 +52,26 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// PUT /api/users/:id/role — change user role (admin only)
-router.put('/:id/role', requireAuth, requireAdmin, async (req, res) => {
+// PUT /api/users/:id/role — change user role (admin or mini_admin)
+// mini_admin can only assign up to moderator, not admin or mini_admin
+router.put('/:id/role', requireAuth, requireMiniAdmin, async (req, res) => {
   try {
     const { role } = req.body;
-    const validRoles = ['admin', 'moderator', 'member'];
+    const validRoles = ['admin', 'mini_admin', 'moderator', 'member'];
     if (!validRoles.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+
+    // mini_admin cannot promote to admin or mini_admin
+    if (req.user.role !== 'admin' && (role === 'admin' || role === 'mini_admin')) {
+      return res.status(403).json({ error: 'Само админ може да дава тази роля' });
+    }
+
+    // mini_admin cannot change role of another admin or mini_admin
+    if (req.user.role !== 'admin') {
+      const target = await queryOne('SELECT role FROM users WHERE id = $1', [req.params.id]);
+      if (target && (target.role === 'admin' || target.role === 'mini_admin')) {
+        return res.status(403).json({ error: 'Не можеш да променяш ролята на този потребител' });
+      }
+    }
 
     const user = await queryOne(
       'UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, name, role',
@@ -70,11 +84,20 @@ router.put('/:id/role', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// PUT /api/users/:id/active — toggle user active status (admin only)
-router.put('/:id/active', requireAuth, requireAdmin, async (req, res) => {
+// PUT /api/users/:id/active — toggle user active status (admin or mini_admin)
+router.put('/:id/active', requireAuth, requireMiniAdmin, async (req, res) => {
   try {
     const { is_active } = req.body;
     const userId = parseInt(req.params.id);
+
+    // mini_admin cannot deactivate admin or mini_admin
+    if (req.user.role !== 'admin') {
+      const target = await queryOne('SELECT role FROM users WHERE id = $1', [userId]);
+      if (target && (target.role === 'admin' || target.role === 'mini_admin')) {
+        return res.status(403).json({ error: 'Не можеш да променяш статуса на този потребител' });
+      }
+    }
+
     const user = await queryOne(
       'UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, name, role, is_active',
       [is_active, userId]

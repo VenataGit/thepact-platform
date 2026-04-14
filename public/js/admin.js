@@ -1,6 +1,6 @@
 // ==================== ADMIN PANEL + SETTINGS + TEST BUTTONS ====================
 async function renderAdmin(el) {
-  if (currentUser?.role !== 'admin') { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">Нямаш достъп до тази страница.</div>'; return; }
+  if (currentUser?.role !== 'admin' && currentUser?.role !== 'mini_admin') { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">Нямаш достъп до тази страница.</div>'; return; }
   setBreadcrumb(null); el.className = '';
   try {
     const users = await (await fetch('/api/users')).json();
@@ -30,10 +30,11 @@ async function renderAdmin(el) {
                 ${users.map(u => `<tr>
                   <td><strong>${esc(u.name)}</strong></td>
                   <td style="color:var(--text-dim)">${esc(u.email)}</td>
-                  <td><select class="input-sm" onchange="changeUserRole(${u.id},this.value)" style="padding:2px 6px;font-size:11px">
+                  <td><select class="input-sm" onchange="changeUserRole(${u.id},this.value)" style="padding:2px 6px;font-size:11px"${currentUser.role!=='admin'&&(u.role==='admin'||u.role==='mini_admin')?' disabled':''}>
                     <option value="member" ${u.role==='member'?'selected':''}>Член</option>
                     <option value="moderator" ${u.role==='moderator'?'selected':''}>Модератор</option>
-                    <option value="admin" ${u.role==='admin'?'selected':''}>Админ</option>
+                    ${currentUser.role==='admin'?'<option value="mini_admin" '+(u.role==='mini_admin'?'selected':'')+'>Мини Админ</option>':''}
+                    ${currentUser.role==='admin'?'<option value="admin" '+(u.role==='admin'?'selected':'')+'>Админ</option>':''}
                   </select></td>
                   <td>${u.is_active ? '<span style="color:var(--green)">●</span> Активен' : '<span style="color:var(--red)">●</span> Неактивен'}</td>
                   <td><button class="btn btn-sm" onclick="toggleUserActive(${u.id},${!u.is_active})">${u.is_active ? 'Деактивирай' : 'Активирай'}</button></td>

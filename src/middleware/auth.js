@@ -82,10 +82,20 @@ function invalidateUserCache(userId) {
   activeUserCache.set(userId, { active: false, checkedAt: Date.now() });
 }
 
-// Middleware: require moderator or admin role
+// Middleware: require moderator, mini_admin, or admin role
 function requireModerator(req, res, next) {
-  if (req.user?.role !== 'admin' && req.user?.role !== 'moderator') {
+  const r = req.user?.role;
+  if (r !== 'admin' && r !== 'mini_admin' && r !== 'moderator') {
     return res.status(403).json({ error: 'Moderator access required' });
+  }
+  next();
+}
+
+// Middleware: require mini_admin or admin role
+function requireMiniAdmin(req, res, next) {
+  const r = req.user?.role;
+  if (r !== 'admin' && r !== 'mini_admin') {
+    return res.status(403).json({ error: 'Mini-admin access required' });
   }
   next();
 }
@@ -112,6 +122,6 @@ function verifyFromCookieHeader(cookieHeader) {
 
 module.exports = {
   COOKIE_NAME, signToken, setTokenCookie, clearTokenCookie,
-  requireAuth, requireModerator, requireAdmin, verifyFromCookieHeader,
+  requireAuth, requireModerator, requireMiniAdmin, requireAdmin, verifyFromCookieHeader,
   invalidateUserCache
 };
