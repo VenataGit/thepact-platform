@@ -10,7 +10,11 @@ const config = require('../config');
 router.get('/', requireAuth, requireMiniAdmin, async (req, res) => {
   try {
     const users = await query(
-      'SELECT id, email, name, avatar_url, role, is_active, last_login_at, created_at FROM users ORDER BY name'
+      `SELECT u.id, u.email, u.name, u.avatar_url, u.role, u.is_active, u.last_login_at, u.created_at,
+              u.position_id, p.name AS position_name
+       FROM users u
+       LEFT JOIN positions p ON u.position_id = p.id
+       ORDER BY u.name`
     );
     res.json(users);
   } catch (err) {
@@ -22,7 +26,11 @@ router.get('/', requireAuth, requireMiniAdmin, async (req, res) => {
 router.get('/team', requireAuth, async (req, res) => {
   try {
     const users = await query(
-      'SELECT id, name, avatar_url, role FROM users WHERE is_active = TRUE ORDER BY name'
+      `SELECT u.id, u.name, u.avatar_url, u.role, u.position_id, p.name AS position_name
+       FROM users u
+       LEFT JOIN positions p ON u.position_id = p.id
+       WHERE u.is_active = TRUE
+       ORDER BY u.name`
     );
     res.json(users);
   } catch (err) {
@@ -114,6 +122,30 @@ router.put('/:id/active', requireAuth, requireMiniAdmin, async (req, res) => {
 
     res.json(user);
   } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/users/:id/position — assign position to user (mini_admin+)
+router.put('/:id/position', requireAuth, requireMiniAdmin, async (req, res) => {
+  try {
+    const { position_id } = req.body;
+    const posId = position_id ? parseInt(position_id) : null;
+
+    // Verify position exists if provided
+    if (posId) {
+      const pos = await queryOne('SELECT id FROM positions WHERE id = $1', [posId]);
+      if (!pos) return res.status(404).json({ error: 'Position not found' });
+    }
+
+    const user = await queryOne(
+      'UPDATE users SET position_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, position_id',
+      [posId, req.params.id]
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    console.error('Assign position error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

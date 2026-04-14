@@ -24,6 +24,19 @@ async function checkAuth() {
 }
 function canManage() { return currentUser?.role === 'admin' || currentUser?.role === 'mini_admin' || currentUser?.role === 'moderator'; }
 function canEdit() { return !!currentUser; }
+// Position-based permission check — checks if current user's position has a specific permission key
+var _positionPermsCache = null;
+async function hasPositionPerm(key) {
+  if (!currentUser?.position_id) return false;
+  if (!_positionPermsCache) {
+    try {
+      var pos = await (await fetch('/api/positions/' + currentUser.position_id)).json();
+      _positionPermsCache = pos.permissions || [];
+    } catch { _positionPermsCache = []; }
+  }
+  return _positionPermsCache.includes(key);
+}
+function clearPositionPermsCache() { _positionPermsCache = null; }
 async function logout() {
   try { localStorage.removeItem('thepact-user'); } catch (e) {}
   await fetch('/auth/logout', { method: 'POST' });

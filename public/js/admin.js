@@ -3,7 +3,10 @@ async function renderAdmin(el) {
   if (currentUser?.role !== 'admin' && currentUser?.role !== 'mini_admin') { el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">Нямаш достъп до тази страница.</div>'; return; }
   setBreadcrumb(null); el.className = '';
   try {
-    const users = await (await fetch('/api/users')).json();
+    const [users, positions] = await Promise.all([
+      (await fetch('/api/users')).json(),
+      (await fetch('/api/positions')).json()
+    ]);
     el.innerHTML = `
       <div style="max-width:900px;margin:0 auto">
         <div class="page-header">
@@ -12,6 +15,7 @@ async function renderAdmin(el) {
 
         <div style="display:flex;gap:8px;justify-content:center;margin-bottom:24px;flex-wrap:wrap">
           <button class="btn btn-sm admin-tab active" onclick="showAdminTab('users',this)">👤 Потребители</button>
+          <button class="btn btn-sm admin-tab" onclick="showAdminTab('positions',this)">🏷️ Позиции</button>
           <button class="btn btn-sm admin-tab" onclick="showAdminTab('boards',this)">📋 Бордове</button>
           <button class="btn btn-sm admin-tab" onclick="showAdminTab('settings',this)">⚙️ Настройки</button>
           <button class="btn btn-sm admin-tab" onclick="showAdminTab('colors',this)">🎨 Персонализация</button>
@@ -25,7 +29,7 @@ async function renderAdmin(el) {
               <button class="btn btn-primary btn-sm" onclick="createNewUser()">+ Нов потребител</button>
             </div>
             <table class="admin-table">
-              <thead><tr><th>Име</th><th>Email</th><th>Роля</th><th>Статус</th><th>Действия</th></tr></thead>
+              <thead><tr><th>Име</th><th>Email</th><th>Роля</th><th>Позиция</th><th>Статус</th><th>Действия</th></tr></thead>
               <tbody>
                 ${users.map(u => `<tr>
                   <td><strong>${esc(u.name)}</strong></td>
@@ -36,11 +40,22 @@ async function renderAdmin(el) {
                     ${currentUser.role==='admin'?'<option value="mini_admin" '+(u.role==='mini_admin'?'selected':'')+'>Мини Админ</option>':''}
                     ${currentUser.role==='admin'?'<option value="admin" '+(u.role==='admin'?'selected':'')+'>Админ</option>':''}
                   </select></td>
+                  <td><select class="input-sm" onchange="changeUserPosition(${u.id},this.value)" style="padding:2px 6px;font-size:11px">
+                    <option value="">— няма —</option>
+                    ${positions.map(p => '<option value="'+p.id+'" '+(u.position_id===p.id?'selected':'')+'>'+esc(p.name)+'</option>').join('')}
+                  </select></td>
                   <td>${u.is_active ? '<span style="color:var(--green)">●</span> Активен' : '<span style="color:var(--red)">●</span> Неактивен'}</td>
                   <td><button class="btn btn-sm" onclick="toggleUserActive(${u.id},${!u.is_active})">${u.is_active ? 'Деактивирай' : 'Активирай'}</button></td>
                 </tr>`).join('')}
               </tbody>
             </table>
+          </div>
+          <div id="adminPositions" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+              <h2 style="font-size:16px;font-weight:700;color:#fff">Позиции</h2>
+              <button class="btn btn-primary btn-sm" onclick="createNewPosition()">+ Нова позиция</button>
+            </div>
+            <div id="positionsList" style="color:var(--text-dim);text-align:center;padding:40px">Зареждане...</div>
           </div>
           <div id="adminBoards" style="display:none">
             <h2 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:16px">Бордове</h2>
@@ -66,10 +81,11 @@ async function renderAdmin(el) {
 function showAdminTab(tab, btn) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   btn?.classList.add('active');
-  ['Users','Boards','Settings','Colors','Logic'].forEach(t => {
+  ['Users','Positions','Boards','Settings','Colors','Logic'].forEach(t => {
     const el = document.getElementById('admin'+t);
     if (el) el.style.display = t.toLowerCase() === tab ? 'block' : 'none';
   });
+  if (tab === 'positions') loadAdminPositions();
   if (tab === 'settings') loadAdminSettings();
   if (tab === 'colors') loadAdminColors();
   if (tab === 'logic') loadAdminLogic();
@@ -96,6 +112,15 @@ function createNewUser() {
 }
 async function changeUserRole(userId, role) {
   try { await fetch(`/api/users/${userId}/role`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})}); } catch {}
+}
+async function changeUserPosition(userId, positionId) {
+  try {
+    await fetch(`/api/users/${userId}/position`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position_id: positionId || null })
+    });
+  } catch {}
 }
 async function toggleUserActive(userId, active) {
   try { await fetch(`/api/users/${userId}/active`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:active})}); router(); } catch {}
@@ -484,5 +509,198 @@ async function testGoogleCalendar(btn) {
     showToast('Грешка: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '🔗 Тествай връзката'; }
   }
+}
+
+// ==================== POSITIONS MANAGEMENT ====================
+async function loadAdminPositions() {
+  var el = document.getElementById('positionsList');
+  if (!el) return;
+  try {
+    var positions = await (await fetch('/api/positions')).json();
+    if (positions.length === 0) {
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма създадени позиции. Натисни "+ Нова позиция" за да добавиш.</div>';
+      return;
+    }
+    el.innerHTML = '<table class="admin-table">' +
+      '<thead><tr><th>Позиция</th><th>Описание</th><th>Потребители</th><th>Права</th><th>Действия</th></tr></thead>' +
+      '<tbody>' +
+      positions.map(function(p) {
+        return '<tr>' +
+          '<td><strong>' + esc(p.name) + '</strong></td>' +
+          '<td style="color:var(--text-dim);font-size:12px">' + esc(p.description || '—') + '</td>' +
+          '<td style="text-align:center">' + (p.user_count || 0) + '</td>' +
+          '<td><button class="btn btn-sm" onclick="managePositionPerms(' + p.id + ',\'' + esc(p.name).replace(/'/g, "\\'") + '\')">Настрой</button></td>' +
+          '<td style="display:flex;gap:6px">' +
+            '<button class="btn btn-sm" onclick="editPosition(' + p.id + ',\'' + esc(p.name).replace(/'/g, "\\'") + '\',\'' + esc(p.description || '').replace(/'/g, "\\'") + '\')">✏️</button>' +
+            '<button class="btn btn-sm" style="color:var(--red)" onclick="deletePosition(' + p.id + ',\'' + esc(p.name).replace(/'/g, "\\'") + '\')">🗑️</button>' +
+          '</td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table>';
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--red)">Грешка при зареждане на позициите</div>';
+  }
+}
+
+function createNewPosition() {
+  var ov = document.createElement('div'); ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box">' +
+    '<p class="confirm-modal-msg">Нова позиция</p>' +
+    '<input class="confirm-modal-input" id="posName" placeholder="Име на позицията…">' +
+    '<input class="confirm-modal-input" id="posDesc" placeholder="Описание (по избор)…">' +
+    '<div class="confirm-modal-actions">' +
+      '<button class="btn btn-primary" id="posOk">Създай</button>' +
+      '<button class="btn btn-ghost" id="posCancel">Откажи</button>' +
+    '</div></div>';
+  document.body.appendChild(ov);
+  setTimeout(function(){ ov.querySelector('#posName').focus(); }, 50);
+  ov.querySelector('#posOk').onclick = async function() {
+    var name = ov.querySelector('#posName').value.trim();
+    if (!name) { ov.querySelector('#posName').focus(); return; }
+    var desc = ov.querySelector('#posDesc').value.trim();
+    ov.remove();
+    try {
+      var res = await fetch('/api/positions', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,description:desc})});
+      if (res.ok) {
+        showToast('Позицията е създадена', 'success');
+        loadAdminPositions();
+      } else {
+        var data = await res.json();
+        showToast(data.error || 'Грешка', 'error');
+      }
+    } catch { showToast('Грешка при създаване', 'error'); }
+  };
+  ov.querySelector('#posCancel').onclick = function() { ov.remove(); };
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  ov.querySelector('#posName').onkeydown = function(e) {
+    if (e.key === 'Enter') ov.querySelector('#posOk').click();
+    if (e.key === 'Escape') ov.remove();
+  };
+}
+
+function editPosition(id, name, desc) {
+  var ov = document.createElement('div'); ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box">' +
+    '<p class="confirm-modal-msg">Редактирай позиция</p>' +
+    '<input class="confirm-modal-input" id="posName" value="' + esc(name) + '" placeholder="Име на позицията…">' +
+    '<input class="confirm-modal-input" id="posDesc" value="' + esc(desc) + '" placeholder="Описание (по избор)…">' +
+    '<div class="confirm-modal-actions">' +
+      '<button class="btn btn-primary" id="posOk">Запази</button>' +
+      '<button class="btn btn-ghost" id="posCancel">Откажи</button>' +
+    '</div></div>';
+  document.body.appendChild(ov);
+  setTimeout(function(){ ov.querySelector('#posName').focus(); }, 50);
+  ov.querySelector('#posOk').onclick = async function() {
+    var newName = ov.querySelector('#posName').value.trim();
+    if (!newName) { ov.querySelector('#posName').focus(); return; }
+    var newDesc = ov.querySelector('#posDesc').value.trim();
+    ov.remove();
+    try {
+      var res = await fetch('/api/positions/' + id, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:newName,description:newDesc})});
+      if (res.ok) {
+        showToast('Позицията е обновена', 'success');
+        loadAdminPositions();
+      } else {
+        var data = await res.json();
+        showToast(data.error || 'Грешка', 'error');
+      }
+    } catch { showToast('Грешка при обновяване', 'error'); }
+  };
+  ov.querySelector('#posCancel').onclick = function() { ov.remove(); };
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  ov.querySelector('#posName').onkeydown = function(e) {
+    if (e.key === 'Enter') ov.querySelector('#posOk').click();
+    if (e.key === 'Escape') ov.remove();
+  };
+}
+
+function deletePosition(id, name) {
+  showConfirmModal('Сигурни ли сте, че искате да изтриете позиция "' + name + '"? Потребителите с тази позиция ще останат без позиция.', async function() {
+    try {
+      var res = await fetch('/api/positions/' + id, {method:'DELETE'});
+      if (res.ok) {
+        showToast('Позицията е изтрита', 'success');
+        loadAdminPositions();
+        router(); // refresh user table too
+      } else {
+        showToast('Грешка при изтриване', 'error');
+      }
+    } catch { showToast('Грешка при изтриване', 'error'); }
+  }, true);
+}
+
+async function managePositionPerms(posId, posName) {
+  var ov = document.createElement('div'); ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box" style="max-width:500px">' +
+    '<p class="confirm-modal-msg">Права за: ' + esc(posName) + '</p>' +
+    '<div id="permsList" style="text-align:center;padding:20px;color:var(--text-dim)">Зареждане...</div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px">' +
+      '<input class="confirm-modal-input" id="newPermKey" placeholder="Ново право (напр. view_reports, receive_alerts)…" style="flex:1">' +
+      '<button class="btn btn-primary btn-sm" id="addPermBtn">Добави</button>' +
+    '</div>' +
+    '<div class="confirm-modal-actions" style="margin-top:16px">' +
+      '<button class="btn btn-ghost" id="permClose">Затвори</button>' +
+    '</div></div>';
+  document.body.appendChild(ov);
+
+  async function loadPerms() {
+    try {
+      var pos = await (await fetch('/api/positions/' + posId)).json();
+      var perms = pos.permissions || [];
+      var container = ov.querySelector('#permsList');
+      if (perms.length === 0) {
+        container.innerHTML = '<div style="padding:12px;color:var(--text-dim);font-size:13px">Няма зададени права. Добавете чрез полето отдолу.</div>';
+      } else {
+        container.innerHTML = '<div style="text-align:left">' + perms.map(function(key) {
+          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:rgba(255,255,255,0.03);border-radius:6px;margin-bottom:4px">' +
+            '<code style="font-size:12px;color:var(--accent)">' + esc(key) + '</code>' +
+            '<button class="btn btn-sm" style="color:var(--red);padding:2px 8px;font-size:11px" onclick="removePositionPerm(' + posId + ',\'' + esc(key).replace(/'/g, "\\'") + '\')">✕</button>' +
+          '</div>';
+        }).join('') + '</div>';
+      }
+    } catch {
+      ov.querySelector('#permsList').innerHTML = '<div style="color:var(--red)">Грешка</div>';
+    }
+  }
+  loadPerms();
+
+  // Store loadPerms globally for remove callback
+  window._reloadPermsModal = loadPerms;
+
+  ov.querySelector('#addPermBtn').onclick = async function() {
+    var key = ov.querySelector('#newPermKey').value.trim();
+    if (!key) return;
+    try {
+      var pos = await (await fetch('/api/positions/' + posId)).json();
+      var existing = pos.permissions || [];
+      if (existing.includes(key)) { showToast('Това право вече съществува', 'error'); return; }
+      existing.push(key);
+      await fetch('/api/positions/' + posId + '/permissions', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({permissions: existing})
+      });
+      ov.querySelector('#newPermKey').value = '';
+      loadPerms();
+    } catch { showToast('Грешка при добавяне', 'error'); }
+  };
+  ov.querySelector('#newPermKey').onkeydown = function(e) {
+    if (e.key === 'Enter') ov.querySelector('#addPermBtn').click();
+  };
+  ov.querySelector('#permClose').onclick = function() { ov.remove(); window._reloadPermsModal = null; };
+  ov.onclick = function(e) { if (e.target === ov) { ov.remove(); window._reloadPermsModal = null; } };
+}
+
+async function removePositionPerm(posId, keyToRemove) {
+  try {
+    var pos = await (await fetch('/api/positions/' + posId)).json();
+    var existing = (pos.permissions || []).filter(function(k) { return k !== keyToRemove; });
+    await fetch('/api/positions/' + posId + '/permissions', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({permissions: existing})
+    });
+    if (window._reloadPermsModal) window._reloadPermsModal();
+  } catch { showToast('Грешка при премахване', 'error'); }
 }
 

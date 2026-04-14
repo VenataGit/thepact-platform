@@ -38,7 +38,13 @@ router.post('/logout', (req, res) => {
 
 // GET /auth/status
 router.get('/status', requireAuth, async (req, res) => {
-  const user = await queryOne('SELECT id, name, email, role, avatar_url FROM users WHERE id = $1', [req.user.userId]);
+  const user = await queryOne(
+    `SELECT u.id, u.name, u.email, u.role, u.avatar_url, u.position_id, p.name AS position_name
+     FROM users u
+     LEFT JOIN positions p ON u.position_id = p.id
+     WHERE u.id = $1`,
+    [req.user.userId]
+  );
   res.json({ authenticated: true, user });
 });
 
