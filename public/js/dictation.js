@@ -59,7 +59,7 @@ async function renderDictation(el) {
             <button class="btn btn-ghost btn-sm" onclick="dictAiClose()" style="color:var(--red)">✕ Затвори</button>
           </div>
         </div>
-        <div id="dictAiContent" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;color:var(--text);font-size:14.5px;line-height:1.65;min-height:120px;white-space:pre-wrap"></div>
+        <textarea id="dictAiContent" placeholder="Тук ще се появи AI обобщението. Можеш да редактираш свободно." style="width:100%;min-height:240px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;color:var(--text);font-size:14.5px;line-height:1.65;font-family:inherit;resize:vertical;outline:none"></textarea>
         <div id="dictAiMeta" style="font-size:12px;color:var(--text-dim);margin-top:6px;min-height:16px"></div>
       </div>
     </div>
@@ -72,6 +72,18 @@ async function renderDictation(el) {
   } catch (e) {}
   document.getElementById('dictText').addEventListener('input', function() {
     try { localStorage.setItem('thepact-dictation-text', this.value); } catch (e) {}
+  });
+
+  // Restore AI text from localStorage and persist edits
+  try {
+    var aiSaved = localStorage.getItem('thepact-dictation-ai-text');
+    if (aiSaved) {
+      document.getElementById('dictAiContent').value = aiSaved;
+      document.getElementById('dictAiPanel').style.display = 'block';
+    }
+  } catch (e) {}
+  document.getElementById('dictAiContent').addEventListener('input', function() {
+    try { localStorage.setItem('thepact-dictation-ai-text', this.value); } catch (e) {}
   });
 
   document.getElementById('dictRecBtn').addEventListener('click', dictToggleRec);
@@ -280,7 +292,7 @@ async function dictAiSummary() {
   var content = document.getElementById('dictAiContent');
   var meta = document.getElementById('dictAiMeta');
   if (!ta || !ta.value || !ta.value.trim()) {
-    if (typeof showToast === 'function') showToast('Няма текст за подреждане.', 'error');
+    if (typeof showToast === 'function') showToast('Няма текст за обобщение.', 'error');
     return;
   }
   if (_dict.busy) return;
@@ -289,8 +301,11 @@ async function dictAiSummary() {
   btn.disabled = true;
   btn.textContent = '⏳ AI обработка...';
   panel.style.display = 'block';
-  content.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px">Claude мисли...</div>';
+  content.value = '';
+  content.placeholder = 'Claude мисли...';
+  content.disabled = true;
   meta.textContent = '';
+  meta.style.color = '';
 
   var t0 = Date.now();
   try {
@@ -301,17 +316,23 @@ async function dictAiSummary() {
     });
     var data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
-    content.textContent = data.text || '';
+    content.value = data.text || '';
+    content.placeholder = 'Тук ще се появи AI обобщението. Можеш да редактираш свободно.';
+    try { localStorage.setItem('thepact-dictation-ai-text', content.value); } catch (e) {}
     meta.textContent = 'Готово за ' + ((Date.now() - t0) / 1000).toFixed(1) + 'с · модел: ' + (data.model || '?') +
       (data.input_tokens ? ' · ' + data.input_tokens + ' → ' + data.output_tokens + ' токена' : '');
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (err) {
-    content.innerHTML = '<div style="color:var(--red)">Грешка: ' + esc(err.message) + '</div>';
+    content.value = '';
+    content.placeholder = 'Тук ще се появи AI обобщението. Можеш да редактираш свободно.';
+    meta.textContent = 'Грешка: ' + err.message;
+    meta.style.color = 'var(--red)';
     if (typeof showToast === 'function') showToast('AI грешка: ' + err.message, 'error');
   } finally {
     _dict.busy = false;
     btn.disabled = false;
     btn.textContent = origLabel;
+    content.disabled = false;
   }
 }
 
@@ -319,26 +340,26 @@ function dictAiUseAsMain() {
   var content = document.getElementById('dictAiContent');
   var ta = document.getElementById('dictText');
   if (!content || !ta) return;
-  var text = content.textContent || '';
+  var text = content.value || '';
   if (!text.trim()) return;
   if (ta.value.trim() && !confirm('Това ще замени суровия текст. Продължаваш?')) return;
   ta.value = text;
   try { localStorage.setItem('thepact-dictation-text', text); } catch (e) {}
-  if (typeof showToast === 'function') showToast('Подредената версия е горе.', 'success');
+  if (typeof showToast === 'function') showToast('AI обобщението е горе.', 'success');
 }
 
 function dictAiCopy() {
   var content = document.getElementById('dictAiContent');
-  if (!content || !content.textContent) return;
-  navigator.clipboard.writeText(content.textContent).then(function() {
+  if (!content || !content.value) return;
+  navigator.clipboard.writeText(content.value).then(function() {
     if (typeof showToast === 'function') showToast('AI текст копиран.', 'success');
   });
 }
 
 function dictAiDownload() {
   var content = document.getElementById('dictAiContent');
-  if (!content || !content.textContent) return;
-  var blob = new Blob([content.textContent], { type: 'text/markdown;charset=utf-8' });
+  if (!content || !content.value) return;
+  var blob = new Blob([content.value], { type: 'text/markdown;charset=utf-8' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   var ts = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
@@ -349,5 +370,11 @@ function dictAiDownload() {
 
 function dictAiClose() {
   var panel = document.getElementById('dictAiPanel');
+  var content = document.getElementById('dictAiContent');
+  if (content && content.value && !confirm('Затваряне? AI текстът ще се изтрие.')) return;
   if (panel) panel.style.display = 'none';
+  if (content) content.value = '';
+  try { localStorage.removeItem('thepact-dictation-ai-text'); } catch (e) {}
+  var meta = document.getElementById('dictAiMeta');
+  if (meta) { meta.textContent = ''; meta.style.color = ''; }
 }
