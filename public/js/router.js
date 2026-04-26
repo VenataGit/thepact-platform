@@ -49,6 +49,7 @@ function router() {
     case 'trash': return renderTrash(el);
     case 'release-notes': return renderReleaseNotes(el);
     case 'home-tasks': return renderHomeTasks(el);
+    case 'dictation': return renderDictation(el);
     default: return renderHome(el);
   }
 }
