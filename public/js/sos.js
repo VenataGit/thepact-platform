@@ -23,44 +23,46 @@ function openSosModal(cardId, cardTitle) {
   document.querySelectorAll('#sosModal').forEach(m => m.remove());
   fetch('/api/users/team').then(r => r.json()).then(function(users) {
     var userOpts = users.filter(function(u) { return u.id !== currentUser.id; }).map(function(u) {
-      return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">' +
-        '<input type="checkbox" value="' + u.id + '" style="accent-color:var(--red)"> ' + esc(u.name) + '</label>';
+      return '<label><input type="checkbox" value="' + u.id + '"> ' + esc(u.name) + '</label>';
     }).join('');
     var modal = document.createElement('div');
     modal.id = 'sosModal';
     modal.className = 'modal-overlay';
-    modal.innerHTML = '<div class="modal-box sos-modal-box">' +
-      '<div class="sos-modal-header">🚨 Спешен сигнал</div>' +
+    modal.innerHTML = '<div class="sos-modal-box">' +
+      '<div class="sos-modal-header">' +
+        '<span class="sos-modal-header__icon">🚨</span>' +
+        '<span>Спешен сигнал</span>' +
+      '</div>' +
       '<div class="sos-modal-body">' +
-        (cardId ? '<div class="sos-card-ref">Карта: <strong>' + esc(cardTitle || '') + '</strong></div>' : '') +
-        '<div style="margin-bottom:12px">' +
-          '<label class="kp-label">Съобщение <span style="opacity:.5">(по избор)</span></label>' +
-          '<textarea id="sosMessage" class="input" rows="3" style="width:100%;resize:vertical" placeholder="Опиши какво е спешното..."></textarea>' +
+        (cardId ? '<div class="sos-card-ref">📌 Карта: <strong>' + esc(cardTitle || '') + '</strong></div>' : '') +
+        '<div>' +
+          '<label class="sos-field-label">Съобщение<span class="sos-field-hint">(по избор)</span></label>' +
+          '<textarea id="sosMessage" class="sos-textarea" rows="3" placeholder="Опиши какво е спешното..."></textarea>' +
         '</div>' +
-        '<div style="margin-bottom:16px">' +
-          '<label class="kp-label" style="margin-bottom:8px;display:block">Изпрати до:</label>' +
-          '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">' +
-            '<input type="radio" name="sosTarget" value="all" checked style="accent-color:var(--red)"> <strong>Целия екип</strong>' +
-          '</label>' +
-          '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">' +
-            '<input type="radio" name="sosTarget" value="specific" style="accent-color:var(--red)"> Конкретни хора:' +
-          '</label>' +
-          '<div id="sosUserList" style="margin-left:24px;display:none">' + userOpts + '</div>' +
+        '<div>' +
+          '<label class="sos-field-label">Изпрати до</label>' +
+          '<div class="sos-target-options">' +
+            '<label class="sos-target-option"><input type="radio" name="sosTarget" value="all" checked> <strong>Целия екип</strong></label>' +
+            '<label class="sos-target-option"><input type="radio" name="sosTarget" value="specific"> Конкретни хора</label>' +
+          '</div>' +
+          '<div id="sosUserList" class="sos-user-list">' + userOpts + '</div>' +
         '</div>' +
-        '<div style="display:flex;gap:8px">' +
-          '<button class="btn sos-send-btn" onclick="sendSos(' + (cardId || 'null') + ')">🚨 Изпрати сигнал</button>' +
-          '<button class="btn" onclick="document.getElementById(\'sosModal\').remove()">Отказ</button>' +
-        '</div>' +
+      '</div>' +
+      '<div class="sos-modal-footer">' +
+        '<button class="btn" onclick="document.getElementById(\'sosModal\').remove()">Отказ</button>' +
+        '<button class="btn sos-send-btn" onclick="sendSos(' + (cardId || 'null') + ')">🚨 Изпрати сигнал</button>' +
       '</div>' +
     '</div>';
     document.body.appendChild(modal);
     // Show/hide user list on radio change
     modal.querySelectorAll('input[name="sosTarget"]').forEach(function(r) {
       r.addEventListener('change', function() {
-        document.getElementById('sosUserList').style.display = this.value === 'specific' ? 'block' : 'none';
+        document.getElementById('sosUserList').classList.toggle('is-visible', this.value === 'specific');
       });
     });
     modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+    // Auto-focus textarea
+    setTimeout(function() { var ta = document.getElementById('sosMessage'); if (ta) ta.focus(); }, 50);
   }).catch(function() { showToast('Грешка при зареждане', 'error'); });
 }
 
