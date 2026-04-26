@@ -17,14 +17,13 @@ var _dict = {
 
 async function renderDictation(el) {
   setBreadcrumb([{label: 'Диктовка', href: '#/dictation'}]);
-  el.className = '';
+  el.className = 'flush-top';
 
   el.innerHTML = `
     <div class="home-content-box">
       <div class="page-header" style="margin-bottom:20px">
         <h1>🎤 Диктовка</h1>
-        <div class="page-subtitle">Запиши аудио, ще се транскрибира на български. Текстът се добавя на парчета.</div>
-        <div id="dictHealth" style="font-size:12px;color:var(--text-dim);margin-top:8px">Проверка на услугата...</div>
+        <div class="page-subtitle">Записи аудио и ще се транскрибира на български език. Текстът се добавя на парчета и можеш да запишеш колкото пъти е нужно.</div>
       </div>
 
       <div id="dictMicBox" style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
@@ -41,7 +40,7 @@ async function renderDictation(el) {
       <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em">Транскрипция (суров текст)</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button id="dictAiBtn" class="btn btn-primary btn-sm" onclick="dictAiSummary()" style="font-weight:600">✨ AI Подреди</button>
+          <button id="dictAiBtn" class="btn btn-primary btn-sm" onclick="dictAiSummary()" style="font-weight:600">✨ AI обобщение</button>
           <button class="btn btn-ghost btn-sm" onclick="dictCopyText()">📋 Копирай</button>
           <button class="btn btn-ghost btn-sm" onclick="dictDownloadText()">⬇️ Свали .txt</button>
           <button class="btn btn-ghost btn-sm" onclick="dictClearText()" style="color:var(--red)">🗑️ Изчисти</button>
@@ -52,7 +51,7 @@ async function renderDictation(el) {
 
       <div id="dictAiPanel" style="display:none;margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
         <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <label style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em">✨ AI Подредена версия</label>
+          <label style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em">✨ AI обобщение</label>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-sm" onclick="dictAiUseAsMain()" title="Замества суровия текст с подредената версия">⬆ Използвай горе</button>
             <button class="btn btn-ghost btn-sm" onclick="dictAiCopy()">📋 Копирай</button>
@@ -76,23 +75,6 @@ async function renderDictation(el) {
   });
 
   document.getElementById('dictRecBtn').addEventListener('click', dictToggleRec);
-
-  dictCheckHealth();
-}
-
-function dictCheckHealth() {
-  var el = document.getElementById('dictHealth');
-  if (!el) return;
-  fetch('/api/transcribe/health').then(function(r) { return r.json().then(function(j) { return {ok: r.ok, j: j}; }); })
-    .then(function(res) {
-      if (!el || !document.body.contains(el)) return;
-      if (res.ok && res.j.status === 'ok') {
-        el.innerHTML = '<span style="color:#46a374">●</span> Whisper готов (' + (res.j.model || '?') + ')';
-      } else {
-        el.innerHTML = '<span style="color:#c0392b">●</span> Whisper грешка: ' + (res.j.error || 'неизвестна');
-      }
-    })
-    .catch(function() { if (el) el.innerHTML = '<span style="color:#c0392b">●</span> Whisper недостъпен'; });
 }
 
 async function dictToggleRec() {

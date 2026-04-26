@@ -486,6 +486,9 @@
   padding: 30px 24px;
 }
 .with-breadcrumb #pageContent { padding-top: 10px; }
+/* For tool pages where content box should sit flush under the breadcrumb tab */
+.with-breadcrumb #pageContent.flush-top { padding-top: 0; }
+#pageContent.flush-top { padding-top: 0; }
 #pageContent.wide { max-width: 1400px; }
 #pageContent.full-width { max-width: none; }
 /* Board pages — responsive horizontal gutter (100px on wide, shrinks to 16px
