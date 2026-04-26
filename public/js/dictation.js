@@ -20,36 +20,49 @@ async function renderDictation(el) {
   el.className = '';
 
   el.innerHTML = `
-    <div style="max-width:780px;margin:0 auto;padding:24px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <h1 style="font-size:22px;font-weight:600;color:#fff;margin:0">Диктовка</h1>
-        <span id="dictHealth" style="font-size:12px;color:var(--text-dim)">Проверка...</span>
-      </div>
-      <div style="font-size:13px;color:var(--text-dim);margin-bottom:20px">
-        Запиши аудио, после ще се транскрибира на български. Текстът се добавя след съществуващия — можеш да диктуваш на парчета.
+    <div class="home-content-box">
+      <div class="page-header" style="margin-bottom:20px">
+        <h1>🎤 Диктовка</h1>
+        <div class="page-subtitle">Запиши аудио, ще се транскрибира на български. Текстът се добавя на парчета.</div>
+        <div id="dictHealth" style="font-size:12px;color:var(--text-dim);margin-top:8px">Проверка на услугата...</div>
       </div>
 
-      <div id="dictMicBox" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px">
+      <div id="dictMicBox" style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">
           <button id="dictRecBtn" class="btn" style="min-width:160px;font-size:15px;padding:12px 18px">🎤 Старт</button>
           <div id="dictTimer" style="font-family:ui-monospace,monospace;font-size:18px;color:#fff;min-width:60px">00:00</div>
-          <div style="flex:1;height:24px;background:rgba(0,0,0,0.3);border-radius:6px;overflow:hidden;position:relative">
+          <div style="flex:1;min-width:180px;height:24px;background:rgba(0,0,0,0.35);border-radius:6px;overflow:hidden;position:relative">
             <div id="dictLevel" style="height:100%;width:0%;background:linear-gradient(90deg,#46a374,#8ed1a8);transition:width .08s linear"></div>
           </div>
         </div>
         <div id="dictStatus" style="font-size:13px;color:var(--text-dim);min-height:18px">Натисни Старт за запис.</div>
       </div>
 
-      <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
-        <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em">Транскрипция</label>
-        <div style="display:flex;gap:8px">
+      <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em">Транскрипция (суров текст)</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="dictAiBtn" class="btn btn-primary btn-sm" onclick="dictAiSummary()" style="font-weight:600">✨ AI Подреди</button>
           <button class="btn btn-ghost btn-sm" onclick="dictCopyText()">📋 Копирай</button>
           <button class="btn btn-ghost btn-sm" onclick="dictDownloadText()">⬇️ Свали .txt</button>
           <button class="btn btn-ghost btn-sm" onclick="dictClearText()" style="color:var(--red)">🗑️ Изчисти</button>
         </div>
       </div>
-      <textarea id="dictText" placeholder="Тук ще се появи транскрибираният текст..." style="width:100%;min-height:340px;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:10px;padding:14px;color:var(--text);font-size:14.5px;line-height:1.55;font-family:inherit;resize:vertical;outline:none"></textarea>
+      <textarea id="dictText" placeholder="Тук ще се появи транскрибираният текст..." style="width:100%;min-height:280px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;color:var(--text);font-size:14.5px;line-height:1.55;font-family:inherit;resize:vertical;outline:none"></textarea>
       <div id="dictMeta" style="font-size:12px;color:var(--text-dim);margin-top:6px;min-height:16px"></div>
+
+      <div id="dictAiPanel" style="display:none;margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
+        <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <label style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em">✨ AI Подредена версия</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="dictAiUseAsMain()" title="Замества суровия текст с подредената версия">⬆ Използвай горе</button>
+            <button class="btn btn-ghost btn-sm" onclick="dictAiCopy()">📋 Копирай</button>
+            <button class="btn btn-ghost btn-sm" onclick="dictAiDownload()">⬇️ Свали .md</button>
+            <button class="btn btn-ghost btn-sm" onclick="dictAiClose()" style="color:var(--red)">✕ Затвори</button>
+          </div>
+        </div>
+        <div id="dictAiContent" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;color:var(--text);font-size:14.5px;line-height:1.65;min-height:120px;white-space:pre-wrap"></div>
+        <div id="dictAiMeta" style="font-size:12px;color:var(--text-dim);margin-top:6px;min-height:16px"></div>
+      </div>
     </div>
   `;
 
@@ -275,4 +288,84 @@ function dictClearText() {
   ta.value = '';
   try { localStorage.removeItem('thepact-dictation-text'); } catch (e) {}
   var meta = document.getElementById('dictMeta'); if (meta) meta.textContent = '';
+}
+
+// ==================== AI SUMMARY (Claude API) ====================
+async function dictAiSummary() {
+  var ta = document.getElementById('dictText');
+  var btn = document.getElementById('dictAiBtn');
+  var panel = document.getElementById('dictAiPanel');
+  var content = document.getElementById('dictAiContent');
+  var meta = document.getElementById('dictAiMeta');
+  if (!ta || !ta.value || !ta.value.trim()) {
+    if (typeof showToast === 'function') showToast('Няма текст за подреждане.', 'error');
+    return;
+  }
+  if (_dict.busy) return;
+  _dict.busy = true;
+  var origLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ AI обработка...';
+  panel.style.display = 'block';
+  content.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px">Claude мисли...</div>';
+  meta.textContent = '';
+
+  var t0 = Date.now();
+  try {
+    var resp = await fetch('/api/transcribe/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: ta.value })
+    });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    content.textContent = data.text || '';
+    meta.textContent = 'Готово за ' + ((Date.now() - t0) / 1000).toFixed(1) + 'с · модел: ' + (data.model || '?') +
+      (data.input_tokens ? ' · ' + data.input_tokens + ' → ' + data.output_tokens + ' токена' : '');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (err) {
+    content.innerHTML = '<div style="color:var(--red)">Грешка: ' + esc(err.message) + '</div>';
+    if (typeof showToast === 'function') showToast('AI грешка: ' + err.message, 'error');
+  } finally {
+    _dict.busy = false;
+    btn.disabled = false;
+    btn.textContent = origLabel;
+  }
+}
+
+function dictAiUseAsMain() {
+  var content = document.getElementById('dictAiContent');
+  var ta = document.getElementById('dictText');
+  if (!content || !ta) return;
+  var text = content.textContent || '';
+  if (!text.trim()) return;
+  if (ta.value.trim() && !confirm('Това ще замени суровия текст. Продължаваш?')) return;
+  ta.value = text;
+  try { localStorage.setItem('thepact-dictation-text', text); } catch (e) {}
+  if (typeof showToast === 'function') showToast('Подредената версия е горе.', 'success');
+}
+
+function dictAiCopy() {
+  var content = document.getElementById('dictAiContent');
+  if (!content || !content.textContent) return;
+  navigator.clipboard.writeText(content.textContent).then(function() {
+    if (typeof showToast === 'function') showToast('AI текст копиран.', 'success');
+  });
+}
+
+function dictAiDownload() {
+  var content = document.getElementById('dictAiContent');
+  if (!content || !content.textContent) return;
+  var blob = new Blob([content.textContent], { type: 'text/markdown;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var ts = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  a.href = url; a.download = 'диктовка-ai-' + ts + '.md';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+
+function dictAiClose() {
+  var panel = document.getElementById('dictAiPanel');
+  if (panel) panel.style.display = 'none';
 }
