@@ -46,7 +46,7 @@ async function renderDictation(el) {
           <button class="btn btn-ghost btn-sm" onclick="dictClearText()" style="color:var(--red)">🗑️ Изчисти</button>
         </div>
       </div>
-      <textarea id="dictText" placeholder="Тук ще се появи транскрибираният текст..." style="width:100%;min-height:280px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;color:var(--text);font-size:14.5px;line-height:1.55;font-family:inherit;resize:vertical;outline:none"></textarea>
+      <textarea id="dictText" placeholder="Тук ще се появи транскрибираният текст..." style="width:100%;min-height:280px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;color:var(--text);font-size:14.5px;line-height:1.55;font-family:inherit;resize:none;outline:none;overflow:hidden"></textarea>
       <div id="dictMeta" style="font-size:12px;color:var(--text-dim);margin-top:6px;min-height:16px"></div>
 
       <div id="dictAiPanel" style="display:none;margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
@@ -59,34 +59,55 @@ async function renderDictation(el) {
             <button class="btn btn-ghost btn-sm" onclick="dictAiClose()" style="color:var(--red)">✕ Затвори</button>
           </div>
         </div>
-        <textarea id="dictAiContent" placeholder="Тук ще се появи AI обобщението. Можеш да редактираш свободно." style="width:100%;min-height:240px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;color:var(--text);font-size:14.5px;line-height:1.65;font-family:inherit;resize:vertical;outline:none"></textarea>
+        <textarea id="dictAiContent" placeholder="Тук ще се появи AI обобщението. Можеш да редактираш свободно." style="width:100%;min-height:240px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;color:var(--text);font-size:14.5px;line-height:1.65;font-family:inherit;resize:none;outline:none;overflow:hidden"></textarea>
         <div id="dictAiMeta" style="font-size:12px;color:var(--text-dim);margin-top:6px;min-height:16px"></div>
       </div>
     </div>
   `;
 
   // Restore last text from localStorage (survives nav)
+  var dictTa = document.getElementById('dictText');
   try {
     var saved = localStorage.getItem('thepact-dictation-text');
-    if (saved) document.getElementById('dictText').value = saved;
+    if (saved) dictTa.value = saved;
   } catch (e) {}
-  document.getElementById('dictText').addEventListener('input', function() {
+  dictTa.addEventListener('input', function() {
     try { localStorage.setItem('thepact-dictation-text', this.value); } catch (e) {}
+    dictAutoGrow(this);
   });
 
   // Restore AI text from localStorage and persist edits
+  var aiTa = document.getElementById('dictAiContent');
   try {
     var aiSaved = localStorage.getItem('thepact-dictation-ai-text');
     if (aiSaved) {
-      document.getElementById('dictAiContent').value = aiSaved;
+      aiTa.value = aiSaved;
       document.getElementById('dictAiPanel').style.display = 'block';
     }
   } catch (e) {}
-  document.getElementById('dictAiContent').addEventListener('input', function() {
+  aiTa.addEventListener('input', function() {
     try { localStorage.setItem('thepact-dictation-ai-text', this.value); } catch (e) {}
+    dictAutoGrow(this);
   });
 
   document.getElementById('dictRecBtn').addEventListener('click', dictToggleRec);
+
+  // Initial auto-grow after restore (defer to next frame so layout is settled)
+  requestAnimationFrame(function() {
+    dictAutoGrow(dictTa);
+    dictAutoGrow(aiTa);
+  });
+}
+
+// Auto-resize textarea to fit content (no scrollbar, no manual resize handle).
+// Works with box-sizing:border-box — adds back the border to scrollHeight.
+function dictAutoGrow(ta) {
+  if (!ta || !ta.isConnected) return;
+  // Skip if hidden — scrollHeight is 0, would collapse the textarea
+  if (ta.offsetParent === null) return;
+  ta.style.height = 'auto';
+  var borderY = ta.offsetHeight - ta.clientHeight; // top + bottom borders
+  ta.style.height = (ta.scrollHeight + borderY) + 'px';
 }
 
 async function dictToggleRec() {
@@ -242,7 +263,7 @@ function dictAppendText(text) {
   var current = ta.value.trim();
   ta.value = current ? (current + ' ' + text) : text;
   try { localStorage.setItem('thepact-dictation-text', ta.value); } catch (e) {}
-  ta.scrollTop = ta.scrollHeight;
+  dictAutoGrow(ta);
 }
 
 function dictReleaseStream() {
@@ -282,6 +303,7 @@ function dictClearText() {
   ta.value = '';
   try { localStorage.removeItem('thepact-dictation-text'); } catch (e) {}
   var meta = document.getElementById('dictMeta'); if (meta) meta.textContent = '';
+  dictAutoGrow(ta);
 }
 
 // ==================== AI SUMMARY (Claude API) ====================
@@ -321,12 +343,14 @@ async function dictAiSummary() {
     try { localStorage.setItem('thepact-dictation-ai-text', content.value); } catch (e) {}
     meta.textContent = 'Готово за ' + ((Date.now() - t0) / 1000).toFixed(1) + 'с · модел: ' + (data.model || '?') +
       (data.input_tokens ? ' · ' + data.input_tokens + ' → ' + data.output_tokens + ' токена' : '');
+    dictAutoGrow(content);
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (err) {
     content.value = '';
     content.placeholder = 'Тук ще се появи AI обобщението. Можеш да редактираш свободно.';
     meta.textContent = 'Грешка: ' + err.message;
     meta.style.color = 'var(--red)';
+    dictAutoGrow(content);
     if (typeof showToast === 'function') showToast('AI грешка: ' + err.message, 'error');
   } finally {
     _dict.busy = false;
@@ -345,6 +369,7 @@ function dictAiUseAsMain() {
   if (ta.value.trim() && !confirm('Това ще замени суровия текст. Продължаваш?')) return;
   ta.value = text;
   try { localStorage.setItem('thepact-dictation-text', text); } catch (e) {}
+  dictAutoGrow(ta);
   if (typeof showToast === 'function') showToast('AI обобщението е горе.', 'success');
 }
 
@@ -373,7 +398,7 @@ function dictAiClose() {
   var content = document.getElementById('dictAiContent');
   if (content && content.value && !confirm('Затваряне? AI текстът ще се изтрие.')) return;
   if (panel) panel.style.display = 'none';
-  if (content) content.value = '';
+  if (content) { content.value = ''; content.style.height = ''; }
   try { localStorage.removeItem('thepact-dictation-ai-text'); } catch (e) {}
   var meta = document.getElementById('dictAiMeta');
   if (meta) { meta.textContent = ''; meta.style.color = ''; }
