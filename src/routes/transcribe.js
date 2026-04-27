@@ -57,7 +57,7 @@ router.post('/', requireAuth, upload.single('audio'), (req, res) => {
       'Content-Length': buf.length,
       'X-Audio-Ext': ext
     },
-    timeout: 300_000 // 5 min — small model on 2 cpu cores can be slow on long audio
+    timeout: 1800_000 // 30 min — chunks may queue during long recording (Python serial)
   }, (resp) => {
     let body = '';
     resp.setEncoding('utf8');

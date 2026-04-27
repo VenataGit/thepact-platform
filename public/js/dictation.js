@@ -1,18 +1,30 @@
 // ==================== ДИКТОВКА (Whisper STT) ====================
-// Записва аудио чрез MediaRecorder API → изпраща към /api/transcribe
-// (proxy към локалния faster-whisper service на VPS-а).
+// Pipeline-parallel chunked recording:
+//   MediaRecorder ротира на всеки 60 сек → нов parc се качва веднага
+//   докато записът продължава. Whisper service-ът обработва паралелно
+//   с recording-а. Текстът се появява прогресивно (в правилен ред).
 //
 // Глобално състояние, защото view-овете се re-render-ват при hashchange.
+var DICT_CHUNK_MS = 60_000;       // дължина на едно audio парче
+var DICT_MIN_CHUNK_BYTES = 5000;  // под този размер парчето се счита за празно
+
 var _dict = {
   stream: null,
-  recorder: null,
-  chunks: [],
+  recorder: null,        // current MediaRecorder (ротира всеки 60 сек)
   startedAt: 0,
   timerId: null,
   audioCtx: null,
   analyser: null,
   vizRafId: null,
-  busy: false
+  busy: false,           // true докато AI обобщение върви
+  // chunked transcription state
+  isRecording: false,    // user wants to be recording
+  chunkIdx: 0,           // следващия chunk index за recording
+  chunkRotateId: null,   // setTimeout за rotate на recorder
+  totalChunks: 0,        // общо създадени chunks
+  pendingChunks: 0,      // брой in-flight transcribe заявки
+  nextToShow: 0,         // следващия chunk index за показване
+  results: {}            // {idx: {status:'pending'|'done'|'error', text?, error?}}
 };
 
 async function renderDictation(el) {
@@ -111,9 +123,11 @@ function dictAutoGrow(ta) {
 }
 
 async function dictToggleRec() {
-  if (_dict.busy) return;
-  if (_dict.recorder && _dict.recorder.state === 'recording') {
+  if (_dict.isRecording) {
     dictStopRec();
+  } else if (_dict.pendingChunks > 0) {
+    // Disabled while draining backlog
+    return;
   } else {
     await dictStartRec();
   }
@@ -135,27 +149,16 @@ async function dictStartRec() {
     return;
   }
 
-  // Pick best supported MIME (Chrome/Edge: webm/opus; Safari: mp4/aac)
-  var mime = '';
-  var candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
-  for (var i = 0; i < candidates.length; i++) {
-    if (window.MediaRecorder && MediaRecorder.isTypeSupported(candidates[i])) { mime = candidates[i]; break; }
-  }
-
-  try {
-    _dict.recorder = new MediaRecorder(_dict.stream, mime ? { mimeType: mime } : undefined);
-  } catch (err) {
-    status.textContent = 'MediaRecorder грешка: ' + err.message;
-    dictReleaseStream();
-    return;
-  }
-  _dict.chunks = [];
-  _dict.recorder.ondataavailable = function(e) { if (e.data && e.data.size) _dict.chunks.push(e.data); };
-  _dict.recorder.onstop = dictHandleStop;
-  _dict.recorder.start(1000); // collect 1-sec chunks
+  // Reset chunked transcription state
+  _dict.isRecording = true;
+  _dict.chunkIdx = 0;
+  _dict.totalChunks = 0;
+  _dict.pendingChunks = 0;
+  _dict.nextToShow = 0;
+  _dict.results = {};
   _dict.startedAt = Date.now();
 
-  // Visual level meter
+  // Visual level meter (attached to stream — survives recorder rotation)
   try {
     _dict.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     var src = _dict.audioCtx.createMediaStreamSource(_dict.stream);
@@ -172,7 +175,145 @@ async function dictStartRec() {
   btn.textContent = '⏹ Стоп';
   btn.classList.add('btn-recording');
   btn.style.background = '#c0392b';
-  status.textContent = 'Записва се... натисни Стоп когато завършиш.';
+
+  // Start first chunk recorder
+  dictStartChunkRecorder();
+  dictUpdateStatus();
+}
+
+// Pick best supported MIME (Chrome/Edge: webm/opus; Safari: mp4/aac)
+function dictPickMime() {
+  var candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+  for (var i = 0; i < candidates.length; i++) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(candidates[i])) return candidates[i];
+  }
+  return '';
+}
+
+// Start a new MediaRecorder for the next chunk. When it stops (rotation or
+// final stop), the accumulated blob is sent to /api/transcribe and the next
+// recorder is started immediately so audio doesn't drop.
+function dictStartChunkRecorder() {
+  if (!_dict.isRecording || !_dict.stream) return;
+  var idx = _dict.chunkIdx++;
+  _dict.totalChunks = idx + 1;
+
+  var mime = dictPickMime();
+  var localChunks = [];
+  var recorder;
+  try {
+    recorder = new MediaRecorder(_dict.stream, mime ? { mimeType: mime } : undefined);
+  } catch (err) {
+    var status = document.getElementById('dictStatus');
+    if (status) status.textContent = 'MediaRecorder грешка: ' + err.message;
+    _dict.isRecording = false;
+    dictReleaseStream();
+    return;
+  }
+
+  recorder.ondataavailable = function(e) { if (e.data && e.data.size) localChunks.push(e.data); };
+  recorder.onstop = function() {
+    var blob = new Blob(localChunks, { type: mime || 'audio/webm' });
+    if (blob.size >= DICT_MIN_CHUNK_BYTES) {
+      dictSendChunk(idx, blob, mime || 'audio/webm');
+    } else {
+      // empty/silent chunk — skip but advance the show pointer
+      _dict.results[idx] = { status: 'done', text: '' };
+      dictAppendCompleted();
+    }
+    dictUpdateStatus();
+  };
+  recorder.start();
+  _dict.recorder = recorder;
+
+  // Schedule rotation: stop current → start next (no gap, audio continues)
+  _dict.chunkRotateId = setTimeout(function() {
+    if (_dict.recorder === recorder && recorder.state === 'recording') {
+      recorder.stop(); // triggers onstop → sends chunk
+      if (_dict.isRecording) dictStartChunkRecorder();
+    }
+  }, DICT_CHUNK_MS);
+}
+
+function dictStopRec() {
+  if (!_dict.isRecording) return;
+  _dict.isRecording = false;
+  if (_dict.chunkRotateId) { clearTimeout(_dict.chunkRotateId); _dict.chunkRotateId = null; }
+  if (_dict.recorder && _dict.recorder.state === 'recording') {
+    _dict.recorder.stop(); // triggers onstop → sends final chunk
+  }
+  // Stop timers + viz
+  if (_dict.timerId) { clearInterval(_dict.timerId); _dict.timerId = null; }
+  if (_dict.vizRafId) { cancelAnimationFrame(_dict.vizRafId); _dict.vizRafId = null; }
+  var bar = document.getElementById('dictLevel'); if (bar) bar.style.width = '0%';
+  dictReleaseStream();
+  dictUpdateStatus();
+}
+
+async function dictSendChunk(idx, blob, mime) {
+  _dict.pendingChunks++;
+  _dict.results[idx] = { status: 'pending' };
+  dictUpdateStatus();
+  try {
+    var fd = new FormData();
+    var ext = mime.indexOf('mp4') > -1 ? 'm4a' : (mime.indexOf('ogg') > -1 ? 'ogg' : 'webm');
+    fd.append('audio', blob, 'rec-' + idx + '.' + ext);
+    var resp = await fetch('/api/transcribe', { method: 'POST', body: fd });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    _dict.results[idx] = { status: 'done', text: (data.text || '').trim() };
+  } catch (err) {
+    _dict.results[idx] = { status: 'error', error: err.message };
+    if (typeof showToast === 'function') showToast('Парче ' + (idx + 1) + ': ' + err.message, 'error');
+  } finally {
+    _dict.pendingChunks--;
+    dictAppendCompleted();
+    dictUpdateStatus();
+  }
+}
+
+// Append completed chunks to textarea IN ORDER. Stops at first pending hole.
+function dictAppendCompleted() {
+  while (_dict.results[_dict.nextToShow] && _dict.results[_dict.nextToShow].status !== 'pending') {
+    var r = _dict.results[_dict.nextToShow];
+    if (r.status === 'done' && r.text) {
+      dictAppendText(r.text);
+    } else if (r.status === 'error') {
+      dictAppendText('[парче ' + (_dict.nextToShow + 1) + ' грешка: ' + r.error + ']');
+    }
+    delete _dict.results[_dict.nextToShow];
+    _dict.nextToShow++;
+  }
+}
+
+function dictUpdateStatus() {
+  var status = document.getElementById('dictStatus');
+  var btn = document.getElementById('dictRecBtn');
+  if (!status || !btn) return;
+  var done = _dict.nextToShow;
+  var total = _dict.totalChunks;
+  var pending = _dict.pendingChunks;
+
+  if (_dict.isRecording) {
+    status.textContent = 'Записва се · парче ' + (_dict.chunkIdx) + ' активно · готови ' + done + '/' + (total - 1) +
+      (pending ? ' (' + pending + ' се обработват)' : '');
+  } else if (pending > 0 || done < total) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Чака ' + (total - done) + ' парчета...';
+    btn.style.background = '';
+    btn.classList.remove('btn-recording');
+    status.textContent = 'Записването спря. Готови ' + done + '/' + total + ' (' + pending + ' в процес)';
+  } else if (total > 0) {
+    btn.disabled = false;
+    btn.textContent = '🎤 Старт';
+    btn.style.background = '';
+    btn.classList.remove('btn-recording');
+    status.textContent = 'Готово. ' + total + ' парче' + (total === 1 ? '' : 'та') + ' обработени.';
+  } else {
+    btn.disabled = false;
+    btn.textContent = '🎤 Старт';
+    status.textContent = 'Натисни Старт за запис.';
+  }
 }
 
 function dictTickTimer() {
@@ -190,7 +331,6 @@ function dictTickViz() {
   if (!bar) return;
   var data = new Uint8Array(_dict.analyser.frequencyBinCount);
   _dict.analyser.getByteTimeDomainData(data);
-  // RMS-ish level
   var sum = 0;
   for (var i = 0; i < data.length; i++) {
     var v = (data[i] - 128) / 128;
@@ -200,61 +340,6 @@ function dictTickViz() {
   var pct = Math.min(100, Math.round(rms * 240));
   bar.style.width = pct + '%';
   _dict.vizRafId = requestAnimationFrame(dictTickViz);
-}
-
-function dictStopRec() {
-  if (!_dict.recorder || _dict.recorder.state !== 'recording') return;
-  _dict.recorder.stop(); // triggers onstop → dictHandleStop
-}
-
-async function dictHandleStop() {
-  // Stop timers + viz
-  if (_dict.timerId) { clearInterval(_dict.timerId); _dict.timerId = null; }
-  if (_dict.vizRafId) { cancelAnimationFrame(_dict.vizRafId); _dict.vizRafId = null; }
-  var bar = document.getElementById('dictLevel'); if (bar) bar.style.width = '0%';
-
-  var btn = document.getElementById('dictRecBtn');
-  var status = document.getElementById('dictStatus');
-  var mime = (_dict.recorder && _dict.recorder.mimeType) || 'audio/webm';
-  var blob = new Blob(_dict.chunks, { type: mime });
-  _dict.chunks = [];
-  dictReleaseStream();
-
-  if (!blob.size) {
-    status.textContent = 'Празен запис.';
-    btn.textContent = '🎤 Старт'; btn.classList.remove('btn-recording'); btn.style.background = '';
-    return;
-  }
-
-  _dict.busy = true;
-  btn.disabled = true;
-  btn.textContent = '⏳ Транскрибира...';
-  btn.style.background = '';
-  status.textContent = 'Изпраща се (' + Math.round(blob.size / 1024) + ' KB)... Това може да отнеме 20-90 секунди.';
-
-  try {
-    var fd = new FormData();
-    var ext = mime.indexOf('mp4') > -1 ? 'm4a' : (mime.indexOf('ogg') > -1 ? 'ogg' : 'webm');
-    fd.append('audio', blob, 'rec.' + ext);
-    var t0 = Date.now();
-    var resp = await fetch('/api/transcribe', { method: 'POST', body: fd });
-    var data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
-    dictAppendText(data.text || '');
-    var meta = document.getElementById('dictMeta');
-    if (meta) {
-      meta.textContent = 'Аудио ' + data.duration + 'с → транскрипция за ' + data.elapsed + 'с (общо ' + ((Date.now() - t0) / 1000).toFixed(1) + 'с)';
-    }
-    status.textContent = 'Готово.';
-  } catch (err) {
-    status.textContent = 'Грешка: ' + err.message;
-    if (typeof showToast === 'function') showToast('Транскрипция: ' + err.message, 'error');
-  } finally {
-    _dict.busy = false;
-    btn.disabled = false;
-    btn.textContent = '🎤 Старт';
-    btn.classList.remove('btn-recording');
-  }
 }
 
 function dictAppendText(text) {
