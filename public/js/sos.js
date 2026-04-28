@@ -91,29 +91,38 @@ async function sendSos(cardId) {
   } catch (err) { showToast('Грешка: ' + err.message, 'error'); }
 }
 
-function showSosAlert(ev) {
+function showSosAlert(ev, opts) {
+  opts = opts || {};
   // Check if this alert is for current user
   if (!ev.targetAll && ev.targetUserIds && !ev.targetUserIds.includes(currentUser.id)) return;
   if (ev.senderId === currentUser.id) return; // Don't alert yourself
+  // Don't duplicate the same alert if it's already shown (e.g. WS arrived after init fetch)
+  if (document.querySelector('.sos-alert-banner[data-alert-id="' + ev.alertId + '"]')) return;
 
-  // Play SOS sound
-  playSosSound();
-
-  // Browser notification
-  if (Notification.permission === 'granted') {
-    new Notification('🚨 Спешен сигнал от ' + ev.senderName, {
-      body: ev.message || (ev.cardTitle ? 'Карта: ' + ev.cardTitle : 'Погледни платформата'),
-      icon: '/img/logo-white.svg'
-    });
-  } else if (Notification.permission !== 'denied') {
-    Notification.requestPermission();
+  if (!opts.silent) {
+    playSosSound();
+    if (Notification.permission === 'granted') {
+      new Notification('🚨 Спешен сигнал от ' + ev.senderName, {
+        body: ev.message || (ev.cardTitle ? 'Карта: ' + ev.cardTitle : 'Погледни платформата'),
+        icon: '/img/logo-white.svg'
+      });
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
   }
 
-  // Remove existing SOS banners
-  document.querySelectorAll('.sos-alert-banner').forEach(function(b) { b.remove(); });
+  // Get-or-create the stack container so multiple alerts pile up cleanly
+  var stack = document.getElementById('sosAlertStack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'sosAlertStack';
+    stack.className = 'sos-alert-stack';
+    document.body.insertBefore(stack, document.body.firstChild);
+  }
 
   var banner = document.createElement('div');
   banner.className = 'sos-alert-banner';
+  banner.dataset.alertId = ev.alertId;
   banner.innerHTML =
     '<span class="sos-alert-icon">🚨</span>' +
     '<div class="sos-alert-content">' +
@@ -123,10 +132,37 @@ function showSosAlert(ev) {
     '</div>' +
     '<button class="sos-alert-resolve" onclick="resolveSos(' + ev.alertId + ',this.closest(\'.sos-alert-banner\'))">✓ Видях</button>' +
     '<button class="sos-alert-close" onclick="this.closest(\'.sos-alert-banner\').remove()">✕</button>';
-  document.body.insertBefore(banner, document.body.firstChild);
+  stack.appendChild(banner);
 
-  // Auto-remove after 5 min
-  setTimeout(function() { if (banner.parentNode) banner.remove(); }, 300000);
+  // Auto-remove after 5 min — only for live (sound) alerts; persisted ones stay until resolved
+  if (!opts.silent) {
+    setTimeout(function() { if (banner.parentNode) banner.remove(); }, 300000);
+  }
+}
+
+// Called once on app init — fetches active (unresolved, last 24h) alerts
+// targeting the current user and shows them silently.
+async function loadActiveSosAlerts() {
+  try {
+    var resp = await fetch('/api/sos/active');
+    if (!resp.ok) return;
+    var rows = await resp.json();
+    if (!Array.isArray(rows) || !rows.length) return;
+    // Show oldest first so most recent ends up on top of stack
+    rows.slice().reverse().forEach(function(r) {
+      showSosAlert({
+        alertId: r.id,
+        senderId: r.sender_id,
+        senderName: r.sender_name || 'Unknown',
+        message: r.message,
+        cardId: r.card_id,
+        cardTitle: r.card_title,
+        targetAll: r.target_all,
+        targetUserIds: r.target_user_ids,
+        createdAt: r.created_at
+      }, { silent: true });
+    });
+  } catch (e) {}
 }
 
 async function resolveSos(alertId, bannerEl) {

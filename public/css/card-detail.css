@@ -385,8 +385,17 @@
 }
 .sos-nav-btn:hover { background: var(--red-dim); opacity: 1; }
 
-.sos-alert-banner {
+/* Stack container — multiple SOS banners pile up here (e.g. on app init
+   when more than one active alert exists). Single fixed position, banners
+   inside flow as a column. */
+.sos-alert-stack {
   position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+  display: flex; flex-direction: column; gap: 4px;
+  pointer-events: none; /* container itself doesn't block clicks */
+}
+.sos-alert-stack > .sos-alert-banner { pointer-events: auto; }
+
+.sos-alert-banner {
   background: linear-gradient(90deg, var(--sos-alert-bg-from), var(--sos-alert-bg-to));
   border-bottom: 2px solid var(--sos-alert-border);
   display: flex; align-items: center; gap: 12px;

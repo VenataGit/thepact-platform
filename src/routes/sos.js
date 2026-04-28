@@ -70,6 +70,27 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/sos/active — unresolved alerts targeting the current user, last 24h.
+// Used on app init so users who entered AFTER the broadcast still see the alert.
+router.get('/active', requireAuth, async (req, res) => {
+  try {
+    const rows = await query(`
+      SELECT s.*, u.name as sender_name, c.title as card_title
+      FROM sos_alerts s
+      LEFT JOIN users u ON s.sender_id = u.id
+      LEFT JOIN cards c ON s.card_id = c.id
+      WHERE s.resolved_at IS NULL
+        AND s.created_at > NOW() - INTERVAL '24 hours'
+        AND s.sender_id != $1
+        AND (s.target_all = TRUE OR $1 = ANY(s.target_user_ids))
+      ORDER BY s.created_at DESC
+    `, [req.user.userId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PUT /api/sos/:id/resolve
 router.put('/:id/resolve', requireAuth, async (req, res) => {
   try {

@@ -38,4 +38,6 @@ function showShortcutsHelp() {
   connectWS();
   // Fetch online users
   try { const ids = await (await fetch('/api/users/online')).json(); ids.forEach(id => onlineUsers.add(id)); } catch {}
+  // Show any active SOS alerts that fired before user entered the platform
+  loadActiveSosAlerts();
 })();
