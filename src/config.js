@@ -26,6 +26,8 @@ module.exports = {
   BASECAMP_CLIENT_SECRET: process.env.BASECAMP_CLIENT_SECRET || null,
   BASECAMP_REDIRECT_URI: process.env.BASECAMP_REDIRECT_URI || 'https://thepact.pro/auth/basecamp/callback',
   BASECAMP_USER_AGENT: process.env.BASECAMP_USER_AGENT || 'The Pact Platform (kalchev@thepact.bg)',
+  // Password login is OFF by default — Basecamp OAuth only. Emergency hatch: set 'true'.
+  ALLOW_PASSWORD_LOGIN: process.env.ALLOW_PASSWORD_LOGIN === 'true',
   // Web Push (optional — generate keys with: node scripts/generate-vapid-keys.js)
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || null,
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || null,

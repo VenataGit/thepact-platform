@@ -23,10 +23,7 @@
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
     }
-    .login-wrapper {
-      position: relative;
-      width: 380px;
-    }
+    .login-wrapper { position: relative; width: 380px; }
     /* Subtle glow behind card */
     .login-wrapper::before {
       content: '';
@@ -47,75 +44,8 @@
       border-radius: 16px;
       padding: 40px 36px;
     }
-    .logo-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 6px;
-    }
-    .logo-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #1cb0f6;
-    }
-    .logo-text {
-      font-size: 22px;
-      font-weight: 700;
-      color: #fff;
-      letter-spacing: -0.02em;
-    }
-    .subtitle {
-      color: #566d7a;
-      font-size: 13px;
-      margin-bottom: 32px;
-      padding-left: 20px;
-    }
-    .form-group { margin-bottom: 18px; }
-    .form-group label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      color: #8fa3b0;
-      margin-bottom: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-    .form-group input {
-      width: 100%;
-      padding: 11px 14px;
-      background: #1a2730;
-      border: 1px solid #2a3f4d;
-      border-radius: 8px;
-      color: #e8ecee;
-      font-size: 14px;
-      font-family: inherit;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .form-group input:focus {
-      border-color: #1cb0f6;
-      box-shadow: 0 0 0 3px rgba(28, 176, 246, 0.15);
-    }
-    .form-group input::placeholder { color: #52525b; }
-    .btn-login {
-      width: 100%;
-      padding: 11px;
-      background: #1cb0f6;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      font-family: inherit;
-      cursor: pointer;
-      margin-top: 4px;
-      transition: background 0.15s, transform 0.15s;
-      touch-action: manipulation;
-    }
-    .btn-login:hover { background: #3dc0ff; }
-    .btn-login:active { transform: scale(0.98); }
-    .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    .logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; justify-content: center; }
+    .subtitle { color: #566d7a; font-size: 13px; margin-bottom: 32px; text-align: center; }
     .btn-basecamp {
       display: flex;
       align-items: center;
@@ -137,43 +67,17 @@
     }
     .btn-basecamp:hover { background: #3dc0ff; }
     .btn-basecamp:active { transform: scale(0.98); }
-    .bc-hint {
-      text-align: center;
-      color: #566d7a;
-      font-size: 12px;
-      margin-top: 12px;
-    }
-    .pw-toggle {
-      display: block;
-      width: 100%;
-      margin-top: 20px;
-      background: none;
-      border: none;
-      color: #566d7a;
-      font-size: 12px;
-      font-family: inherit;
-      cursor: pointer;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-    }
-    .pw-toggle:hover { color: #8fa3b0; }
-    #loginForm { margin-top: 22px; }
-    .error {
-      color: #ef4444;
-      font-size: 13px;
-      margin-top: 14px;
-      text-align: center;
-      display: none;
-    }
+    .bc-hint { text-align: center; color: #566d7a; font-size: 12px; margin-top: 12px; }
+    .error { color: #ef4444; font-size: 13px; margin-top: 16px; text-align: center; display: none; }
   </style>
 </head>
 <body>
   <div class="login-wrapper">
     <div class="login-card">
-      <div class="logo-row" style="justify-content:center;margin-bottom:12px">
+      <div class="logo-row">
         <img src="/img/logo-white.svg" alt="The Pact" style="height:38px">
       </div>
-      <div class="subtitle" style="text-align:center;padding-left:0">Продукционен дашборд</div>
+      <div class="subtitle">Продукционен дашборд</div>
 
       <a class="btn-basecamp" href="/auth/basecamp">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -184,19 +88,6 @@
       </a>
       <div class="bc-hint">Свържи се с акаунта си в Basecamp</div>
 
-      <button type="button" class="pw-toggle" id="pwToggle">Вход с парола</button>
-
-      <form id="loginForm" style="display:none">
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input type="email" id="email" autocomplete="email" placeholder="you@thepact.bg">
-        </div>
-        <div class="form-group">
-          <label for="password">Парола</label>
-          <input type="password" id="password" autocomplete="current-password" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;">
-        </div>
-        <button type="submit" class="btn-login" id="loginBtn">Влез</button>
-      </form>
       <div class="error" id="loginError"></div>
     </div>
   </div>
@@ -218,44 +109,6 @@
       err.textContent = msgs[bc] || 'Грешка при вход с Basecamp.';
       err.style.display = 'block';
     })();
-
-    // Password login is a hidden fallback during the Basecamp transition
-    document.getElementById('pwToggle').addEventListener('click', () => {
-      const form = document.getElementById('loginForm');
-      const show = form.style.display === 'none';
-      form.style.display = show ? 'block' : 'none';
-      if (show) document.getElementById('email').focus();
-    });
-
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById('loginBtn');
-      const err = document.getElementById('loginError');
-      btn.disabled = true;
-      err.style.display = 'none';
-      try {
-        const res = await fetch('/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: document.getElementById('email').value,
-            password: document.getElementById('password').value
-          })
-        });
-        const data = await res.json();
-        if (res.ok && data.ok) {
-          localStorage.setItem('pact_user', JSON.stringify(data.user));
-          window.location.href = '/';
-        } else {
-          err.textContent = data.error || 'Грешка при вход';
-          err.style.display = 'block';
-        }
-      } catch {
-        err.textContent = 'Няма връзка със сървъра';
-        err.style.display = 'block';
-      }
-      btn.disabled = false;
-    });
   </script>
 </body>
 </html>

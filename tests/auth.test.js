@@ -1,3 +1,6 @@
+// Password login is disabled in production (Basecamp OAuth only); enable it for these tests.
+process.env.ALLOW_PASSWORD_LOGIN = 'true';
+
 // Mock the DB pool before any requires
 const mockDb = {
   pool: { query: jest.fn(), end: jest.fn().mockResolvedValue(undefined) },

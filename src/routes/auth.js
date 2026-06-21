@@ -7,6 +7,11 @@ const config = require('../config');
 
 // POST /auth/login
 router.post('/login', async (req, res) => {
+  // Password login is disabled — the platform uses Basecamp OAuth only.
+  // Kept behind a flag as an emergency hatch (ALLOW_PASSWORD_LOGIN=true).
+  if (!config.ALLOW_PASSWORD_LOGIN) {
+    return res.status(403).json({ error: 'Влизането с парола е изключено. Използвай Basecamp.' });
+  }
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
