@@ -61,24 +61,21 @@ router.get('/basecamp/callback', async (req, res) => {
     if (!email || !bcUserId) return res.redirect('/login.html?bc=identity');
 
     // 3. Find or link the platform user.
+    //    TEAM-ONLY: the Basecamp account also contains clients/guests, so we NEVER
+    //    auto-create. Login is allowed only when the Basecamp email already belongs
+    //    to an existing Pact team member (they were added to the platform by an admin).
     let user = await queryOne('SELECT * FROM users WHERE basecamp_user_id = $1', [bcUserId]);
     if (!user) {
       user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
-      if (user) {
-        // Link Basecamp to the existing account — keep their existing role.
-        await execute(
-          'UPDATE users SET basecamp_user_id = $1, basecamp_account_id = $2, updated_at = NOW() WHERE id = $3',
-          [bcUserId, accountId, user.id]
-        );
-      } else {
-        // First-time Basecamp user — auto-create as 'member'.
-        user = await queryOne(
-          `INSERT INTO users (email, name, role, basecamp_user_id, basecamp_account_id, is_active)
-           VALUES ($1, $2, 'member', $3, $4, TRUE)
-           RETURNING *`,
-          [email, name, bcUserId, accountId]
-        );
+      if (!user) {
+        console.warn(`[basecamp] denied login for non-team email: ${email}`);
+        return res.redirect('/login.html?bc=notteam');
       }
+      // First Basecamp login for an existing team member — link identity, keep their role.
+      await execute(
+        'UPDATE users SET basecamp_user_id = $1, basecamp_account_id = $2, updated_at = NOW() WHERE id = $3',
+        [bcUserId, accountId, user.id]
+      );
     } else {
       await execute('UPDATE users SET basecamp_account_id = $1, updated_at = NOW() WHERE id = $2', [accountId, user.id]);
     }
