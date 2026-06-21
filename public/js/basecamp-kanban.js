@@ -44,7 +44,7 @@
     _bcTimer = setInterval(() => {
       if (location.hash.indexOf('#/basecamp') !== 0) { clearInterval(_bcTimer); _bcTimer = null; return; }
       bcRefresh(false);
-    }, 30000);
+    }, 60000);
   };
 
   window.bcRefresh = async function (spinner) {
@@ -137,7 +137,7 @@
       });
       if (!res.ok) throw new Error('move failed');
       toast('Преместено в Basecamp ✓', 'success');
-      setTimeout(() => bcRefresh(false), 700);
+      // Optimistic move already applied; the 60s auto-refresh reconciles counts/positions.
     } catch {
       toast('Грешка при местене — връщам.', 'error');
       bcRefresh(false);
