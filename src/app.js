@@ -133,6 +133,7 @@ app.post('/migrate', async (req, res) => {
 
 // Routes — Core
 app.use('/auth', require('./routes/auth'));
+app.use('/auth', require('./routes/basecamp-auth'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/boards', require('./routes/boards'));
 app.use('/api/cards', require('./routes/cards'));

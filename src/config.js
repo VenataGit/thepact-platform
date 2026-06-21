@@ -21,6 +21,11 @@ module.exports = {
   BOARD_ORDER: ['Pre-Production', 'Production', 'Post-Production', 'Акаунт Мениджмънт', 'Задачи'],
   DEPLOY_SECRET: process.env.DEPLOY_SECRET || null,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || null,
+  // Basecamp OAuth ("Connect with Basecamp" login)
+  BASECAMP_CLIENT_ID: process.env.BASECAMP_CLIENT_ID || null,
+  BASECAMP_CLIENT_SECRET: process.env.BASECAMP_CLIENT_SECRET || null,
+  BASECAMP_REDIRECT_URI: process.env.BASECAMP_REDIRECT_URI || 'https://thepact.pro/auth/basecamp/callback',
+  BASECAMP_USER_AGENT: process.env.BASECAMP_USER_AGENT || 'The Pact Platform (kalchev@thepact.bg)',
   // Web Push (optional — generate keys with: node scripts/generate-vapid-keys.js)
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || null,
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || null,
