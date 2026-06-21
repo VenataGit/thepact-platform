@@ -35,10 +35,11 @@ router.get('/basecamp', (req, res) => {
   res.redirect(basecamp.buildAuthorizeUrl(state));
 });
 
-// GET /auth/basecamp/service — admin connects the ThePactAlerts service account (one-time).
-// Same OAuth flow, but the callback stores the resulting token as the shared bot token
-// instead of logging anyone in. The admin must be signed into Basecamp AS the bot.
-router.get('/basecamp/service', requireAuth, requireAdmin, (req, res) => {
+// GET /auth/basecamp/service — connect the ThePactAlerts service account (one-time).
+// Public on purpose: the real gate is in the callback — we only store the token if the
+// authorized Basecamp identity IS the known bot (config.BASECAMP_SERVICE_EMAIL). This avoids
+// the chicken-and-egg of needing a platform admin session while signed into Basecamp as the bot.
+router.get('/basecamp/service', (req, res) => {
   if (!basecamp.isConfigured()) {
     return res.status(503).send('Basecamp връзката още не е конфигурирана на сървъра.');
   }
@@ -60,7 +61,16 @@ router.get('/basecamp/service/status', requireAuth, requireAdmin, async (req, re
 router.get('/basecamp/callback', async (req, res) => {
   const mode = req.cookies?.[MODE_COOKIE];
   res.clearCookie(MODE_COOKIE, { path: '/auth' });
-  const fail = (reason) => res.redirect(mode === 'service' ? `/?bc_service=${reason}` : `/login.html?bc=${reason}`);
+  // Service mode renders an inline confirmation page (no SPA session involved).
+  const servicePage = (ok, msg) => res.status(ok ? 200 : 400).send(
+    '<!doctype html><meta charset="utf-8"><title>ThePactAlerts</title>' +
+    '<body style="font-family:system-ui,sans-serif;background:#1a2730;color:#e8ecee;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center">' +
+    '<div style="max-width:420px;padding:24px"><div style="font-size:44px">' + (ok ? '✅' : '⚠️') + '</div>' +
+    '<h2 style="color:' + (ok ? '#46a374' : '#ef4444') + ';font-weight:600">' + msg + '</h2>' +
+    '<p style="color:#8fa3b0">Можеш да затвориш този таб.</p></div>'
+  );
+  const failMsgs = { denied: 'Отказахте достъпа до Basecamp.', nocode: 'Връзката с Basecamp прекъсна.', state: 'Сесията изтече — опитай пак.', identity: 'Не успяхме да прочетем данните от Basecamp.', error: 'Грешка при свързване с Basecamp.' };
+  const fail = (reason) => (mode === 'service' ? servicePage(false, failMsgs[reason] || 'Грешка.') : res.redirect(`/login.html?bc=${reason}`));
   try {
     const { code, state, error } = req.query;
     if (error) return fail('denied');
@@ -88,6 +98,11 @@ router.get('/basecamp/callback', async (req, res) => {
 
     // SERVICE MODE: store the ThePactAlerts bot token (no user login).
     if (mode === 'service') {
+      // Gate: only accept the token if this IS the known bot account.
+      if (config.BASECAMP_SERVICE_EMAIL && email !== config.BASECAMP_SERVICE_EMAIL) {
+        console.warn(`[basecamp] service connect rejected — wrong account: ${email}`);
+        return servicePage(false, `Влязъл си като „${email}", а трябва ThePactAlerts (${config.BASECAMP_SERVICE_EMAIL}). Влез в Basecamp като бота и опитай пак.`);
+      }
       let connectedBy = null;
       try { connectedBy = jwt.verify(req.cookies?.__pact_jwt || '', config.JWT_SECRET).userId; } catch { /* not fatal */ }
       const expiresAt = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null;
@@ -103,7 +118,7 @@ router.get('/basecamp/callback', async (req, res) => {
         [bcUserId, name, email, accountId, tokens.access_token, tokens.refresh_token || null, expiresAt, connectedBy]
       );
       console.log(`[basecamp] service account connected as ${email} (person ${bcUserId})`);
-      return res.redirect('/?bc_service=ok');
+      return servicePage(true, `ThePactAlerts е свързан успешно! (${email})`);
     }
 
     // 3. Find or link the platform user.

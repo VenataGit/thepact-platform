@@ -26,6 +26,8 @@ module.exports = {
   BASECAMP_CLIENT_SECRET: process.env.BASECAMP_CLIENT_SECRET || null,
   BASECAMP_REDIRECT_URI: process.env.BASECAMP_REDIRECT_URI || 'https://thepact.pro/auth/basecamp/callback',
   BASECAMP_USER_AGENT: process.env.BASECAMP_USER_AGENT || 'The Pact Platform (kalchev@thepact.bg)',
+  // The ThePactAlerts bot — only this Basecamp identity may be stored as the service token.
+  BASECAMP_SERVICE_EMAIL: (process.env.BASECAMP_SERVICE_EMAIL || 'automation@thepact.bg').toLowerCase(),
   // Password login is OFF by default — Basecamp OAuth only. Emergency hatch: set 'true'.
   ALLOW_PASSWORD_LOGIN: process.env.ALLOW_PASSWORD_LOGIN === 'true',
   // Web Push (optional — generate keys with: node scripts/generate-vapid-keys.js)
