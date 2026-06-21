@@ -19,12 +19,25 @@ function initDashDefaults(boards) {
 }
 
 let _dashStruct = null;     // { boards: [{ id, title, columns: [{ id, title, cardsCount, isDone }] }] }
+let _dashLayout = {};       // global { boardOrder: [ids], colOrder: { boardId: [ids] } } — set by an admin
 const _dashCards = {};      // boardId -> { colId -> [cards] }
 const _dashLoading = {};    // boardId -> bool
 let _dashAutoRefreshId = null;
 let _dashDragCardId = null, _dashDragBoardId = null, _dashDragFromCol = null;
 
 function dashBoardTotal(b) { return (b.columns || []).reduce((s, c) => s + (c.cardsCount || 0), 0); }
+
+// Order `items` by a saved array of ids; unlisted items keep their original order at the end.
+function applyOrder(items, order) {
+  if (!order || !order.length) return items;
+  const idx = {}; order.forEach((id, i) => { idx[String(id)] = i; });
+  return items.map((it, i) => ({ it, i })).sort((a, b) => {
+    const ia = idx[String(a.it.id)], ib = idx[String(b.it.id)];
+    const va = ia === undefined ? 1000 + a.i : ia;
+    const vb = ib === undefined ? 1000 + b.i : ib;
+    return va - vb;
+  }).map((x) => x.it);
+}
 
 async function renderDashboard(el) {
   setBreadcrumb(null);
@@ -44,6 +57,7 @@ async function dashLoadStructure() {
     if (res.status === 401) { if (host) host.innerHTML = '<div style="padding:40px;color:var(--text-dim)">Сесията изтече. <a href="/login.html">Влез отново</a>.</div>'; return; }
     if (!res.ok) { const e = await res.json().catch(() => ({})); if (host) host.innerHTML = '<div style="padding:40px;color:var(--text-dim)">Грешка: ' + esc(e.error || res.status) + '</div>'; return; }
     _dashStruct = await res.json();
+    _dashLayout = _dashStruct.layout || {};
     initDashDefaults(_dashStruct.boards || []);
     dashRenderStats();
     dashRenderBoards();
@@ -101,7 +115,8 @@ function dashRenderBoards() {
   const container = document.getElementById('dashBoard');
   if (!container || !_dashStruct) return;
   const hidden = getDashHiddenBoards();
-  const boards = (_dashStruct.boards || []).filter((b) => !hidden.has(String(b.id)));
+  let boards = (_dashStruct.boards || []).filter((b) => !hidden.has(String(b.id)));
+  boards = applyOrder(boards, _dashLayout.boardOrder);
   if (!boards.length) { container.innerHTML = '<div style="padding:40px;color:var(--text-dim)">Няма видими дъски. Виж ⚙ Настройки.</div>'; return; }
   container.innerHTML = boards.map(dashBoardSectionHtml).join('');
 }
@@ -115,7 +130,8 @@ function dashRenderBoardSection(boardId) {
 
 function dashBoardSectionHtml(b) {
   const hiddenCols = getDashHiddenCols();
-  const cols = (b.columns || []).filter((c) => !hiddenCols.has(String(c.id)));
+  let cols = (b.columns || []).filter((c) => !hiddenCols.has(String(c.id)));
+  cols = applyOrder(cols, (_dashLayout.colOrder || {})[String(b.id)]);
   const loaded = !!_dashCards[b.id];
   const tag = loaded ? '' : (_dashLoading[b.id] ? ' <span class="bc-mini">зареждам…</span>' : '');
   return '<div class="dash-col" data-board-id="' + b.id + '">' +
@@ -206,13 +222,22 @@ function showDashSettings() {
   const hiddenBoards = getDashHiddenBoards(), hiddenCols = getDashHiddenCols();
   const btn = document.querySelector('.dash-settings-btn'); if (!btn) return;
   const panel = document.createElement('div'); panel.className = 'dash-settings-panel';
-  let html = '<div class="dash-settings-panel__header"><strong>Какво да се вижда</strong><button onclick="this.closest(\'.dash-settings-panel\').remove()">✕</button></div><div class="dash-settings-panel__body">';
-  (_dashStruct.boards || []).forEach((board) => {
+  const isAdmin = !!(window.currentUser && currentUser.role === 'admin');
+  let html = '<div class="dash-settings-panel__header"><strong>Какво да се вижда</strong><button onclick="this.closest(\'.dash-settings-panel\').remove()">✕</button></div>';
+  if (isAdmin) html += '<div class="dash-set-note">Стрелките ↑↓ подреждат за <b>всички</b> (ти си админ).</div>';
+  html += '<div class="dash-settings-panel__body">';
+  const sBoards = applyOrder((_dashStruct.boards || []).slice(), _dashLayout.boardOrder);
+  sBoards.forEach((board) => {
     const boardHidden = hiddenBoards.has(String(board.id));
-    html += '<label class="dash-settings-board-row"><input type="checkbox" ' + (!boardHidden ? 'checked' : '') + ' onchange="toggleDashBoard(\'' + board.id + '\', this.checked)"><span><b>' + esc(board.title) + '</b></span></label>';
-    if (!boardHidden) (board.columns || []).forEach((col) => {
-      html += '<label class="dash-settings-col"><input type="checkbox" ' + (!hiddenCols.has(String(col.id)) ? 'checked' : '') + ' onchange="toggleDashColVisibility(\'' + col.id + '\', this.checked)"><span>' + esc(col.title) + ' <span class="bc-mini">(' + (col.cardsCount || 0) + ')</span></span></label>';
-    });
+    const bArrows = isAdmin ? '<span class="dash-arrows"><button title="Нагоре" onclick="dashMoveBoard(\'' + board.id + '\',-1)">↑</button><button title="Надолу" onclick="dashMoveBoard(\'' + board.id + '\',1)">↓</button></span>' : '';
+    html += '<div class="dash-set-row"><label class="dash-settings-board-row"><input type="checkbox" ' + (!boardHidden ? 'checked' : '') + ' onchange="toggleDashBoard(\'' + board.id + '\', this.checked)"><span><b>' + esc(board.title) + '</b></span></label>' + bArrows + '</div>';
+    if (!boardHidden) {
+      const sCols = applyOrder((board.columns || []).slice(), (_dashLayout.colOrder || {})[String(board.id)]);
+      sCols.forEach((col) => {
+        const cArrows = isAdmin ? '<span class="dash-arrows"><button title="Нагоре" onclick="dashMoveCol(\'' + board.id + '\',\'' + col.id + '\',-1)">↑</button><button title="Надолу" onclick="dashMoveCol(\'' + board.id + '\',\'' + col.id + '\',1)">↓</button></span>' : '';
+        html += '<div class="dash-set-row dash-set-row--col"><label class="dash-settings-col"><input type="checkbox" ' + (!hiddenCols.has(String(col.id)) ? 'checked' : '') + ' onchange="toggleDashColVisibility(\'' + col.id + '\', this.checked)"><span>' + esc(col.title) + ' <span class="bc-mini">(' + (col.cardsCount || 0) + ')</span></span></label>' + cArrows + '</div>';
+      });
+    }
   });
   html += '</div>'; panel.innerHTML = html;
   const rect = btn.getBoundingClientRect();
@@ -231,6 +256,38 @@ function toggleDashBoard(boardId, visible) {
 function toggleDashColVisibility(colId, visible) {
   const hidden = getDashHiddenCols(); if (visible) hidden.delete(String(colId)); else hidden.add(String(colId)); saveDashHiddenCols(hidden);
   dashRenderBoards();
+}
+
+// --- admin-only GLOBAL ordering (saved on the server, applies to everyone) ---
+function dashMoveBoard(boardId, dir) {
+  const all = (_dashStruct.boards || []).map((b) => String(b.id));
+  let order = (_dashLayout.boardOrder && _dashLayout.boardOrder.length) ? _dashLayout.boardOrder.map(String) : all.slice();
+  all.forEach((id) => { if (!order.includes(id)) order.push(id); });
+  order = order.filter((id) => all.includes(id));
+  const i = order.indexOf(String(boardId)), j = i + dir;
+  if (i < 0 || j < 0 || j >= order.length) return;
+  const t = order[i]; order[i] = order[j]; order[j] = t;
+  _dashLayout.boardOrder = order;
+  dashSaveLayout(); dashRenderBoards(); showDashSettings();
+}
+function dashMoveCol(boardId, colId, dir) {
+  const board = (_dashStruct.boards || []).find((b) => String(b.id) === String(boardId));
+  if (!board) return;
+  const all = (board.columns || []).map((c) => String(c.id));
+  _dashLayout.colOrder = _dashLayout.colOrder || {};
+  let order = (_dashLayout.colOrder[String(boardId)] && _dashLayout.colOrder[String(boardId)].length) ? _dashLayout.colOrder[String(boardId)].map(String) : all.slice();
+  all.forEach((id) => { if (!order.includes(id)) order.push(id); });
+  order = order.filter((id) => all.includes(id));
+  const i = order.indexOf(String(colId)), j = i + dir;
+  if (i < 0 || j < 0 || j >= order.length) return;
+  const t = order[i]; order[i] = order[j]; order[j] = t;
+  _dashLayout.colOrder[String(boardId)] = order;
+  dashSaveLayout(); dashRenderBoardSection(boardId); showDashSettings();
+}
+async function dashSaveLayout() {
+  try {
+    await fetch('/api/bc-board/layout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layout: _dashLayout }) });
+  } catch { /* non-admins get 403 — ignore */ }
 }
 
 function dashStartAutoRefresh() {

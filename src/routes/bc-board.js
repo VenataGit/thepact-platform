@@ -7,8 +7,9 @@
 //   POST /api/bc-board/move            -> move a card to another column
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const config = require('../config');
+const { queryOne, execute } = require('../db/pool');
 const bc = require('../services/basecamp');
 const { getUserAuth } = require('../services/basecamp-token');
 
@@ -41,6 +42,15 @@ let structCache = { at: 0, data: null };
 const STRUCT_TTL = 60_000;
 const cardsCache = new Map(); // cardTableId -> { at, cardTableId, columns }
 const CARDS_TTL = 30_000;
+
+// Global dashboard layout (board + column ordering), set by an admin, applied for everyone.
+const LAYOUT_KEY = 'bc_dashboard_layout';
+async function getLayout() {
+  try {
+    const row = await queryOne('SELECT value FROM app_settings WHERE key = $1', [LAYOUT_KEY]);
+    return row && row.value ? JSON.parse(row.value) : {};
+  } catch { return {}; }
+}
 
 async function loadStructure(token, account) {
   if (structCache.data && Date.now() - structCache.at < STRUCT_TTL) return structCache.data;
@@ -80,7 +90,9 @@ async function loadBoardCards(token, account, cardTableId) {
 router.get('/', requireAuth, async (req, res) => {
   try {
     const { token, account } = await getUserAuth(req.user.userId);
-    res.json(await loadStructure(token, account));
+    const data = await loadStructure(token, account);
+    const layout = await getLayout();
+    res.json({ ...data, layout });
   } catch (err) {
     console.error('[bc-board]', err.message);
     res.status(err.code === 'NO_USER_TOKEN' ? 401 : 502).json({ error: err.message });
@@ -114,6 +126,21 @@ router.post('/move', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[bc-board move]', err.message);
     res.status(502).json({ error: err.message });
+  }
+});
+
+// POST /api/bc-board/layout — save the global board/column ordering (admin only).
+router.post('/layout', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const layout = req.body && req.body.layout ? req.body.layout : (req.body || {});
+    await execute(
+      'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()',
+      [LAYOUT_KEY, JSON.stringify(layout || {})]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[bc-board layout]', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

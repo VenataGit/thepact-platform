@@ -33,7 +33,7 @@ function showShortcutsHelp() {
   // Load platform config
   try { const r = await fetch('/api/settings'); _platformConfig = (await r.json()).settings || {}; } catch {}
   applyThemeColors();
-  if (!location.hash || location.hash === '#' || location.hash === '#/') location.hash = '#/home';
+  if (!location.hash || location.hash === '#' || location.hash === '#/') location.hash = '#/dashboard';
   router();
   connectWS();
   // Fetch online users

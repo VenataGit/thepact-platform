@@ -30,6 +30,12 @@
 .bc-due--today { color: #ffd9d9; background: rgba(239,68,68,.32); }
 .bc-due--over { color: #fff; background: rgba(239,68,68,.55); }
 .bc-mini { font-size: 11px; color: var(--text-dim); font-weight: 400; }
+.dash-set-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dash-set-row--col { padding-left: 12px; }
+.dash-set-note { font-size: 12px; color: var(--text-secondary); padding: 4px 14px 8px; }
+.dash-arrows { display: inline-flex; gap: 2px; flex-shrink: 0; }
+.dash-arrows button { background: var(--bg-hover); color: var(--text-secondary); border: 1px solid var(--kcard-border); border-radius: 5px; width: 22px; height: 22px; font-size: 12px; line-height: 1; cursor: pointer; padding: 0; }
+.dash-arrows button:hover { background: var(--accent); color: #fff; }
 .bc-col-skel { display: flex; flex-direction: column; gap: 8px; padding: 2px 0; }
 .bc-skel { height: 34px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.09), rgba(255,255,255,.04)); background-size: 200% 100%; animation: bcShimmer 1.2s infinite; }
 @keyframes bcShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
