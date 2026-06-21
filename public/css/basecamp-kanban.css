@@ -29,6 +29,10 @@
 .bc-due--soon { color: #f5e3a3; background: rgba(234,179,8,.22); }
 .bc-due--today { color: #ffd9d9; background: rgba(239,68,68,.32); }
 .bc-due--over { color: #fff; background: rgba(239,68,68,.55); }
+.bc-mini { font-size: 11px; color: var(--text-dim); font-weight: 400; }
+.bc-col-skel { display: flex; flex-direction: column; gap: 8px; padding: 2px 0; }
+.bc-skel { height: 34px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.09), rgba(255,255,255,.04)); background-size: 200% 100%; animation: bcShimmer 1.2s infinite; }
+@keyframes bcShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 .bc-settings { background: var(--bg-elevated); border: 1px solid var(--kcard-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; max-width: 560px; }
 .bc-settings-title { font-weight: 700; color: var(--text); margin-bottom: 10px; }
 .bc-set-board { margin-bottom: 10px; }

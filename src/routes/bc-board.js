@@ -1,5 +1,10 @@
 // Basecamp-backed board: reads the Video Production card tables and moves cards.
 // Acts AS the logged-in user (their own Basecamp token) — not the bot.
+//
+// Two-stage loading keeps it responsive on a 300+ card board:
+//   GET /api/bc-board                  -> structure only (boards + columns + counts), fast
+//   GET /api/bc-board/cards?board=<id> -> the cards for ONE board (loaded on demand)
+//   POST /api/bc-board/move            -> move a card to another column
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
@@ -18,11 +23,6 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
-// The Video Production board is identical for all team members, so a short shared cache
-// avoids re-hitting Basecamp on every load. Invalidated immediately after a move.
-let cache = { at: 0, data: null };
-const CACHE_MS = 30_000;
-
 function mapCard(c) {
   return {
     id: c.id,
@@ -36,47 +36,71 @@ function mapCard(c) {
   };
 }
 
-async function loadBoard(token, account) {
-  if (cache.data && Date.now() - cache.at < CACHE_MS) return cache.data;
+// The board is shared across team members, so cache both stages briefly.
+let structCache = { at: 0, data: null };
+const STRUCT_TTL = 60_000;
+const cardsCache = new Map(); // cardTableId -> { at, cardTableId, columns }
+const CARDS_TTL = 30_000;
+
+async function loadStructure(token, account) {
+  if (structCache.data && Date.now() - structCache.at < STRUCT_TTL) return structCache.data;
   const projectId = config.BASECAMP_TEAM_PROJECT_ID;
   const project = await bc.getProject(token, account, projectId);
   const tools = (project.dock || []).filter((t) => t.enabled && /kanban|card/i.test(t.name));
-  // 1. Card tables (light — one call each).
-  const tables = await mapLimit(tools, 3, async (t) => {
+  const boards = await mapLimit(tools, 3, async (t) => {
     const table = (await bc.authedGet(t.url, token)).json;
-    return { id: table.id, title: t.title || table.title, lists: table.lists || [] };
+    return {
+      id: table.id,
+      title: t.title || table.title,
+      projectId,
+      columns: (table.lists || []).map((l) => ({ id: l.id, title: l.title, cardsCount: l.cards_count })),
+    };
   });
-  // 2. Cards per column with a GLOBAL concurrency cap (heavy — gentle on Basecamp rate limits).
-  const jobs = [];
-  tables.forEach((tb) => tb.lists.forEach((list) => jobs.push({ tb, list, cards: [] })));
-  await mapLimit(jobs, 5, async (job) => {
-    job.cards = job.list.cards_count > 0 ? await bc.getColumnCards(token, account, projectId, job.list.id) : [];
-  });
-  const boards = tables.map((tb) => ({
-    id: tb.id,
-    title: tb.title,
-    projectId,
-    columns: tb.lists.map((list) => {
-      const job = jobs.find((j) => j.tb === tb && j.list === list);
-      return { id: list.id, title: list.title, cardsCount: list.cards_count, cards: (job.cards || []).map(mapCard) };
-    }),
-  }));
-  cache = { at: Date.now(), data: { projectId, boards } };
-  return cache.data;
+  structCache = { at: Date.now(), data: { projectId, boards } };
+  return structCache.data;
 }
 
-// GET /api/bc-board — Video Production card tables with columns + cards (as the user)
+async function loadBoardCards(token, account, cardTableId) {
+  const key = String(cardTableId);
+  const hit = cardsCache.get(key);
+  if (hit && Date.now() - hit.at < CARDS_TTL) return hit;
+  const projectId = config.BASECAMP_TEAM_PROJECT_ID;
+  const table = await bc.getCardTable(token, account, projectId, cardTableId);
+  const lists = table.lists || [];
+  const columns = await mapLimit(lists, 5, async (list) => {
+    const cards = list.cards_count > 0 ? await bc.getColumnCards(token, account, projectId, list.id) : [];
+    return { id: list.id, cards: cards.map(mapCard) };
+  });
+  const result = { at: Date.now(), cardTableId: table.id, columns };
+  cardsCache.set(key, result);
+  return result;
+}
+
+// GET /api/bc-board — board structure (boards + columns + counts), no cards.
 router.get('/', requireAuth, async (req, res) => {
   try {
     const { token, account } = await getUserAuth(req.user.userId);
-    res.json(await loadBoard(token, account));
+    res.json(await loadStructure(token, account));
   } catch (err) {
     console.error('[bc-board]', err.message);
     res.status(err.code === 'NO_USER_TOKEN' ? 401 : 502).json({ error: err.message });
   }
 });
 
-// POST /api/bc-board/move — move a card to another column (recorded AS the logged-in user)
+// GET /api/bc-board/cards?board=<cardTableId> — the cards for one board, on demand.
+router.get('/cards', requireAuth, async (req, res) => {
+  try {
+    const cardTableId = req.query.board;
+    if (!cardTableId) return res.status(400).json({ error: 'board required' });
+    const { token, account } = await getUserAuth(req.user.userId);
+    res.json(await loadBoardCards(token, account, cardTableId));
+  } catch (err) {
+    console.error('[bc-board cards]', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// POST /api/bc-board/move — move a card to another column, recorded AS the logged-in user.
 router.post('/move', requireAuth, async (req, res) => {
   try {
     const { cardTableId, cardId, targetColumnId, position } = req.body || {};
@@ -85,7 +109,7 @@ router.post('/move', requireAuth, async (req, res) => {
     }
     const { token, account } = await getUserAuth(req.user.userId);
     await bc.moveCard(token, account, config.BASECAMP_TEAM_PROJECT_ID, cardTableId, cardId, targetColumnId, position || 0);
-    cache = { at: 0, data: null }; // invalidate so the next load reflects the move
+    cardsCache.delete(String(cardTableId)); // this board re-fetches on next load
     res.json({ ok: true });
   } catch (err) {
     console.error('[bc-board move]', err.message);
