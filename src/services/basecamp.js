@@ -82,6 +82,46 @@ async function getAuthorization(accessToken) {
   return res.json();
 }
 
+// Authenticated GET that also surfaces the Link rel="next" pagination cursor.
+async function authedGet(url, accessToken) {
+  const r = await fetch(url, { headers: headers({ Authorization: `Bearer ${accessToken}` }) });
+  if (!r.ok) throw new Error(`Basecamp GET failed (${r.status}): ${url}`);
+  const json = await r.json();
+  const link = r.headers.get('Link') || '';
+  const m = link.match(/<([^>]+)>;\s*rel="next"/);
+  return { json, next: m ? m[1] : null };
+}
+
+// Decide whether a person (by their own access token) may use the platform.
+// Allowed if they are an internal team member (non-client) OR a member of the team project
+// (e.g. Video Production). Returns { allowed, reason, errored }; `errored` is true when
+// Basecamp could not be reached, so the caller can avoid locking out already-known users.
+async function isTeamMember(accessToken, accountId, teamProjectId) {
+  let errored = false;
+  // 1) Internal team member (non-client) — from their own profile.
+  try {
+    const { json: profile } = await authedGet(`https://3.basecampapi.com/${accountId}/my/profile.json`, accessToken);
+    if (profile && profile.client === false) return { allowed: true, reason: 'employee', errored: false };
+  } catch (e) { errored = true; console.warn('[basecamp] profile check failed:', e.message); }
+  // 2) Member of the team project.
+  if (teamProjectId) {
+    try {
+      let url = `https://3.basecampapi.com/${accountId}/projects.json`;
+      let pages = 0;
+      while (url && pages < 25) {
+        const { json, next } = await authedGet(url, accessToken);
+        if (Array.isArray(json) && json.some((p) => String(p.id) === String(teamProjectId))) {
+          return { allowed: true, reason: 'project', errored: false };
+        }
+        url = next;
+        pages += 1;
+      }
+      return { allowed: false, reason: 'not-member', errored };
+    } catch (e) { errored = true; console.warn('[basecamp] projects check failed:', e.message); }
+  }
+  return { allowed: false, reason: 'not-member', errored };
+}
+
 module.exports = {
   AUTH_BASE,
   isConfigured,
@@ -89,4 +129,6 @@ module.exports = {
   exchangeCodeForToken,
   refreshAccessToken,
   getAuthorization,
+  authedGet,
+  isTeamMember,
 };

@@ -28,6 +28,9 @@ module.exports = {
   BASECAMP_USER_AGENT: process.env.BASECAMP_USER_AGENT || 'The Pact Platform (kalchev@thepact.bg)',
   // The ThePactAlerts bot — only this Basecamp identity may be stored as the service token.
   BASECAMP_SERVICE_EMAIL: (process.env.BASECAMP_SERVICE_EMAIL || 'automation@thepact.bg').toLowerCase(),
+  // Login is granted to any member of this Basecamp project (Video Production) OR any
+  // non-client (internal The Pact team) — checked live against Basecamp on each login.
+  BASECAMP_TEAM_PROJECT_ID: parseInt(process.env.BASECAMP_TEAM_PROJECT_ID) || 39396506,
   // Password login is OFF by default — Basecamp OAuth only. Emergency hatch: set 'true'.
   ALLOW_PASSWORD_LOGIN: process.env.ALLOW_PASSWORD_LOGIN === 'true',
   // Web Push (optional — generate keys with: node scripts/generate-vapid-keys.js)

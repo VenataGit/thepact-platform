@@ -95,6 +95,7 @@ router.get('/basecamp/callback', async (req, res) => {
     const accountId = account ? account.id : null;
 
     if (!email || !bcUserId) return fail('identity');
+    if (!accountId) return fail('identity'); // no usable Basecamp account on this token
 
     // SERVICE MODE: store the ThePactAlerts bot token (no user login).
     if (mode === 'service') {
@@ -121,24 +122,40 @@ router.get('/basecamp/callback', async (req, res) => {
       return servicePage(true, `ThePactAlerts е свързан успешно! (${email})`);
     }
 
-    // 3. Find or link the platform user.
-    //    TEAM-ONLY: the Basecamp account also contains clients/guests, so we NEVER
-    //    auto-create. Login is allowed only when the Basecamp email already belongs
-    //    to an existing Pact team member (they were added to the platform by an admin).
+    // 3. Authorize dynamically against Basecamp — NO manual platform user management.
+    //    Allowed if the person is an internal team member (non-client) OR a member of the
+    //    Video Production project. Clients/guests are denied. New team members are
+    //    auto-provisioned on first login, so access depends entirely on Basecamp.
     let user = await queryOne('SELECT * FROM users WHERE basecamp_user_id = $1', [bcUserId]);
-    if (!user) {
-      user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
-      if (!user) {
-        console.warn(`[basecamp] denied login for non-team email: ${email}`);
+    if (!user) user = await queryOne('SELECT * FROM users WHERE LOWER(email) = $1', [email]);
+
+    const member = await basecamp.isTeamMember(tokens.access_token, accountId, config.BASECAMP_TEAM_PROJECT_ID);
+    if (!member.allowed) {
+      // If Basecamp couldn't be reached, don't lock out an already-known user.
+      if (member.errored && user) {
+        console.warn(`[basecamp] membership check errored; allowing known user ${email}`);
+      } else {
+        console.warn(`[basecamp] denied login — not team/project member: ${email} (${member.reason})`);
         return res.redirect('/login.html?bc=notteam');
       }
-      // First Basecamp login for an existing team member — link identity, keep their role.
-      await execute(
-        'UPDATE users SET basecamp_user_id = $1, basecamp_account_id = $2, updated_at = NOW() WHERE id = $3',
-        [bcUserId, accountId, user.id]
+    }
+
+    if (!user) {
+      // Auto-provision a brand-new team member straight from Basecamp.
+      user = await queryOne(
+        `INSERT INTO users (email, name, role, basecamp_user_id, basecamp_account_id, is_active)
+         VALUES ($1, $2, 'member', $3, $4, TRUE)
+         ON CONFLICT (email) DO UPDATE SET
+           basecamp_user_id = EXCLUDED.basecamp_user_id,
+           basecamp_account_id = EXCLUDED.basecamp_account_id,
+           name = EXCLUDED.name,
+           updated_at = NOW()
+         RETURNING *`,
+        [email, name, bcUserId, accountId]
       );
+      console.log(`[basecamp] auto-provisioned ${email} (${member.reason})`);
     } else {
-      await execute('UPDATE users SET basecamp_account_id = $1, updated_at = NOW() WHERE id = $2', [accountId, user.id]);
+      await execute('UPDATE users SET basecamp_user_id = $1, basecamp_account_id = $2, updated_at = NOW() WHERE id = $3', [bcUserId, accountId, user.id]);
     }
 
     if (user.is_active === false) return res.redirect('/login.html?bc=inactive');
