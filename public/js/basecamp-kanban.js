@@ -60,7 +60,9 @@
       _struct = await res.json();
       renderAll();
       const hiddenBoards = getSet(HIDDEN_BOARDS_KEY);
-      (_struct.boards || []).filter((b) => !hiddenBoards.has(String(b.id))).forEach((b) => loadBoardCards(b.id));
+      const visible = (_struct.boards || []).filter((b) => !hiddenBoards.has(String(b.id)));
+      visible.sort((a, b) => boardCardTotal(a) - boardCardTotal(b)); // light boards fill in first
+      loadBoardsLimited(visible.map((b) => b.id), 1);
     } catch { host.innerHTML = '<div class="bc-empty">Няма връзка със сървъра.</div>'; }
   }
 
@@ -77,6 +79,17 @@
     } catch { /* leave unloaded; user can press Презареди */ }
     _loading[boardId] = false;
     renderBoardSection(boardId);
+  }
+
+  function boardCardTotal(b) { return (b.columns || []).reduce((s, c) => s + (c.cardsCount || 0), 0); }
+
+  // Load boards' cards with limited concurrency so total Basecamp calls stay under the rate limit.
+  async function loadBoardsLimited(ids, limit) {
+    let i = 0;
+    const workers = Array.from({ length: Math.min(limit, ids.length || 1) }, async () => {
+      while (i < ids.length) { await loadBoardCards(ids[i++]); }
+    });
+    await Promise.all(workers);
   }
 
   function renderAll() {
