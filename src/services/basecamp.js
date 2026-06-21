@@ -122,8 +122,47 @@ async function isTeamMember(accessToken, accountId, teamProjectId) {
   return { allowed: false, reason: 'not-member', errored };
 }
 
+// ---- Card Table (kanban) API — all helpers take whatever token the caller provides ----
+const API_BASE = 'https://3.basecampapi.com';
+
+async function getProject(token, account, projectId) {
+  return (await authedGet(`${API_BASE}/${account}/projects/${projectId}.json`, token)).json;
+}
+
+async function getCardTable(token, account, projectId, cardTableId) {
+  return (await authedGet(`${API_BASE}/${account}/buckets/${projectId}/card_tables/${cardTableId}.json`, token)).json;
+}
+
+// All cards in a column/list (follows pagination).
+async function getColumnCards(token, account, projectId, listId) {
+  let url = `${API_BASE}/${account}/buckets/${projectId}/card_tables/lists/${listId}/cards.json`;
+  const out = [];
+  while (url) {
+    const { json, next } = await authedGet(url, token);
+    if (Array.isArray(json)) out.push(...json);
+    url = next;
+  }
+  return out;
+}
+
+// Move a card to another column within the same card table. POST .../card_tables/{id}/moves.json
+// body { source_id: cardId, target_id: columnId, position }. Returns true on 204.
+async function moveCard(token, account, projectId, cardTableId, cardId, targetColumnId, position = 0) {
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/${cardTableId}/moves.json`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ source_id: cardId, target_id: targetColumnId, position }),
+  });
+  if (!r.ok && r.status !== 204) {
+    const b = await r.text().catch(() => '');
+    throw new Error(`Basecamp move failed (${r.status}): ${b.slice(0, 200)}`);
+  }
+  return true;
+}
+
 module.exports = {
   AUTH_BASE,
+  API_BASE,
   isConfigured,
   buildAuthorizeUrl,
   exchangeCodeForToken,
@@ -131,4 +170,8 @@ module.exports = {
   getAuthorization,
   authedGet,
   isTeamMember,
+  getProject,
+  getCardTable,
+  getColumnCards,
+  moveCard,
 };

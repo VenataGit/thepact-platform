@@ -23,6 +23,7 @@ function router() {
     case 'project': return renderProject(el, id);
     case 'videoproduction': return renderProject(el, 1);
     case 'dashboard': return renderDashboard(el);
+    case 'basecamp': return renderBasecampBoard(el);
     case 'board': return id ? renderBoard(el, id) : renderHome(el);
     case 'docs': return id ? renderDocs(el, id, sub ? parseInt(sub) : null) : renderHome(el);
     case 'doc': return id ? renderDocument(el, id) : renderHome(el);
