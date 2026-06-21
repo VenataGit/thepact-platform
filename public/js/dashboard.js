@@ -23,6 +23,7 @@ let _dashLayout = {};       // global { boardOrder: [ids], colOrder: { boardId: 
 const _dashCards = {};      // boardId -> { colId -> [cards] }
 const _dashLoading = {};    // boardId -> bool
 let _dashAutoRefreshId = null;
+let expandedDashCol = null;   // board id expanded to full width (others collapse)
 let _dashDragCardId = null, _dashDragBoardId = null, _dashDragFromCol = null;
 
 function dashBoardTotal(b) { return (b.columns || []).reduce((s, c) => s + (c.cardsCount || 0), 0); }
@@ -134,9 +135,13 @@ function dashBoardSectionHtml(b) {
   cols = applyOrder(cols, (_dashLayout.colOrder || {})[String(b.id)]);
   const loaded = !!_dashCards[b.id];
   const tag = loaded ? '' : (_dashLoading[b.id] ? ' <span class="bc-mini">зареждам…</span>' : '');
-  return '<div class="dash-col" data-board-id="' + b.id + '">' +
-    '<div class="dash-col-header"><span class="dash-col-title">' + esc(b.title) + tag + '</span><span class="dash-col-count">' + dashBoardTotal(b) + '</span></div>' +
-    '<div class="dash-col-body">' + cols.map((c) => dashSubColHtml(b, c, loaded)).join('') + '</div>' +
+  const isExpanded = expandedDashCol === String(b.id);
+  const isCollapsed = expandedDashCol && expandedDashCol !== String(b.id);
+  const colClass = isExpanded ? 'dash-col expanded' : isCollapsed ? 'dash-col collapsed' : 'dash-col';
+  const body = isCollapsed ? '' : ('<div class="dash-col-body">' + cols.map((c) => dashSubColHtml(b, c, loaded)).join('') + '</div>');
+  return '<div class="' + colClass + '" data-board-id="' + b.id + '">' +
+    '<div class="dash-col-header" onclick="toggleDashCol(\'' + b.id + '\')" title="Цъкни за цял екран"><span class="dash-col-title">' + esc(b.title) + tag + '</span><span class="dash-col-count">' + dashBoardTotal(b) + '</span></div>' +
+    body +
   '</div>';
 }
 
@@ -163,8 +168,8 @@ function renderDashCard(card) {
   const assignee = card.assignees && card.assignees[0] ? esc(card.assignees[0].name.split(' ')[0]) : '';
   const steps = card.stepsCount ? '<span class="dash-card__steps">☑ ' + card.stepsCount + '</span>' : '';
   const due = card.dueOn ? '<span class="dash-card__date">' + formatDate(card.dueOn) + '</span>' : '<span></span>';
-  return '<div class="dash-card ' + colorClass + (card.completed ? ' dash-card--done' : '') + '" draggable="true" data-card-id="' + card.id + '"' +
-      ' ondragstart="dashBcDragStart(event)" ondragend="dashBcDragEnd(event)" title="' + esc(card.title) + '">' +
+  return '<div class="dash-card ' + colorClass + (card.completed ? ' dash-card--done' : '') + '" draggable="true" data-card-id="' + card.id + '" data-url="' + esc(card.url || '') + '"' +
+      ' ondragstart="dashBcDragStart(event)" ondragend="dashBcDragEnd(event)" onclick="dashOpenCard(event, this)" title="' + esc(card.title) + ' — отвори в Basecamp">' +
     '<div class="dash-card__title">' + esc(card.title) + '</div>' +
     '<div class="dash-card__footer">' + due +
       '<div class="dash-card__right">' + steps + (assignee ? '<span class="dash-card__assignee">' + assignee + '</span>' : '') + '</div>' +
@@ -256,6 +261,18 @@ function toggleDashBoard(boardId, visible) {
 function toggleDashColVisibility(colId, visible) {
   const hidden = getDashHiddenCols(); if (visible) hidden.delete(String(colId)); else hidden.add(String(colId)); saveDashHiddenCols(hidden);
   dashRenderBoards();
+}
+
+// Expand a board to full width (the rest collapse); click its header to toggle.
+function toggleDashCol(boardId) {
+  expandedDashCol = (expandedDashCol === String(boardId)) ? null : String(boardId);
+  dashRenderBoards();
+}
+
+// Open a card on its own page in Basecamp, in a new tab.
+function dashOpenCard(e, el) {
+  const url = el.getAttribute('data-url');
+  if (url) window.open(url, '_blank', 'noopener');
 }
 
 // --- admin-only GLOBAL ordering (saved on the server, applies to everyone) ---
