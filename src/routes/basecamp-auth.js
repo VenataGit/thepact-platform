@@ -178,7 +178,7 @@ router.get('/basecamp/callback', async (req, res) => {
 
     // 5. Issue our own session JWT — identical to password login from here on.
     setTokenCookie(res, signToken(user));
-    res.redirect('/');
+    res.redirect('/#/dashboard');
   } catch (err) {
     console.error('[basecamp callback]', err.message);
     fail('error');

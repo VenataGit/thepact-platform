@@ -1,7 +1,7 @@
 // ==================== ROUTER ====================
 // Hash-based routing — навигацията е view'ове.
 function router() {
-  const hash = location.hash || '#/home';
+  const hash = location.hash || '#/dashboard';
   const parts = hash.split('?')[0].replace('#/', '').split('/');
   const page = parts[0] || 'home';
   const id = parts[1] ? parseInt(parts[1]) : null;
@@ -23,7 +23,6 @@ function router() {
     case 'project': return renderProject(el, id);
     case 'videoproduction': return renderProject(el, 1);
     case 'dashboard': return renderDashboard(el);
-    case 'basecamp': return renderBasecampBoard(el);
     case 'board': return id ? renderBoard(el, id) : renderHome(el);
     case 'docs': return id ? renderDocs(el, id, sub ? parseInt(sub) : null) : renderHome(el);
     case 'doc': return id ? renderDocument(el, id) : renderHome(el);

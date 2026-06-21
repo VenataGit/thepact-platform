@@ -78,12 +78,6 @@
           </a>
         </li>
         <li class="nav__item">
-          <a class="nav__link" href="#/basecamp" data-nav="basecamp">
-            <img src="/img/icon-dashboard.png" alt="" width="16" height="16" class="nav__icon">
-            <span>Basecamp</span>
-          </a>
-        </li>
-        <li class="nav__item">
           <a class="nav__link" href="#/calendar" data-nav="calendar">
             <img src="/img/icon-calendar.png" alt="" width="16" height="16" class="nav__icon">
             <span>Production Calendar</span>
@@ -139,7 +133,7 @@
     (function() {
       try {
         // 1. Active menu item based on current URL hash
-        var hash = (location.hash || '#/home').split('?')[0].replace('#/', '').split('/');
+        var hash = (location.hash || '#/dashboard').split('?')[0].replace('#/', '').split('/');
         var page = hash[0] || 'home';
         // Home also highlights if hash is empty or explicit
         var selector = '[data-nav="' + page + '"]';
@@ -247,7 +241,6 @@
   <script src="/js/project.js" defer></script>
   <script src="/js/dashboard.js" defer></script>
   <script src="/js/kanban.js" defer></script>
-  <script src="/js/basecamp-kanban.js" defer></script>
   <script src="/js/card-detail.js" defer></script>
   <script src="/js/card-actions.js" defer></script>
   <script src="/js/card-fields.js" defer></script>
