@@ -23,6 +23,11 @@ function subtractWorkingDays(dateStr, days) {
 }
 // Filming deadline (срок за снимки) = publish date − FILMING_OFFSET working days.
 function filmingDeadline(dueOn) { return dueOn ? ymd(subtractWorkingDays(dueOn, FILMING_OFFSET)) : null; }
+// Preferred source: the "Видеограф - Насрочване на снимачен ден" step carries the filming date.
+function filmingFromSteps(steps) {
+  const s = (steps || []).find((x) => /насрочване на снимач/i.test(x.title || '') || (/видеограф/i.test(x.title || '') && /снима/i.test(x.title || '')));
+  return s && s.due_on ? s.due_on : null;
+}
 // Working days from today until the target date (negative if past).
 function workingDaysUntil(targetStr) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -55,7 +60,8 @@ async function getProductionCards(token, account) {
     if (!list.cards_count) continue;
     const cards = await bc.getColumnCards(token, account, projectId, list.id);
     cards.forEach((c) => {
-      const deadline = filmingDeadline(c.due_on);
+      // Prefer the filming step's date (current workflow); fall back to publish − 11 wd.
+      const deadline = filmingFromSteps(c.steps) || filmingDeadline(c.due_on);
       out.push({ id: c.id, title: c.title, url: c.app_url, due_on: c.due_on, column: list.title, deadline, dl_class: dlClassFor(deadline) });
     });
   }
