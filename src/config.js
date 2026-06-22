@@ -31,6 +31,8 @@ module.exports = {
   // Login is granted to any member of this Basecamp project (Video Production) OR any
   // non-client (internal The Pact team) — checked live against Basecamp on each login.
   BASECAMP_TEAM_PROJECT_ID: parseInt(process.env.BASECAMP_TEAM_PROJECT_ID) || 39396506,
+  // Secret embedded in the Basecamp webhook URL path — only Basecamp (told the URL) can POST.
+  BASECAMP_WEBHOOK_SECRET: process.env.BASECAMP_WEBHOOK_SECRET || null,
   // Password login is OFF by default — Basecamp OAuth only. Emergency hatch: set 'true'.
   ALLOW_PASSWORD_LOGIN: process.env.ALLOW_PASSWORD_LOGIN === 'true',
   // Web Push (optional — generate keys with: node scripts/generate-vapid-keys.js)
