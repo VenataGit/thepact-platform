@@ -159,6 +159,7 @@ app.use('/api/kp', require('./routes/kp'));
 app.use('/api/sos', require('./routes/sos'));
 app.use('/api/production-calendar', require('./routes/production-calendar'));
 app.use('/api/bc-board', require('./routes/bc-board'));
+app.use('/api/bc-calendar', require('./routes/bc-calendar'));
 app.use('/api/trash', require('./routes/trash'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/positions', require('./routes/positions'));
