@@ -60,17 +60,11 @@
   <!-- Top Navigation Bar -->
   <div class="nav">
     <nav class="nav__bar">
-      <a href="#/home" class="nav__logo">
+      <a href="#/dashboard" class="nav__logo">
         <img src="/img/logo-white.svg" alt="The Pact" class="nav__logo-img">
       </a>
 
       <ul class="nav__main">
-        <li class="nav__item">
-          <a class="nav__link" href="#/home" data-nav="home">
-            <img src="/img/icon-home.png" alt="" width="16" height="16" class="nav__icon">
-            <span>Home</span>
-          </a>
-        </li>
         <li class="nav__item">
           <a class="nav__link" href="#/dashboard" data-nav="dashboard">
             <img src="/img/icon-dashboard.png" alt="" width="16" height="16" class="nav__icon">
@@ -134,10 +128,9 @@
       try {
         // 1. Active menu item based on current URL hash
         var hash = (location.hash || '#/dashboard').split('?')[0].replace('#/', '').split('/');
-        var page = hash[0] || 'home';
-        // Home also highlights if hash is empty or explicit
+        var page = hash[0] || 'dashboard';
         var selector = '[data-nav="' + page + '"]';
-        var link = document.querySelector(selector) || document.querySelector('[data-nav="home"]');
+        var link = document.querySelector(selector) || document.querySelector('[data-nav="dashboard"]');
         if (link) link.classList.add('active');
       } catch (e) {}
 

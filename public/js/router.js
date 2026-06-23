@@ -9,7 +9,7 @@ function router() {
 
   // Highlight active nav
   document.querySelectorAll('.nav__link').forEach(el => el.classList.remove('active'));
-  const activeNav = document.querySelector(`[data-nav="${page}"]`) || document.querySelector(`[data-nav="home"]`);
+  const activeNav = document.querySelector(`[data-nav="${page}"]`) || document.querySelector(`[data-nav="dashboard"]`);
   if (activeNav) activeNav.classList.add('active');
 
   const el = document.getElementById('pageContent');
@@ -19,23 +19,23 @@ function router() {
   if (page !== 'card') _cardEditMode = false;
 
   switch (page) {
-    case 'home': return renderHome(el);
+    case 'home': return renderDashboard(el);
     case 'project': return renderProject(el, id);
     case 'videoproduction': return renderProject(el, 1);
     case 'dashboard': return renderDashboard(el);
-    case 'board': return id ? renderBoard(el, id) : renderHome(el);
-    case 'docs': return id ? renderDocs(el, id, sub ? parseInt(sub) : null) : renderHome(el);
-    case 'doc': return id ? renderDocument(el, id) : renderHome(el);
+    case 'board': return id ? renderBoard(el, id) : renderDashboard(el);
+    case 'docs': return id ? renderDocs(el, id, sub ? parseInt(sub) : null) : renderDashboard(el);
+    case 'doc': return id ? renderDocument(el, id) : renderDashboard(el);
     case 'card':
       if (sub === 'new') return renderCardCreate(el);
-      return id ? renderCardPage(el, id) : renderHome(el);
+      return id ? renderCardPage(el, id) : renderDashboard(el);
     case 'activity': return renderActivity(el);
     case 'mystuff': return renderMyStuff(el);
     case 'chat': return id ? renderChatChannel(el, id) : renderChatList(el);
     case 'notifications': return renderNotifications(el);
     case 'messages': return renderMessageBoard(el);
-    case 'msgboard': return id ? renderMsgBoard(el, id) : renderHome(el);
-    case 'msg': return id ? renderMsgPage(el, id) : renderHome(el);
+    case 'msgboard': return id ? renderMsgBoard(el, id) : renderDashboard(el);
+    case 'msg': return id ? renderMsgPage(el, id) : renderDashboard(el);
     case 'vault': return renderVault(el, id);
     case 'campfire': return renderCampfire(el, id || 1);
     case 'schedule': return renderSchedule(el);
@@ -45,12 +45,12 @@ function router() {
     case 'bookmarks': return renderBookmarks(el);
     case 'kp-auto': return renderKpAuto(el);
     case 'calendar': return renderCalendar(el);
-    case 'column': return id ? renderColumnView(el, id) : renderHome(el);
+    case 'column': return id ? renderColumnView(el, id) : renderDashboard(el);
     case 'trash': return renderTrash(el);
     case 'release-notes': return renderReleaseNotes(el);
     case 'home-tasks': return renderHomeTasks(el);
     case 'dictation': return renderDictation(el);
-    default: return renderHome(el);
+    default: return renderDashboard(el);
   }
 }
 window.addEventListener('hashchange', router);
