@@ -1,12 +1,15 @@
-// ==================== PRODUCTION CALENDAR ====================
-// Replaces renderCalendar() defined in app.js
-// Provides a week-view scheduling board for production cards.
+// ==================== PRODUCTION CALENDAR (Basecamp-backed) ====================
+// Replaces renderCalendar() defined in app.js.
+// Data source: GET /api/bc-calendar (Production card-table cards from Basecamp).
+//   { cards: [unscheduled, sorted by filming deadline], entries: [scheduled] }
+// Sidebar = unscheduled Production cards (color by dl_class, click → open in Basecamp).
+// Week view = scheduled entries; drag/drop/resize → POST/PUT/DELETE /api/bc-calendar
+// (camelCase fields), which also syncs to Google Calendar with a link to the card.
 
 var _prodCal = {
   weekStart: null, // Monday Date object
-  entries:   [],   // loaded from API for current week
-  cards:     [],   // all active cards
-  boards:    [],   // all boards
+  entries:   [],   // scheduled entries (all weeks)
+  cards:     [],   // master Production card list (sidebar = these minus scheduled)
 };
 
 var _pcDrag = {
@@ -27,10 +30,6 @@ var PC_PX_MIN   = 1;   // 1 pixel = 1 minute → 60px per hour
 var PC_H0       = 6;   // visible start: 06:00
 var PC_H1       = 22;  // visible end:   22:00
 var PC_SNAP     = 15;  // snap to 15-minute grid
-var PC_COLORS   = [
-  '#2da562', '#3b82f6', '#e8912d', '#a855f7',
-  '#ef4444', '#eab308', '#06b6d4', '#ec4899',
-];
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,10 +46,6 @@ function _pcMinToTime(min) {
   return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
 }
 
-function _pcColor(boardId) {
-  return PC_COLORS[(boardId || 0) % PC_COLORS.length];
-}
-
 function pcYToMinute(clientY) {
   var body = document.querySelector('.pc-body');
   if (!body) return PC_H0 * 60;
@@ -63,30 +58,30 @@ function pcYToMinute(clientY) {
 
 // ─── data / API ───────────────────────────────────────────────────────────────
 
-async function _pcLoadEntries() {
-  // Load ALL entries (not just current week) so the sidebar can correctly
-  // hide cards that are scheduled in any week, not only the one being viewed.
-  try {
-    var res  = await fetch('/api/production-calendar?from=2020-01-01&to=2035-12-31');
-    var data = await res.json();
-    _prodCal.entries = Array.isArray(data) ? data.map(function(e) {
-      e.scheduled_date = (e.scheduled_date || '').toString().split('T')[0];
-      return e;
-    }) : [];
-  } catch (e) { _prodCal.entries = []; }
-}
-
 async function pcCreateEntry(cardId, date, startMin, durMin) {
+  var card = _prodCal.cards.find(function(c) { return String(c.id) === String(cardId); });
   try {
-    var res = await fetch('/api/production-calendar', {
+    var res = await fetch('/api/bc-calendar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ card_id: cardId, scheduled_date: date, start_minute: startMin, duration_minutes: durMin || 60 }),
+      body: JSON.stringify({
+        cardId: cardId,
+        title: card ? card.title : null,
+        url:   card ? card.url   : null,
+        scheduledDate: date,
+        startMinute: startMin,
+        durationMinutes: durMin || 60,
+      }),
     });
     if (!res.ok) return;
     var entry = await res.json();
     entry.scheduled_date = (entry.scheduled_date || '').toString().split('T')[0];
-    _prodCal.entries.push(entry);
+    // POST does not echo dl_class — carry it from the card so the block colors correctly.
+    if (entry.dl_class == null) entry.dl_class = card ? card.dl_class : 'dl-none';
+    // POST upserts (ON CONFLICT card id) — replace in place rather than duplicate
+    // if this card already has an entry (e.g. a fast double-drop before refresh).
+    var ei = _prodCal.entries.findIndex(function(e) { return e.id === entry.id || String(e.card_id) === String(entry.card_id); });
+    if (ei >= 0) _prodCal.entries[ei] = entry; else _prodCal.entries.push(entry);
     _pcRefreshWeekView();
     _pcRefreshSidebarCard(cardId);
   } catch (e) {}
@@ -94,12 +89,10 @@ async function pcCreateEntry(cardId, date, startMin, durMin) {
 
 async function pcMoveEntry(entryId, newDate, newStart) {
   try {
-    var old = _prodCal.entries.find(function(e) { return e.id === entryId; });
-    var oldDate = old ? old.scheduled_date : null;
-    var res = await fetch('/api/production-calendar/' + entryId, {
+    var res = await fetch('/api/bc-calendar/' + entryId, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scheduled_date: newDate, start_minute: newStart }),
+      body: JSON.stringify({ scheduledDate: newDate, startMinute: newStart }),
     });
     if (!res.ok) return;
     var idx = _prodCal.entries.findIndex(function(e) { return e.id === entryId; });
@@ -114,23 +107,25 @@ async function pcMoveEntry(entryId, newDate, newStart) {
 async function pcUpdateDuration(entryId, durMin) {
   durMin = Math.max(15, Math.round(durMin / PC_SNAP) * PC_SNAP);
   try {
-    await fetch('/api/production-calendar/' + entryId, {
+    var res = await fetch('/api/bc-calendar/' + entryId, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ duration_minutes: durMin }),
+      body: JSON.stringify({ durationMinutes: durMin }),
     });
+    // Revert the optimistic resize if the server rejected it (entries still hold
+    // the old duration, so a redraw snaps the block back to its real height).
+    if (!res.ok) { _pcRefreshWeekView(); return; }
     var idx = _prodCal.entries.findIndex(function(e) { return e.id === entryId; });
     if (idx >= 0) _prodCal.entries[idx].duration_minutes = durMin;
-  } catch (e) {}
+  } catch (e) { _pcRefreshWeekView(); }
 }
 
 async function pcDeleteEntry(entryId) {
   try {
     var entry = _prodCal.entries.find(function(e) { return e.id === entryId; });
     if (!entry) return;
-    var date   = entry.scheduled_date;
     var cardId = entry.card_id;
-    var res = await fetch('/api/production-calendar/' + entryId, { method: 'DELETE' });
+    var res = await fetch('/api/bc-calendar/' + entryId, { method: 'DELETE' });
     if (!res.ok) return;
     _prodCal.entries = _prodCal.entries.filter(function(e) { return e.id !== entryId; });
     _pcRefreshWeekView();
@@ -171,28 +166,22 @@ function _pcRefreshWeekView() {
 
 var _PC_DL_COLORS = { 'dl-green': '#2a9d5c', 'dl-yellow': '#c4930a', 'dl-red': '#c0392b', 'dl-black': '#555', 'dl-none': '#8899a6' };
 
-function _pcIsPostProd(entry) {
-  return (entry.board_title || '').toLowerCase() === 'post-production';
-}
-
 function _pcEventHtml(entry) {
-  var isDone  = _pcIsPostProd(entry);
-  var dlClass = (typeof getDeadlineClass === 'function') ? getDeadlineClass(entry) : '';
-  var color   = isDone ? '#2a9d5c' : ((_PC_DL_COLORS[dlClass]) || _pcColor(entry.board_id || 0));
+  var dlClass = entry.dl_class || 'dl-none';
+  var color   = _PC_DL_COLORS[dlClass] || _PC_DL_COLORS['dl-none'];
   var top    = (entry.start_minute - PC_H0 * 60) * PC_PX_MIN;
   var height = Math.max(20, entry.duration_minutes * PC_PX_MIN);
   var t0     = _pcMinToTime(entry.start_minute);
   var t1     = _pcMinToTime(entry.start_minute + entry.duration_minutes);
-  var title  = (entry.card_title || '').replace(/"/g, '&quot;');
   var short  = entry.duration_minutes < 30;
-  var doneClass = isDone ? ' pc-event--done' : '';
-  return '<div class="pc-event' + doneClass + '" data-entry-id="' + entry.id + '" data-card-id="' + entry.card_id + '"' +
+  return '<div class="pc-event" data-entry-id="' + entry.id + '" data-card-id="' + entry.card_id + '"' +
+    ' data-url="' + esc(entry.card_url || '') + '"' +
     ' style="top:' + top + 'px;height:' + height + 'px;background:' + color + '"' +
     ' draggable="true"' +
-    ' ondblclick="pcOpenCard(event,' + entry.card_id + ')"' +
+    ' ondblclick="pcOpenCard(event)"' +
     ' ondragstart="pcEventDragStart(event,' + entry.id + ',' + entry.start_minute + ')">' +
     '<button class="pc-event__del" title="Върни в списъка" onclick="event.stopPropagation();pcDeleteEntry(' + entry.id + ')">↩</button>' +
-    '<div class="pc-event__title">' + (isDone ? '<span class="pc-event__check">✓</span> ' : '') + (entry.card_title || '') + '</div>' +
+    '<div class="pc-event__title">' + esc(entry.card_title || '') + '</div>' +
     (short ? '' : '<div class="pc-event__time">' + t0 + ' – ' + t1 + '</div>') +
     '<div class="pc-event__resize" onmousedown="pcResizeStart(event,' + entry.id + ')" onclick="event.stopPropagation()"></div>' +
   '</div>';
@@ -200,43 +189,42 @@ function _pcEventHtml(entry) {
 
 function _pcSidebarHtml(searchQ) {
   var q = (searchQ || '').toLowerCase();
-  var boardMap = {};
-  _prodCal.boards.forEach(function(b) { boardMap[b.id] = b; });
-  var scheduledIds = new Set(_prodCal.entries.map(function(e) { return e.card_id; }));
+  var scheduledIds = new Set(_prodCal.entries.map(function(e) { return String(e.card_id); }));
 
-  // Collect unscheduled cards that match search
+  // Unscheduled Production cards that match the search.
   var visible = [];
   _prodCal.cards.forEach(function(c) {
-    if (scheduledIds.has(c.id)) return;
+    if (scheduledIds.has(String(c.id))) return;
     if (q && !(c.title || '').toLowerCase().includes(q)) return;
     visible.push(c);
   });
 
-  // Sort by deadline date ascending, nulls last
+  // Sort by filming deadline ascending, nulls last (keeps order stable after a
+  // local schedule/unschedule; the server already returns this order on load).
   visible.sort(function(a, b) {
-    var da = (typeof getCardDeadlineDate === 'function') ? getCardDeadlineDate(a) : null;
-    var db = (typeof getCardDeadlineDate === 'function') ? getCardDeadlineDate(b) : null;
+    var da = a.deadline || null, db = b.deadline || null;
     if (!da && !db) return 0; if (!da) return 1; if (!db) return -1;
     return da < db ? -1 : da > db ? 1 : 0;
   });
 
   var html = '';
   visible.forEach(function(card) {
-    var dlClass = (typeof getDeadlineClass === 'function') ? getDeadlineClass(card) : '';
-    var dlDate  = (typeof getCardDeadlineDate === 'function') ? getCardDeadlineDate(card) : null;
-    var dlDateStr = dlDate ? (typeof formatDate === 'function' ? formatDate(dlDate) : dlDate) : '';
+    var dlClass   = card.dl_class || 'dl-none';
+    var dlDateStr = card.deadline ? formatDate(card.deadline) : '';
     html +=
       '<div class="pc-mini-card ' + dlClass + '"' +
       ' data-card-id="' + card.id + '"' +
+      ' data-url="' + esc(card.url || '') + '"' +
       ' draggable="true"' +
-      ' onclick="pcOpenCard(event,' + card.id + ')"' +
-      ' ondragstart="pcSidebarDragStart(event,' + card.id + ')">' +
-      '<div class="pc-mini-card__title">' + (card.title || '') + '</div>' +
-      (card.client_name
-        ? '<div class="pc-mini-card__meta">' + card.client_name + '</div>'
+      ' onclick="pcOpenCard(event)"' +
+      ' ondragstart="pcSidebarDragStart(event,' + card.id + ')"' +
+      ' ondragend="this.style.opacity=\'\'">' +
+      '<div class="pc-mini-card__title">' + esc(card.title || '') + '</div>' +
+      (card.column
+        ? '<div class="pc-mini-card__meta">' + esc(card.column) + '</div>'
         : '') +
       (dlDateStr
-        ? '<div class="pc-mini-card__dl ' + dlClass + '">' + dlDateStr + '</div>'
+        ? '<div class="pc-mini-card__dl ' + dlClass + '">📷 ' + dlDateStr + '</div>'
         : '') +
       '</div>';
   });
@@ -334,7 +322,7 @@ function _pcFullRender(el) {
     '<div class="pc-wrap">' +
       '<div class="pc-sidebar">' +
         '<div class="pc-sidebar__hdr">' +
-          '<div class="pc-sidebar__title">Карти</div>' +
+          '<div class="pc-sidebar__title">Карти за снимки</div>' +
           '<input class="pc-sidebar__search" id="pcSearch" placeholder="Търси карта…" oninput="pcFilterCards(this.value)">' +
         '</div>' +
         '<div class="pc-sidebar__list" id="pcSidebarList">' + _pcSidebarHtml() + '</div>' +
@@ -369,20 +357,35 @@ async function renderCalendar(el) {
   el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Зареждане…</div>';
 
   try {
-    var results = await Promise.all([
-      fetch('/api/cards').then(function(r) { return r.json(); }),
-      fetch('/api/boards').then(function(r) { return r.json(); }),
-    ]);
-    // Only show cards from boards named "Production" (case-insensitive)
-    var allBoards = results[1];
-    _prodCal.boards = allBoards.filter(function(b) {
-      return (b.title || '').toLowerCase() === 'production';
+    var res = await fetch('/api/bc-calendar');
+    if (!res.ok) {
+      var msg = res.status === 401
+        ? 'Връзката с Basecamp е изтекла. Излез и влез отново през Basecamp.'
+        : 'Грешка при зареждане от Basecamp';
+      el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">' + msg + '</div>';
+      return;
+    }
+    var data = await res.json();
+
+    var entries = (data.entries || []).map(function(e) {
+      e.scheduled_date = (e.scheduled_date || '').toString().split('T')[0];
+      return e;
     });
-    var productionBoardIds = new Set(_prodCal.boards.map(function(b) { return b.id; }));
-    _prodCal.cards = results[0].filter(function(c) {
-      return !c.completed_at && !c.archived_at && productionBoardIds.has(c.board_id);
+    _prodCal.entries = entries;
+
+    // Master card list = unscheduled (full fidelity) + already-scheduled cards
+    // reconstructed from their entries, so unscheduling restores them to the sidebar.
+    var cards = (data.cards || []).slice();
+    var known = {};
+    cards.forEach(function(c) { known[String(c.id)] = true; });
+    entries.forEach(function(e) {
+      if (!known[String(e.card_id)]) {
+        cards.push({ id: e.card_id, title: e.card_title, url: e.card_url, due_on: null, column: '', deadline: null, dl_class: e.dl_class || 'dl-none' });
+        known[String(e.card_id)] = true;
+      }
     });
-    await _pcLoadEntries();
+    _prodCal.cards = cards;
+
     _pcFullRender(el);
   } catch (e) {
     el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">Грешка при зареждане</div>';
@@ -561,10 +564,11 @@ function pcFilterCards(q) {
   list.innerHTML = _pcSidebarHtml(q);
 }
 
-// ─── open card ────────────────────────────────────────────────────────────────
+// ─── open card (in Basecamp) ──────────────────────────────────────────────────
 
-function pcOpenCard(e, cardId) {
+function pcOpenCard(e) {
   // Suppress open if the user just finished a resize drag
   if (_pcResize.didResize) { _pcResize.didResize = false; return; }
-  location.hash = '#/card/' + cardId;
+  var url = (e.currentTarget && e.currentTarget.dataset.url) || '';
+  if (url) window.open(url, '_blank', 'noopener');
 }
