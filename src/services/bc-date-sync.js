@@ -4,6 +4,7 @@
 const config = require('../config');
 const bc = require('./basecamp');
 const { getServiceAuth } = require('./basecamp-token');
+const { subtractWorkingDays } = require('./workdays');
 
 // Stage step title patterns + working-day offset before the publish date (Венци: 11/6/1).
 const STAGES = [
@@ -11,14 +12,6 @@ const STAGES = [
   { re: /приключен монтаж/i, offset: 6 },      // Монтажист - Приключен монтаж
   { re: /качване в социал/i, offset: 1 },      // PM - Насрочване/Качване в социални мрежи
 ];
-
-function ymd(d) { const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate(); return y + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day; }
-function subtractWorkingDays(dateStr, days) {
-  const d = new Date(dateStr + 'T00:00:00');
-  let n = days;
-  while (n > 0) { d.setDate(d.getDate() - 1); const w = d.getDay(); if (w !== 0 && w !== 6) n--; }
-  return ymd(d);
-}
 
 // Recompute the stage step dates from the card's Due date and write any that differ.
 async function syncCardDates(cardId) {

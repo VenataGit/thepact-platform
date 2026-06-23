@@ -13,29 +13,14 @@ const { getUserAuth } = require('../services/basecamp-token');
 const { createGCalEvent, updateGCalEvent, deleteGCalEvent } = require('../services/google-calendar');
 
 const FILMING_OFFSET = parseInt(process.env.BASECAMP_FILMING_OFFSET) || 11; // working days before publish
+const { ymd, subtractWorkingDays, workingDaysUntil } = require('../services/workdays');
 
-function ymd(d) { const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate(); return y + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day; }
-function subtractWorkingDays(dateStr, days) {
-  const d = new Date(dateStr + 'T00:00:00');
-  let n = days;
-  while (n > 0) { d.setDate(d.getDate() - 1); const dow = d.getDay(); if (dow !== 0 && dow !== 6) n--; }
-  return d;
-}
-// Filming deadline (срок за снимки) = publish date − FILMING_OFFSET working days.
-function filmingDeadline(dueOn) { return dueOn ? ymd(subtractWorkingDays(dueOn, FILMING_OFFSET)) : null; }
+// Filming deadline (срок за снимки) = publish date − FILMING_OFFSET working days (skips weekends + BG holidays).
+function filmingDeadline(dueOn) { return dueOn ? subtractWorkingDays(dueOn, FILMING_OFFSET) : null; }
 // Preferred source: the "Видеограф - Насрочване на снимачен ден" step carries the filming date.
 function filmingFromSteps(steps) {
   const s = (steps || []).find((x) => /насрочване на снимач/i.test(x.title || '') || (/видеограф/i.test(x.title || '') && /снима/i.test(x.title || '')));
   return s && s.due_on ? s.due_on : null;
-}
-// Working days from today until the target date (negative if past).
-function workingDaysUntil(targetStr) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const b = new Date(targetStr + 'T00:00:00'); b.setHours(0, 0, 0, 0);
-  if (b.getTime() === today.getTime()) return 0;
-  let n = 0; const dir = b > today ? 1 : -1; const d = new Date(today);
-  while (d.getTime() !== b.getTime()) { d.setDate(d.getDate() + dir); const dow = d.getDay(); if (dow !== 0 && dow !== 6) n += dir; }
-  return n;
 }
 function dlClassFor(deadlineStr) {
   if (!deadlineStr) return 'dl-none';
