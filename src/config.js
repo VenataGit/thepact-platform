@@ -33,6 +33,9 @@ module.exports = {
   BASECAMP_TEAM_PROJECT_ID: parseInt(process.env.BASECAMP_TEAM_PROJECT_ID) || 39396506,
   // Secret embedded in the Basecamp webhook URL path — only Basecamp (told the URL) can POST.
   BASECAMP_WEBHOOK_SECRET: process.env.BASECAMP_WEBHOOK_SECRET || null,
+  // Card ids the date-sync is ALLOWED to modify. Empty = all cards with a Due date.
+  // Keep this set to ONLY the test card during testing so nothing else is ever touched.
+  BASECAMP_DATESYNC_CARD_IDS: (process.env.BASECAMP_DATESYNC_CARD_IDS || '').split(',').map((s) => s.trim()).filter(Boolean),
   // Password login is OFF by default — Basecamp OAuth only. Emergency hatch: set 'true'.
   ALLOW_PASSWORD_LOGIN: process.env.ALLOW_PASSWORD_LOGIN === 'true',
   // Web Push (optional — generate keys with: node scripts/generate-vapid-keys.js)

@@ -22,6 +22,8 @@ function subtractWorkingDays(dateStr, days) {
 
 // Recompute the stage step dates from the card's Due date and write any that differ.
 async function syncCardDates(cardId) {
+  const allow = config.BASECAMP_DATESYNC_CARD_IDS;
+  if (allow && allow.length && !allow.includes(String(cardId))) return { cardId, skipped: 'not-allowed' };
   const { token, account } = await getServiceAuth();
   const projectId = config.BASECAMP_TEAM_PROJECT_ID;
   let card;
@@ -38,10 +40,12 @@ async function syncCardDates(cardId) {
     if (!step) continue;
     const want = subtractWorkingDays(card.due_on, stage.offset);
     if ((step.due_on || null) !== want) {
+      // Basecamp's step PUT is a full replace — we MUST resend the title + assignees,
+      // otherwise the step title is wiped to "Untitled".
       const r = await fetch(`${bc.API_BASE}/${account}/buckets/${projectId}/card_tables/steps/${step.id}.json`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'User-Agent': config.BASECAMP_USER_AGENT, 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ due_on: want }),
+        body: JSON.stringify({ title: step.title, due_on: want, assignee_ids: (step.assignees || []).map((a) => a.id) }),
       });
       if (r.ok) changes.push({ step: step.title, from: step.due_on || null, to: want });
       else console.error('[bc-date-sync] step PUT failed', r.status, step.id);
