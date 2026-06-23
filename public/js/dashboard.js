@@ -223,7 +223,7 @@ var DASH_CLOCK_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none
 function renderDashCard(card) {
   const now = new Date(); now.setHours(0, 0, 0, 0);
   const d = card.dueOn ? _parseDateMidnight(card.dueOn) : null;
-  let colorClass = 'dash-card--ok';
+  let colorClass = 'dash-card--none'; // no due date (or completed) → neutral grey
   if (d && !card.completed) {
     const diff = Math.ceil((d - now) / 86400000);
     colorClass = diff < 0 ? 'dash-card--overdue' : diff === 0 ? 'dash-card--today' : diff <= 3 ? 'dash-card--soon' : 'dash-card--ok';

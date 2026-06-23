@@ -141,7 +141,7 @@
 }
 .dash-card__date {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; font-weight: 600; color: var(--text-dim); margin-bottom: 6px;
+  font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.82); margin-bottom: 6px;
 }
 .dash-card__date svg { flex-shrink: 0; }
 .dash-card__actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -154,15 +154,13 @@
 .dash-card__timer:hover { background: rgba(255,255,255,0.16); color: var(--text); }
 .dash-card__assignee { font-size: 10px; color: var(--text-secondary); }
 
-/* Deadline color states */
-.dash-card--ok { border-left-color: var(--dash-ok, var(--green)); background: var(--dash-ok-bg, rgba(74,222,128,0.08)); }
-.dash-card--ok .dash-card__date { color: var(--dash-ok, #a0f0c0); font-weight: 600; }
-.dash-card--soon { border-left-color: var(--dash-soon, var(--yellow)); background: var(--dash-soon-bg, rgba(226,185,59,0.08)); }
-.dash-card--soon .dash-card__date { color: var(--dash-soon, var(--yellow)); font-weight: 600; }
-.dash-card--today { border-left-color: var(--dash-today, var(--red)); background: var(--dash-today-bg, rgba(255,10,10,0.12)); }
-.dash-card--today .dash-card__date { color: var(--dash-today, var(--red)); font-weight: 600; }
-.dash-card--overdue { border-left-color: var(--dash-overdue, #ff0a0a); background: var(--dash-card-bg, var(--bg)); animation: dashOverduePulse 8s ease-in-out infinite; }
-.dash-card--overdue .dash-card__date { color: var(--dash-overdue, #ff0a0a); font-weight: 700; }
+/* Deadline color states — wired to the shared themeable deadline backgrounds
+   (Админ → DEADLINE ФОНОВЕ), the same vars the kanban board uses. */
+.dash-card--none    { border-left-color: var(--dl-none-border, #8899a6);    background: var(--dl-none-bg, rgba(136,153,166,0.22)); }
+.dash-card--ok      { border-left-color: var(--dl-green-border, var(--green));   background: var(--dl-green-bg, rgba(45,165,98,0.48)); }
+.dash-card--soon    { border-left-color: var(--dl-yellow-border, var(--yellow)); background: var(--dl-yellow-bg, rgba(234,179,8,0.52)); }
+.dash-card--today   { border-left-color: var(--dl-red-border, var(--red));      background: var(--dl-red-bg, rgba(239,68,68,0.48)); }
+.dash-card--overdue { border-left-color: var(--dl-black-border, #888);      background: var(--dl-black-bg, rgba(0,0,0,0.55)); animation: dashOverduePulse 8s ease-in-out infinite; }
 @keyframes dashOverduePulse {
   0% { border-left-color: #333; } 37% { border-left-color: var(--dash-overdue, #ff0a0a); }
   63% { border-left-color: var(--dash-overdue, #ff0a0a); } 100% { border-left-color: #333; }
