@@ -94,14 +94,14 @@
   background: var(--bg); padding: 1px 8px; border-radius: 10px;
 }
 .dash-timer-bar {
-  padding: 4px 10px; font-size: 11px; text-align: center;
-  border-bottom: 1px solid var(--border); letter-spacing: 0.2px;
-  margin-bottom: 6px;
+  padding: 5px 10px; font-size: 11px; text-align: center;
+  letter-spacing: 0.2px; margin: 0 6px 6px;
 }
-.dash-timer-bar--clean { color: var(--green); }
-.dash-timer-bar--overdue { color: var(--red); background: var(--red-dim); }
+.dash-timer-bar--clean { color: var(--green); background: var(--green-dim); }
+.dash-timer-bar--overdue { color: var(--red); background: var(--red-dim); font-weight: 600; }
 .dash-timer-label { font-weight: 600; }
 .dash-timer-value { font-weight: 400; font-variant-numeric: tabular-nums; }
+.dash-col.collapsed .dash-timer-bar { display: none; }
 
 /* Dashboard drag & drop */
 .dash-subcol-cards { flex: 1; min-height: 60px; transition: background 0.15s, outline 0.15s; border-radius: 6px; }
@@ -136,8 +136,8 @@
 }
 .dash-card:hover { transform: translateY(-2px); box-shadow: 0 3px 10px var(--card-hover-shadow); }
 .dash-card__title {
-  font-size: 14px; font-weight: 600; line-height: 1.22; color: var(--dash-card-title, #fff);
-  margin-bottom: 6px; letter-spacing: -0.1px;
+  font-size: 14px; font-weight: 400; line-height: 1.25; color: var(--dash-card-title, #fff);
+  margin-bottom: 6px;
 }
 .dash-card__date {
   display: inline-flex; align-items: center; gap: 4px;

@@ -202,10 +202,11 @@ setInterval(function() {
   var bars = document.querySelectorAll('.dash-timer-bar--clean[data-since]');
   if (bars.length === 0) return; // not on dashboard or no clean timers
   bars.forEach(function(el) {
+    if (el.offsetParent === null) return; // skip hidden bars (collapsed boards)
     var since = el.dataset.since;
     if (!since) return;
     var diff = Math.floor((Date.now() - new Date(since).getTime()) / 1000);
-    if (diff < 0) diff = 0;
+    if (!isFinite(diff) || diff < 0) diff = 0;
     var days = Math.floor(diff / 86400);
     var hours = Math.floor((diff % 86400) / 3600);
     var mins = Math.floor((diff % 3600) / 60);

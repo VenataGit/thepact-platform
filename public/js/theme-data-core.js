@@ -86,7 +86,7 @@ var THEME_TABS = [
   // ---------- DASHBOARD ----------
   { id: 'dashboard', icon: '📊', label: 'Dashboard', description: 'Главното табло с задачи групирани по борд и колона.', groups: [
     { title: 'Карти на Dashboard', icon: '🃏', desc: 'Малките карти показвани на dashboard-а, групирани по състояние.', items: [
-      { key: 'theme_dash_bg', type: 'color', css: '--dash-card-bg', def: '#0b151b', label: 'Фон на карта', hint: 'Малките карти на dashboard' },
+      { key: 'theme_dash_bg', type: 'color', css: '--dash-card-bg', def: '#05090c', label: 'Фон на карта', hint: 'Малките карти на dashboard' },
       { key: 'theme_dash_title', type: 'color', css: '--dash-card-title', def: '#ffffff', label: 'Заглавие на карта', hint: 'Името на задачата' },
     ]},
     { title: 'Цветове по състояние', icon: '🚦', desc: 'Линията отляво на картата показва спешност спрямо deadline.', items: [

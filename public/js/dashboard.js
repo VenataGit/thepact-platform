@@ -22,6 +22,7 @@ let _dashStruct = null;     // { boards: [{ id, title, columns: [{ id, title, ca
 let _dashLayout = {};       // global { boardOrder: [ids], colOrder: { boardId: [ids] } } — set by an admin
 const _dashCards = {};      // boardId -> { colId -> [cards] }
 const _dashLoading = {};    // boardId -> bool
+const _dashTimers = {};     // boardId -> { since, paused } — "time since no overdue" timer
 let _dashAutoRefreshId = null;
 let expandedDashCol = null;   // board id expanded to full width (others collapse)
 let _dashDragCardId = null, _dashDragBoardId = null, _dashDragFromCol = null;
@@ -62,6 +63,7 @@ async function dashLoadStructure() {
     initDashDefaults(_dashStruct.boards || []);
     dashRenderStats();
     dashRenderBoards();
+    dashLoadTimers();
     const hidden = getDashHiddenBoards();
     const visible = (_dashStruct.boards || []).filter((b) => !hidden.has(String(b.id)));
     visible.sort((a, b) => dashBoardTotal(a) - dashBoardTotal(b)); // light boards fill in first
@@ -87,8 +89,64 @@ async function dashLoadBoardCards(boardId) {
     const byCol = {}; (data.columns || []).forEach((c) => { byCol[c.id] = c.cards || []; });
     _dashCards[boardId] = byCol;
   } catch { /* leave unloaded — user can press ⚙ / reload */ }
-  _dashLoading[boardId] = false; dashRenderBoardSection(boardId);
+  _dashLoading[boardId] = false;
+  await dashSyncBoardTimer(boardId);
+  dashRenderBoardSection(boardId);
   dashRenderStats();
+}
+
+// --- per-board "time since no overdue task" timer ------------------------------
+// Backend: board_overdue_timers via /api/timers/boards (GET) + /sync (POST).
+// The 1s ticker in sos.js updates any .dash-timer-bar--clean[data-since] live.
+async function dashLoadTimers() {
+  try {
+    const res = await fetch('/api/timers/boards');
+    if (!res.ok) return;
+    const rows = await res.json();
+    (rows || []).forEach((r) => { _dashTimers[String(r.board_id)] = { since: r.started_at, paused: r.is_paused }; });
+    dashRenderBoards();
+  } catch { /* table may not exist yet — degrade silently (no bars) */ }
+}
+
+// After a board's cards load, tell the server whether it currently has an overdue
+// card; the server pauses/resumes the timer and returns the fresh state.
+async function dashSyncBoardTimer(boardId) {
+  if (!_dashCards[boardId]) return;
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  let hasOverdue = false;
+  Object.values(_dashCards[boardId]).forEach((cards) => cards.forEach((c) => {
+    const d = c.dueOn ? _parseDateMidnight(c.dueOn) : null;
+    if (d && d < now && !c.completed) hasOverdue = true;
+  }));
+  try {
+    const res = await fetch('/api/timers/boards/sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([{ board_id: boardId, has_overdue: hasOverdue }]),
+    });
+    if (!res.ok) return;
+    const rows = await res.json();
+    (rows || []).forEach((r) => { _dashTimers[String(r.board_id)] = { since: r.started_at, paused: r.is_paused }; });
+  } catch { /* degrade silently */ }
+}
+
+function _dashFmtElapsed(since) {
+  let diff = Math.floor((Date.now() - new Date(since).getTime()) / 1000);
+  if (!isFinite(diff) || diff < 0) diff = 0;
+  const days = Math.floor(diff / 86400), hours = Math.floor((diff % 86400) / 3600);
+  const mins = Math.floor((diff % 3600) / 60), secs = diff % 60;
+  return days + 'д, ' + hours + 'ч, ' + mins + 'м, ' + secs + 'с';
+}
+
+function dashBoardTimerHtml(b) {
+  const t = _dashTimers[String(b.id)];
+  if (!t) return '';
+  if (t.paused) {
+    return '<div class="dash-timer-bar dash-timer-bar--overdue"><span class="dash-timer-label">⚠ Има просрочена задача</span></div>';
+  }
+  return '<div class="dash-timer-bar dash-timer-bar--clean" data-since="' + esc(String(t.since)) + '">' +
+    '<span class="dash-timer-label">Без просрочена: </span>' +
+    '<span class="dash-timer-value">' + _dashFmtElapsed(t.since) + '</span>' +
+  '</div>';
 }
 
 function dashRenderStats() {
@@ -141,6 +199,7 @@ function dashBoardSectionHtml(b) {
   const body = isCollapsed ? '' : ('<div class="dash-col-body">' + cols.map((c) => dashSubColHtml(b, c, loaded)).join('') + '</div>');
   return '<div class="' + colClass + '" data-board-id="' + b.id + '">' +
     '<div class="dash-col-header" onclick="toggleDashCol(\'' + b.id + '\')" title="Цъкни за цял екран"><span class="dash-col-title">' + esc(b.title) + tag + '</span><span class="dash-col-count">' + dashBoardTotal(b) + '</span></div>' +
+    dashBoardTimerHtml(b) +
     body +
   '</div>';
 }
