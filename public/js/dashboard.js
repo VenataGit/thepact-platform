@@ -157,6 +157,10 @@ function dashSubColHtml(board, col, loaded) {
   '</div>';
 }
 
+// Inline icons (stroke=currentColor → inherit the date's deadline color / button color).
+var DASH_CAL_SVG   = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>';
+var DASH_CLOCK_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/></svg>';
+
 function renderDashCard(card) {
   const now = new Date(); now.setHours(0, 0, 0, 0);
   const d = card.dueOn ? _parseDateMidnight(card.dueOn) : null;
@@ -166,15 +170,23 @@ function renderDashCard(card) {
     colorClass = diff < 0 ? 'dash-card--overdue' : diff === 0 ? 'dash-card--today' : diff <= 3 ? 'dash-card--soon' : 'dash-card--ok';
   }
   const assignee = card.assignees && card.assignees[0] ? esc(card.assignees[0].name.split(' ')[0]) : '';
-  const steps = card.stepsCount ? '<span class="dash-card__steps">☑ ' + card.stepsCount + '</span>' : '';
-  const due = card.dueOn ? '<span class="dash-card__date">' + formatDate(card.dueOn) + '</span>' : '<span></span>';
+  const due = card.dueOn ? '<div class="dash-card__date">' + DASH_CAL_SVG + '<span>' + formatDate(card.dueOn) + '</span></div>' : '';
   return '<div class="dash-card ' + colorClass + (card.completed ? ' dash-card--done' : '') + '" draggable="true" data-card-id="' + card.id + '" data-url="' + esc(card.url || '') + '"' +
       ' ondragstart="dashBcDragStart(event)" ondragend="dashBcDragEnd(event)" onclick="dashOpenCard(event, this)" title="' + esc(card.title) + ' — отвори в Basecamp">' +
     '<div class="dash-card__title">' + esc(card.title) + '</div>' +
-    '<div class="dash-card__footer">' + due +
-      '<div class="dash-card__right">' + steps + (assignee ? '<span class="dash-card__assignee">' + assignee + '</span>' : '') + '</div>' +
+    due +
+    '<div class="dash-card__actions">' +
+      '<button class="dash-card__timer" onclick="dashCardTimer(event, \'' + card.id + '\')" title="Следене на времето">' + DASH_CLOCK_SVG + '</button>' +
+      (assignee ? '<span class="dash-card__assignee">' + assignee + '</span>' : '') +
     '</div>' +
   '</div>';
+}
+
+// Time-tracking button — placeholder for now; the tracking mechanics come later.
+function dashCardTimer(e, cardId) {
+  e.stopPropagation(); // don't open the card in Basecamp
+  e.preventDefault();
+  if (typeof showToast === 'function') showToast('Следене на времето — скоро 🕐', 'info');
 }
 
 // --- drag & drop: move a card to another column of the SAME board, in Basecamp ---
