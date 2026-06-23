@@ -315,7 +315,9 @@ function showDashSettings() {
       });
     }
   });
-  html += '</div>'; panel.innerHTML = html;
+  html += '</div>'; // close body
+  html += '<div class="dash-settings-panel__footer"><button class="btn btn-sm btn-ghost dash-advanced-btn" onclick="showDashAdvanced()">⚙ Разширени настройки</button></div>';
+  panel.innerHTML = html;
   const rect = btn.getBoundingClientRect();
   panel.style.cssText = 'position:fixed;top:' + (rect.bottom + 6) + 'px;right:' + (window.innerWidth - rect.right) + 'px;z-index:1000';
   document.body.appendChild(panel);
@@ -323,6 +325,28 @@ function showDashSettings() {
     if (!panel.contains(ev.target) && ev.target !== btn) { panel.remove(); document.removeEventListener('click', h); }
   }), 10);
 }
+// Larger "Advanced settings" modal — placeholder for now; we'll fill it in later.
+function showDashAdvanced() {
+  document.querySelectorAll('.dash-settings-panel').forEach((p) => p.remove());
+  document.querySelectorAll('.dash-advanced-overlay').forEach((o) => o.remove());
+  const ov = document.createElement('div');
+  ov.className = 'modal-overlay dash-advanced-overlay';
+  ov.innerHTML =
+    '<div class="dash-advanced-modal">' +
+      '<div class="dash-advanced-modal__hdr"><strong>Разширени настройки</strong>' +
+        '<button class="dash-advanced-modal__close" aria-label="Затвори">✕</button></div>' +
+      '<div class="dash-advanced-modal__body">' +
+        '<p class="dash-advanced-empty">Тук ще добавим още настройки на Dashboard-а.<br>Кажи какво да сложим и го изграждаме.</p>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+  ov.querySelector('.dash-advanced-modal__close').addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
+}
+
 function toggleDashBoard(boardId, visible) {
   const hidden = getDashHiddenBoards(); if (visible) hidden.delete(String(boardId)); else hidden.add(String(boardId)); saveDashHiddenBoards(hidden);
   dashRenderStats(); dashRenderBoards();

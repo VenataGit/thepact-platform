@@ -160,6 +160,14 @@ router.get('/basecamp/callback', async (req, res) => {
 
     if (user.is_active === false) return res.redirect('/login.html?bc=inactive');
 
+    // Founder/admin allowlist — ensure these emails always have admin (bootstraps admin
+    // without DB access). Only ever upgrades; never demotes anyone.
+    if (config.ADMIN_EMAILS.includes(email) && user.role !== 'admin') {
+      await execute("UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = $1", [user.id]);
+      user.role = 'admin';
+      console.log(`[basecamp] granted admin to ${email} (allowlist)`);
+    }
+
     // 4. Persist tokens (upsert; keep old refresh_token if Basecamp omits a new one).
     const expiresAt = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null;
     await execute(

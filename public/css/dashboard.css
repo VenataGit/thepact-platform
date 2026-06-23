@@ -25,6 +25,22 @@
 .dash-settings-panel__header button { background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; padding: 2px 6px; }
 .dash-settings-panel__header button:hover { color: #fff; }
 .dash-settings-panel__body { padding: 10px 0; }
+.dash-settings-panel__footer { padding: 10px 14px; border-top: 1px solid var(--border); }
+.dash-advanced-btn { width: 100%; }
+
+/* Advanced settings modal (placeholder — content TBD) */
+.dash-advanced-modal {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  width: min(680px, 92vw); max-height: 80vh; overflow-y: auto; box-shadow: var(--shadow-lg);
+}
+.dash-advanced-modal__hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 16px; color: #fff;
+}
+.dash-advanced-modal__close { background: none; border: 0; color: var(--text-dim); font-size: 18px; line-height: 1; cursor: pointer; }
+.dash-advanced-modal__close:hover { color: #fff; }
+.dash-advanced-modal__body { padding: 20px; }
+.dash-advanced-empty { color: var(--text-dim); font-size: 14px; line-height: 1.6; text-align: center; padding: 28px 10px; }
 .dash-settings-board { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 16px 4px; }
 .dash-settings-board-row { display: flex; align-items: center; gap: 10px; padding: 9px 16px 5px; cursor: pointer; font-size: 14px; font-weight: 700; color: #fff; transition: background 0.1s; border-top: 1px solid var(--border); margin-top: 4px; }
 .dash-settings-board-row:first-child { border-top: none; margin-top: 0; }

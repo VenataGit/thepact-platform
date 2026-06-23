@@ -31,6 +31,9 @@ module.exports = {
   // Login is granted to any member of this Basecamp project (Video Production) OR any
   // non-client (internal The Pact team) — checked live against Basecamp on each login.
   BASECAMP_TEAM_PROJECT_ID: parseInt(process.env.BASECAMP_TEAM_PROJECT_ID) || 39396506,
+  // Emails that are always granted the 'admin' role on login (bootstraps admin without DB
+  // access; only ever upgrades, never demotes). Comma-separated env override.
+  ADMIN_EMAILS: (process.env.ADMIN_EMAILS || 'kalchev@thepact.bg').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   // Secret embedded in the Basecamp webhook URL path — only Basecamp (told the URL) can POST.
   BASECAMP_WEBHOOK_SECRET: process.env.BASECAMP_WEBHOOK_SECRET || null,
   // Card ids the date-sync is ALLOWED to modify. Empty = all cards with a Due date.
