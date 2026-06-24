@@ -118,10 +118,34 @@ router.get('/cards', requireAuth, async (req, res) => {
 router.get('/inspect', requireAuth, requireAdmin, async (req, res) => {
   try {
     const cardTableId = req.query.board;
+    const wantCard = req.query.card ? String(req.query.card) : null;
     if (!cardTableId) return res.status(400).json({ error: 'board required' });
     const { token, account } = await getUserAuth(req.user.userId);
     const projectId = config.BASECAMP_TEAM_PROJECT_ID;
     const table = await bc.getCardTable(token, account, projectId, cardTableId);
+
+    // ?card=<id>: return the FULL raw card object (from the column list) so we can see
+    // every field — incl. whatever indicates "on hold". Also try the standalone GET.
+    if (wantCard) {
+      let inList = null, foundColumn = null;
+      for (const list of (table.lists || [])) {
+        if (!list.cards_count) continue;
+        const cards = await bc.getColumnCards(token, account, projectId, list.id);
+        const hit = cards.find((c) => String(c.id) === wantCard);
+        if (hit) { inList = hit; foundColumn = list.title; break; }
+      }
+      let standalone = null;
+      try {
+        standalone = (await bc.authedGet(`${bc.API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${wantCard}.json`, token)).json;
+      } catch (e) { standalone = { error: e.message }; }
+      return res.json({
+        board: table.title,
+        foundInColumnList: foundColumn || '(NOT in any normal column list — likely a separate on-hold section)',
+        rawCardFromColumnList: inList,
+        rawCardStandalone: standalone,
+      });
+    }
+
     const out = [];
     for (const list of (table.lists || [])) {
       if (!list.cards_count) continue;
