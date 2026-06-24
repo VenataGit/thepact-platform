@@ -10,12 +10,23 @@ function getDashHiddenCols() { try { return new Set(JSON.parse(localStorage.getI
 function saveDashHiddenCols(set) { localStorage.setItem('thepact-dash-hidden-cols', JSON.stringify([...set])); }
 
 function initDashDefaults(boards) {
-  if (localStorage.getItem('thepact-dash-defaults-bc')) return;
-  const hidden = getDashHiddenBoards();
   // Hide the noisier internal boards by default; the team can re-enable them in ⚙ Настройки.
-  boards.forEach((b) => { if (/задачи|ops\/admin|услуги извън/i.test(b.title)) hidden.add(String(b.id)); });
-  saveDashHiddenBoards(hidden);
-  localStorage.setItem('thepact-dash-defaults-bc', '1');
+  if (!localStorage.getItem('thepact-dash-defaults-bc')) {
+    const hidden = getDashHiddenBoards();
+    boards.forEach((b) => { if (/задачи|ops\/admin|услуги извън/i.test(b.title)) hidden.add(String(b.id)); });
+    saveDashHiddenBoards(hidden);
+    localStorage.setItem('thepact-dash-defaults-bc', '1');
+  }
+  // Hide "Not now" + Done columns across all boards by default (separate one-time
+  // flag so it doesn't clobber board choices the user already made).
+  if (!localStorage.getItem('thepact-dash-coldefaults-bc')) {
+    const hiddenCols = getDashHiddenCols();
+    boards.forEach((b) => (b.columns || []).forEach((c) => {
+      if (c.isDone || /not\s*now/i.test(c.title || '') || /\bdone\b|готово/i.test(c.title || '')) hiddenCols.add(String(c.id));
+    }));
+    saveDashHiddenCols(hiddenCols);
+    localStorage.setItem('thepact-dash-coldefaults-bc', '1');
+  }
 }
 
 let _dashStruct = null;     // { boards: [{ id, title, columns: [{ id, title, cardsCount, isDone }] }] }
@@ -39,6 +50,21 @@ function applyOrder(items, order) {
     const vb = ib === undefined ? 1000 + b.i : ib;
     return va - vb;
   }).map((x) => x.it);
+}
+
+// Default board order when no admin layout is set: Pre → Production → Post → Account.
+function dashBoardRank(title) {
+  const t = (title || '').toLowerCase();
+  if (t.includes('pre-produc') || t.includes('pre produc') || t.includes('предпрод')) return 0;
+  if (t.includes('post-produc') || t.includes('post produc') || t.includes('пост')) return 2;
+  if (t.includes('produc')) return 1; // "Production" (pre/post already matched above)
+  if (t.includes('акаунт') || t.includes('account')) return 3;
+  return 999; // everything else keeps its natural order, after the four core boards
+}
+function applyDefaultBoardOrder(boards) {
+  return boards.map((b, i) => ({ b, i }))
+    .sort((a, x) => (dashBoardRank(a.b.title) - dashBoardRank(x.b.title)) || (a.i - x.i))
+    .map((o) => o.b);
 }
 
 async function renderDashboard(el) {
@@ -175,7 +201,9 @@ function dashRenderBoards() {
   if (!container || !_dashStruct) return;
   const hidden = getDashHiddenBoards();
   let boards = (_dashStruct.boards || []).filter((b) => !hidden.has(String(b.id)));
-  boards = applyOrder(boards, _dashLayout.boardOrder);
+  boards = (_dashLayout.boardOrder && _dashLayout.boardOrder.length)
+    ? applyOrder(boards, _dashLayout.boardOrder)
+    : applyDefaultBoardOrder(boards);
   if (!boards.length) { container.innerHTML = '<div style="padding:40px;color:var(--text-dim)">Няма видими дъски. Виж ⚙ Настройки.</div>'; return; }
   container.innerHTML = boards.map(dashBoardSectionHtml).join('');
 }
