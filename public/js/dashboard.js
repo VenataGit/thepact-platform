@@ -211,7 +211,7 @@ function dashSubColHtml(board, col, loaded) {
     ? (cards.map(renderDashCard).join('') || '<div class="dash-subcol-empty"></div>')
     : '<div class="bc-col-skel">' + Array(Math.min(col.cardsCount || 0, 4)).fill('<div class="bc-skel"></div>').join('') + '</div>';
   return '<div class="dash-subcol">' +
-    '<div class="dash-subcol-header"><span>' + esc(col.title) + '</span><span class="dash-subcol-count">' + count + '</span></div>' +
+    '<div class="dash-subcol-header"><span class="dash-subcol-title">' + esc(col.title) + '</span><span class="dash-subcol-count">' + count + '</span></div>' +
     '<div class="dash-subcol-cards" data-column-id="' + col.id + '" data-board-id="' + board.id + '" ondragover="dashBcDragOver(event)" ondragleave="dashBcDragLeave(event)" ondrop="dashBcDrop(event)">' + body + '</div>' +
   '</div>';
 }
