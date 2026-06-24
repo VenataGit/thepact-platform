@@ -26,8 +26,12 @@
 }
 .nav__logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 
-/* Main nav items (center) */
+/* Main nav items (center) — absolutely centred so the logo (left) and avatar
+   (right) never shift the menu off-centre. */
 .nav__main {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: var(--nav-item-gap);

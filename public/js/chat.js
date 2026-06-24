@@ -21,9 +21,10 @@ function _chatAvatar(ch) {
 
 // --- Pings badge ---
 async function updatePingsBadge() {
+  var b = document.getElementById('pingsBadge');
+  if (!b) return; // Pings nav item removed — nothing to update
   try {
     var r = await (await fetch('/api/chat/unread-count')).json();
-    var b = document.getElementById('pingsBadge');
     if (r.count > 0) { b.textContent = r.count > 99 ? '99+' : r.count; b.style.display = ''; } else b.style.display = 'none';
   } catch {}
 }

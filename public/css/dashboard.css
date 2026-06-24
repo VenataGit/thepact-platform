@@ -53,7 +53,6 @@
 /* ==================== DASHBOARD BOARD / COLUMNS ==================== */
 .dash-board {
   display: flex; gap: 8px; min-height: calc(100vh - 180px); align-items: stretch;
-  font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 .dash-col {

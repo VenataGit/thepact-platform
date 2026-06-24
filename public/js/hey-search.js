@@ -1,8 +1,9 @@
 // ==================== HEY NOTIFICATIONS ====================
 async function updateHeyBadge() {
+  const b = document.getElementById('heyBadge');
+  if (!b) return; // Hey nav item removed — nothing to update
   try {
     const { count } = await (await fetch('/api/notifications/unread-count')).json();
-    const b = document.getElementById('heyBadge');
     if (count > 0) { b.textContent = count > 99 ? '99+' : count; b.style.display = ''; } else b.style.display = 'none';
   } catch {}
 }
@@ -151,30 +152,34 @@ function populateMore(el) {
 function populateFind(el) {
   el.innerHTML = `
     <div class="search-overlay" onclick="event.stopPropagation()">
-      <input type="search" id="globalSearchInput" placeholder="Търси..." autofocus oninput="doGlobalSearch()">
-      <div class="search-filters">
-        <select id="searchType"><option value="">Навсякъде</option><option value="card">Карти</option><option value="comment">Коментари</option><option value="message">Съобщения</option></select>
-        <select id="searchPerson"><option value="">от Всеки</option>${allUsers.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>
-        <select id="searchProject"><option value="">Във всички проекти</option>${allBoards.map(b => `<option value="${b.id}">${esc(b.title)}</option>`).join('')}</select>
-      </div>
-      <div class="search-results" id="searchResults"></div>
+      <input type="search" id="dashSearchInput" placeholder="Търси карта в Dashboard…" autofocus oninput="doDashSearch()">
+      <div class="search-results" id="dashSearchResults"><div class="nav-dropdown__empty">Напиши поне 2 букви…</div></div>
     </div>
   `;
-  setTimeout(() => document.getElementById('globalSearchInput')?.focus(), 50);
+  setTimeout(() => document.getElementById('dashSearchInput')?.focus(), 50);
 }
 
-async function doGlobalSearch() {
-  const q = document.getElementById('globalSearchInput')?.value?.trim();
-  const container = document.getElementById('searchResults');
-  if (!q || q.length < 2) { container.innerHTML = ''; return; }
-  try {
-    const boardFilter = document.getElementById('searchProject')?.value || '';
-    const { cards, users } = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
-    let filteredCards = cards;
-    if (boardFilter) filteredCards = cards.filter(c => c.board_id === parseInt(boardFilter));
-    container.innerHTML =
-      filteredCards.map(c => `<a class="nav-dropdown__item" href="#/card/${c.id}" onclick="closeAllDropdowns()">${esc(c.title)}<span style="margin-left:auto;font-size:11px;color:var(--text-dim)">${esc(c.board_title)}</span></a>`).join('') +
-      users.map(u => `<div class="nav-dropdown__item">${esc(u.name)} <span style="margin-left:auto;font-size:11px;color:var(--text-dim)">${u.role}</span></div>`).join('') +
-      (filteredCards.length === 0 && users.length === 0 ? '<div class="nav-dropdown__empty">Няма резултати</div>' : '');
-  } catch {}
+// Search the cards currently loaded on the Basecamp dashboard (_dashCards),
+// across every board/column. Clicking a result opens the card in Basecamp.
+function doDashSearch() {
+  const q = (document.getElementById('dashSearchInput')?.value || '').trim().toLowerCase();
+  const container = document.getElementById('dashSearchResults');
+  if (!container) return;
+  if (q.length < 2) { container.innerHTML = '<div class="nav-dropdown__empty">Напиши поне 2 букви…</div>'; return; }
+  const titles = {};
+  ((typeof _dashStruct !== 'undefined' && _dashStruct && _dashStruct.boards) || []).forEach(b => { titles[b.id] = b.title; });
+  const results = [];
+  if (typeof _dashCards !== 'undefined' && _dashCards) {
+    Object.keys(_dashCards).forEach(bid => {
+      Object.values(_dashCards[bid] || {}).forEach(cards => (cards || []).forEach(c => {
+        if ((c.title || '').toLowerCase().includes(q)) results.push({ c, board: titles[bid] || '' });
+      }));
+    });
+  }
+  if (!results.length) { container.innerHTML = '<div class="nav-dropdown__empty">Няма карти. Отвори Dashboard-а, ако не си на него.</div>'; return; }
+  results.sort((a, b) => (a.c.title || '').localeCompare(b.c.title || ''));
+  container.innerHTML = results.slice(0, 40).map(r =>
+    '<a class="nav-dropdown__item" href="' + esc(r.c.url || '#') + '" target="_blank" rel="noopener" onclick="closeAllDropdowns()">' +
+      esc(r.c.title || '') + '<span style="margin-left:auto;font-size:11px;color:var(--text-dim)">' + esc(r.board) + '</span></a>'
+  ).join('') + (results.length > 40 ? '<div class="nav-dropdown__empty">…и още ' + (results.length - 40) + '</div>' : '');
 }
