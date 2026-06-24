@@ -93,7 +93,7 @@ var THEME_TABS = [
       { key: 'theme_dash_ok', type: 'color', css: '--dash-ok', def: '#22c55e', label: 'Има време (зелено)', hint: 'Карти с дни до дедлайна' },
       { key: 'theme_dash_soon', type: 'color', css: '--dash-soon', def: '#eab308', label: 'Наближава (жълто)', hint: 'Карти с няколко дни до дедлайна' },
       { key: 'theme_dash_today', type: 'color', css: '--dash-today', def: '#ef4444', label: 'Днес (червено)', hint: 'Карти с дедлайн днес' },
-      { key: 'theme_dash_overdue', type: 'color', css: '--dash-overdue', def: '#ff0a0a', label: 'Просрочено', hint: 'Закъснели карти (с пулсираща анимация)' },
+      { key: 'theme_dash_overdue', type: 'color', css: '--dash-overdue', def: '#ff0a0a', label: 'Просрочено', hint: 'Закъснели карти' },
       { key: 'theme_dash_hold', type: 'color', css: '--dash-hold', def: '#6b7280', label: 'На изчакване', hint: 'Паузирани/spaced карти' },
     ]},
     { title: 'Приоритетни карти', icon: '⭐', desc: 'Карти с приоритет (urgent, high) — показват се в специален стил.', items: [
