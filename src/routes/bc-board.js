@@ -112,6 +112,36 @@ router.get('/cards', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/bc-board/inspect?board=<cardTableId> — admin diagnostic. Basecamp does NOT
+// document how an "on hold" card is represented in JSON, so dump the raw status/parent
+// fields per card to discover the indicator (put a card on hold, then compare).
+router.get('/inspect', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const cardTableId = req.query.board;
+    if (!cardTableId) return res.status(400).json({ error: 'board required' });
+    const { token, account } = await getUserAuth(req.user.userId);
+    const projectId = config.BASECAMP_TEAM_PROJECT_ID;
+    const table = await bc.getCardTable(token, account, projectId, cardTableId);
+    const out = [];
+    for (const list of (table.lists || [])) {
+      if (!list.cards_count) continue;
+      const cards = await bc.getColumnCards(token, account, projectId, list.id);
+      out.push({
+        column: list.title,
+        list_type: list.type,
+        cards: cards.map((c) => ({
+          id: c.id, title: c.title, status: c.status, inherits_status: c.inherits_status,
+          completed: c.completed, type: c.type, parent_type: c.parent && c.parent.type,
+        })),
+      });
+    }
+    res.json({ board: table.title, columns: out });
+  } catch (err) {
+    console.error('[bc-board inspect]', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 // POST /api/bc-board/move — move a card to another column, recorded AS the logged-in user.
 router.post('/move', requireAuth, async (req, res) => {
   try {
