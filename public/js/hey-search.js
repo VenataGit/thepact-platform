@@ -144,7 +144,7 @@ function populateMore(el) {
       <a class="nav-dropdown__item" href="#/trash" onclick="closeAllDropdowns()"><img src="/img/icon-trash.png" alt="" width="16" height="16" class="nav__icon"> Кошче</a>
     </div>
     ${currentUser?.role === 'admin' || currentUser?.role === 'mini_admin' ? `<div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
-      <a class="nav-dropdown__item" href="#/admin" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">⚙️</div> Админ панел</a>
+      <a class="nav-dropdown__item" href="#/admin" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">⚙️</div> Настройки</a>
     </div>` : ''}
   `;
 }

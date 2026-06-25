@@ -41,7 +41,8 @@ function router() {
     case 'campfire': return renderCampfire(el, id || 1);
     case 'schedule': return renderSchedule(el);
     case 'checkins': return renderCheckins(el);
-    case 'admin': return renderAdmin(el);
+    case 'admin': return renderSettings(el);
+    case 'admin-legacy': return renderAdmin(el);
     case 'reports': return renderReports(el);
     case 'bookmarks': return renderBookmarks(el);
     case 'kp-auto': return renderKpAuto(el);
@@ -57,34 +58,15 @@ function router() {
 window.addEventListener('hashchange', router);
 
 function setBreadcrumb(items) {
+  // Breadcrumb bar removed globally — every page now looks the same (no context bar
+  // above the content). Kept as a no-op that always hides the bar so the 30+ existing
+  // callers don't each need changing.
   const bar = document.getElementById('breadcrumbBar');
   const bc = document.getElementById('breadcrumb');
   const main = document.getElementById('mainArea');
-  // Hide breadcrumb bar when no items (home, admin, etc.)
-  if (!items || !items.length) {
-    bar.classList.add('hidden');
-    main.classList.remove('with-breadcrumb');
-    bc.innerHTML = '';
-    return;
-  }
-  bar.classList.remove('hidden'); main.classList.add('with-breadcrumb');
-  // Skip auto-prepended "Home" — show just current context
-  var parts = items.slice();
-  while (parts.length && parts[0].href === '#/home') parts.shift();
-  // Grid icon button — opens a dropdown with all boards
-  var html = '<button class="breadcrumb__jump-btn" onclick="toggleBoardJumpMenu(event)" title="Всички бордове">'
-    + '<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
-    + '<rect x="1.5" y="1.5" width="4" height="4" rx="0.8"/>'
-    + '<rect x="8.5" y="1.5" width="4" height="4" rx="0.8"/>'
-    + '<rect x="1.5" y="8.5" width="4" height="4" rx="0.8"/>'
-    + '<rect x="8.5" y="8.5" width="4" height="4" rx="0.8"/>'
-    + '</svg></button>';
-  html += parts.map(function(item, i) {
-    var sep = '<span class="sep">/</span>';
-    if (i === parts.length - 1 || !item.href) return sep + '<span class="current">' + esc(item.label) + '</span>';
-    return sep + '<a href="' + item.href + '">' + esc(item.label) + '</a>';
-  }).join('');
-  bc.innerHTML = html;
+  if (bar) bar.classList.add('hidden');
+  if (bc) bc.innerHTML = '';
+  if (main) main.classList.remove('with-breadcrumb');
 }
 
 // Board jump dropdown — lists all boards for quick navigation

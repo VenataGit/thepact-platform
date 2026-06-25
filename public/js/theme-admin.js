@@ -9,10 +9,10 @@ function _hexToRgba(hex, alpha) {
 function _loadGoogleFont(fontName) {
   var id = 'theme-google-font', el = document.getElementById(id);
   if (el) el.remove();
-  if (!fontName || fontName === 'Inter') return;
+  if (!fontName) return; // empty = system default; any named font (incl. Inter) is loaded from Google Fonts
   var link = document.createElement('link');
   link.id = id; link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(fontName) + ':wght@400;500;600;700;800;900&display=swap';
+  link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(fontName).replace(/%20/g, '+') + ':wght@400;500;600;700;800;900&display=swap';
   document.head.appendChild(link);
 }
 

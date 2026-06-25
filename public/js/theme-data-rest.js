@@ -18,7 +18,7 @@ THEME_TABS.push(
   // ---------- ТИПОГРАФИЯ ----------
   { id: 'typography', icon: '🔤', label: 'Типография', description: 'Шрифт, размер на текста, височина на ред, дебелина на заглавия.', groups: [
     { title: 'Шрифт', icon: '🔤', desc: 'Семейство и базов размер на шрифта в платформата.', items: [
-      { key: 'theme_font_family', type: 'select', css: '--font-family', def: 'Inter', label: 'Шрифт', options: ['Inter','Roboto','Open Sans','Nunito','Poppins','Lato','Montserrat','Source Sans Pro','Fira Sans','IBM Plex Sans'], hint: 'Google Fonts шрифт' },
+      { key: 'theme_font_family', type: 'select', css: '--font-family', def: 'Inter', label: 'Шрифт', options: ['Inter','Manrope','Onest','Golos Text','Rubik','Montserrat','Nunito','DM Sans','PT Sans','Roboto','IBM Plex Sans'], hint: 'Google Fonts шрифт (всички с кирилица)' },
       { key: 'theme_font_size', type: 'range', css: '--font-size-base', def: '13.5', label: 'Основен размер', unit: 'px', min: 11, max: 18, step: 0.5, hint: 'Базов размер на текста' },
       { key: 'theme_line_height', type: 'range', css: '--line-height-base', def: '1.6', label: 'Височина на ред', unit: '', min: 1.2, max: 2.2, step: 0.1, hint: 'Колко на ред да заема текста' },
       { key: 'theme_heading_weight', type: 'select', css: '--heading-weight', def: '700', label: 'Дебелина на заглавия', options: ['400','500','600','700','800','900'], hint: 'От тънки (400) до удебелени (900)' },
