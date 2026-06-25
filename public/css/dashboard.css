@@ -190,6 +190,15 @@
 }
 .dash-card--onhold { opacity: 0.72; }
 .dash-card--onhold:hover { opacity: 1; }
+
+/* No-date signal: clear orange badge + outline, stays until a date is set. */
+.dash-card--nodate { box-shadow: inset 0 0 0 1.5px var(--orange, #f97316); }
+.dash-card__nodate {
+  display: inline-flex; align-items: center; gap: 4px; margin-bottom: 6px;
+  font-size: 11px; font-weight: 700; color: #fff;
+  background: var(--orange, #f97316); padding: 1px 7px; border-radius: 10px;
+}
+.dash-card__nodate svg { flex-shrink: 0; }
 .dash-card--priority { border-left-color: var(--dash-priority-bg, #fff); background: var(--dash-priority-bg, rgba(255,255,255,0.9)); }
 .dash-card--priority .dash-card__title { color: var(--dash-priority-text, #111); }
 .dash-card--priority .dash-card__date { color: var(--dash-priority-text, #333); font-weight: 600; }

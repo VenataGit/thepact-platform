@@ -261,9 +261,12 @@ function renderDashCard(card) {
     const diff = Math.ceil((d - now) / 86400000);
     colorClass = diff < 0 ? 'dash-card--overdue' : diff === 0 ? 'dash-card--today' : diff <= 3 ? 'dash-card--soon' : 'dash-card--ok';
   }
+  const noDate = !card.dueOn && !card.completed; // needs a date — flag until one is set
   const assignee = card.assignees && card.assignees[0] ? esc(card.assignees[0].name.split(' ')[0]) : '';
-  const due = card.dueOn ? '<div class="dash-card__date">' + DASH_CAL_SVG + '<span>' + formatDate(card.dueOn) + '</span></div>' : '';
-  return '<div class="dash-card ' + colorClass + (card.completed ? ' dash-card--done' : '') + (card.onHold ? ' dash-card--onhold' : '') + '" draggable="true" data-card-id="' + card.id + '" data-url="' + esc(card.url || '') + '"' +
+  const due = card.dueOn
+    ? '<div class="dash-card__date">' + DASH_CAL_SVG + '<span>' + formatDate(card.dueOn) + '</span></div>'
+    : (noDate ? '<div class="dash-card__nodate">' + DASH_CAL_SVG + '<span>Няма дата</span></div>' : '');
+  return '<div class="dash-card ' + colorClass + (card.completed ? ' dash-card--done' : '') + (card.onHold ? ' dash-card--onhold' : '') + (noDate ? ' dash-card--nodate' : '') + '" draggable="true" data-card-id="' + card.id + '" data-url="' + esc(card.url || '') + '"' +
       ' ondragstart="dashBcDragStart(event)" ondragend="dashBcDragEnd(event)" onclick="dashOpenCard(event, this)" title="' + esc(card.title) + ' — отвори в Basecamp">' +
     '<div class="dash-card__title">' + esc(card.title) + '</div>' +
     due +
