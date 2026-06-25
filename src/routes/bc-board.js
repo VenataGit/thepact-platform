@@ -59,9 +59,16 @@ router.get('/inspect', requireAuth, requireAdmin, async (req, res) => {
   try {
     const cardTableId = req.query.board;
     const wantCard = req.query.card ? String(req.query.card) : null;
-    if (!cardTableId) return res.status(400).json({ error: 'board required' });
     const { token, account } = await getUserAuth(req.user.userId);
     const projectId = config.BASECAMP_TEAM_PROJECT_ID;
+
+    // ?card=<id> WITHOUT board: just the standalone card's raw content (to inspect how
+    // Basecamp wraps embedded media — <bc-attachment> tags — in the rich-text HTML).
+    if (wantCard && !cardTableId) {
+      const c = (await bc.authedGet(`${bc.API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${wantCard}.json`, token)).json;
+      return res.json({ id: c.id, title: c.title, content: c.content, description: c.description });
+    }
+    if (!cardTableId) return res.status(400).json({ error: 'board or card required' });
     const table = await bc.getCardTable(token, account, projectId, cardTableId);
 
     // ?structure=1[&column=<id>]: dump the raw card-table lists + a column's detail, so we
