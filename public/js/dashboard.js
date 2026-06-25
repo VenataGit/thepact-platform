@@ -34,6 +34,7 @@ let _dashLayout = {};       // global { boardOrder: [ids], colOrder: { boardId: 
 const _dashCards = {};      // boardId -> { colId -> [cards] }
 const _dashLoading = {};    // boardId -> bool
 const _dashTimers = {};     // boardId -> { since, paused } — "time since no overdue" timer
+const _dashOnHold = {};     // boardId -> { colId -> [on-hold cards] } (shown below normals)
 let _dashAutoRefreshId = null;
 let expandedDashCol = null;   // board id expanded to full width (others collapse)
 let _dashDragCardId = null, _dashDragBoardId = null, _dashDragFromCol = null;
@@ -112,8 +113,10 @@ async function dashLoadBoardCards(boardId) {
     const res = await fetch('/api/bc-board/cards?board=' + encodeURIComponent(boardId));
     if (!res.ok) throw new Error('cards');
     const data = await res.json();
-    const byCol = {}; (data.columns || []).forEach((c) => { byCol[c.id] = c.cards || []; });
+    const byCol = {}, byHold = {};
+    (data.columns || []).forEach((c) => { byCol[c.id] = c.cards || []; byHold[c.id] = c.onHoldCards || []; });
     _dashCards[boardId] = byCol;
+    _dashOnHold[boardId] = byHold;
   } catch { /* leave unloaded — user can press ⚙ / reload */ }
   _dashLoading[boardId] = false;
   await dashSyncBoardTimer(boardId);
@@ -234,9 +237,11 @@ function dashBoardSectionHtml(b) {
 
 function dashSubColHtml(board, col, loaded) {
   const cards = ((_dashCards[board.id] || {})[col.id] || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+  const onHold = ((_dashOnHold[board.id] || {})[col.id] || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
   const count = loaded ? cards.length : (col.cardsCount || 0);
   const body = loaded
-    ? (cards.map(renderDashCard).join('') || '<div class="dash-subcol-empty"></div>')
+    ? ((cards.map(renderDashCard).join('') || '<div class="dash-subcol-empty"></div>') +
+       (onHold.length ? '<div class="dash-onhold-sep">⏸ On Hold (' + onHold.length + ')</div>' + onHold.map(renderDashCard).join('') : ''))
     : '<div class="bc-col-skel">' + Array(Math.min(col.cardsCount || 0, 4)).fill('<div class="bc-skel"></div>').join('') + '</div>';
   return '<div class="dash-subcol">' +
     '<div class="dash-subcol-header"><span class="dash-subcol-title">' + esc(col.title) + '</span><span class="dash-subcol-count">' + count + '</span></div>' +
@@ -258,7 +263,7 @@ function renderDashCard(card) {
   }
   const assignee = card.assignees && card.assignees[0] ? esc(card.assignees[0].name.split(' ')[0]) : '';
   const due = card.dueOn ? '<div class="dash-card__date">' + DASH_CAL_SVG + '<span>' + formatDate(card.dueOn) + '</span></div>' : '';
-  return '<div class="dash-card ' + colorClass + (card.completed ? ' dash-card--done' : '') + '" draggable="true" data-card-id="' + card.id + '" data-url="' + esc(card.url || '') + '"' +
+  return '<div class="dash-card ' + colorClass + (card.completed ? ' dash-card--done' : '') + (card.onHold ? ' dash-card--onhold' : '') + '" draggable="true" data-card-id="' + card.id + '" data-url="' + esc(card.url || '') + '"' +
       ' ondragstart="dashBcDragStart(event)" ondragend="dashBcDragEnd(event)" onclick="dashOpenCard(event, this)" title="' + esc(card.title) + ' — отвори в Basecamp">' +
     '<div class="dash-card__title">' + esc(card.title) + '</div>' +
     due +

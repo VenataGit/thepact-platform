@@ -79,7 +79,13 @@ async function loadBoardCards(token, account, cardTableId) {
   const lists = table.lists || [];
   const columns = await mapLimit(lists, 5, async (list) => {
     const cards = list.cards_count > 0 ? await bc.getColumnCards(token, account, projectId, list.id) : [];
-    return { id: list.id, cards: cards.map(mapCard) };
+    // On-hold cards live in a separate section (column.on_hold) with its own cards list.
+    let onHoldCards = [];
+    if (list.on_hold && list.on_hold.cards_count > 0) {
+      const oh = await bc.getColumnCards(token, account, projectId, list.on_hold.id);
+      onHoldCards = oh.map((c) => { const m = mapCard(c); m.onHold = true; return m; });
+    }
+    return { id: list.id, cards: cards.map(mapCard), onHoldCards };
   });
   const result = { at: Date.now(), cardTableId: table.id, columns };
   cardsCache.set(key, result);
