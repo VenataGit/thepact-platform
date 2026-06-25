@@ -124,6 +124,26 @@ router.get('/inspect', requireAuth, requireAdmin, async (req, res) => {
     const projectId = config.BASECAMP_TEAM_PROJECT_ID;
     const table = await bc.getCardTable(token, account, projectId, cardTableId);
 
+    // ?structure=1[&column=<id>]: dump the raw card-table lists + a column's detail, so we
+    // can see how the on-hold section is represented and how to fetch its cards.
+    if (req.query.structure) {
+      let columnDetail = null, onHoldCards = null;
+      const colId = req.query.column;
+      if (colId) {
+        try { columnDetail = (await bc.authedGet(`${bc.API_BASE}/${account}/buckets/${projectId}/card_tables/columns/${colId}.json`, token)).json; }
+        catch (e) { columnDetail = { error: e.message }; }
+        // Guess: on-hold cards may be fetchable from the column's own cards endpoint variant.
+        try { onHoldCards = (await bc.authedGet(`${bc.API_BASE}/${account}/buckets/${projectId}/card_tables/lists/${colId}/cards.json`, token)).json; }
+        catch (e) { onHoldCards = { error: e.message }; }
+      }
+      return res.json({
+        board: table.title,
+        lists: (table.lists || []).map((l) => ({ id: l.id, title: l.title, type: l.type, cards_count: l.cards_count, cards_url: l.cards_url, keys: Object.keys(l) })),
+        columnDetail,
+        cardsViaColumnEndpoint: Array.isArray(onHoldCards) ? onHoldCards.map((c) => ({ id: c.id, title: c.title, parent_type: c.parent && c.parent.type })) : onHoldCards,
+      });
+    }
+
     // ?card=<id>: return the FULL raw card object (from the column list) so we can see
     // every field — incl. whatever indicates "on hold". Also try the standalone GET.
     if (wantCard) {
