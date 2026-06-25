@@ -65,7 +65,10 @@ async function kpsPreview() {
     if (!res.ok || data.error) { box.innerHTML = '<div class="kps-err">' + esc(data.error || 'Грешка.') + '</div>'; return; }
     if (!data.count) { box.innerHTML = '<div class="kps-err">Не разпознах „Видео N - …" секции в този план. Провери формата.</div>'; return; }
     var rows = data.videos.map(function (v) {
-      return '<li><div class="kps-vtitle">' + esc(v.cardTitle) + '</div>' + (v.snippet ? '<div class="kps-vsnip">' + esc(v.snippet) + '…</div>' : '') + '</li>';
+      var date = v.publishDate
+        ? '<span class="kps-vdate">📅 ' + esc(formatDate(v.publishDate)) + '</span>'
+        : '<span class="kps-vdate kps-vdate--none">⚠ няма дата</span>';
+      return '<li><div class="kps-vtitle">' + esc(v.cardTitle) + ' ' + date + '</div>' + (v.snippet ? '<div class="kps-vsnip">' + esc(v.snippet) + '…</div>' : '') + '</li>';
     }).join('');
     box.innerHTML =
       '<div class="kps-preview">' +

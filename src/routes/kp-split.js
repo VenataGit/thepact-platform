@@ -11,15 +11,18 @@ const { requireAuth } = require('../middleware/auth');
 const config = require('../config');
 const bc = require('../services/basecamp');
 const { getUserAuth } = require('../services/basecamp-token');
+const { subtractWorkingDays } = require('../services/workdays');
 
 const MAX_VIDEOS = 30; // hard safety cap so a malformed plan can't flood the board
 
-// The 3 milestone steps that bc-date-sync.js recognises and auto-dates later.
-const VIDEO_STEPS = [
-  'Видеограф - Насрочване на снимачен ден',
-  'Монтажист - Приключен монтаж',
-  'PM - Насрочване/Качване в социални мрежи',
-];
+// The 3 milestone steps + working days BEFORE the publish date (same offsets as
+// bc-date-sync.js, so dates stay consistent and the webhook re-sync is idempotent).
+const STEP_OFFSETS = {
+  'Видеограф - Насрочване на снимачен ден': 11,
+  'Монтажист - Приключен монтаж': 6,
+  'PM - Насрочване/Качване в социални мрежи': 1,
+};
+const VIDEO_STEPS = Object.keys(STEP_OFFSETS);
 
 // --- parsing (ported from routes/kp.js) ---
 function parseVideoSections(htmlContent) {
@@ -42,6 +45,17 @@ function parseVideoSections(htmlContent) {
   }
   if (cur) sections.push({ ...cur, sectionText: curLines.join('\n') });
   return sections;
+}
+
+// Extract the publish date from a video section. Matches "Дата на/за публикуване"
+// followed by DD.MM.YYYY (slashes/dashes around it are ignored). Returns YYYY-MM-DD.
+function parsePublishDate(text) {
+  if (!text) return null;
+  const m = text.match(/Дата\s+(?:на|за)\s+публикуване\s*[-–—:]?\s*(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/i);
+  if (!m) return null;
+  const d = parseInt(m[1], 10), mo = parseInt(m[2], 10), y = parseInt(m[3], 10);
+  if (d < 1 || d > 31 || mo < 1 || mo > 12) return null;
+  return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
 }
 
 function textToHtml(text) {
@@ -125,6 +139,7 @@ router.post('/preview', requireAuth, async (req, res) => {
     const videos = sections.map((s) => ({
       videoNumber: s.videoNumber,
       cardTitle: prefix + ' - Видео ' + s.videoNumber + ' - ' + s.title,
+      publishDate: parsePublishDate(s.sectionText), // YYYY-MM-DD or null
       snippet: s.sectionText.split('\n').slice(1).join(' ').trim().slice(0, 180),
     }));
     res.json({ planTitle: card.title, count: videos.length, truncated, videos });
@@ -172,15 +187,17 @@ router.post('/create', requireAuth, async (req, res) => {
       const title = (prefix + ' - Видео ' + s.videoNumber + ' - ' + s.title).trim();
       if (seen.has(title)) { skipped.push(title); continue; }
       seen.add(title);
+      const publishDate = parsePublishDate(s.sectionText); // YYYY-MM-DD or null
       try {
         const newCard = await bc.createCard(token, account, projectId, target.id, {
-          title, content: textToHtml(s.sectionText),
+          title, content: textToHtml(s.sectionText), due_on: publishDate || undefined,
         });
         for (const stepTitle of VIDEO_STEPS) {
-          try { await bc.createStep(token, account, projectId, newCard.id, { title: stepTitle }); }
+          const stepDate = publishDate ? subtractWorkingDays(publishDate, STEP_OFFSETS[stepTitle]) : undefined;
+          try { await bc.createStep(token, account, projectId, newCard.id, { title: stepTitle, due_on: stepDate }); }
           catch (e) { console.warn('[kp-split] step failed', stepTitle, e.message); }
         }
-        created.push({ id: newCard.id, title: newCard.title, url: newCard.app_url });
+        created.push({ id: newCard.id, title: newCard.title, url: newCard.app_url, publishDate: publishDate || null });
       } catch (e) {
         errors.push({ title, error: e.message });
       }
