@@ -194,6 +194,28 @@ async function createStep(token, account, projectId, cardId, { title, due_on, as
   return r.json();
 }
 
+// Download a file (e.g. an attachment's `href` storage URL) as a Buffer.
+// Accept */* — the shared headers() default of application/json would make the file
+// server return a JSON error instead of the bytes.
+async function downloadFile(token, url) {
+  const r = await fetch(url, { headers: headers({ Authorization: `Bearer ${token}`, Accept: '*/*' }), redirect: 'follow' });
+  if (!r.ok) throw new Error(`Basecamp download failed (${r.status})`);
+  const buffer = Buffer.from(await r.arrayBuffer());
+  return { buffer, contentType: r.headers.get('content-type') || '' };
+}
+
+// Upload raw bytes to get a fresh attachable_sgid. POST /attachments.json?name=<file>
+// (rich-text attachments can't be reused across cards, so each must be re-uploaded).
+async function uploadAttachment(token, account, { name, contentType, buffer }) {
+  const r = await fetch(`${API_BASE}/${account}/attachments.json?name=${encodeURIComponent(name || 'file')}`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream', 'Content-Length': String(buffer.length) }),
+    body: buffer,
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp upload failed (${r.status}): ${b.slice(0, 150)}`); }
+  return (await r.json()).attachable_sgid;
+}
+
 module.exports = {
   AUTH_BASE,
   API_BASE,
@@ -211,4 +233,6 @@ module.exports = {
   getCard,
   createCard,
   createStep,
+  downloadFile,
+  uploadAttachment,
 };

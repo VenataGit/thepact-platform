@@ -68,7 +68,8 @@ async function kpsPreview() {
       var date = v.publishDate
         ? '<span class="kps-vdate">📅 ' + esc(formatDate(v.publishDate)) + '</span>'
         : '<span class="kps-vdate kps-vdate--none">⚠ няма дата</span>';
-      return '<li><div class="kps-vtitle">' + esc(v.cardTitle) + ' ' + date + '</div>' + (v.snippet ? '<div class="kps-vsnip">' + esc(v.snippet) + '…</div>' : '') + '</li>';
+      var media = v.mediaCount ? ' <span class="kps-vmedia">📎 ' + v.mediaCount + '</span>' : '';
+      return '<li><div class="kps-vtitle">' + esc(v.cardTitle) + ' ' + date + media + '</div>' + (v.snippet ? '<div class="kps-vsnip">' + esc(v.snippet) + '…</div>' : '') + '</li>';
     }).join('');
     box.innerHTML =
       '<div class="kps-preview">' +
@@ -88,17 +89,18 @@ async function kpsCreate() {
   var rbox = document.getElementById('kpsResult');
   var btns = Array.prototype.slice.call(document.querySelectorAll('.kps-btn'));
   btns.forEach(function (b) { b.disabled = true; });
-  if (rbox) rbox.innerHTML = '<div class="kps-muted">Създавам задачите в Basecamp… (не затваряй прозореца)</div>';
+  if (rbox) rbox.innerHTML = '<div class="kps-muted">Създавам задачите в Basecamp и прехвърлям медията… може да отнеме малко (не затваряй прозореца).</div>';
   try {
     var res = await fetch('/api/kp-split/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId: cardId, destBoardId: destBoardId }) });
     var data = await res.json();
     if (!res.ok || data.error) { if (rbox) rbox.innerHTML = '<div class="kps-err">' + esc(data.error || 'Грешка.') + '</div>'; btns.forEach(function (b) { b.disabled = false; }); return; }
-    var ok = (data.created || []).length, errs = (data.errors || []), skip = (data.skipped || []);
+    var ok = (data.created || []).length, errs = (data.errors || []), skip = (data.skipped || []), merr = (data.mediaErrors || []);
     var html = '<div class="kps-ok">✓ Създадени <b>' + ok + '</b> задачи в „' + esc(data.column || 'Разпределение') + '" (' + esc(data.board || '') + ').</div>';
     if (skip.length) html += '<div class="kps-muted">Пропуснати ' + skip.length + ' (вече съществуват със същото заглавие).</div>';
     if (data.truncated) html += '<div class="kps-muted">⚠ Планът има повече видеа от лимита — създадени са само първите.</div>';
-    if (errs.length) html += '<div class="kps-err">' + errs.length + ' неуспешни: ' + esc(errs.map(function (e) { return e.title; }).join('; ')) + '</div>';
-    html += '<div class="kps-muted">Картите излизат с оранжев сигнал „Няма дата" — сложи Due date и стъпките ще се попълнят автоматично.</div>';
+    if (merr.length) html += '<div class="kps-err">' + merr.length + ' медийни файла не се прехвърлиха: ' + esc(merr.map(function (m) { return m.filename; }).join(', ')) + '</div>';
+    if (errs.length) html += '<div class="kps-err">' + errs.length + ' неуспешни задачи: ' + esc(errs.map(function (e) { return e.title; }).join('; ')) + '</div>';
+    html += '<div class="kps-muted">Видеата без дата излизат с оранжев сигнал „Няма дата" — сложи Due date и стъпките се попълват автоматично.</div>';
     if (rbox) rbox.innerHTML = html;
   } catch (e) { if (rbox) rbox.innerHTML = '<div class="kps-err">Грешка при създаване.</div>'; btns.forEach(function (b) { b.disabled = false; }); }
 }
