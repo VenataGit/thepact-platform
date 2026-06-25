@@ -160,6 +160,40 @@ async function moveCard(token, account, projectId, cardTableId, cardId, targetCo
   return true;
 }
 
+// Fetch a single card with its full payload (incl. `content` rich HTML + steps).
+async function getCard(token, account, projectId, cardId) {
+  return (await authedGet(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${cardId}.json`, token)).json;
+}
+
+// Create a card in a column/list. POST .../card_tables/lists/{listId}/cards.json
+// body { title (required), content (rich HTML), due_on }. Returns the created card JSON.
+async function createCard(token, account, projectId, listId, { title, content, due_on } = {}) {
+  const body = { title };
+  if (content != null) body.content = content;
+  if (due_on) body.due_on = due_on;
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/lists/${listId}/cards.json`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp create card failed (${r.status}): ${b.slice(0, 200)}`); }
+  return r.json();
+}
+
+// Create a step (to-do) on a card. POST .../card_tables/cards/{cardId}/steps.json
+async function createStep(token, account, projectId, cardId, { title, due_on, assignee_ids } = {}) {
+  const body = { title };
+  if (due_on) body.due_on = due_on;
+  if (assignee_ids && assignee_ids.length) body.assignee_ids = assignee_ids;
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${cardId}/steps.json`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp create step failed (${r.status}): ${b.slice(0, 200)}`); }
+  return r.json();
+}
+
 module.exports = {
   AUTH_BASE,
   API_BASE,
@@ -174,4 +208,7 @@ module.exports = {
   getCardTable,
   getColumnCards,
   moveCard,
+  getCard,
+  createCard,
+  createStep,
 };
