@@ -81,7 +81,7 @@ function sgRenderFonts() {
   host.innerHTML = SG_FONTS.map(function (f) {
     var active = (f.value === cur) ? ' sg-font--active' : '';
     var ff = f.value ? ("'" + f.value + "', sans-serif") : 'var(--font-family)';
-    return '<button class="sg-font' + active + '" style="font-family:' + ff + '" onclick="sgApplyFont(' + JSON.stringify(f.value) + ')">' +
+    return '<button type="button" class="sg-font' + active + '" style="font-family:' + ff + '" onclick="sgApplyFont(\'' + f.value + '\')">' +
       '<span class="sg-font__name">' + esc(f.name) + '</span>' +
       '<span class="sg-font__sample">Аа Бб Вв Гг 123</span>' +
     '</button>';
