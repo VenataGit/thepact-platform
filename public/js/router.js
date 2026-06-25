@@ -23,6 +23,7 @@ function router() {
     case 'project': return renderProject(el, id);
     case 'videoproduction': return renderProject(el, 1);
     case 'dashboard': return renderDashboard(el);
+    case 'clients': return parts[1] ? renderClientDetail(el, decodeURIComponent(parts[1])) : renderClientsList(el);
     case 'board': return id ? renderBoard(el, id) : renderDashboard(el);
     case 'docs': return id ? renderDocs(el, id, sub ? parseInt(sub) : null) : renderDashboard(el);
     case 'doc': return id ? renderDocument(el, id) : renderDashboard(el);

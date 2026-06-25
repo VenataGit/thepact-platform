@@ -159,6 +159,7 @@ app.use('/api/kp', require('./routes/kp'));
 app.use('/api/sos', require('./routes/sos'));
 app.use('/api/production-calendar', require('./routes/production-calendar'));
 app.use('/api/bc-board', require('./routes/bc-board'));
+app.use('/api/clients', require('./routes/clients'));
 app.use('/api/bc-calendar', require('./routes/bc-calendar'));
 app.use('/api/kp-split', require('./routes/kp-split'));
 app.use('/webhooks', require('./routes/webhooks'));

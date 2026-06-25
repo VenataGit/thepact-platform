@@ -12,36 +12,10 @@ const config = require('../config');
 const { queryOne, execute } = require('../db/pool');
 const bc = require('../services/basecamp');
 const { getUserAuth } = require('../services/basecamp-token');
-
-// Run async fn over items with limited concurrency (gentle on Basecamp rate limits).
-async function mapLimit(items, limit, fn) {
-  const out = new Array(items.length);
-  let i = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length || 1) }, async () => {
-    while (i < items.length) { const idx = i++; out[idx] = await fn(items[idx], idx); }
-  });
-  await Promise.all(workers);
-  return out;
-}
-
-function mapCard(c) {
-  return {
-    id: c.id,
-    title: c.title,
-    dueOn: c.due_on,
-    completed: c.completed,
-    assignees: (c.assignees || []).map((a) => ({ id: a.id, name: a.name })),
-    stepsCount: (c.steps || []).length,
-    url: c.app_url,
-    position: c.position,
-  };
-}
-
-// The board is shared across team members, so cache both stages briefly.
-let structCache = { at: 0, data: null };
-const STRUCT_TTL = 60_000;
-const cardsCache = new Map(); // cardTableId -> { at, cardTableId, columns }
-const CARDS_TTL = 30_000;
+// Board fetching + caching lives in the shared aggregate service so the Clients
+// overview reuses the same warm caches (see services/bc-aggregate.js).
+const agg = require('../services/bc-aggregate');
+const { loadStructure, loadBoardCards, invalidateBoard } = agg;
 
 // Global dashboard layout (board + column ordering), set by an admin, applied for everyone.
 const LAYOUT_KEY = 'bc_dashboard_layout';
@@ -50,46 +24,6 @@ async function getLayout() {
     const row = await queryOne('SELECT value FROM app_settings WHERE key = $1', [LAYOUT_KEY]);
     return row && row.value ? JSON.parse(row.value) : {};
   } catch { return {}; }
-}
-
-async function loadStructure(token, account) {
-  if (structCache.data && Date.now() - structCache.at < STRUCT_TTL) return structCache.data;
-  const projectId = config.BASECAMP_TEAM_PROJECT_ID;
-  const project = await bc.getProject(token, account, projectId);
-  const tools = (project.dock || []).filter((t) => t.enabled && /kanban|card/i.test(t.name));
-  const boards = await mapLimit(tools, 3, async (t) => {
-    const table = (await bc.authedGet(t.url, token)).json;
-    return {
-      id: table.id,
-      title: t.title || table.title,
-      projectId,
-      columns: (table.lists || []).map((l) => ({ id: l.id, title: l.title, cardsCount: l.cards_count, isDone: /DoneColumn/i.test(l.type || '') })),
-    };
-  });
-  structCache = { at: Date.now(), data: { projectId, boards } };
-  return structCache.data;
-}
-
-async function loadBoardCards(token, account, cardTableId) {
-  const key = String(cardTableId);
-  const hit = cardsCache.get(key);
-  if (hit && Date.now() - hit.at < CARDS_TTL) return hit;
-  const projectId = config.BASECAMP_TEAM_PROJECT_ID;
-  const table = await bc.getCardTable(token, account, projectId, cardTableId);
-  const lists = table.lists || [];
-  const columns = await mapLimit(lists, 5, async (list) => {
-    const cards = list.cards_count > 0 ? await bc.getColumnCards(token, account, projectId, list.id) : [];
-    // On-hold cards live in a separate section (column.on_hold) with its own cards list.
-    let onHoldCards = [];
-    if (list.on_hold && list.on_hold.cards_count > 0) {
-      const oh = await bc.getColumnCards(token, account, projectId, list.on_hold.id);
-      onHoldCards = oh.map((c) => { const m = mapCard(c); m.onHold = true; return m; });
-    }
-    return { id: list.id, cards: cards.map(mapCard), onHoldCards };
-  });
-  const result = { at: Date.now(), cardTableId: table.id, columns };
-  cardsCache.set(key, result);
-  return result;
 }
 
 // GET /api/bc-board — board structure (boards + columns + counts), no cards.
@@ -201,7 +135,7 @@ router.post('/move', requireAuth, async (req, res) => {
     }
     const { token, account } = await getUserAuth(req.user.userId);
     await bc.moveCard(token, account, config.BASECAMP_TEAM_PROJECT_ID, cardTableId, cardId, targetColumnId, position || 0);
-    cardsCache.delete(String(cardTableId)); // this board re-fetches on next load
+    invalidateBoard(cardTableId); // this board re-fetches on next load
     res.json({ ok: true });
   } catch (err) {
     console.error('[bc-board move]', err.message);
