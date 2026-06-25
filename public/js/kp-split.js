@@ -34,10 +34,10 @@ function kpsBody(html) { var b = document.getElementById('kpsBody'); if (b) b.in
 function kpsRenderForm() {
   var d = _kps.init || {};
   var plans = d.plans || [], dests = d.destinations || [];
-  if (!plans.length) { kpsBody('<div class="kps-err">Няма контент планове в Pre-Production.</div>'); return; }
+  if (!plans.length) { kpsBody('<div class="kps-err">Няма планове в колона „В продукция" (Pre-Production).</div>'); return; }
   if (!dests.length) { kpsBody('<div class="kps-err">Не намерих Production / Post-Production дъски.</div>'); return; }
   var planOpts = plans.map(function (p) {
-    return '<option value="' + p.id + '">' + esc(p.title) + (p.column ? ' — ' + esc(p.column) : '') + '</option>';
+    return '<option value="' + p.id + '">' + esc(p.title) + '</option>';
   }).join('');
   var destRadios = dests.map(function (b, i) {
     return '<label class="kps-radio"><input type="radio" name="kpsDest" value="' + b.id + '"' + (i === 0 ? ' checked' : '') + '> ' + esc(b.title) + '</label>';

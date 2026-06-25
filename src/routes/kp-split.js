@@ -93,12 +93,12 @@ router.get('/init', requireAuth, async (req, res) => {
     const preTool = findTool(tools, /pre[\s-]*produc|предпрод/i);
     const destinations = await resolveDestinations(token, tools);
 
+    // Plans = only the cards in Pre-Production's "В продукция" column (ready to split).
     const plans = [];
     if (preTool) {
       const table = (await bc.authedGet(preTool.url, token)).json;
-      const lists = (table.lists || []).filter((l) => !/DoneColumn/i.test(l.type || ''));
-      for (const list of lists) {
-        if (!list.cards_count) continue;
+      const list = (table.lists || []).find((l) => /в\s*продукция/i.test(l.title || ''));
+      if (list && list.cards_count) {
         const cards = await bc.getColumnCards(token, account, projectId, list.id);
         cards.forEach((c) => plans.push({ id: c.id, title: c.title, column: list.title }));
       }
