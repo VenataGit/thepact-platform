@@ -7,7 +7,7 @@
 // media (images/videos) re-uploaded into the new card. Links inside text are kept as text.
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const config = require('../config');
 const bc = require('../services/basecamp');
 const { getUserAuth } = require('../services/basecamp-token');
@@ -279,6 +279,30 @@ router.post('/create', requireAuth, async (req, res) => {
     res.json({ created, errors, skipped, truncated, mediaErrors, board: destTable.title, column: target.title });
   } catch (err) {
     console.error('[kp-split create]', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// GET /api/kp-split/test-download?card=<id> — admin diagnostic: try downloading the
+// first attachment of a plan and report exactly what happens (status / error / bytes).
+router.get('/test-download', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const cardId = req.query.card;
+    if (!cardId) return res.status(400).json({ error: 'card required' });
+    const { token, account } = await getUserAuth(req.user.userId);
+    const projectId = config.BASECAMP_TEAM_PROJECT_ID;
+    const card = await bc.getCard(token, account, projectId, cardId);
+    const { attachments } = parsePlan(planHtml(card));
+    if (!attachments.length) return res.json({ note: 'няма attachments в този план' });
+    const a = attachments[0];
+    const out = { filename: a.filename, contentType: a.contentType, filesize: a.filesize, href: a.href };
+    try {
+      const { buffer, contentType } = await bc.downloadFile(token, a.href);
+      out.ok = true; out.bytes = buffer.length; out.gotContentType = contentType;
+    } catch (e) { out.ok = false; out.error = e.message; }
+    res.json(out);
+  } catch (err) {
+    console.error('[kp-split test-download]', err.message);
     res.status(502).json({ error: err.message });
   }
 });

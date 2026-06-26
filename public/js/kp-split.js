@@ -98,7 +98,7 @@ async function kpsCreate() {
     var html = '<div class="kps-ok">✓ Създадени <b>' + ok + '</b> задачи в „' + esc(data.column || 'Разпределение') + '" (' + esc(data.board || '') + ').</div>';
     if (skip.length) html += '<div class="kps-muted">Пропуснати ' + skip.length + ' (вече съществуват със същото заглавие).</div>';
     if (data.truncated) html += '<div class="kps-muted">⚠ Планът има повече видеа от лимита — създадени са само първите.</div>';
-    if (merr.length) html += '<div class="kps-err">' + merr.length + ' медийни файла не се прехвърлиха: ' + esc(merr.map(function (m) { return m.filename; }).join(', ')) + '</div>';
+    if (merr.length) html += '<div class="kps-err">' + merr.length + ' медийни файла не се прехвърлиха:<br>' + merr.map(function (m) { return esc((m.filename || '') + ' — ' + (m.error || '')); }).join('<br>') + '</div>';
     if (errs.length) html += '<div class="kps-err">' + errs.length + ' неуспешни задачи: ' + esc(errs.map(function (e) { return e.title; }).join('; ')) + '</div>';
     html += '<div class="kps-muted">Видеата без дата излизат с оранжев сигнал „Няма дата" — сложи Due date и стъпките се попълват автоматично.</div>';
     if (rbox) rbox.innerHTML = html;

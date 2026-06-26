@@ -199,7 +199,7 @@ async function createStep(token, account, projectId, cardId, { title, due_on, as
 // server return a JSON error instead of the bytes.
 async function downloadFile(token, url) {
   const r = await fetch(url, { headers: headers({ Authorization: `Bearer ${token}`, Accept: '*/*' }), redirect: 'follow' });
-  if (!r.ok) throw new Error(`Basecamp download failed (${r.status})`);
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`download ${r.status} ${r.headers.get('content-type') || ''} ${b.slice(0, 80)}`.trim()); }
   const buffer = Buffer.from(await r.arrayBuffer());
   return { buffer, contentType: r.headers.get('content-type') || '' };
 }
