@@ -14,6 +14,9 @@ function router() {
 
   const el = document.getElementById('pageContent');
   closeAllDropdowns();
+  // Dashboard-only settings gear (top nav) — hide on every navigation; renderDashboard re-shows it.
+  const _dashGear = document.getElementById('navDashSettings');
+  if (_dashGear) _dashGear.style.display = 'none';
 
   // Reset card edit mode when navigating away from card page
   if (page !== 'card') _cardEditMode = false;

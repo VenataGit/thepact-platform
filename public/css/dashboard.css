@@ -1,5 +1,11 @@
 /* ==================== DASHBOARD (PRODUCTION BOARD) ==================== */
 .dash-wrap { padding: 0 8px; }
+/* Dashboard lands directly below the nav — trim the default #pageContent top padding so
+   the board columns sit higher (stats bar removed; settings gear moved to the top nav). */
+#pageContent.dash-page { padding-top: 12px; }
+/* The dashboard settings gear now lives in the nav (not the stats bar) — drop the
+   stats-bar auto margin so it sits snug next to the avatar. */
+#navDashSettings { margin-left: 0; }
 
 .dash-stats-bar {
   display: flex; gap: 6px; align-items: center; padding: 6px 0 10px;

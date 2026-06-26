@@ -140,22 +140,31 @@ router.get('/basecamp/callback', async (req, res) => {
       }
     }
 
+    // Pull the person's Basecamp avatar so the account photo (and name) come straight from
+    // Basecamp. Best-effort — never block login if Basecamp doesn't return one.
+    let bcAvatar = null;
+    try {
+      const profile = await basecamp.getMyProfile(tokens.access_token, accountId);
+      if (profile && profile.avatar_url) bcAvatar = profile.avatar_url;
+    } catch (e) { console.warn('[basecamp] avatar fetch failed:', e.message); }
+
     if (!user) {
       // Auto-provision a brand-new team member straight from Basecamp.
       user = await queryOne(
-        `INSERT INTO users (email, name, role, basecamp_user_id, basecamp_account_id, is_active)
-         VALUES ($1, $2, 'member', $3, $4, TRUE)
+        `INSERT INTO users (email, name, role, basecamp_user_id, basecamp_account_id, avatar_url, is_active)
+         VALUES ($1, $2, 'member', $3, $4, $5, TRUE)
          ON CONFLICT (email) DO UPDATE SET
            basecamp_user_id = EXCLUDED.basecamp_user_id,
            basecamp_account_id = EXCLUDED.basecamp_account_id,
            name = EXCLUDED.name,
+           avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
            updated_at = NOW()
          RETURNING *`,
-        [email, name, bcUserId, accountId]
+        [email, name, bcUserId, accountId, bcAvatar]
       );
       console.log(`[basecamp] auto-provisioned ${email} (${member.reason})`);
     } else {
-      await execute('UPDATE users SET basecamp_user_id = $1, basecamp_account_id = $2, updated_at = NOW() WHERE id = $3', [bcUserId, accountId, user.id]);
+      await execute('UPDATE users SET basecamp_user_id = $1, basecamp_account_id = $2, avatar_url = COALESCE($3, avatar_url), updated_at = NOW() WHERE id = $4', [bcUserId, accountId, bcAvatar, user.id]);
     }
 
     if (user.is_active === false) return res.redirect('/login.html?bc=inactive');

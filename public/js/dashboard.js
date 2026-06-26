@@ -70,9 +70,8 @@ function applyDefaultBoardOrder(boards) {
 
 async function renderDashboard(el) {
   setBreadcrumb(null);
-  el.className = 'full-width';
+  el.className = 'full-width dash-page';
   el.innerHTML = '<div class="dash-wrap">' +
-    '<div class="dash-stats-bar" id="dashStats"></div>' +
     '<div class="dash-board" id="dashBoard"><div style="padding:40px;color:var(--text-dim)">Зареждам от Basecamp…</div></div>' +
   '</div>';
   await dashLoadStructure();
@@ -179,24 +178,11 @@ function dashBoardTimerHtml(b) {
 }
 
 function dashRenderStats() {
-  const stats = document.getElementById('dashStats');
-  if (!stats || !_dashStruct) return;
-  const now = new Date(); now.setHours(0, 0, 0, 0);
-  let overdue = 0;
-  Object.keys(_dashCards).forEach((bid) => {
-    Object.values(_dashCards[bid]).forEach((cards) => cards.forEach((c) => {
-      const d = c.dueOn ? _parseDateMidnight(c.dueOn) : null;
-      if (d && d < now && !c.completed) overdue++;
-    }));
-  });
-  const total = (_dashStruct.boards || []).reduce((s, b) => s + dashBoardTotal(b), 0);
-  const hidden = getDashHiddenBoards();
-  const visibleBoards = (_dashStruct.boards || []).filter((b) => !hidden.has(String(b.id))).length;
-  stats.innerHTML =
-    '<div class="dash-stat"><span class="dash-stat__num">' + total + '</span><span class="dash-stat__label">Задачи</span></div>' +
-    '<div class="dash-stat dash-stat--warn"><span class="dash-stat__num">' + overdue + '</span><span class="dash-stat__label">Просрочени</span></div>' +
-    '<div class="dash-stat"><span class="dash-stat__num">' + visibleBoards + '</span><span class="dash-stat__label">Дъски</span></div>' +
-    '<button class="dash-settings-btn" onclick="showDashSettings()" title="Настройки на Dashboard">⚙ Настройки</button>';
+  // The stats bar (Задачи / Просрочени / Дъски) was removed by request. The dashboard
+  // settings gear now lives in the top nav next to the avatar — just reveal it while the
+  // dashboard is the active view (router.js hides it again on navigation away).
+  const btn = document.getElementById('navDashSettings');
+  if (btn) btn.style.display = 'inline-flex';
 }
 
 function dashRenderBoards() {

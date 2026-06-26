@@ -129,6 +129,11 @@ async function getProject(token, account, projectId) {
   return (await authedGet(`${API_BASE}/${account}/projects/${projectId}.json`, token)).json;
 }
 
+// The signed-in person's own profile — includes name, email_address and avatar_url.
+async function getMyProfile(token, account) {
+  return (await authedGet(`${API_BASE}/${account}/my/profile.json`, token)).json;
+}
+
 async function getCardTable(token, account, projectId, cardTableId) {
   return (await authedGet(`${API_BASE}/${account}/buckets/${projectId}/card_tables/${cardTableId}.json`, token)).json;
 }
@@ -226,6 +231,7 @@ module.exports = {
   getAuthorization,
   authedGet,
   isTeamMember,
+  getMyProfile,
   getProject,
   getCardTable,
   getColumnCards,
