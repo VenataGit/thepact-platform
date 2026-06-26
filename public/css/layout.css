@@ -501,7 +501,7 @@
    ENTIRE page-board area (header + columns) from right below the breadcrumb
    all the way to the bottom of the viewport. */
 #pageContent.page-board {
-  --board-gutter: clamp(16px, 5.5vw, 100px);
+  --board-gutter: clamp(16px, 5.5vw, 20px);
   --backdrop-inset: max(0px, calc(var(--board-gutter) - 20px));
   padding: 0 var(--board-gutter) 0;
   display: flex;
