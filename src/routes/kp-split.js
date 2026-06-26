@@ -40,6 +40,7 @@ function attrOf(html, name) {
 }
 function parseAttachment(html) {
   return {
+    sgid: attrOf(html, 'sgid'),
     href: attrOf(html, 'href') || attrOf(html, 'url'), // href = the real download URL (in `description`)
     contentType: attrOf(html, 'content-type'),
     filename: attrOf(html, 'filename') || attrOf(html, 'alt') || 'file',
@@ -232,26 +233,14 @@ router.post('/create', requireAuth, async (req, res) => {
     const existing = await bc.getColumnCards(token, account, projectId, target.id);
     const seen = new Set(existing.map((c) => (c.title || '').trim()));
 
-    // Re-upload each source attachment once (download from the plan → re-upload → new sgid).
-    const uploaded = {}; // srcIdx -> <bc-attachment> write-form (or '' if it couldn't be carried)
     const mediaErrors = [];
     async function attachTagFor(idx) {
-      if (Object.prototype.hasOwnProperty.call(uploaded, idx)) return uploaded[idx];
       const a = attachments[idx];
-      let tag = '';
-      try {
-        if (!a || !a.href) throw new Error('no download url');
-        if (a.filesize && a.filesize > MAX_ATTACH_BYTES) throw new Error('файлът е твърде голям');
-        const { buffer } = await bc.downloadFile(token, a.href);
-        if (buffer.length > MAX_ATTACH_BYTES) throw new Error('файлът е твърде голям'); // guard when filesize was absent
-        const sgid = await bc.uploadAttachment(token, account, { name: a.filename, contentType: a.contentType, buffer });
-        tag = '<bc-attachment sgid="' + sgid + '"' + (a.caption ? ' caption="' + escAttr(a.caption) + '"' : '') + '></bc-attachment>';
-      } catch (e) {
-        mediaErrors.push({ filename: a ? a.filename : ('#' + idx), error: e.message });
-        tag = '';
-      }
-      uploaded[idx] = tag;
-      return tag;
+      if (!a || !a.sgid) { mediaErrors.push({ filename: a ? a.filename : ('#' + idx), error: 'no sgid' }); return ''; }
+      // Reuse the plan's original attachment sgid directly — Basecamp's storage URLs
+      // need a browser session, so server-side download isn't possible. If Basecamp
+      // rejects reuse, the card is still created (media just absent).
+      return '<bc-attachment sgid="' + a.sgid + '"' + (a.caption ? ' caption="' + escAttr(a.caption) + '"' : '') + '></bc-attachment>';
     }
 
     const created = [], errors = [], skipped = [];
