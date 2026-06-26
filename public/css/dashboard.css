@@ -253,12 +253,11 @@
 }
 .dash-done-footer:hover { background: var(--bg-hover); }
 
-/* Responsive */
+/* Responsive — under 900px the boards DON'T stack vertically. Instead they stay side by
+   side in "focus" mode: one board expanded, the rest collapsed to thin vertical strips
+   (driven by expandedDashCol / dashEffectiveExpanded in dashboard.js). The collapsed
+   strips keep their desktop vertical-rl header — no override needed here. */
 @media (max-width: 900px) {
-  .dash-board { flex-direction: column; }
+  .dash-board { flex-direction: row; min-height: calc(100vh - 150px); }
   .dash-col.collapsed { flex: 0 0 40px; }
-  .dash-col.collapsed .dash-col-header {
-    writing-mode: horizontal-tb; padding: 10px 14px;
-  }
-  .dash-stats-bar { flex-wrap: wrap; }
 }

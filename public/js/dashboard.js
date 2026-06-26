@@ -185,14 +185,35 @@ function dashRenderStats() {
   if (btn) btn.style.display = 'inline-flex';
 }
 
+// Below this width the dashboard switches to "focus" mode: one board expanded, the rest
+// collapsed to thin strips beside it (same as clicking a board header on desktop).
+const DASH_NARROW = 900;
+function dashIsNarrow() { return window.innerWidth < DASH_NARROW; }
+
+// Visible boards in their display order (shared by the renderer and the focus logic).
+function dashOrderedVisibleBoards() {
+  if (!_dashStruct) return [];
+  const hidden = getDashHiddenBoards();
+  const boards = (_dashStruct.boards || []).filter((b) => !hidden.has(String(b.id)));
+  return (_dashLayout.boardOrder && _dashLayout.boardOrder.length)
+    ? applyOrder(boards, _dashLayout.boardOrder)
+    : applyDefaultBoardOrder(boards);
+}
+
+// Which board is "focused" (expanded). On wide screens it's exactly the user's pick (or
+// none). On narrow screens we always focus one — the user's pick if still visible, else the
+// first visible board — so the layout never falls back to equal-width columns.
+function dashEffectiveExpanded() {
+  if (!dashIsNarrow()) return expandedDashCol;
+  const ordered = dashOrderedVisibleBoards();
+  if (expandedDashCol && ordered.some((b) => String(b.id) === expandedDashCol)) return expandedDashCol;
+  return ordered.length ? String(ordered[0].id) : null;
+}
+
 function dashRenderBoards() {
   const container = document.getElementById('dashBoard');
   if (!container || !_dashStruct) return;
-  const hidden = getDashHiddenBoards();
-  let boards = (_dashStruct.boards || []).filter((b) => !hidden.has(String(b.id)));
-  boards = (_dashLayout.boardOrder && _dashLayout.boardOrder.length)
-    ? applyOrder(boards, _dashLayout.boardOrder)
-    : applyDefaultBoardOrder(boards);
+  const boards = dashOrderedVisibleBoards();
   if (!boards.length) { container.innerHTML = '<div style="padding:40px;color:var(--text-dim)">Няма видими дъски. Виж ⚙ Настройки.</div>'; return; }
   container.innerHTML = boards.map(dashBoardSectionHtml).join('');
 }
@@ -210,8 +231,9 @@ function dashBoardSectionHtml(b) {
   cols = applyOrder(cols, (_dashLayout.colOrder || {})[String(b.id)]);
   const loaded = !!_dashCards[b.id];
   const tag = loaded ? '' : (_dashLoading[b.id] ? ' <span class="bc-mini">зареждам…</span>' : '');
-  const isExpanded = expandedDashCol === String(b.id);
-  const isCollapsed = expandedDashCol && expandedDashCol !== String(b.id);
+  const eff = dashEffectiveExpanded();
+  const isExpanded = eff === String(b.id);
+  const isCollapsed = eff && eff !== String(b.id);
   const colClass = isExpanded ? 'dash-col expanded' : isCollapsed ? 'dash-col collapsed' : 'dash-col';
   const body = isCollapsed ? '' : ('<div class="dash-col-body">' + cols.map((c) => dashSubColHtml(b, c, loaded)).join('') + '</div>');
   return '<div class="' + colClass + '" data-board-id="' + b.id + '">' +
@@ -380,11 +402,27 @@ function toggleDashColVisibility(colId, visible) {
   dashRenderBoards();
 }
 
-// Expand a board to full width (the rest collapse); click its header to toggle.
+// Expand a board to full width (the rest collapse); click its header to toggle. On narrow
+// screens we always keep exactly one board focused, so a click just switches focus.
 function toggleDashCol(boardId) {
-  expandedDashCol = (expandedDashCol === String(boardId)) ? null : String(boardId);
+  if (dashIsNarrow()) {
+    expandedDashCol = String(boardId);
+  } else {
+    expandedDashCol = (expandedDashCol === String(boardId)) ? null : String(boardId);
+  }
   dashRenderBoards();
 }
+
+// Re-render when the viewport crosses the narrow/wide threshold so the focus layout
+// engages (or releases) automatically — but only while the dashboard is the active view.
+let _dashWasNarrow = null;
+window.addEventListener('resize', () => {
+  if (!document.getElementById('dashBoard')) return;
+  const narrow = dashIsNarrow();
+  if (narrow === _dashWasNarrow) return;
+  _dashWasNarrow = narrow;
+  dashRenderBoards();
+});
 
 // Open a card on its own page in Basecamp, in a new tab.
 function dashOpenCard(e, el) {
