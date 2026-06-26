@@ -292,15 +292,26 @@ router.get('/test-download', requireAuth, requireAdmin, async (req, res) => {
     const { token, account } = await getUserAuth(req.user.userId);
     const projectId = config.BASECAMP_TEAM_PROJECT_ID;
     const card = await bc.getCard(token, account, projectId, cardId);
-    const { attachments } = parsePlan(planHtml(card));
-    if (!attachments.length) return res.json({ note: 'няма attachments в този план' });
-    const a = attachments[0];
-    const out = { filename: a.filename, contentType: a.contentType, filesize: a.filesize, href: a.href };
-    try {
-      const { buffer, contentType } = await bc.downloadFile(token, a.href);
-      out.ok = true; out.bytes = buffer.length; out.gotContentType = contentType;
-    } catch (e) { out.ok = false; out.error = e.message; }
-    res.json(out);
+    const descA = (parsePlan(card.description || '').attachments)[0] || {};
+    const contA = (parsePlan(card.content || '').attachments)[0] || {};
+    const tryDl = async (url, withAuth) => {
+      if (!url) return { skipped: true };
+      try {
+        const headers = withAuth
+          ? { 'User-Agent': config.BASECAMP_USER_AGENT, Accept: '*/*', Authorization: 'Bearer ' + token }
+          : { 'User-Agent': config.BASECAMP_USER_AGENT, Accept: '*/*' };
+        const r = await fetch(url, { headers, redirect: 'follow' });
+        if (!r.ok) { const b = await r.text().catch(() => ''); return { ok: false, status: r.status, ct: r.headers.get('content-type'), body: b.slice(0, 60) }; }
+        const buf = Buffer.from(await r.arrayBuffer());
+        return { ok: true, bytes: buf.length, ct: r.headers.get('content-type') };
+      } catch (e) { return { ok: false, error: e.message }; }
+    };
+    res.json({
+      filename: descA.filename, contentType: descA.contentType, filesize: descA.filesize,
+      hrefDownload_auth: { url: descA.href, ...(await tryDl(descA.href, true)) },
+      signed_auth: { url: contA.href, ...(await tryDl(contA.href, true)) },
+      signed_noauth: { url: contA.href, ...(await tryDl(contA.href, false)) },
+    });
   } catch (err) {
     console.error('[kp-split test-download]', err.message);
     res.status(502).json({ error: err.message });
