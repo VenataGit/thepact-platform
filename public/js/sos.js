@@ -99,16 +99,10 @@ function showSosAlert(ev, opts) {
   // Don't duplicate the same alert if it's already shown (e.g. WS arrived after init fetch)
   if (document.querySelector('.sos-alert-banner[data-alert-id="' + ev.alertId + '"]')) return;
 
+  // SOS alerts use an in-app banner + sound only. Browser notifications (and the permission
+  // prompt they triggered) were removed by request.
   if (!opts.silent) {
     playSosSound();
-    if (Notification.permission === 'granted') {
-      new Notification('🚨 Спешен сигнал от ' + ev.senderName, {
-        body: ev.message || (ev.cardTitle ? 'Карта: ' + ev.cardTitle : 'Погледни платформата'),
-        icon: '/img/logo-white.svg'
-      });
-    } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission();
-    }
   }
 
   // Get-or-create the stack container so multiple alerts pile up cleanly

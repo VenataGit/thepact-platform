@@ -1,4 +1,4 @@
-// ThePact Service Worker — Push Notifications + Network-first caching
+// ThePact Service Worker — Network-first caching (push notifications removed)
 const CACHE_NAME = 'thepact-v1';
 const PRECACHE_URLS = [
   '/',
@@ -64,55 +64,5 @@ self.addEventListener('fetch', (event) => {
           return new Response('Offline', { status: 503 });
         });
       })
-  );
-});
-
-// Push notification received
-self.addEventListener('push', (event) => {
-  let data = { title: 'The Pact', body: 'Ново известие', url: '/' };
-
-  if (event.data) {
-    try {
-      data = { ...data, ...event.data.json() };
-    } catch (e) {
-      data.body = event.data.text();
-    }
-  }
-
-  const options = {
-    body: data.body,
-    icon: '/img/icon-192.png',
-    badge: '/img/icon-192.png',
-    tag: data.tag || 'thepact-notification',
-    renotify: !!data.tag,
-    data: { url: data.url || '/' },
-    vibrate: [200, 100, 200],
-    actions: data.actions || [],
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
-});
-
-// Notification click — open/focus the app
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  const url = event.notification.data?.url || '/';
-
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
-      // Focus existing tab if open
-      for (const client of windowClients) {
-        if (new URL(client.url).origin === self.location.origin) {
-          client.focus();
-          if (url !== '/') client.navigate(url);
-          return;
-        }
-      }
-      // Open new tab
-      return clients.openWindow(url);
-    })
   );
 });

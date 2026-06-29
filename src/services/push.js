@@ -6,19 +6,10 @@ const { query, execute } = require('../db/pool');
 let pushEnabled = false;
 
 function initPush() {
-  if (!config.VAPID_PUBLIC_KEY || !config.VAPID_PRIVATE_KEY) {
-    console.log('  [push] VAPID keys not configured — push notifications disabled');
-    console.log('  [push] Run: node scripts/generate-vapid-keys.js');
-    return;
-  }
-
-  webpush.setVapidDetails(
-    config.VAPID_EMAIL,
-    config.VAPID_PUBLIC_KEY,
-    config.VAPID_PRIVATE_KEY
-  );
-  pushEnabled = true;
-  console.log('  [push] Web Push notifications enabled');
+  // Browser push notifications were removed by request. Keep the service permanently
+  // disabled regardless of any VAPID env config, so no push is ever sent. The sendPush*
+  // call sites across the app stay as harmless no-ops (they early-return on !pushEnabled).
+  console.log('  [push] disabled (push notifications removed)');
 }
 
 // Send push notification to a specific user (all their devices)
