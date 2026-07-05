@@ -291,10 +291,25 @@ function resetCache() {
   calendarId = null;
 }
 
+/**
+ * The service account's email — calendars must be shared with it to be readable.
+ */
+function getServiceAccountEmail() {
+  try {
+    const credentialsPath = path.join(__dirname, '..', '..', 'google-credentials.json');
+    const creds = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+    return creds.client_email || null;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   createGCalEvent,
   updateGCalEvent,
   deleteGCalEvent,
   isGCalEnabled,
   resetCache,
+  getCalendarClient,
+  getServiceAccountEmail,
 };

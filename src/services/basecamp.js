@@ -199,6 +199,55 @@ async function createStep(token, account, projectId, cardId, { title, due_on, as
   return r.json();
 }
 
+// Everyone on a project (follows pagination). Includes `attachable_sgid` per person —
+// needed for @mentions in rich text (<bc-attachment sgid="...">).
+async function getProjectPeople(token, account, projectId) {
+  let url = `${API_BASE}/${account}/projects/${projectId}/people.json`;
+  const out = [];
+  while (url) {
+    const { json, next } = await authedGet(url, token);
+    if (Array.isArray(json)) out.push(...json);
+    url = next;
+  }
+  return out;
+}
+
+// Post a message to a Message Board. status:'active' publishes it immediately.
+// Creating via API notifies no one by default ("notify: No one") — only people
+// @mentioned inside `content` get pinged. Returns the created message JSON.
+async function createMessage(token, account, projectId, boardId, { subject, content } = {}) {
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/message_boards/${boardId}/messages.json`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ subject, content, status: 'active' }),
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp create message failed (${r.status}): ${b.slice(0, 200)}`); }
+  return r.json();
+}
+
+// Comment under any recording (e.g. a message). Notifies the thread's subscribers.
+async function createComment(token, account, projectId, recordingId, content) {
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/recordings/${recordingId}/comments.json`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ content }),
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp create comment failed (${r.status}): ${b.slice(0, 200)}`); }
+  return r.json();
+}
+
+// Subscribe people to a recording so later comments (Phase 2) reliably notify them.
+async function addSubscribers(token, account, projectId, recordingId, personIds) {
+  if (!personIds || !personIds.length) return true;
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/recordings/${recordingId}/subscription.json`, {
+    method: 'PUT',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ subscriptions: personIds }),
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp subscribe failed (${r.status}): ${b.slice(0, 200)}`); }
+  return true;
+}
+
 // Download a file (e.g. an attachment's `href` storage URL) as a Buffer.
 // Accept */* — the shared headers() default of application/json would make the file
 // server return a JSON error instead of the bytes.
@@ -239,6 +288,10 @@ module.exports = {
   getCard,
   createCard,
   createStep,
+  getProjectPeople,
+  createMessage,
+  createComment,
+  addSubscribers,
   downloadFile,
   uploadAttachment,
 };

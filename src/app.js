@@ -162,6 +162,7 @@ app.use('/api/bc-board', require('./routes/bc-board'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/bc-calendar', require('./routes/bc-calendar'));
 app.use('/api/kp-split', require('./routes/kp-split'));
+app.use('/api/gcal-alerts', require('./routes/gcal-alerts'));
 app.use('/webhooks', require('./routes/webhooks'));
 app.use('/api/trash', require('./routes/trash'));
 app.use('/api/push', require('./routes/push'));
