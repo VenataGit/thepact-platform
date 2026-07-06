@@ -19,23 +19,107 @@ const { loadStructure, loadBoardCards, invalidateBoard } = agg;
 
 // Global dashboard layout (board + column ordering), set by an admin, applied for everyone.
 const LAYOUT_KEY = 'bc_dashboard_layout';
-async function getLayout() {
+// Global list of card-table ids shown on the dashboard (admin panel → „Dashboard дъски").
+// null / missing = all card tables (behaviour before the setting existed).
+const BOARDS_KEY = 'bc_dashboard_boards';
+async function getAppSetting(key) {
   try {
-    const row = await queryOne('SELECT value FROM app_settings WHERE key = $1', [LAYOUT_KEY]);
-    return row && row.value ? JSON.parse(row.value) : {};
-  } catch { return {}; }
+    const row = await queryOne('SELECT value FROM app_settings WHERE key = $1', [key]);
+    return row && row.value ? JSON.parse(row.value) : null;
+  } catch { return null; }
+}
+const getLayout = async () => (await getAppSetting(LAYOUT_KEY)) || {};
+
+// Per-user dashboard prefs (hidden/minimized/maximized boards, hidden columns) —
+// stored server-side so each person's setup follows them across devices.
+const PREFS_KEY = 'dash_prefs';
+async function getUserPrefs(userId) {
+  try {
+    const row = await queryOne('SELECT value FROM user_prefs WHERE user_id = $1 AND key = $2', [userId, PREFS_KEY]);
+    return row && row.value ? JSON.parse(row.value) : null;
+  } catch { return null; }
 }
 
 // GET /api/bc-board — board structure (boards + columns + counts), no cards.
+// Boards are filtered to the globally enabled set; the user's own prefs ride along
+// so the dashboard needs a single request.
 router.get('/', requireAuth, async (req, res) => {
   try {
     const { token, account } = await getUserAuth(req.user.userId);
     const data = await loadStructure(token, account);
-    const layout = await getLayout();
-    res.json({ ...data, layout });
+    const [layout, enabled, prefs] = await Promise.all([
+      getLayout(), getAppSetting(BOARDS_KEY), getUserPrefs(req.user.userId),
+    ]);
+    let boards = data.boards || [];
+    if (Array.isArray(enabled)) {
+      const on = new Set(enabled.map(String));
+      boards = boards.filter((b) => on.has(String(b.id)));
+    }
+    res.json({ ...data, boards, layout, prefs });
   } catch (err) {
     console.error('[bc-board]', err.message);
     res.status(err.code === 'NO_USER_TOKEN' ? 401 : 502).json({ error: err.message });
+  }
+});
+
+// PUT /api/bc-board/prefs — save the logged-in user's dashboard prefs.
+router.put('/prefs', requireAuth, async (req, res) => {
+  try {
+    const p = req.body || {};
+    const ids = (v, cap) => (Array.isArray(v) ? v.map(String).slice(0, cap) : []);
+    const clean = {
+      hiddenBoards: ids(p.hiddenBoards, 100),
+      hiddenCols: ids(p.hiddenCols, 500),
+      minimized: ids(p.minimized, 100),
+      maximized: p.maximized ? String(p.maximized) : null,
+    };
+    await execute(
+      'INSERT INTO user_prefs (user_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()',
+      [req.user.userId, PREFS_KEY, JSON.stringify(clean)]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[bc-board prefs]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/bc-board/boards-config — admin: ALL card tables in Video Production
+// (unfiltered, straight from Basecamp) + which are globally enabled. New card
+// tables show up here automatically — future-proof for new processes.
+router.get('/boards-config', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { token, account } = await getUserAuth(req.user.userId);
+    const data = await loadStructure(token, account);
+    const enabled = await getAppSetting(BOARDS_KEY);
+    res.json({
+      boards: (data.boards || []).map((b) => ({
+        id: b.id,
+        title: b.title,
+        columns: (b.columns || []).length,
+        cards: (b.columns || []).reduce((s, c) => s + (c.cardsCount || 0), 0),
+      })),
+      enabled: Array.isArray(enabled) ? enabled.map(String) : null,
+    });
+  } catch (err) {
+    console.error('[bc-board boards-config]', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// POST /api/bc-board/boards-config — admin: save the globally enabled card tables.
+// { enabled: [ids] } — or { enabled: null } to reset to "all".
+router.post('/boards-config', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const enabled = req.body && Array.isArray(req.body.enabled) ? req.body.enabled.map(String) : null;
+    await execute(
+      'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()',
+      [BOARDS_KEY, JSON.stringify(enabled)]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[bc-board boards-config save]', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

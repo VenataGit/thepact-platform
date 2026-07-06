@@ -49,6 +49,7 @@ async function renderSettings(el) {
   }
   setBreadcrumb(null); el.className = '';
   _sgEnsureFontsLoaded();
+  var isFullAdmin = currentUser && currentUser.role === 'admin';
   el.innerHTML =
     '<div class="sg-wrap">' +
       '<div class="sg-head">' +
@@ -65,6 +66,12 @@ async function renderSettings(el) {
         '<div class="sg-section__desc">Промяната се вижда веднага. ↺ връща стойността по подразбиране.</div>' +
         '<div class="sg-colors" id="sgColors"></div>' +
       '</div>' +
+      (isFullAdmin ?
+      '<div class="sg-section">' +
+        '<div class="sg-section__hdr">🗂 Dashboard — дъски</div>' +
+        '<div class="sg-section__desc">Кои Card Tables от Video Production се показват на Dashboard-а на <b>всички</b>. Нов процес в Basecamp се появява тук автоматично — само го включи. Отделно всеки сам решава кои от включените да вижда (⚙ и бутоните ─ ▢ на самия Dashboard).</div>' +
+        '<div id="sgDashBoards"><div class="ga-loading">Зареждане…</div></div>' +
+      '</div>' : '') +
       '<div class="sg-section">' +
         '<div class="sg-section__hdr">📅 Календар известия</div>' +
         '<div class="sg-section__desc">Ново събитие в Google Calendar → съобщение в Basecamp с тагнати създател и отговорници. Промяна или отмяна → коментар под същото съобщение. Никой друг не получава известие.</div>' +
@@ -77,7 +84,59 @@ async function renderSettings(el) {
     '</div>';
   sgRenderFonts();
   sgRenderColors();
+  if (isFullAdmin) sgDashBoardsLoad();
   gaLoad();
+}
+
+// ==================== DASHBOARD ДЪСКИ (кои Card Tables виждат всички) ====================
+// Глобален списък в app_settings (bc_dashboard_boards). Дъските идват на живо от
+// Basecamp (Video Production) → нови/премахнати процеси се управляват само оттук.
+
+var _sgDash = null; // { boards: [{id,title,columns,cards}], enabled: [ids] | null (null = всички) }
+
+async function sgDashBoardsLoad() {
+  var host = document.getElementById('sgDashBoards');
+  if (!host) return;
+  try {
+    var res = await fetch('/api/bc-board/boards-config');
+    if (!res.ok) { var j = await res.json().catch(function () { return {}; }); throw new Error(j.error || ('HTTP ' + res.status)); }
+    _sgDash = await res.json();
+    sgDashBoardsRender();
+  } catch (e) {
+    host.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка при зареждане от Basecamp: ' + esc(e.message) + '</div>';
+  }
+}
+
+function sgDashBoardsRender() {
+  var host = document.getElementById('sgDashBoards');
+  if (!host || !_sgDash) return;
+  var enabled = _sgDash.enabled; // null = всички са включени
+  var isOn = function (id) { return !enabled || enabled.indexOf(String(id)) !== -1; };
+  host.innerHTML = (_sgDash.boards || []).map(function (b) {
+    return '<label class="sg-dashboard-row">' +
+      '<input type="checkbox" ' + (isOn(b.id) ? 'checked' : '') + ' onchange="sgDashBoardToggle(\'' + String(b.id) + '\', this.checked)">' +
+      '<span class="sg-dashboard-row__name">' + esc(b.title) + '</span>' +
+      '<span class="sg-dashboard-row__meta">' + b.columns + ' колони · ' + b.cards + ' карти</span>' +
+    '</label>';
+  }).join('') +
+  '<div class="sg-dashboard-note">Изключена дъска изчезва от Dashboard-а на всички. В Basecamp нищо не се променя.</div>';
+}
+
+function sgDashBoardToggle(id, on) {
+  if (!_sgDash) return;
+  var all = (_sgDash.boards || []).map(function (b) { return String(b.id); });
+  var cur = _sgDash.enabled ? _sgDash.enabled.slice() : all.slice(); // първа промяна тръгва от „всички"
+  cur = cur.filter(function (x) { return all.indexOf(x) !== -1; });   // чисти дъски, които вече не съществуват
+  if (on) { if (cur.indexOf(String(id)) === -1) cur.push(String(id)); }
+  else cur = cur.filter(function (x) { return x !== String(id); });
+  _sgDash.enabled = cur;
+  fetch('/api/bc-board/boards-config', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: cur }),
+  }).then(function (res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    showToast(on ? 'Дъската е добавена към Dashboard-а на всички ✓' : 'Дъската е махната от Dashboard-а.', 'success');
+  }).catch(function (e) { showToast('Грешка: ' + e.message, 'error'); sgDashBoardsLoad(); });
 }
 
 // ==================== КАЛЕНДАР ИЗВЕСТИЯ (Google Calendar → Basecamp) ====================

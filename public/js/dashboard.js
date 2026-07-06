@@ -3,11 +3,45 @@
 // board (card table) -> column. Drag a card to another column to move it in Basecamp
 // (recorded as the logged-in user). Two-stage load keeps the 300+ card board responsive.
 
-// --- per-browser visibility settings (which boards / columns are shown) ---
-function getDashHiddenBoards() { try { return new Set(JSON.parse(localStorage.getItem('thepact-dash-hidden-boards') || '[]')); } catch { return new Set(); } }
-function saveDashHiddenBoards(set) { localStorage.setItem('thepact-dash-hidden-boards', JSON.stringify([...set])); }
-function getDashHiddenCols() { try { return new Set(JSON.parse(localStorage.getItem('thepact-dash-hidden-cols') || '[]')); } catch { return new Set(); } }
-function saveDashHiddenCols(set) { localStorage.setItem('thepact-dash-hidden-cols', JSON.stringify([...set])); }
+// --- per-USER visibility settings (hidden / minimized / maximized boards, hidden columns) ---
+// Stored server-side (user_prefs, key 'dash_prefs') so each person's setup follows them
+// on any device. They arrive together with the structure (GET /api/bc-board → prefs).
+let _dashPrefs = null;      // { hiddenBoards:[], hiddenCols:[], minimized:[], maximized:null }
+let _dashPrefsSaveT = null;
+let _dashPrefsDirty = false; // unsaved local changes — don't let a server reload clobber them
+
+function _dashPrefsNorm(p) {
+  const arr = (v) => (Array.isArray(v) ? v.map(String) : []);
+  p = p || {};
+  return {
+    hiddenBoards: arr(p.hiddenBoards), hiddenCols: arr(p.hiddenCols),
+    minimized: arr(p.minimized), maximized: p.maximized ? String(p.maximized) : null,
+  };
+}
+// One-time seed from the old per-browser localStorage keys, so nobody loses the setup
+// they already had before the prefs moved to the server.
+function _dashPrefsSeedFromLocal() {
+  const ls = (k) => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
+  return _dashPrefsNorm({ hiddenBoards: ls('thepact-dash-hidden-boards'), hiddenCols: ls('thepact-dash-hidden-cols') });
+}
+function dashSavePrefs() {
+  if (!_dashPrefs) return;
+  _dashPrefs.maximized = expandedDashCol || null;
+  _dashPrefsDirty = true;
+  clearTimeout(_dashPrefsSaveT);
+  _dashPrefsSaveT = setTimeout(() => {
+    fetch('/api/bc-board/prefs', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_dashPrefs),
+    }).then((r) => { if (r.ok) _dashPrefsDirty = false; })
+      .catch(() => { /* offline — prefs stay in memory for this session */ });
+  }, 400);
+}
+function getDashHiddenBoards() { return new Set(_dashPrefs ? _dashPrefs.hiddenBoards : []); }
+function saveDashHiddenBoards(set) { if (_dashPrefs) { _dashPrefs.hiddenBoards = [...set]; dashSavePrefs(); } }
+function getDashHiddenCols() { return new Set(_dashPrefs ? _dashPrefs.hiddenCols : []); }
+function saveDashHiddenCols(set) { if (_dashPrefs) { _dashPrefs.hiddenCols = [...set]; dashSavePrefs(); } }
+function getDashMinimized() { return new Set(_dashPrefs ? _dashPrefs.minimized : []); }
+function saveDashMinimized(set) { if (_dashPrefs) { _dashPrefs.minimized = [...set]; dashSavePrefs(); } }
 
 function initDashDefaults(boards) {
   // Hide the noisier internal boards by default; the team can re-enable them in ⚙ Настройки.
@@ -86,12 +120,23 @@ async function dashLoadStructure() {
     if (!res.ok) { const e = await res.json().catch(() => ({})); if (host) host.innerHTML = '<div style="padding:40px;color:var(--text-dim)">Грешка: ' + esc(e.error || res.status) + '</div>'; return; }
     _dashStruct = await res.json();
     _dashLayout = _dashStruct.layout || {};
-    initDashDefaults(_dashStruct.boards || []);
+    if (_dashPrefs && _dashPrefsDirty) {
+      // This tab has changes still on their way to the server — keep them.
+    } else if (_dashStruct.prefs) {
+      _dashPrefs = _dashPrefsNorm(_dashStruct.prefs);
+    } else {
+      // First visit since prefs moved server-side: seed from this browser's old
+      // localStorage setup + apply the one-time defaults, then persist.
+      _dashPrefs = _dashPrefsSeedFromLocal();
+      initDashDefaults(_dashStruct.boards || []);
+      dashSavePrefs();
+    }
+    expandedDashCol = _dashPrefs.maximized;
     dashRenderStats();
     dashRenderBoards();
     dashLoadTimers();
-    const hidden = getDashHiddenBoards();
-    const visible = (_dashStruct.boards || []).filter((b) => !hidden.has(String(b.id)));
+    const hidden = getDashHiddenBoards(), minimized = getDashMinimized();
+    const visible = (_dashStruct.boards || []).filter((b) => !hidden.has(String(b.id)) && !minimized.has(String(b.id)));
     visible.sort((a, b) => dashBoardTotal(a) - dashBoardTotal(b)); // light boards fill in first
     dashLoadBoardsLimited(visible.map((b) => b.id), 1);
   } catch { if (host) host.innerHTML = '<div style="padding:40px;color:var(--text-dim)">Няма връзка със сървъра.</div>'; }
@@ -200,14 +245,17 @@ function dashOrderedVisibleBoards() {
     : applyDefaultBoardOrder(boards);
 }
 
-// Which board is "focused" (expanded). On wide screens it's exactly the user's pick (or
+// Which board is "focused" (maximized). On wide screens it's exactly the user's pick (or
 // none). On narrow screens we always focus one — the user's pick if still visible, else the
-// first visible board — so the layout never falls back to equal-width columns.
+// first visible non-minimized board — so the layout never falls back to equal-width columns.
+// A stale pick (board hidden by the user or disabled by an admin) counts as "none".
 function dashEffectiveExpanded() {
-  if (!dashIsNarrow()) return expandedDashCol;
   const ordered = dashOrderedVisibleBoards();
-  if (expandedDashCol && ordered.some((b) => String(b.id) === expandedDashCol)) return expandedDashCol;
-  return ordered.length ? String(ordered[0].id) : null;
+  const valid = (expandedDashCol && ordered.some((b) => String(b.id) === expandedDashCol)) ? expandedDashCol : null;
+  if (!dashIsNarrow() || valid) return valid;
+  const min = getDashMinimized();
+  const first = ordered.find((b) => !min.has(String(b.id))) || ordered[0];
+  return first ? String(first.id) : null;
 }
 
 function dashRenderBoards() {
@@ -225,6 +273,11 @@ function dashRenderBoardSection(boardId) {
   if (b) sec.outerHTML = dashBoardSectionHtml(b);
 }
 
+// Windows-style window controls (stroke=currentColor, sized for the 20px buttons).
+var DASH_MIN_SVG     = '<svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 9.5h7"/></svg>';
+var DASH_MAX_SVG     = '<svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="2" y="2" width="8" height="8" rx="1"/></svg>';
+var DASH_RESTORE_SVG = '<svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="2" y="4" width="6" height="6" rx="1"/><path d="M4.5 2h5a.5.5 0 0 1 .5.5v5"/></svg>';
+
 function dashBoardSectionHtml(b) {
   const hiddenCols = getDashHiddenCols();
   let cols = (b.columns || []).filter((c) => !hiddenCols.has(String(c.id)));
@@ -233,11 +286,17 @@ function dashBoardSectionHtml(b) {
   const tag = loaded ? '' : (_dashLoading[b.id] ? ' <span class="bc-mini">зареждам…</span>' : '');
   const eff = dashEffectiveExpanded();
   const isExpanded = eff === String(b.id);
-  const isCollapsed = eff && eff !== String(b.id);
-  const colClass = isExpanded ? 'dash-col expanded' : isCollapsed ? 'dash-col collapsed' : 'dash-col';
+  const isMinimized = !isExpanded && getDashMinimized().has(String(b.id));
+  const isCollapsed = !isExpanded && (isMinimized || !!eff);
+  const colClass = 'dash-col' + (isExpanded ? ' expanded' : '') + (isCollapsed ? ' collapsed' : '') + (isMinimized ? ' minimized' : '');
   const body = isCollapsed ? '' : ('<div class="dash-col-body">' + cols.map((c) => dashSubColHtml(b, c, loaded)).join('') + '</div>');
+  const hdrTitle = isCollapsed ? 'Цъкни за връщане' : 'Цъкни за цял екран';
+  const tools = '<span class="dash-col-tools">' +
+    '<button class="dash-col-btn" onclick="dashMinimizeBoard(event, \'' + b.id + '\')" title="Минимизирай — прибира колоната в тясна лента">' + DASH_MIN_SVG + '</button>' +
+    '<button class="dash-col-btn" onclick="dashMaximizeBoard(event, \'' + b.id + '\')" title="' + (isExpanded ? 'Върни нормалния изглед' : 'Само тази колона (цял екран)') + '">' + (isExpanded ? DASH_RESTORE_SVG : DASH_MAX_SVG) + '</button>' +
+  '</span>';
   return '<div class="' + colClass + '" data-board-id="' + b.id + '">' +
-    '<div class="dash-col-header" onclick="toggleDashCol(\'' + b.id + '\')" title="Цъкни за цял екран"><span class="dash-col-title">' + esc(b.title) + tag + '</span><span class="dash-col-count">' + dashBoardTotal(b) + '</span></div>' +
+    '<div class="dash-col-header" onclick="toggleDashCol(\'' + b.id + '\')" title="' + hdrTitle + '"><span class="dash-col-title">' + esc(b.title) + tag + '</span><span class="dash-col-count">' + dashBoardTotal(b) + '</span>' + tools + '</div>' +
     dashBoardTimerHtml(b) +
     body +
   '</div>';
@@ -414,6 +473,7 @@ function showDashAdvanced() {
 
 function toggleDashBoard(boardId, visible) {
   const hidden = getDashHiddenBoards(); if (visible) hidden.delete(String(boardId)); else hidden.add(String(boardId)); saveDashHiddenBoards(hidden);
+  if (!visible && expandedDashCol === String(boardId)) { expandedDashCol = null; dashSavePrefs(); }
   dashRenderStats(); dashRenderBoards();
   if (visible && !_dashCards[boardId]) dashLoadBoardCards(boardId);
   showDashSettings();
@@ -423,15 +483,43 @@ function toggleDashColVisibility(colId, visible) {
   dashRenderBoards();
 }
 
-// Expand a board to full width (the rest collapse); click its header to toggle. On narrow
-// screens we always keep exactly one board focused, so a click just switches focus.
+// --- Windows-style column controls ---------------------------------------------
+//   ─  minimize → the board shrinks to a thin side strip (click the strip to restore)
+//   ▢  maximize → the board takes the full width, everything else becomes a strip
+//   ❐  restore  → back to the normal equal-width view
+function dashMinimizeBoard(e, boardId) {
+  e.stopPropagation(); e.preventDefault();
+  const id = String(boardId);
+  const min = getDashMinimized(); min.add(id); saveDashMinimized(min);
+  if (expandedDashCol === id) expandedDashCol = null;
+  dashSavePrefs(); dashRenderBoards();
+}
+function dashMaximizeBoard(e, boardId) {
+  e.stopPropagation(); e.preventDefault();
+  const id = String(boardId);
+  const min = getDashMinimized();
+  if (min.has(id)) { min.delete(id); saveDashMinimized(min); }
+  expandedDashCol = (expandedDashCol === id && !dashIsNarrow()) ? null : id;
+  dashSavePrefs(); dashRenderBoards();
+  if (!_dashCards[boardId]) dashLoadBoardCards(boardId);
+}
+
+// Click on a header/strip. A minimized strip restores itself (and takes the focus if
+// another board was fullscreen — like clicking a window in the taskbar). A normal header
+// toggles fullscreen; a strip collapsed by someone else's fullscreen switches it here.
 function toggleDashCol(boardId) {
-  if (dashIsNarrow()) {
-    expandedDashCol = String(boardId);
+  const id = String(boardId);
+  const min = getDashMinimized();
+  if (min.has(id)) {
+    min.delete(id); saveDashMinimized(min);
+    if (expandedDashCol || dashIsNarrow()) expandedDashCol = id;
+  } else if (dashIsNarrow()) {
+    expandedDashCol = id;
   } else {
-    expandedDashCol = (expandedDashCol === String(boardId)) ? null : String(boardId);
+    expandedDashCol = (expandedDashCol === id) ? null : id;
   }
-  dashRenderBoards();
+  dashSavePrefs(); dashRenderBoards();
+  if (!_dashCards[boardId]) dashLoadBoardCards(boardId);
 }
 
 // Re-render when the viewport crosses the narrow/wide threshold so the focus layout
@@ -489,8 +577,8 @@ function dashStartAutoRefresh() {
     const page = (location.hash.split('/')[1] || '').split('?')[0];
     if (page !== 'dashboard') { clearInterval(_dashAutoRefreshId); _dashAutoRefreshId = null; return; }
     if (_dashDragCardId) return; // never refresh mid-drag
-    const hidden = getDashHiddenBoards();
-    const visible = (_dashStruct ? _dashStruct.boards : []).filter((b) => !hidden.has(String(b.id)));
+    const hidden = getDashHiddenBoards(), minimized = getDashMinimized();
+    const visible = (_dashStruct ? _dashStruct.boards : []).filter((b) => !hidden.has(String(b.id)) && !minimized.has(String(b.id)));
     dashLoadBoardsLimited(visible.map((b) => b.id), 1);
   }, 60000);
 }

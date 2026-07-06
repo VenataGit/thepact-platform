@@ -103,11 +103,25 @@
 .dash-col.collapsed .dash-col-count { display: none; }
 
 .dash-col-header {
+  position: relative;
   display: flex; justify-content: center; align-items: center; gap: 10px;
   padding: 12px 14px; cursor: pointer; user-select: none;
   border-bottom: 1px solid var(--border); transition: background 0.15s;
 }
 .dash-col-header:hover { background: var(--bg-hover); }
+
+/* Windows-style controls in each column header: ─ minimize / ▢ maximize / ❐ restore.
+   Absolutely positioned right so the centered title stays centered. Hidden on the thin
+   collapsed strips — there a click on the strip itself restores the column. */
+.dash-col-tools { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: flex; gap: 3px; }
+.dash-col-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 20px; padding: 0; border: 1px solid transparent; border-radius: 4px;
+  background: none; color: var(--text-dim); cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.dash-col-btn:hover { background: var(--bg); color: #fff; border-color: var(--border); }
+.dash-col.collapsed .dash-col-tools { display: none; }
 .dash-col-title {
   font-size: 14px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.08em; white-space: nowrap; color: #fff;
