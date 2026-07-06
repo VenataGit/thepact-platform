@@ -11,6 +11,7 @@
 // ограничен с timeMin=сега — стари събития не заливат борда. Събития, създадени от
 // самия service account (Production Calendar sync-а), се пропускат — анти-шум.
 const cron = require('node-cron');
+const config = require('../config');
 const { query, queryOne, execute } = require('../db/pool');
 const { getCalendarClient, getServiceAccountEmail } = require('./google-calendar');
 const bc = require('./basecamp');
@@ -45,36 +46,60 @@ async function loadConfig() {
   };
 }
 
-// Хората в Basecamp проекта (person id → { sgid, name }) — кеш 10 мин.
-let _peopleCache = { at: 0, project: null, map: null };
-async function getPeopleMap(auth, projectId) {
-  const now = Date.now();
-  if (_peopleCache.map && _peopleCache.project === projectId && now - _peopleCache.at < 10 * 60_000) {
-    return _peopleCache.map;
+// ---------- екип от Basecamp (bc_people кеш) ----------
+// Хората идват от Video Production проекта — никой не трябва да се логва в платформата.
+
+async function refreshBcPeople() {
+  const auth = await getServiceAuth();
+  const people = await bc.getProjectPeople(auth.token, auth.account, config.BASECAMP_TEAM_PROJECT_ID);
+  const team = people.filter((p) => !p.client && p.personable_type !== 'Integration');
+  for (const p of team) {
+    await execute(
+      `INSERT INTO bc_people (person_id, name, email, title, avatar_url, attachable_sgid, active, synced_at)
+       VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW())
+       ON CONFLICT (person_id) DO UPDATE SET
+         name = $2, email = $3, title = $4, avatar_url = $5, attachable_sgid = $6, active = TRUE, synced_at = NOW()`,
+      [p.id, p.name || '', String(p.email_address || '').toLowerCase(), p.title || '', p.avatar_url || '', p.attachable_sgid || '']
+    );
   }
-  const people = await bc.getProjectPeople(auth.token, auth.account, projectId);
-  const map = new Map();
-  for (const p of people) map.set(Number(p.id), { sgid: p.attachable_sgid, name: p.name });
-  _peopleCache = { at: now, project: projectId, map };
-  return map;
+  if (team.length) {
+    await execute('UPDATE bc_people SET active = FALSE WHERE person_id != ALL($1::bigint[])', [team.map((p) => p.id)]);
+  }
+  console.log(`[gcal-alerts] екип обновен от Basecamp: ${team.length} души`);
+  return team.length;
 }
 
-function mentionHtml(peopleMap, basecampUserId, fallbackName) {
-  const p = basecampUserId ? peopleMap.get(Number(basecampUserId)) : null;
-  if (p && p.sgid) return `<bc-attachment sgid="${p.sgid}"></bc-attachment>`;
-  return `<strong>${escHtml(fallbackName || 'неизвестен')}</strong>`;
+// Опресняване най-много веднъж на 6ч (и не по-често от 10 мин при грешки).
+let _lastPeopleAttempt = 0;
+async function ensurePeopleFresh() {
+  if (Date.now() - _lastPeopleAttempt < 10 * 60_000) return;
+  const row = await queryOne('SELECT MAX(synced_at) AS at FROM bc_people');
+  const at = row && row.at ? new Date(row.at).getTime() : 0;
+  if (Date.now() - at < 6 * 3600_000) return;
+  _lastPeopleAttempt = Date.now();
+  try {
+    await refreshBcPeople();
+  } catch (err) {
+    console.warn('[gcal-alerts] people refresh failed:', err.message);
+  }
 }
 
-// Google имейл → платформен потребител: първо ръчния мапинг, после users.email.
-async function resolveUserByGoogleEmail(email) {
+function mentionOf(person, fallbackName) {
+  if (person && person.attachable_sgid) return `<bc-attachment sgid="${person.attachable_sgid}"></bc-attachment>`;
+  return `<strong>${escHtml((person && person.name) || fallbackName || 'неизвестен')}</strong>`;
+}
+
+// Google имейл → Basecamp човек: първо ръчния мапинг, после по имейл в bc_people.
+async function resolvePersonByGoogleEmail(email) {
   if (!email) return null;
   const lower = String(email).toLowerCase();
   const mapped = await queryOne(
-    'SELECT u.* FROM gcal_person_map m JOIN users u ON u.id = m.user_id WHERE LOWER(m.google_email) = $1',
+    `SELECT p.* FROM gcal_person_map m JOIN bc_people p ON p.person_id = m.bc_person_id
+     WHERE LOWER(m.google_email) = $1`,
     [lower]
   );
   if (mapped) return mapped;
-  return queryOne('SELECT * FROM users WHERE LOWER(email) = $1 AND is_active = true', [lower]);
+  return queryOne('SELECT * FROM bc_people WHERE LOWER(email) = $1 AND active = TRUE', [lower]);
 }
 
 // ---------- форматиране (български, Europe/Sofia) ----------
@@ -150,6 +175,7 @@ async function syncAllFeeds() {
     if (!cfg.enabled || !cfg.project || !cfg.board) return;
     const calendar = getCalendarClient();
     if (!calendar) return;
+    await ensurePeopleFresh();
 
     const feeds = await query('SELECT * FROM gcal_feeds WHERE enabled = true ORDER BY id');
     for (const feed of feeds) {
@@ -347,18 +373,17 @@ async function insertLog(feed, ev, master, status, fp) {
 
 async function postNewEventMessage(feed, ev, cfg, fp) {
   const auth = await getServiceAuth();
-  const peopleMap = await getPeopleMap(auth, cfg.project);
 
-  const creatorUser = await resolveUserByGoogleEmail(ev.creator && ev.creator.email);
-  const creatorName = (creatorUser && creatorUser.name)
+  const creatorPerson = await resolvePersonByGoogleEmail(ev.creator && ev.creator.email);
+  const creatorName = (creatorPerson && creatorPerson.name)
     || (ev.creator && (ev.creator.displayName || ev.creator.email)) || 'неизвестен';
   let responsibles = await query(
-    `SELECT u.* FROM gcal_feed_responsibles r JOIN users u ON u.id = r.user_id
-     WHERE r.feed_id = $1 AND u.is_active = true ORDER BY u.name`,
+    `SELECT p.* FROM gcal_feed_responsibles r JOIN bc_people p ON p.person_id = r.bc_person_id
+     WHERE r.feed_id = $1 AND p.active = TRUE ORDER BY p.name`,
     [feed.id]
   );
   // Създателят не се тагва втори път като отговорник.
-  if (creatorUser) responsibles = responsibles.filter((u) => u.id !== creatorUser.id);
+  if (creatorPerson) responsibles = responsibles.filter((p) => String(p.person_id) !== String(creatorPerson.person_id));
 
   const calName = feed.name || feed.google_calendar_id;
   const isNew = !ev.created || (Date.now() - new Date(ev.created).getTime()) < 24 * 3600_000;
@@ -370,9 +395,9 @@ async function postNewEventMessage(feed, ev, cfg, fp) {
   if (ev.location) lines.push(`📍 ${escHtml(ev.location)}`);
   if (isRecurring) lines.push('🔁 Повтарящо се събитие');
   lines.push('');
-  lines.push(`✍️ Създадено от: ${mentionHtml(peopleMap, creatorUser && creatorUser.basecamp_user_id, creatorName)}`);
+  lines.push(`✍️ Създадено от: ${mentionOf(creatorPerson, creatorName)}`);
   if (responsibles.length) {
-    const tags = responsibles.map((u) => mentionHtml(peopleMap, u.basecamp_user_id, u.name)).join(' ');
+    const tags = responsibles.map((p) => mentionOf(p, p.name)).join(' ');
     lines.push(`👥 Отговорни за календара: ${tags}`);
   }
   const desc = plainDescription(ev.description);
@@ -393,9 +418,9 @@ async function postNewEventMessage(feed, ev, cfg, fp) {
   );
 
   // Абонираме създателя + отговорниците за нишката → Фаза 2 коментарите ги известяват.
-  const subscriberIds = [creatorUser, ...responsibles]
-    .filter((u) => u && u.basecamp_user_id && peopleMap.has(Number(u.basecamp_user_id)))
-    .map((u) => Number(u.basecamp_user_id));
+  const subscriberIds = [creatorPerson, ...responsibles]
+    .filter((p) => p && p.person_id)
+    .map((p) => Number(p.person_id));
   if (subscriberIds.length) {
     try {
       await bc.addSubscribers(auth.token, auth.account, cfg.project, message.id, [...new Set(subscriberIds)]);
@@ -444,4 +469,5 @@ module.exports = {
   syncAllFeeds,
   checkCalendarAccess,
   postTestMessage,
+  refreshBcPeople,
 };

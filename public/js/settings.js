@@ -101,6 +101,7 @@ function gaRender() {
   var host = document.getElementById('gaBody');
   if (!host || !_gaData) return;
   var d = _gaData;
+  var team = d.team || [];
   var html = '';
 
   // Глобален ред: on/off + Message Board линк
@@ -110,13 +111,33 @@ function gaRender() {
       '<button class="btn btn-sm" onclick="gaSaveBoard()">Запази</button>' +
     '</div>';
 
-  // Инструкция за споделяне
-  html += '<div class="ga-share">Сподели всеки календар (Настройки → Споделяне с конкретни хора, „Вижда всички подробности") с:' +
-      '<code class="ga-sa" id="gaSaEmail">' + esc(d.saEmail || 'няма credentials') + '</code>' +
-      '<button class="ga-copy" title="Копирай" onclick="gaCopySa()">⧉</button>' +
+  // Екип от Basecamp (Video Production) — от него идват отговорниците
+  var syncedTxt = d.peopleSyncedAt
+    ? 'обновен ' + esc(new Date(d.peopleSyncedAt).toLocaleString('bg-BG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))
+    : 'още не е зареждан';
+  html += '<div class="ga-team">' +
+      '<span>👤 Екип от Basecamp (Video Production): <strong>' + team.length + ' души</strong> · <span class="ga-dim">' + syncedTxt + '</span></span>' +
+      '<button class="ga-btn" onclick="gaRefreshTeam(this)">🔄 Обнови екипа</button>' +
+    '</div>';
+  if (!team.length) {
+    html += '<div class="ga-empty" style="color:var(--yellow)">Няма заредени хора — натисни „Обнови екипа" (тегли членовете на Video Production от Basecamp).</div>';
+  }
+
+  // ➕ Добавяне на календар — първо и откроено
+  html += '<div class="ga-add">' +
+      '<div class="ga-add__hdr">➕ Добави календар за следене</div>' +
+      '<div class="ga-row" style="margin-top:6px">' +
+        '<input type="text" class="ga-input" id="gaNewCal" placeholder="Постави Calendar ID (…@group.calendar.google.com) или embed линк (…?src=…)">' +
+        '<button class="btn btn-sm" onclick="gaAddFeed()">Добави</button>' +
+      '</div>' +
+      '<div class="ga-share">Стъпка 1: сподели календара (Настройки → Споделяне с конкретни хора → „Вижда всички подробности") с:' +
+        '<code class="ga-sa" id="gaSaEmail">' + esc(d.saEmail || 'няма credentials') + '</code>' +
+        '<button class="ga-copy" title="Копирай" onclick="gaCopySa()">⧉</button>' +
+        '<span class="ga-dim">Стъпка 2: постави линка/ID-то горе.</span>' +
+      '</div>' +
     '</div>';
 
-  // Календари
+  // Следени календари
   html += '<div class="ga-feeds">';
   if (!d.feeds.length) html += '<div class="ga-empty">Няма добавени календари.</div>';
   d.feeds.forEach(function (f) {
@@ -125,14 +146,14 @@ function gaRender() {
     else if (f.last_sync_at) status = '<span class="ga-status ga-status--ok">✓ Свързан · sync ' + esc(new Date(f.last_sync_at).toLocaleTimeString('bg-BG', { hour: '2-digit', minute: '2-digit' })) + '</span>';
     else status = '<span class="ga-status">⏳ Очаква първи sync</span>';
 
-    var chips = (f.responsibles || []).map(function (uid) {
-      var u = d.users.find(function (x) { return x.id === uid; });
-      return '<span class="ga-chip">' + esc(u ? u.name : '#' + uid) +
-        '<button onclick="gaRemoveResponsible(' + f.id + ',' + uid + ')" title="Махни">✕</button></span>';
+    var chips = (f.responsibles || []).map(function (pid) {
+      var p = team.find(function (x) { return String(x.person_id) === String(pid); });
+      return '<span class="ga-chip">' + esc(p ? p.name : '#' + pid) +
+        '<button onclick="gaRemoveResponsible(' + f.id + ',\'' + String(pid) + '\')" title="Махни">✕</button></span>';
     }).join('');
-    var opts = '<option value="">+ отговорник</option>' + d.users
-      .filter(function (u) { return (f.responsibles || []).indexOf(u.id) === -1; })
-      .map(function (u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('');
+    var opts = '<option value="">+ отговорник</option>' + team
+      .filter(function (p) { return (f.responsibles || []).indexOf(String(p.person_id)) === -1; })
+      .map(function (p) { return '<option value="' + String(p.person_id) + '">' + esc(p.name) + '</option>'; }).join('');
 
     html += '<div class="ga-feed' + (f.enabled ? '' : ' ga-feed--off') + '">' +
         '<div class="ga-feed__top">' +
@@ -152,23 +173,17 @@ function gaRender() {
   });
   html += '</div>';
 
-  // Добавяне на календар
-  html += '<div class="ga-row">' +
-      '<input type="text" class="ga-input" id="gaNewCal" placeholder="Calendar ID или embed линк (…?src=…)">' +
-      '<button class="btn btn-sm" onclick="gaAddFeed()">Добави календар</button>' +
-    '</div>';
-
-  // Съответствия Google имейл ↔ потребител
+  // Съответствия Google имейл ↔ Basecamp човек
   html += '<div class="ga-map">' +
       '<div class="ga-map__hdr">Съответствия на имейли <span class="ga-dim">— само когато Google имейлът е различен от Basecamp имейла</span></div>';
   d.personMap.forEach(function (m) {
-    html += '<div class="ga-map__row"><code>' + esc(m.google_email) + '</code> → ' + esc(m.user_name) +
+    html += '<div class="ga-map__row"><code>' + esc(m.google_email) + '</code> → ' + esc(m.person_name || ('#' + m.bc_person_id)) +
       ' <button class="ga-btn ga-btn--del" onclick="gaDelMap(\'' + esc(m.google_email).replace(/'/g, "\\'") + '\')">✕</button></div>';
   });
   html += '<div class="ga-row">' +
       '<input type="text" class="ga-input" id="gaMapEmail" placeholder="google имейл">' +
       '<select class="ga-select" id="gaMapUser">' +
-        d.users.map(function (u) { return '<option value="' + u.id + '">' + esc(u.name) + '</option>'; }).join('') +
+        team.map(function (p) { return '<option value="' + String(p.person_id) + '">' + esc(p.name) + '</option>'; }).join('') +
       '</select>' +
       '<button class="btn btn-sm" onclick="gaAddMap()">Добави</button>' +
     '</div></div>';
@@ -180,6 +195,14 @@ function gaRender() {
     '</div>';
 
   host.innerHTML = html;
+}
+
+function gaRefreshTeam(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+  _gaCall('/api/gcal-alerts/refresh-people', 'POST')
+    .then(function (r) { showToast('Екипът е обновен: ' + r.count + ' души.', 'success'); gaLoad(); })
+    .catch(function (e) { showToast('Грешка: ' + e.message, 'error', 6000); })
+    .finally(function () { if (btn) { btn.disabled = false; btn.textContent = '🔄 Обнови екипа'; } });
 }
 
 async function _gaCall(url, method, body) {
@@ -251,24 +274,24 @@ function _gaSetResponsibles(feedId, list) {
 function gaAddResponsible(feedId, val) {
   if (!val) return;
   var f = _gaData.feeds.find(function (x) { return x.id === feedId; });
-  _gaSetResponsibles(feedId, (f.responsibles || []).concat([parseInt(val)]));
+  _gaSetResponsibles(feedId, (f.responsibles || []).concat([String(val)]));
 }
 
-function gaRemoveResponsible(feedId, uid) {
+function gaRemoveResponsible(feedId, pid) {
   var f = _gaData.feeds.find(function (x) { return x.id === feedId; });
-  _gaSetResponsibles(feedId, (f.responsibles || []).filter(function (x) { return x !== uid; }));
+  _gaSetResponsibles(feedId, (f.responsibles || []).filter(function (x) { return String(x) !== String(pid); }));
 }
 
 function gaAddMap() {
   var email = (document.getElementById('gaMapEmail') || {}).value || '';
-  var uid = (document.getElementById('gaMapUser') || {}).value;
-  if (!email.trim() || !uid) return;
-  _gaCall('/api/gcal-alerts/person-map', 'PUT', { google_email: email, user_id: parseInt(uid) }).then(gaLoad)
+  var pid = (document.getElementById('gaMapUser') || {}).value;
+  if (!email.trim() || !pid) return;
+  _gaCall('/api/gcal-alerts/person-map', 'PUT', { google_email: email, bc_person_id: String(pid) }).then(gaLoad)
     .catch(function (e) { showToast(e.message, 'error'); });
 }
 
 function gaDelMap(email) {
-  _gaCall('/api/gcal-alerts/person-map', 'PUT', { google_email: email, user_id: null }).then(gaLoad)
+  _gaCall('/api/gcal-alerts/person-map', 'PUT', { google_email: email, bc_person_id: null }).then(gaLoad)
     .catch(function (e) { showToast(e.message, 'error'); });
 }
 

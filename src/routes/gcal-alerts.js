@@ -5,7 +5,7 @@ const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { getServiceAccountEmail } = require('../services/google-calendar');
-const { checkCalendarAccess, postTestMessage, syncAllFeeds } = require('../services/gcal-alerts');
+const { checkCalendarAccess, postTestMessage, syncAllFeeds, refreshBcPeople } = require('../services/gcal-alerts');
 
 // Приема суров Calendar ID ("xxx@group.calendar.google.com") или embed/share линк с ?src=.
 function parseCalendarInput(input) {
@@ -28,26 +28,37 @@ function parseBoardUrl(url) {
 
 async function loadFeeds() {
   const feeds = await query('SELECT * FROM gcal_feeds ORDER BY id');
-  const resp = await query('SELECT feed_id, user_id FROM gcal_feed_responsibles');
+  const resp = await query('SELECT feed_id, bc_person_id FROM gcal_feed_responsibles');
   for (const f of feeds) {
-    f.responsibles = resp.filter((r) => r.feed_id === f.id).map((r) => r.user_id);
+    f.responsibles = resp.filter((r) => r.feed_id === f.id).map((r) => String(r.bc_person_id));
     delete f.sync_token;
   }
   return feeds;
 }
 
-// GET /api/gcal-alerts/overview — всичко за админ секцията с един заявка.
+// GET /api/gcal-alerts/overview — всичко за админ секцията с една заявка.
+// Екипът идва от bc_people (кеш на хората от Video Production в Basecamp);
+// при празен кеш се тегли на момента, за да не чака никой да се логва.
 router.get('/overview', requireAuth, requireAdmin, async (req, res) => {
   try {
     const rows = await query("SELECT key, value FROM settings WHERE key LIKE 'gcal_alerts_%'");
     const s = {};
     for (const r of rows) s[r.key] = r.value;
-    const users = await query(
-      'SELECT id, name, email, basecamp_user_id FROM users WHERE is_active = true ORDER BY name'
-    );
+
+    let team = await query('SELECT * FROM bc_people WHERE active = TRUE ORDER BY name');
+    if (!team.length) {
+      try {
+        await refreshBcPeople();
+        team = await query('SELECT * FROM bc_people WHERE active = TRUE ORDER BY name');
+      } catch (err) {
+        console.warn('[gcal-alerts] first people load failed:', err.message);
+      }
+    }
+    const syncedRow = await queryOne('SELECT MAX(synced_at) AS at FROM bc_people');
     const personMap = await query(
-      `SELECT m.google_email, m.user_id, u.name AS user_name
-       FROM gcal_person_map m JOIN users u ON u.id = m.user_id ORDER BY m.google_email`
+      `SELECT m.google_email, m.bc_person_id, p.name AS person_name
+       FROM gcal_person_map m LEFT JOIN bc_people p ON p.person_id = m.bc_person_id
+       ORDER BY m.google_email`
     );
     res.json({
       saEmail: getServiceAccountEmail(),
@@ -56,12 +67,24 @@ router.get('/overview', requireAuth, requireAdmin, async (req, res) => {
       project: s.gcal_alerts_bc_project || '',
       board: s.gcal_alerts_bc_board || '',
       feeds: await loadFeeds(),
-      users,
+      team,
+      peopleSyncedAt: syncedRow ? syncedRow.at : null,
       personMap,
     });
   } catch (err) {
     console.error('[gcal-alerts] overview error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/gcal-alerts/refresh-people — ръчно обновяване на екипа от Basecamp.
+router.post('/refresh-people', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const count = await refreshBcPeople();
+    res.json({ ok: true, count });
+  } catch (err) {
+    console.error('[gcal-alerts] refresh people error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -138,10 +161,11 @@ router.put('/feeds/:id', requireAuth, requireAdmin, async (req, res) => {
     if (enabled !== undefined) await execute('UPDATE gcal_feeds SET enabled = $2 WHERE id = $1', [feed.id, !!enabled]);
     if (Array.isArray(responsibles)) {
       await execute('DELETE FROM gcal_feed_responsibles WHERE feed_id = $1', [feed.id]);
-      for (const uid of [...new Set(responsibles.map(Number).filter(Boolean))]) {
+      const ids = [...new Set(responsibles.map(String).filter((v) => /^\d+$/.test(v)))];
+      for (const pid of ids) {
         await execute(
-          'INSERT INTO gcal_feed_responsibles (feed_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-          [feed.id, uid]
+          'INSERT INTO gcal_feed_responsibles (feed_id, bc_person_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [feed.id, pid]
         );
       }
     }
@@ -163,19 +187,20 @@ router.delete('/feeds/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// PUT /api/gcal-alerts/person-map — { google_email, user_id } (user_id: null → трие реда).
+// PUT /api/gcal-alerts/person-map — { google_email, bc_person_id } (null → трие реда).
 router.put('/person-map', requireAuth, requireAdmin, async (req, res) => {
   try {
     const email = String(req.body && req.body.google_email || '').trim().toLowerCase();
-    const userId = req.body && req.body.user_id;
+    const personId = req.body && req.body.bc_person_id;
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'Невалиден имейл.' });
-    if (!userId) {
+    if (!personId) {
       await execute('DELETE FROM gcal_person_map WHERE google_email = $1', [email]);
     } else {
+      if (!/^\d+$/.test(String(personId))) return res.status(400).json({ error: 'Невалиден човек.' });
       await execute(
-        `INSERT INTO gcal_person_map (google_email, user_id) VALUES ($1, $2)
-         ON CONFLICT (google_email) DO UPDATE SET user_id = $2`,
-        [email, Number(userId)]
+        `INSERT INTO gcal_person_map (google_email, bc_person_id) VALUES ($1, $2)
+         ON CONFLICT (google_email) DO UPDATE SET bc_person_id = $2`,
+        [email, String(personId)]
       );
     }
     res.json({ ok: true });
