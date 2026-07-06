@@ -89,6 +89,21 @@ function mentionOf(person, fallbackName) {
   return `<strong>${escHtml((person && person.name) || fallbackName || 'неизвестен')}</strong>`;
 }
 
+// Person id на самия бот (ThePactAlerts) — ползва се като „празен" абонатен списък:
+// Basecamp известява целия проект, ако subscriptions липсва/е празен, затова
+// винаги подаваме поне бота (нула човешки известия).
+let _botPersonId = null;
+async function getBotPersonId(auth) {
+  if (_botPersonId) return _botPersonId;
+  try {
+    const me = await bc.getMyProfile(auth.token, auth.account);
+    if (me && me.id) _botPersonId = Number(me.id);
+  } catch (err) {
+    console.warn('[gcal-alerts] bot profile failed:', err.message);
+  }
+  return _botPersonId;
+}
+
 // Google имейл → Basecamp човек: първо ръчния мапинг, после по имейл в bc_people.
 async function resolvePersonByGoogleEmail(email) {
   if (!email) return null;
@@ -404,10 +419,21 @@ async function postNewEventMessage(feed, ev, cfg, fp) {
   if (desc) { lines.push(''); lines.push(`<em>${desc}</em>`); }
   if (ev.htmlLink) { lines.push(''); lines.push(`<a href="${escHtml(ev.htmlLink)}">Отвори в Google Calendar</a>`); }
 
+  // Абонати = точно тагнатите (създател + отговорници) → само те получават
+  // известието и Фаза 2 коментарите; никой друг от проекта не се пингва.
+  let subscriberIds = [...new Set(
+    [creatorPerson, ...responsibles].filter((p) => p && p.person_id).map((p) => Number(p.person_id))
+  )];
+  if (!subscriberIds.length) {
+    const botId = await getBotPersonId(auth);
+    if (botId) subscriberIds = [botId];
+  }
+
   const subject = `📅 ${isNew ? 'Ново събитие' : 'Събитие'}: ${ev.summary || 'Без заглавие'} — ${shortDate(ev.start || {})}`;
   const message = await bc.createMessage(auth.token, auth.account, cfg.project, cfg.board, {
     subject,
     content: `<div>${lines.join('<br>')}</div>`,
+    subscriptions: subscriberIds,
   });
 
   await execute(
@@ -417,18 +443,7 @@ async function postNewEventMessage(feed, ev, cfg, fp) {
     [feed.id, ev.id, message.id, cfg.project, ev.summary || '', fp]
   );
 
-  // Абонираме създателя + отговорниците за нишката → Фаза 2 коментарите ги известяват.
-  const subscriberIds = [creatorPerson, ...responsibles]
-    .filter((p) => p && p.person_id)
-    .map((p) => Number(p.person_id));
-  if (subscriberIds.length) {
-    try {
-      await bc.addSubscribers(auth.token, auth.account, cfg.project, message.id, [...new Set(subscriberIds)]);
-    } catch (err) {
-      console.warn('[gcal-alerts] subscribe failed:', err.message);
-    }
-  }
-  console.log(`[gcal-alerts] posted: "${subject}" (message ${message.id})`);
+  console.log(`[gcal-alerts] posted: "${subject}" (message ${message.id}, notified ${subscriberIds.length})`);
 }
 
 async function postComment(cfg, logRow, content) {
@@ -453,14 +468,17 @@ async function checkCalendarAccess(calendarId) {
 }
 
 // Тестово съобщение в борда — проверка на Basecamp връзката от админ панела.
+// Абонат е само ботът → никой от екипа не получава известие от теста.
 async function postTestMessage() {
   const cfg = await loadConfig();
   if (!cfg.project || !cfg.board) throw new Error('Не е зададен Message Board.');
   const auth = await getServiceAuth();
+  const botId = await getBotPersonId(auth);
   const now = fmtDate(new Date(), { dateStyle: 'medium', timeStyle: 'short' });
   return bc.createMessage(auth.token, auth.account, cfg.project, cfg.board, {
     subject: '🔧 Тест: Календар известия',
     content: `<div>Връзката Google Calendar → Basecamp работи. Изпратено от платформата на ${escHtml(now)}. Това съобщение може да се изтрие.</div>`,
+    subscriptions: botId ? [botId] : [],
   });
 }
 

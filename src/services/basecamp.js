@@ -213,13 +213,16 @@ async function getProjectPeople(token, account, projectId) {
 }
 
 // Post a message to a Message Board. status:'active' publishes it immediately.
-// Creating via API notifies no one by default ("notify: No one") — only people
-// @mentioned inside `content` get pinged. Returns the created message JSON.
-async function createMessage(token, account, projectId, boardId, { subject, content } = {}) {
+// ВАЖНО: без `subscriptions` Basecamp известява ЦЕЛИЯ проект при публикуване.
+// Подаваме масив от person ids → само те са абонирани/известени ("notify: No one"
+// за всички останали). Returns the created message JSON.
+async function createMessage(token, account, projectId, boardId, { subject, content, subscriptions } = {}) {
+  const body = { subject, content, status: 'active' };
+  if (Array.isArray(subscriptions)) body.subscriptions = subscriptions;
   const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/message_boards/${boardId}/messages.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ subject, content, status: 'active' }),
+    body: JSON.stringify(body),
   });
   if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp create message failed (${r.status}): ${b.slice(0, 200)}`); }
   return r.json();
@@ -236,15 +239,20 @@ async function createComment(token, account, projectId, recordingId, content) {
   return r.json();
 }
 
-// Subscribe people to a recording so later comments (Phase 2) reliably notify them.
-async function addSubscribers(token, account, projectId, recordingId, personIds) {
-  if (!personIds || !personIds.length) return true;
+// Replace the exact subscriber list of a recording (who gets notified about it).
+// PUT subscription.json приема { subscriptions: [...ids] } за добавяне и
+// { unsubscriptions: [...ids] } за махане.
+async function setSubscription(token, account, projectId, recordingId, { subscriptions, unsubscriptions } = {}) {
+  const body = {};
+  if (Array.isArray(subscriptions) && subscriptions.length) body.subscriptions = subscriptions;
+  if (Array.isArray(unsubscriptions) && unsubscriptions.length) body.unsubscriptions = unsubscriptions;
+  if (!Object.keys(body).length) return true;
   const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/recordings/${recordingId}/subscription.json`, {
     method: 'PUT',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ subscriptions: personIds }),
+    body: JSON.stringify(body),
   });
-  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp subscribe failed (${r.status}): ${b.slice(0, 200)}`); }
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp subscription update failed (${r.status}): ${b.slice(0, 200)}`); }
   return true;
 }
 
@@ -291,7 +299,7 @@ module.exports = {
   getProjectPeople,
   createMessage,
   createComment,
-  addSubscribers,
+  setSubscription,
   downloadFile,
   uploadAttachment,
 };
