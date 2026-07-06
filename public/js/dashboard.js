@@ -271,8 +271,9 @@ function renderDashCard(card) {
   }
   const noDate = !card.dueOn && !card.completed; // needs a date — flag until one is set
   const assignee = card.assignees && card.assignees[0] ? esc(card.assignees[0].name.split(' ')[0]) : '';
+  const dueTip = card.dueFromStep && card.dueStep ? ' title="Дата от стъпка: ' + esc(card.dueStep) + '"' : '';
   const due = card.dueOn
-    ? '<div class="dash-card__date">' + DASH_CAL_SVG + '<span>' + formatDate(card.dueOn) + '</span></div>'
+    ? '<div class="dash-card__date"' + dueTip + '>' + DASH_CAL_SVG + '<span>' + formatDate(card.dueOn) + '</span></div>'
     : (noDate ? '<div class="dash-card__nodate">' + DASH_CAL_SVG + '<span>Няма дата</span></div>' : '');
   return '<div class="dash-card ' + colorClass + (card.completed ? ' dash-card--done' : '') + (card.onHold ? ' dash-card--onhold' : '') + (noDate ? ' dash-card--nodate' : '') + '" draggable="true" data-card-id="' + card.id + '" data-url="' + esc(card.url || '') + '"' +
       ' ondragstart="dashBcDragStart(event)" ondragend="dashBcDragEnd(event)" onclick="dashOpenCard(event, this)" title="' + esc(card.title) + ' — отвори в Basecamp">' +

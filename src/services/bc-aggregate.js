@@ -23,17 +23,49 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
-function mapCard(c) {
-  return {
+// Per-board rule: the card's tracked date comes from a STEP whose title starts with
+// a prefix (settings key bc_step_date_rules, board title → prefix). Only one such
+// step carries a due date (team convention). A completed dated step no longer counts
+// as the pending deadline → fall back to the card's own due_on.
+let rulesCache = { at: 0, rules: null };
+async function loadStepRules() {
+  if (rulesCache.rules && Date.now() - rulesCache.at < 60_000) return rulesCache.rules;
+  let rules = {};
+  try {
+    const rows = await query("SELECT value FROM settings WHERE key = 'bc_step_date_rules'");
+    const raw = rows && rows[0] ? JSON.parse(rows[0].value) : {};
+    for (const [board, prefix] of Object.entries(raw)) {
+      if (prefix) rules[String(board).trim().toLowerCase()] = String(prefix).trim().toLowerCase();
+    }
+  } catch (e) {
+    console.warn('[bc-aggregate] bc_step_date_rules unavailable:', e.message);
+  }
+  rulesCache = { at: Date.now(), rules };
+  return rules;
+}
+
+function stepDueOf(steps, prefix) {
+  if (!prefix) return null;
+  const s = (steps || []).find(
+    (x) => !x.completed && x.due_on && String(x.title || '').trim().toLowerCase().startsWith(prefix)
+  );
+  return s ? { due: s.due_on, title: s.title } : null;
+}
+
+function mapCard(c, stepPrefix) {
+  const sd = stepDueOf(c.steps, stepPrefix);
+  const out = {
     id: c.id,
     title: c.title,
-    dueOn: c.due_on,
+    dueOn: sd ? sd.due : c.due_on,
     completed: c.completed,
     assignees: (c.assignees || []).map((a) => ({ id: a.id, name: a.name })),
     stepsCount: (c.steps || []).length,
     url: c.app_url,
     position: c.position,
   };
+  if (sd) { out.dueFromStep = true; out.dueStep = sd.title; out.cardDueOn = c.due_on; }
+  return out;
 }
 
 // The board is shared across team members, so cache both stages briefly.
@@ -66,6 +98,8 @@ async function loadBoardCards(token, account, cardTableId) {
   if (hit && Date.now() - hit.at < CARDS_TTL) return hit;
   const projectId = config.BASECAMP_TEAM_PROJECT_ID;
   const table = await bc.getCardTable(token, account, projectId, cardTableId);
+  const rules = await loadStepRules();
+  const stepPrefix = rules[String(table.title || '').trim().toLowerCase()] || null;
   const lists = table.lists || [];
   const columns = await mapLimit(lists, 5, async (list) => {
     const cards = list.cards_count > 0 ? await bc.getColumnCards(token, account, projectId, list.id) : [];
@@ -73,9 +107,9 @@ async function loadBoardCards(token, account, cardTableId) {
     let onHoldCards = [];
     if (list.on_hold && list.on_hold.cards_count > 0) {
       const oh = await bc.getColumnCards(token, account, projectId, list.on_hold.id);
-      onHoldCards = oh.map((c) => { const m = mapCard(c); m.onHold = true; return m; });
+      onHoldCards = oh.map((c) => { const m = mapCard(c, stepPrefix); m.onHold = true; return m; });
     }
-    return { id: list.id, cards: cards.map(mapCard), onHoldCards };
+    return { id: list.id, cards: cards.map((c) => mapCard(c, stepPrefix)), onHoldCards };
   });
   const result = { at: Date.now(), cardTableId: table.id, columns };
   cardsCache.set(key, result);
