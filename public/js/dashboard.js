@@ -243,8 +243,25 @@ function dashBoardSectionHtml(b) {
   '</div>';
 }
 
+// Ред в колоната: ⚡ Приоритет (чекната стъпка „Приоритет") → без дата → по дата
+// възходящо (просрочените най-отгоре) → завършените най-долу. При равенство — по
+// ръчния Basecamp ред (position).
+function dashCardGroup(c) {
+  if (c.completed) return 3;
+  if (c.priority) return 0;
+  if (!c.dueOn) return 1;
+  return 2;
+}
+function dashCardCompare(a, b) {
+  const ga = dashCardGroup(a), gb = dashCardGroup(b);
+  if (ga !== gb) return ga - gb;
+  const da = a.dueOn || '', db = b.dueOn || ''; // '' сортира преди всяка дата
+  if (da !== db) return da < db ? -1 : 1;
+  return (a.position || 0) - (b.position || 0);
+}
+
 function dashSubColHtml(board, col, loaded) {
-  const cards = ((_dashCards[board.id] || {})[col.id] || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+  const cards = ((_dashCards[board.id] || {})[col.id] || []).slice().sort(dashCardCompare);
   const onHold = ((_dashOnHold[board.id] || {})[col.id] || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
   const count = loaded ? cards.length : (col.cardsCount || 0);
   const body = loaded
@@ -264,12 +281,15 @@ var DASH_CLOCK_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none
 function renderDashCard(card) {
   const now = new Date(); now.setHours(0, 0, 0, 0);
   const d = card.dueOn ? _parseDateMidnight(card.dueOn) : null;
+  const isPrio = !!card.priority && !card.completed;
   let colorClass = 'dash-card--none'; // no due date (or completed) → neutral grey
-  if (d && !card.completed) {
+  if (isPrio) {
+    colorClass = 'dash-card--priority'; // чекната стъпка „Приоритет" → лилава, преди всички
+  } else if (d && !card.completed) {
     const diff = Math.ceil((d - now) / 86400000);
     colorClass = diff < 0 ? 'dash-card--overdue' : diff === 0 ? 'dash-card--today' : diff <= 3 ? 'dash-card--soon' : 'dash-card--ok';
   }
-  const noDate = !card.dueOn && !card.completed; // needs a date — flag until one is set
+  const noDate = !card.dueOn && !card.completed && !isPrio; // needs a date — flag until one is set
   const assignee = card.assignees && card.assignees[0] ? esc(card.assignees[0].name.split(' ')[0]) : '';
   const dueTip = card.dueFromStep && card.dueStep ? ' title="Дата от стъпка: ' + esc(card.dueStep) + '"' : '';
   const due = card.dueOn

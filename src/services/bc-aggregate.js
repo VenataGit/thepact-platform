@@ -52,6 +52,13 @@ function stepDueOf(steps, prefix) {
   return s ? { due: s.due_on, title: s.title } : null;
 }
 
+// Чекната стъпка „Приоритет" = картата е приоритетна (лилава, най-отгоре в дашборда).
+function isPriority(steps) {
+  return (steps || []).some(
+    (s) => s.completed && String(s.title || '').trim().toLowerCase().startsWith('приоритет')
+  );
+}
+
 function mapCard(c, stepPrefix) {
   const sd = stepDueOf(c.steps, stepPrefix);
   const out = {
@@ -65,6 +72,7 @@ function mapCard(c, stepPrefix) {
     position: c.position,
   };
   if (sd) { out.dueFromStep = true; out.dueStep = sd.title; out.cardDueOn = c.due_on; }
+  if (isPriority(c.steps)) out.priority = true;
   return out;
 }
 

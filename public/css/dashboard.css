@@ -209,6 +209,8 @@
 .dash-card--soon    { background: var(--dl-yellow-bg, rgba(234,179,8,0.52)); }
 .dash-card--today   { background: var(--dl-red-bg, rgba(239,68,68,0.48)); }
 .dash-card--overdue { background: var(--dl-black-bg, rgba(0,0,0,0.55)); }
+/* Чекната стъпка „Приоритет" → лилава карта, най-отгоре в колоната. */
+.dash-card--priority { background: var(--dl-purple-bg, rgba(124,58,237,0.55)); }
 
 /* On-hold cards: shown below the normal cards under a divider, slightly dimmed. */
 .dash-onhold-sep {
