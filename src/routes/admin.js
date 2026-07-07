@@ -54,6 +54,11 @@ router.put('/:key', requireAuth, requireAdmin, async (req, res) => {
       require('../services/kp-scheduler').restartKpScheduler()
         .catch(e => console.error('KP scheduler restart failed:', e.message));
     }
+    // PM Agent дайджест/watchdog cron-и — рестарт при смяна на настройка.
+    if (/^pm_agent_(digest|watchdog)_/.test(req.params.key)) {
+      require('../services/pm-agent/digest').restartPmDigest()
+        .catch(e => console.error('PM Agent digest restart failed:', e.message));
+    }
 
     res.json(setting);
   } catch (err) {

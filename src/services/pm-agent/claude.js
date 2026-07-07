@@ -6,20 +6,24 @@ const config = require('../../config');
 const MODEL = process.env.PM_AGENT_MODEL || 'claude-opus-4-8';
 const TIMEOUT_MS = 600_000; // дълбок анализ с thinking може да отнеме минути
 
-// Извиква /v1/messages и връща { text, usage, model, stopReason }.
-function callClaude({ system, messages, maxTokens = 12000, effort = 'high' }) {
+// Извиква /v1/messages и връща { text, content, usage, model, stopReason }.
+// `tools` (по избор) включва tool use — content блоковете се връщат сурови,
+// за да може викащият да изпълни tool_use и да продължи цикъла.
+function callClaude({ system, messages, tools, maxTokens = 12000, effort = 'high' }) {
   return new Promise((resolve, reject) => {
     if (!config.ANTHROPIC_API_KEY) {
       return reject(new Error('ANTHROPIC_API_KEY не е конфигуриран.'));
     }
-    const payload = JSON.stringify({
+    const body = {
       model: MODEL,
       max_tokens: maxTokens,
       system,
       messages,
       thinking: { type: 'adaptive' },
       output_config: { effort },
-    });
+    };
+    if (Array.isArray(tools) && tools.length) body.tools = tools;
+    const payload = JSON.stringify(body);
     const req = https.request({
       host: 'api.anthropic.com',
       port: 443,
@@ -50,6 +54,7 @@ function callClaude({ system, messages, maxTokens = 12000, effort = 'high' }) {
         const text = (parsed.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
         resolve({
           text,
+          content: parsed.content || [],
           usage: parsed.usage || {},
           model: parsed.model,
           stopReason: parsed.stop_reason,

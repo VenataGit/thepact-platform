@@ -136,6 +136,7 @@ function populateMore(el) {
       <a class="nav-dropdown__item" href="#/dictation" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--green-dim,rgba(70,163,116,.18));color:#46a374">🎤</div> Диктовка</a>
     </div>
     ${currentUser?.role === 'admin' || currentUser?.role === 'mini_admin' ? `<div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
+      ${currentUser?.role === 'admin' ? `<a class="nav-dropdown__item" href="#/agent" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(28,176,246,.15);color:var(--accent,#1cb0f6)">🤖</div> PM Agent</a>` : ''}
       <a class="nav-dropdown__item" href="#/admin" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">⚙️</div> Настройки</a>
     </div>` : ''}
   `;

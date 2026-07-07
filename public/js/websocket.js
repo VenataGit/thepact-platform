@@ -19,6 +19,8 @@ function wsRouter() {
 }
 function handleWSEvent(ev) {
   const t = ev.type || '';
+  // PM Agent чат събития -> agent.js (без re-render на страницата)
+  if (t.indexOf('agent:') === 0) { if (typeof agcHandleWS === 'function') agcHandleWS(ev); return; }
   // Card editing presence — handle without re-render
   if (t === 'card:editing') {
     cardEditingPresence.set(ev.cardId, { userId: ev.userId, userName: ev.userName });

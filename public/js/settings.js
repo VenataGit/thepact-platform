@@ -696,6 +696,7 @@ function sgResetAll() {
 // и се пази и тук, в журнала.
 
 var _agPollTimer = null;
+var _agSettings = {};
 
 function sgSectionAgent(host) {
   host.innerHTML =
@@ -711,9 +712,13 @@ async function agLoad() {
   var body = document.getElementById('agBody');
   if (!body) { agStopPoll(); return; }
   try {
-    var res = await fetch('/api/agent/status');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    var data = await res.json();
+    var results = await Promise.all([
+      fetch('/api/agent/status'),
+      fetch('/api/settings'),
+    ]);
+    if (!results[0].ok) throw new Error('HTTP ' + results[0].status);
+    var data = await results[0].json();
+    try { _agSettings = (await results[1].json()).settings || {}; } catch (e2) { _agSettings = {}; }
     agRender(data);
     var hasRunning = (data.runs || []).some(function (r) { return r.status === 'running'; });
     if (hasRunning) agStartPoll(); else agStopPoll();
@@ -771,7 +776,11 @@ function agRender(data) {
       '<button class="btn btn-sm" onclick="agSync(false)"' + (busy ? ' disabled' : '') + '>🔄 Синхронизирай</button>' +
       '<button class="btn btn-sm" onclick="agSync(true)"' + (busy ? ' disabled' : '') + ' title="Изтегля всичко наново (карти, коментари, клиентски проекти)">⟳ Пълен синхрон</button>' +
       '<button class="btn btn-sm btn-primary" onclick="agAudit()"' + (busy ? ' disabled' : '') + '>🕵️ Пусни одит</button>' +
-    '</div>';
+      '<button class="btn btn-sm" onclick="agDigest()"' + (busy ? ' disabled' : '') + ' title="Обобщение на промените от последния дайджест + текущите рискове">📋 Пусни дайджест</button>' +
+      '<button class="btn btn-sm" onclick="agWatchdog()" title="Провери за клиенти без отговор от екипа">⚠️ Чакащи клиенти</button>' +
+      '<a class="btn btn-sm" href="#/agent" style="text-decoration:none">💬 Отвори чата</a>' +
+    '</div>' +
+    agSettingsHtml();
 
   if (runs.length) {
     html += '<div class="sg-section__hdr" style="font-size:13px">Журнал</div>';
@@ -841,4 +850,58 @@ async function agShowReport(runId) {
   } catch (e) {
     holder.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка: ' + esc(e.message) + '</div>';
   }
+}
+
+// ---------- PM Agent: настройки за дайджест/watchdog ----------
+
+function agSettingsHtml() {
+  var st = _agSettings || {};
+  var dOn = st.pm_agent_digest_enabled === 'true';
+  var wOn = st.pm_agent_watchdog_enabled === 'true';
+  var time = st.pm_agent_digest_time || '08:30';
+  var hours = st.pm_agent_watchdog_hours || '24';
+  return '<div style="border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-bottom:14px;font-size:13px">' +
+    '<div style="font-weight:600;margin-bottom:8px">Автоматика</div>' +
+    '<div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">' +
+      '<label style="display:flex;gap:6px;align-items:center;cursor:pointer">' +
+        '<input type="checkbox" ' + (dOn ? 'checked' : '') + ' onchange="agSaveSetting(&quot;pm_agent_digest_enabled&quot;, this.checked ? &quot;true&quot; : &quot;false&quot;)"> Дневен дайджест в' +
+      '</label>' +
+      '<input type="time" value="' + esc(time) + '" onchange="agSaveSetting(&quot;pm_agent_digest_time&quot;, this.value)" style="padding:4px 8px;border-radius:6px;background:var(--bg-card,#1b2930);color:inherit;border:1px solid rgba(255,255,255,.15)"> (делнични дни)' +
+      '<label style="display:flex;gap:6px;align-items:center;cursor:pointer">' +
+        '<input type="checkbox" ' + (wOn ? 'checked' : '') + ' onchange="agSaveSetting(&quot;pm_agent_watchdog_enabled&quot;, this.checked ? &quot;true&quot; : &quot;false&quot;)"> Watchdog: клиент без отговор над' +
+      '</label>' +
+      '<input type="number" min="1" max="168" value="' + esc(hours) + '" onchange="agSaveSetting(&quot;pm_agent_watchdog_hours&quot;, this.value)" style="width:64px;padding:4px 8px;border-radius:6px;background:var(--bg-card,#1b2930);color:inherit;border:1px solid rgba(255,255,255,.15)"> часа' +
+    '</div>' +
+    '<div style="opacity:.65;margin-top:6px">И двете пристигат като Basecamp съобщение от ThePactAlerts — известие получаваш само ти.</div>' +
+  '</div>';
+}
+
+async function agSaveSetting(key, value) {
+  try {
+    var res = await fetch('/api/settings/' + encodeURIComponent(key), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: String(value) }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _agSettings[key] = String(value);
+    if (typeof showToast === 'function') showToast('Запазено', 'success');
+  } catch (e) { alert('Грешка при запис: ' + e.message); }
+}
+
+async function agDigest() {
+  try {
+    var res = await fetch('/api/agent/digest', { method: 'POST' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    agLoad(); agStartPoll();
+  } catch (e) { alert('Грешка: ' + e.message); }
+}
+
+async function agWatchdog() {
+  try {
+    var res = await fetch('/api/agent/watchdog', { method: 'POST' });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    if (data.skipped === 'watchdog-disabled') alert('Watchdog-ът е изключен — включи го от настройката по-долу.');
+    else alert(data.alerts ? ('Изпратени ' + data.alerts + ' аларми към Basecamp.') : 'Няма чакащи клиенти над прага.');
+  } catch (e) { alert('Грешка: ' + e.message); }
 }

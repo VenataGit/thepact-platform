@@ -388,4 +388,4 @@ async function runAudit({ trigger = 'manual' } = {}) {
   }
 }
 
-module.exports = { runAudit };
+module.exports = { runAudit, resolveReportDestination, resolveSubscriberIds, sanitizeReportHtml, postReport, TODAY };
