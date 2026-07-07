@@ -1,4 +1,6 @@
 // ==================== КП АВТОМАТИЗАЦИЯ ====================
+var _kpBc = null; // { enabled, boardTitle?, columnTitle?, error? } — дестинацията на КП картите
+
 async function renderKpAuto(el) {
   setBreadcrumb(null);
   el.className = 'full-width';
@@ -9,16 +11,24 @@ async function renderKpAuto(el) {
 async function loadKpAuto(el) {
   try {
     const res = await fetch('/api/kp/clients');
-    const clients = await res.json();
+    const data = await res.json();
+    const clients = data && data.clients;
     if (!res.ok || !Array.isArray(clients)) {
-      el.innerHTML = '<div class="home-content-box home-content-box--wide"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc((clients && clients.error) || 'Неуспешно зареждане') + '</div></div></div>';
+      el.innerHTML = '<div class="home-content-box home-content-box--wide"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc((data && data.error) || 'Неуспешно зареждане') + '</div></div></div>';
       return;
     }
+    _kpBc = data.bc || null;
 
-    const needsKp = clients.filter(function(c) { return !c.has_kp_card; });
     var warningHtml = '';
+    if (_kpBc && _kpBc.enabled && _kpBc.error) {
+      warningHtml += '<div class="kp-warning">' +
+        '<span>⚠️</span>' +
+        '<span>Basecamp не отговори (' + esc(_kpBc.error) + ') — колоната „има ли КП карта" не може да се провери сега.</span>' +
+      '</div>';
+    }
+    const needsKp = clients.filter(function(c) { return c.has_kp_card === false; });
     if (needsKp.length > 0) {
-      warningHtml = '<div class="kp-warning">' +
+      warningHtml += '<div class="kp-warning">' +
         '<span>\u26a0\ufe0f</span>' +
         '<span>' + (needsKp.length === 1 ? esc(needsKp[0].name) + ' \u043d\u044f\u043c\u0430 \u0437\u0430\u0434\u0430\u0434\u0435\u043d\u0430 \u0434\u0430\u0442\u0430 \u2014 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u0442\u0435 \u0434\u0430\u0442\u0430 \u0437\u0430 \u043f\u0443\u0431\u043b\u0438\u043a\u0443\u0432\u0430\u043d\u0435 \u0437\u0430 \u0434\u0430 \u0441\u0435 \u0441\u044a\u0437\u0434\u0430\u0434\u0435 \u041a\u041f' : needsKp.length + ' \u043a\u043b\u0438\u0435\u043d\u0442\u0430 \u043d\u044f\u043c\u0430\u0442 \u0437\u0430\u0434\u0430\u0434\u0435\u043d\u0430 \u0434\u0430\u0442\u0430') + '</span>' +
       '</div>';
@@ -39,14 +49,18 @@ async function loadKpAuto(el) {
           }
         } catch(e) { /* invalid date, keep '—' */ }
       }
-      var missingKp = !c.has_kp_card;
+      var missingKp = c.has_kp_card === false; // null = Basecamp недостъпен → не е сигнал
       var rowBg = missingKp ? 'background:rgba(220,120,0,0.08);' : '';
+      var colName = (_kpBc && _kpBc.columnTitle) || 'Измисляне';
       var nameCell = missingKp
-        ? '<td class="kp-td"><strong>' + esc(c.name) + '</strong> <span style="color:#e8a030" title="Няма карта в Измисляне">⚠️</span></td>'
+        ? '<td class="kp-td"><strong>' + esc(c.name) + '</strong> <span style="color:#e8a030" title="Няма карта в ' + esc(colName) + '">⚠️</span></td>'
         : '<td class="kp-td"><strong>' + esc(c.name) + '</strong></td>';
-      var cardLinkBtn = (!missingKp && c.kp_card_id)
-        ? '<a class="btn btn-sm btn-ghost" href="#/card/' + c.kp_card_id + '">👁 КП карта</a>'
-        : '';
+      var cardLinkBtn = '';
+      if (c.has_kp_card && c.kp_card_url) {
+        cardLinkBtn = '<a class="btn btn-sm btn-ghost" href="' + esc(c.kp_card_url) + '" target="_blank" rel="noopener" title="Отваря картата в Basecamp">👁 КП карта</a>';
+      } else if (c.has_kp_card && c.kp_card_id) {
+        cardLinkBtn = '<a class="btn btn-sm btn-ghost" href="#/card/' + c.kp_card_id + '">👁 КП карта</a>';
+      }
       var actionBtn = missingKp
         ? '<button class="btn btn-sm kp-launch-btn" onclick="createKpCardNow(' + c.id + ',\'' + esc(c.name) + '\')">🚀 Пусни КП</button>'
         : '<button class="btn btn-sm" onclick="createKpCardNow(' + c.id + ',\'' + esc(c.name) + '\')">📋 Нов КП</button>';
@@ -79,10 +93,19 @@ async function loadKpAuto(el) {
           '<tbody>' + rowsHtml + '</tbody>' +
         '</table></div>';
 
+    // Къде отиват КП картите (от Админ → КП-Автоматизация)
+    var destHtml = '';
+    if (_kpBc && _kpBc.enabled && _kpBc.boardTitle) {
+      destHtml = '<span style="font-size:12px;color:var(--text-dim);font-weight:400">→ Basecamp: ' + esc(_kpBc.boardTitle) + ' / ' + esc(_kpBc.columnTitle || '') + '</span>';
+    }
+    var adminLink = (currentUser && currentUser.role === 'admin')
+      ? '<a class="btn btn-sm btn-ghost" href="#/admin/kp" title="Настройки на КП-автоматизацията">⚙</a>' : '';
+
     el.innerHTML = '<div class="home-content-box home-content-box--wide"><div class="kp-auto-wrap">' +
       '<div class="kp-auto-header">' +
-        '<h2 class="kp-auto-title">📋 КП-Автоматизация</h2>' +
-        '<button class="btn btn-primary" onclick="showKpClientForm()">+ Нов клиент</button>' +
+        '<h2 class="kp-auto-title">📋 КП-Автоматизация ' + destHtml + '</h2>' +
+        '<div style="display:flex;gap:6px;align-items:center">' + adminLink +
+        '<button class="btn btn-primary" onclick="showKpClientForm()">+ Нов клиент</button></div>' +
       '</div>' +
       warningHtml +
       '<div id="kpClientFormWrap" style="display:none"></div>' +
@@ -97,6 +120,7 @@ function showKpClientForm(editData) {
   var wrap = document.getElementById('kpClientFormWrap');
   if (!wrap) return;
   var isEdit = !!editData;
+  var defVids = parseInt(_platformConfig.kp_default_videos) || 10; // Админ → КП → Видеа по подразбиране
   var firstDateVal = isEdit ? (editData.first_publish_date || '').split('T')[0] : '';
   var lastDateVal  = isEdit ? (editData.last_video_date  || '').split('T')[0] : '';
   var nextDateVal  = isEdit ? (editData.next_kp_date     || '').split('T')[0] : '';
@@ -105,7 +129,7 @@ function showKpClientForm(editData) {
     '<h4 style="margin:0 0 16px">' + (isEdit ? '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0430\u043d\u0435' : '\u041d\u043e\u0432 \u043a\u043b\u0438\u0435\u043d\u0442') + '</h4>' +
     '<div class="kp-form-grid">' +
       '<div><label class="kp-label">\u041a\u043b\u0438\u0435\u043d\u0442</label><input class="input" type="text" id="kpName" value="' + (isEdit ? esc(editData.name) : '') + '" placeholder="\u0418\u043c\u0435 \u043d\u0430 \u043a\u043b\u0438\u0435\u043d\u0442"></div>' +
-      '<div><label class="kp-label">\u0412\u0438\u0434\u0435\u0430 \u0432 \u041a\u041f</label><input class="input" type="number" id="kpVideos" value="' + (isEdit ? (editData.videos_per_month || 10) : 10) + '" min="1" max="50" onchange="kpAutoInterval()"></div>' +
+      '<div><label class="kp-label">\u0412\u0438\u0434\u0435\u0430 \u0432 \u041a\u041f</label><input class="input" type="number" id="kpVideos" value="' + (isEdit ? (editData.videos_per_month || defVids) : defVids) + '" min="1" max="50" onchange="kpAutoInterval()"></div>' +
       '<div><label class="kp-label">\u0418\u043d\u0442\u0435\u0440\u0432\u0430\u043b (\u0434\u043d\u0438) <span style="opacity:.5;font-weight:400">\u0430\u0432\u0442\u043e</span></label><span class="input" id="kpInterval" data-value="' + (isEdit ? (editData.publish_interval_days || '') : '') + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (isEdit ? (editData.publish_interval_days || '—') : '—') + '</span></div>' +
       '<div><label class="kp-label">\u0422\u0435\u043a\u0443\u0449 \u041a\u041f \u2116</label><input class="input" type="number" id="kpKpNum" value="' + (isEdit ? (editData.current_kp_number || 1) : 1) + '" min="1"></div>' +
       '<div><label class="kp-label">\u0414\u0430\u0442\u0430 \u043f\u044a\u0440\u0432\u043e \u0432\u0438\u0434\u0435\u043e</label><button class="bc-date-btn ' + (firstDateVal ? '' : 'bc-date-btn--placeholder') + '" id="kpFirstDate" data-value="' + firstDateVal + '" onclick="event.stopPropagation();showDatePickerPopup(this,this.dataset.value,function(d){var b=document.getElementById(\'kpFirstDate\');if(b){b.dataset.value=d||\'\';b.textContent=d?formatDate(d):\'\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026\';b.className=d?\'bc-date-btn\':\'bc-date-btn bc-date-btn--placeholder\';}kpRecalcDates();})" style="width:100%;text-align:left">' + (firstDateVal ? formatDate(firstDateVal) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026') + '</button></div>' +
@@ -144,8 +168,8 @@ function kpAutoInterval() {
 
 async function editKpClientForm(id) {
   try {
-    var clients = await (await fetch('/api/kp/clients')).json();
-    var client = clients.find(function(c) { return c.id === id; });
+    var data = await (await fetch('/api/kp/clients')).json();
+    var client = (data.clients || []).find(function(c) { return c.id === id; });
     if (client) showKpClientForm(client);
   } catch (err) { showToast('Грешка: ' + err.message, 'error'); }
 }
@@ -155,7 +179,7 @@ async function saveKpClient(id) {
   if (!name) return showToast('Въведи име на клиент', 'warn');
   var data = {
     name: name,
-    videos_per_month: parseInt(document.getElementById('kpVideos').value) || 10,
+    videos_per_month: parseInt(document.getElementById('kpVideos').value) || parseInt(_platformConfig.kp_default_videos) || 10,
     current_kp_number: parseInt(document.getElementById('kpKpNum').value) || 1,
     first_publish_date: (document.getElementById('kpFirstDate') && document.getElementById('kpFirstDate').dataset.value) || null,
     notes: document.getElementById('kpNotes').value || null
@@ -187,12 +211,15 @@ async function saveKpClient(id) {
 }
 
 function createKpCardNow(clientId, clientName) {
-  showConfirmModal('\u0421\u044a\u0437\u0434\u0430\u0439 \u043d\u043e\u0432 \u043a\u043e\u043d\u0442\u0435\u043d\u0442 \u043f\u043b\u0430\u043d \u0437\u0430 ' + clientName + ' \u0432 \u043f\u043b\u0430\u0442\u0444\u043e\u0440\u043c\u0430\u0442\u0430?', async function() {
+  var destTxt = (_kpBc && _kpBc.enabled)
+    ? '\u0432 Basecamp (' + ((_kpBc.boardTitle ? _kpBc.boardTitle + ' \u2192 ' + (_kpBc.columnTitle || '') : 'Pre-Production')) + ')'
+    : '\u0432 \u043f\u043b\u0430\u0442\u0444\u043e\u0440\u043c\u0430\u0442\u0430';
+  showConfirmModal('\u0421\u044a\u0437\u0434\u0430\u0439 \u043d\u043e\u0432 \u043a\u043e\u043d\u0442\u0435\u043d\u0442 \u043f\u043b\u0430\u043d \u0437\u0430 ' + clientName + ' ' + destTxt + '?', async function() {
     try {
       var res = await fetch('/api/kp/create-card/' + clientId, { method: 'POST', headers: {'Content-Type':'application/json'} });
       var data = await res.json();
       if (data.ok) {
-        showToast('\u2705 \u0421\u044a\u0437\u0434\u0430\u0434\u0435\u043d\u043e: ' + data.title, 'success');
+        showToast('\u2705 \u0421\u044a\u0437\u0434\u0430\u0434\u0435\u043d\u043e' + (data.basecamp ? ' \u0432 Basecamp' : '') + ': ' + data.title, 'success', 6000);
         var el = document.getElementById('pageContent');
         if (el) await loadKpAuto(el);
       } else {

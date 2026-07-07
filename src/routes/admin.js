@@ -49,6 +49,12 @@ router.put('/:key', requireAuth, requireAdmin, async (req, res) => {
       [req.params.key, String(value)]
     );
 
+    // КП авто-създаването е cron — при смяна на час/дни/вкл. презарежда графика веднага.
+    if (/^kp_auto_create_/.test(req.params.key)) {
+      require('../services/kp-scheduler').restartKpScheduler()
+        .catch(e => console.error('KP scheduler restart failed:', e.message));
+    }
+
     res.json(setting);
   } catch (err) {
     console.error('Settings update error:', err.message);

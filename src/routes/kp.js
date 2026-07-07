@@ -2,39 +2,19 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { query, queryOne, execute } = require('../db/pool');
+const kpc = require('../services/kp-create');
+const agg = require('../services/bc-aggregate');
+const { getUserAuth, getServiceAuth } = require('../services/basecamp-token');
 
-const KP_VIDEO_SECTION_TEMPLATE = `Видео {N} - ХХХ
-/Участници - ХХХ/
-/Локация - ХХХ/
-/Необходими ресурси - ХХХ/
-
-Описание:
-ХХХ
-
-
-Копи: ХХХ
-Дата за публикуване: ХХХ
-Контент криейтър: ХХХ`;
-
-const KP_DEFAULT_TEMPLATE = `Дата за публикуване на първо видео: {first_publish_date}
-
-Допълнителна информация от акаунт – ХХХ
-
-{video_sections}`;
-
-// Convert plain-text (with \n) to Trix-compatible HTML so card content renders properly.
-// Lines matching "Видео N - ..." are marked with "Злато" highlight (background-color)
-// using the same marking system as the Trix editor color picker.
-function textToHtml(text) {
-  if (!text) return '';
-  return text.split('\n').map(line => {
-    const esc = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    if (esc === '') return '<div><br></div>';
-    if (/^Видео\s+\d+\s*[-–—]/.test(line)) {
-      return `<div><strong><span style="background-color:#9B7D44;color:#fff">` + esc + `</span></strong></div>`;
-    }
-    return `<div>${esc}</div>`;
-  }).join('');
+// Resolve a Basecamp auth for КП operations: the logged-in user's token first
+// (Венци: инструментите действат като човека), the ThePactAlerts bot as fallback
+// so the page still works for profiles without a Basecamp connection.
+async function kpAuth(userId, preferBot) {
+  if (!preferBot && userId) {
+    try { return await getUserAuth(userId); }
+    catch (e) { if (e.code !== 'NO_USER_TOKEN') throw e; }
+  }
+  return getServiceAuth();
 }
 
 function addWorkingDays(date, days) {
@@ -48,16 +28,9 @@ function addWorkingDays(date, days) {
   return result;
 }
 
-function subtractWorkingDays(date, days) {
-  const result = new Date(date);
-  let subtracted = 0;
-  while (subtracted < days) {
-    result.setDate(result.getDate() - 1);
-    const dow = result.getDay();
-    if (dow !== 0 && dow !== 6) subtracted++;
-  }
-  return result;
-}
+const subtractWorkingDays = kpc.subtractWorkingDaysSimple;
+const toDateStr = kpc.toDateStr;
+const toBgDate = kpc.toBgDate;
 
 // Parses "Видео N - Title" sections from HTML/plain card content
 function parseVideoSectionsFromHtml(htmlContent) {
@@ -143,92 +116,66 @@ function calcProductionDates(publishDate, offsets) {
   };
 }
 
-/**
- * Load KP schedule settings from DB
- */
-async function loadKpScheduleSettings() {
-  const defaults = { calendarWindow: 30, daysBeforeNextKp: 15 };
-  try {
-    const rows = await query("SELECT key, value FROM settings WHERE key IN ('kp_calendar_window', 'kp_days_before_next_kp')");
-    for (const r of rows) {
-      if (r.key === 'kp_calendar_window') defaults.calendarWindow = parseInt(r.value) || 30;
-      if (r.key === 'kp_days_before_next_kp') defaults.daysBeforeNextKp = parseInt(r.value) || 15;
-    }
-  } catch (err) { /* use defaults */ }
-  return defaults;
-}
-
-/**
- * Distribute N videos evenly across a calendar window.
- * Returns { dates[], interval, lastVideoDate, nextKpFirstDate }
- */
-function distributePublishDates(firstDateStr, videoCount, calendarWindow) {
-  const first = new Date(firstDateStr + 'T12:00:00');
-  if (videoCount <= 1) {
-    return {
-      dates: [first],
-      interval: calendarWindow,
-      lastVideoDate: first,
-      nextKpFirstDate: new Date(first.getTime() + calendarWindow * 86400000),
-    };
-  }
-  const gap = calendarWindow / (videoCount - 1);
-  const dates = [];
-  for (let i = 0; i < videoCount; i++) {
-    const d = new Date(first);
-    d.setDate(d.getDate() + Math.round(i * gap));
-    dates.push(d);
-  }
-  const lastVideoDate = dates[dates.length - 1];
-  const nextKpFirst = new Date(lastVideoDate);
-  nextKpFirst.setDate(nextKpFirst.getDate() + Math.round(gap));
-  return { dates, interval: Math.round(gap * 10) / 10, lastVideoDate, nextKpFirstDate: nextKpFirst };
-}
-
-function toDateStr(d) {
-  return d instanceof Date ? d.toISOString().split('T')[0] : String(d).split('T')[0];
-}
-function toBgDate(d) {
-  return d.toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-// GET /api/kp/clients
+// GET /api/kp/clients — clients + does each have an active КП card.
+// With kp_bc_enabled the check runs against the Basecamp destination column
+// (ONE cached board fetch for all clients); otherwise against the local kanban.
+// Response: { clients: [...], bc: { enabled, boardTitle?, columnTitle?, error? } }
 router.get('/clients', requireAuth, async (req, res) => {
   try {
     const clients = await query('SELECT * FROM kp_clients WHERE active = true ORDER BY name');
-    const schedSettings = await loadKpScheduleSettings();
+    const cfg = await kpc.loadKpConfig();
 
-    // Resolve target column by setting (ID) or fall back to name search
-    const izmislianeColIdSetting = await queryOne("SELECT value FROM settings WHERE key = 'kp_izmislyane_column_id'");
-    const izmislianeColId = izmislianeColIdSetting?.value ? parseInt(izmislianeColIdSetting.value) : null;
-
-    const enriched = await Promise.all(clients.map(async (client) => {
-      let card;
-      if (izmislianeColId) {
-        card = await queryOne(
-          `SELECT id FROM cards WHERE column_id = $1 AND archived_at IS NULL AND completed_at IS NULL AND title ILIKE $2 LIMIT 1`,
-          [izmislianeColId, `%${client.name}%`]
-        );
-      } else {
-        card = await queryOne(
-          `SELECT c.id FROM cards c JOIN columns col ON c.column_id = col.id
-           WHERE col.title ILIKE 'Измисляне' AND c.archived_at IS NULL AND c.completed_at IS NULL
-             AND c.title ILIKE $1 LIMIT 1`,
-          [`%${client.name}%`]
-        );
-      }
-      // Compute auto-create date: X working days before next KP's first video
+    // Auto-create date: X working days before next KP's first video (info column).
+    const withAutoDate = clients.map((client) => {
       let auto_create_date = null;
       if (client.next_kp_date) {
         const nkd = new Date(toDateStr(client.next_kp_date) + 'T12:00:00');
         if (!isNaN(nkd.getTime())) {
-          auto_create_date = toDateStr(subtractWorkingDays(nkd, schedSettings.daysBeforeNextKp));
+          auto_create_date = toDateStr(subtractWorkingDays(nkd, cfg.daysBeforeNextKp));
         }
       }
-      return { ...client, has_kp_card: !!card, kp_card_id: card?.id || null, auto_create_date };
-    }));
+      return { ...client, auto_create_date };
+    });
 
-    res.json(enriched);
+    let bcMeta = { enabled: cfg.bcEnabled };
+    let enriched;
+
+    if (cfg.bcEnabled) {
+      try {
+        const auth = await kpAuth(req.user.userId);
+        const dest = await kpc.resolveKpDestination(auth, cfg);
+        const existing = await kpc.findExistingKpCards(auth, cfg, dest, withAutoDate);
+        bcMeta = { enabled: true, boardTitle: dest.boardTitle, columnTitle: dest.columnTitle };
+        enriched = withAutoDate.map((c) => {
+          const hit = existing.get((c.name || '').toLowerCase());
+          return { ...c, has_kp_card: !!hit, kp_card_id: null, kp_card_url: hit ? hit.url : null };
+        });
+      } catch (err) {
+        console.error('[kp clients] Basecamp check failed:', err.message);
+        bcMeta = { enabled: true, error: err.message };
+        enriched = withAutoDate.map((c) => ({ ...c, has_kp_card: null, kp_card_id: null, kp_card_url: null }));
+      }
+    } else {
+      enriched = await Promise.all(withAutoDate.map(async (client) => {
+        let card;
+        if (cfg.localColumnId) {
+          card = await queryOne(
+            `SELECT id FROM cards WHERE column_id = $1 AND archived_at IS NULL AND completed_at IS NULL AND title ILIKE $2 LIMIT 1`,
+            [cfg.localColumnId, `%${client.name}%`]
+          );
+        } else {
+          card = await queryOne(
+            `SELECT c.id FROM cards c JOIN columns col ON c.column_id = col.id
+             WHERE col.title ILIKE 'Измисляне' AND c.archived_at IS NULL AND c.completed_at IS NULL
+               AND c.title ILIKE $1 LIMIT 1`,
+            [`%${client.name}%`]
+          );
+        }
+        return { ...client, has_kp_card: !!card, kp_card_id: card?.id || null, kp_card_url: null };
+      }));
+    }
+
+    res.json({ clients: enriched, bc: bcMeta });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -240,13 +187,13 @@ router.post('/clients', requireAuth, async (req, res) => {
     const { name, videos_per_month, current_kp_number, first_publish_date, notes } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
 
-    const vidCount = videos_per_month || 10;
+    const cfg = await kpc.loadKpConfig();
+    const vidCount = videos_per_month || cfg.defaultVideos;
     let computedInterval = null, computedLast = null, computedNext = null;
 
     // Auto-compute dates if first_publish_date provided
     if (first_publish_date) {
-      const schedSettings = await loadKpScheduleSettings();
-      const dist = distributePublishDates(first_publish_date, vidCount, schedSettings.calendarWindow);
+      const dist = kpc.distributePublishDates(first_publish_date, vidCount, cfg.calendarWindow);
       computedInterval = Math.round(dist.interval);
       computedLast = toDateStr(dist.lastVideoDate);
       computedNext = toDateStr(dist.nextKpFirstDate);
@@ -314,9 +261,9 @@ router.get('/preview-dates', requireAuth, async (req, res) => {
   try {
     const { firstDate, videoCount } = req.query;
     if (!firstDate) return res.status(400).json({ error: 'firstDate required' });
-    const count = parseInt(videoCount) || 10;
-    const schedSettings = await loadKpScheduleSettings();
-    const dist = distributePublishDates(firstDate, count, schedSettings.calendarWindow);
+    const cfg = await kpc.loadKpConfig();
+    const count = parseInt(videoCount) || cfg.defaultVideos;
+    const dist = kpc.distributePublishDates(firstDate, count, cfg.calendarWindow);
     res.json({
       dates: dist.dates.map(d => toDateStr(d)),
       datesBg: dist.dates.map(d => toBgDate(d)),
@@ -335,8 +282,8 @@ router.get('/template', requireAuth, async (req, res) => {
     const main = await queryOne('SELECT value FROM app_settings WHERE key = $1', ['kp_template']);
     const video = await queryOne('SELECT value FROM app_settings WHERE key = $1', ['kp_video_section_template']);
     res.json({
-      template: main?.value || KP_DEFAULT_TEMPLATE,
-      videoSection: video?.value || KP_VIDEO_SECTION_TEMPLATE
+      template: main?.value || kpc.KP_DEFAULT_TEMPLATE,
+      videoSection: video?.value || kpc.KP_VIDEO_SECTION_TEMPLATE
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -360,7 +307,46 @@ router.put('/template', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/kp/create-card/:clientId — create KP card in the platform
+// GET /api/kp/bc-options — admin: Basecamp boards + columns for the destination
+// dropdowns in Админ → КП-Автоматизация (live from Basecamp, cached ~60s).
+router.get('/bc-options', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const auth = await kpAuth(req.user.userId);
+    const struct = await agg.loadStructure(auth.token, auth.account);
+    res.json({
+      boards: (struct.boards || []).map((b) => ({
+        id: String(b.id),
+        title: b.title,
+        columns: (b.columns || []).map((c) => ({ id: String(c.id), title: c.title, isDone: !!c.isDone })),
+      })),
+    });
+  } catch (err) {
+    console.error('[kp bc-options]', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// POST /api/kp/bc-test — admin: resolve the configured destination and report it
+// (no card is created — safe "провери връзката" button).
+router.post('/bc-test', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const cfg = await kpc.loadKpConfig();
+    const auth = await kpAuth(req.user.userId, cfg.actor === 'bot');
+    const dest = await kpc.resolveKpDestination(auth, cfg);
+    res.json({
+      ok: true,
+      board: dest.boardTitle,
+      column: dest.columnTitle,
+      titleExample: kpc.renderKpTitle(cfg, 'Клиент', 5),
+      dueDays: cfg.dueDays,
+    });
+  } catch (err) {
+    res.status(200).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/kp/create-card/:clientId — create the next КП card for the client.
+// Destination (Basecamp / local) and all texts come from the admin settings.
 router.post('/create-card/:clientId', requireAuth, async (req, res) => {
   try {
     const client = await queryOne('SELECT * FROM kp_clients WHERE id = $1', [req.params.clientId]);
@@ -371,88 +357,23 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
     // Normalize: pg DATE columns return as JS Date objects; stringify + strip time part
     const firstPublishDate = (rawDate instanceof Date ? rawDate.toISOString() : String(rawDate)).split('T')[0];
 
-    const videoCount = client.videos_per_month || 10;
-    const kpNumber = client.current_kp_number || 1;
+    const cfg = await kpc.loadKpConfig();
+    let auth = null;
+    if (cfg.bcEnabled) auth = await kpAuth(req.user.userId, cfg.actor === 'bot');
 
-    // Distribute publish dates evenly across calendar window
-    const schedSettings = await loadKpScheduleSettings();
-    const dist = distributePublishDates(firstPublishDate, videoCount, schedSettings.calendarWindow);
-    const publishDates = dist.dates.map(d => toBgDate(d));
-
-    // Get templates
-    const mainTplRow = await queryOne('SELECT value FROM app_settings WHERE key = $1', ['kp_template']);
-    const videoTplRow = await queryOne('SELECT value FROM app_settings WHERE key = $1', ['kp_video_section_template']);
-    const mainTemplate = mainTplRow?.value || KP_DEFAULT_TEMPLATE;
-    const videoSectionTpl = videoTplRow?.value || KP_VIDEO_SECTION_TEMPLATE;
-
-    // Build video sections
-    const videoSections = [];
-    for (let i = 1; i <= videoCount; i++) {
-      videoSections.push(videoSectionTpl.replace(/\{N\}/g, i));
-    }
-
-    // Build content
-    let content = mainTemplate
-      .replace('{first_publish_date}', publishDates[0] || '')
-      .replace('{video_sections}', videoSections.join('\n\n\n'));
-
-    // Add publish schedule
-    const scheduleLines = publishDates.join('\n');
-    content = content.replace(
-      /Дата за публикуване на първо видео:.*$/m,
-      `Дата за публикуване на първо видео: ${publishDates[0] || ''}\n\nДати за публикуване на видеа:\n${scheduleLines}`
-    );
-
-    const title = `${client.name} КП-${kpNumber}`;
-
-    // Calculate brainstorm_date from the first publish date so the KP card
-    // shows up with the correct "Дати Измисляне" deadline in the board.
-    const offsets = await loadKpDayOffsets();
-    const firstPubDate = new Date(firstPublishDate + 'T12:00:00');
-    const brainstormDate = subtractWorkingDays(firstPubDate, offsets.brainstorm).toISOString().split('T')[0];
-
-    // Find target column: setting (by ID) first, then fall back to name search
-    let izmislianeCol = null;
-    const izmislianeColIdSetting = await queryOne("SELECT value FROM settings WHERE key = 'kp_izmislyane_column_id'");
-    const izmislianeColId = izmislianeColIdSetting?.value ? parseInt(izmislianeColIdSetting.value) : null;
-    if (izmislianeColId) {
-      izmislianeCol = await queryOne('SELECT id, board_id FROM columns WHERE id = $1', [izmislianeColId]);
-    }
-    if (!izmislianeCol) {
-      izmislianeCol = await queryOne(
-        `SELECT col.id, col.board_id FROM columns col WHERE col.title ILIKE 'Измисляне' LIMIT 1`
-      );
-    }
-    if (!izmislianeCol) return res.status(400).json({ error: 'Не е намерена целева колона. Настройте я в Администрация → Настройки → КП Автоматизация.' });
-
-    // Get max position
-    const maxPos = await queryOne(
-      'SELECT COALESCE(MAX(position), -1) + 1 as pos FROM cards WHERE column_id = $1',
-      [izmislianeCol.id]
-    );
-
-    // Create the card with brainstorm_date so it shows in "Дати Измисляне"
-    const card = await queryOne(
-      `INSERT INTO cards (board_id, column_id, title, content, creator_id, client_name, kp_number, position, brainstorm_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [izmislianeCol.board_id, izmislianeCol.id, title, textToHtml(content),
-       req.user.userId, client.name, kpNumber, maxPos.pos, brainstormDate]
-    );
-
-    // Update client: increment KP number, update dates from distribution
-    await execute(
-      `UPDATE kp_clients SET current_kp_number = $1, first_publish_date = $2, last_video_date = $3, next_kp_date = $4, publish_interval_days = $5, updated_at = NOW()
-       WHERE id = $6`,
-      [kpNumber + 1, toDateStr(dist.nextKpFirstDate),
-       toDateStr(dist.lastVideoDate), toDateStr(dist.nextKpFirstDate), Math.round(dist.interval), client.id]
-    );
+    const result = await kpc.createKpForClient({
+      client, firstPublishDate, cfg, auth, creatorId: req.user.userId,
+    });
 
     await execute(
       'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
-      [req.user.name || 'Unknown', 'create_kp_card', client.name, `Card id=${card.id}: ${title}`]
+      [req.user.name || 'Unknown', 'create_kp_card', client.name,
+       result.basecamp
+         ? `Basecamp карта: ${result.title} → ${result.board} / ${result.column} (${result.url})`
+         : `Card id=${result.cardId}: ${result.title}`]
     );
 
-    res.json({ ok: true, cardId: card.id, title });
+    res.json({ ok: true, ...result });
   } catch (err) {
     console.error('KP create-card error:', err);
     res.status(500).json({ error: err.message });
@@ -518,7 +439,7 @@ router.post('/generate-video-cards/:cardId', requireAuth, async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
         [
           targetCol.board_id, targetCol.id, videoCardTitle,
-          section.sectionText ? textToHtml(section.sectionText) : null,
+          section.sectionText ? kpc.textToHtml(section.sectionText) : null,
           prodDates.publish_date || null,
           prodDates.brainstorm_date || null,
           prodDates.filming_date || null,

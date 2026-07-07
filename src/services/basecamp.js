@@ -171,11 +171,12 @@ async function getCard(token, account, projectId, cardId) {
 }
 
 // Create a card in a column/list. POST .../card_tables/lists/{listId}/cards.json
-// body { title (required), content (rich HTML), due_on }. Returns the created card JSON.
-async function createCard(token, account, projectId, listId, { title, content, due_on } = {}) {
+// body { title (required), content (rich HTML), due_on, notify }. Returns the created card JSON.
+async function createCard(token, account, projectId, listId, { title, content, due_on, notify } = {}) {
   const body = { title };
   if (content != null) body.content = content;
   if (due_on) body.due_on = due_on;
+  if (notify) body.notify = true;
   const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/lists/${listId}/cards.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),

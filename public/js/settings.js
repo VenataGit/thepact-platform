@@ -1,8 +1,10 @@
 // ==================== ГЛОБАЛНИ НАСТРОЙКИ (нов админ панел) ====================
-// Чист панел — началото на новия админ. Първа секция: шрифт + основни цветове,
-// прилагани глобално (за целия екип) през съществуващата theme машинария
-// (saveTheme/applyThemeColors пишат в global settings + прилагат на живо).
-// Старият панел остава достъпен на #/admin-legacy.
+// Панелът е разделен на подменюта (лява навигация): #/admin/<секция>.
+//   🎨 Тема               — шрифт + основни цветове (прилага се за целия екип)
+//   📋 КП-Автоматизация   — къде отиват КП картите (Basecamp), текстове, дати, график
+//   🗂 Dashboard          — кои Card Tables виждат всички
+//   📅 Календар известия  — Google Calendar → Basecamp
+// Старият панел остава достъпен на #/admin-legacy (линк долу в навигацията).
 
 // Кирилично-съвместими качествени шрифтове (Google Fonts). „Системен" = base default.
 var SG_FONTS = [
@@ -30,6 +32,14 @@ var SG_COLORS = [
   { key: 'theme_red', def: '#ef4444', label: 'Червено (просрочено)' },
 ];
 
+// Секциите на панела. adminOnly секциите се виждат само от пълен админ.
+var SG_SECTIONS = [
+  { id: 'theme', icon: '🎨', label: 'Тема', hint: 'Шрифт и цветове', adminOnly: false },
+  { id: 'kp', icon: '📋', label: 'КП-Автоматизация', hint: 'Basecamp, текстове, график', adminOnly: true },
+  { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
+  { id: 'calendar', icon: '📅', label: 'Календар известия', hint: 'GCal → Basecamp', adminOnly: false },
+];
+
 function _sgFontsLink() {
   var fams = SG_FONTS.filter(function (f) { return f.value; })
     .map(function (f) { return 'family=' + f.value.replace(/ /g, '+') + ':wght@400;600'; });
@@ -42,50 +52,310 @@ function _sgEnsureFontsLoaded() {
   document.head.appendChild(l);
 }
 
-async function renderSettings(el) {
+async function renderSettings(el, sub) {
   if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'mini_admin') {
     el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">Нямаш достъп до тази страница.</div>';
     return;
   }
   setBreadcrumb(null); el.className = '';
-  _sgEnsureFontsLoaded();
   var isFullAdmin = currentUser && currentUser.role === 'admin';
+  var sections = SG_SECTIONS.filter(function (s) { return !s.adminOnly || isFullAdmin; });
+  var active = sections.some(function (s) { return s.id === sub; }) ? sub : sections[0].id;
+
   el.innerHTML =
-    '<div class="sg-wrap">' +
+    '<div class="sg-wrap sg-wrap--split">' +
       '<div class="sg-head">' +
-        '<h1 class="sg-title">Глобални настройки</h1>' +
-        '<span class="sg-hint">Прилага се на живо за целия екип.</span>' +
+        '<h1 class="sg-title">Настройки</h1>' +
+        '<span class="sg-hint">Прилагат се за целия екип.</span>' +
       '</div>' +
-      '<div class="sg-section">' +
-        '<div class="sg-section__hdr">Шрифт</div>' +
-        '<div class="sg-section__desc">Избраният шрифт се прилага навсякъде в платформата.</div>' +
-        '<div class="sg-fonts" id="sgFonts"></div>' +
+      '<div class="sg-layout">' +
+        '<nav class="sg-nav">' +
+          sections.map(function (s) {
+            return '<a class="sg-nav__item' + (s.id === active ? ' sg-nav__item--active' : '') + '" href="#/admin/' + s.id + '">' +
+              '<span class="sg-nav__icon">' + s.icon + '</span>' +
+              '<span class="sg-nav__txt"><span class="sg-nav__label">' + esc(s.label) + '</span>' +
+              '<span class="sg-nav__hint">' + esc(s.hint) + '</span></span>' +
+            '</a>';
+          }).join('') +
+          '<a class="sg-nav__item sg-nav__item--legacy" href="#/admin-legacy">' +
+            '<span class="sg-nav__icon">🛠</span>' +
+            '<span class="sg-nav__txt"><span class="sg-nav__label">Разширени</span>' +
+            '<span class="sg-nav__hint">Стар панел</span></span>' +
+          '</a>' +
+        '</nav>' +
+        '<div class="sg-body" id="sgBody"></div>' +
       '</div>' +
-      '<div class="sg-section">' +
-        '<div class="sg-section__hdr">Основни цветове</div>' +
-        '<div class="sg-section__desc">Промяната се вижда веднага. ↺ връща стойността по подразбиране.</div>' +
-        '<div class="sg-colors" id="sgColors"></div>' +
-      '</div>' +
-      (isFullAdmin ?
-      '<div class="sg-section">' +
-        '<div class="sg-section__hdr">🗂 Dashboard — дъски</div>' +
-        '<div class="sg-section__desc">Кои Card Tables от Video Production се показват на Dashboard-а на <b>всички</b>. Нов процес в Basecamp се появява тук автоматично — само го включи. Отделно всеки сам решава кои от включените да вижда (⚙ и бутоните ─ ▢ на самия Dashboard).</div>' +
-        '<div id="sgDashBoards"><div class="ga-loading">Зареждане…</div></div>' +
-      '</div>' : '') +
-      '<div class="sg-section">' +
-        '<div class="sg-section__hdr">📅 Календар известия</div>' +
-        '<div class="sg-section__desc">Ново събитие в Google Calendar → съобщение в Basecamp с тагнати създател и отговорници. Промяна или отмяна → коментар под същото съобщение. Никой друг не получава известие.</div>' +
-        '<div id="gaBody"><div class="ga-loading">Зареждане…</div></div>' +
-      '</div>' +
-      '<div class="sg-foot">' +
-        '<button class="btn btn-sm" onclick="sgResetAll()">↺ Нулирай темата</button>' +
-        '<a class="sg-legacy" href="#/admin-legacy">Разширени / стар панел →</a>' +
-      '</div>' +
+    '</div>';
+
+  var body = document.getElementById('sgBody');
+  if (active === 'theme') sgSectionTheme(body);
+  else if (active === 'kp') sgSectionKp(body);
+  else if (active === 'dashboard') sgSectionDashboard(body);
+  else if (active === 'calendar') sgSectionCalendar(body);
+}
+
+// ==================== СЕКЦИЯ: ТЕМА ====================
+
+function sgSectionTheme(host) {
+  _sgEnsureFontsLoaded();
+  host.innerHTML =
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">Шрифт</div>' +
+      '<div class="sg-section__desc">Избраният шрифт се прилага навсякъде в платформата.</div>' +
+      '<div class="sg-fonts" id="sgFonts"></div>' +
+    '</div>' +
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">Основни цветове</div>' +
+      '<div class="sg-section__desc">Промяната се вижда веднага. ↺ връща стойността по подразбиране.</div>' +
+      '<div class="sg-colors" id="sgColors"></div>' +
+    '</div>' +
+    '<div class="sg-foot">' +
+      '<button class="btn btn-sm" onclick="sgResetAll()">↺ Нулирай темата</button>' +
     '</div>';
   sgRenderFonts();
   sgRenderColors();
-  if (isFullAdmin) sgDashBoardsLoad();
+}
+
+// ==================== СЕКЦИЯ: DASHBOARD ДЪСКИ ====================
+
+function sgSectionDashboard(host) {
+  host.innerHTML =
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">🗂 Dashboard — дъски</div>' +
+      '<div class="sg-section__desc">Кои Card Tables от Video Production се показват на Dashboard-а на <b>всички</b>. Нов процес в Basecamp се появява тук автоматично — само го включи. Отделно всеки сам решава кои от включените да вижда (⚙ и бутоните ─ ▢ на самия Dashboard).</div>' +
+      '<div id="sgDashBoards"><div class="ga-loading">Зареждане…</div></div>' +
+    '</div>';
+  sgDashBoardsLoad();
+}
+
+// ==================== СЕКЦИЯ: КАЛЕНДАР ИЗВЕСТИЯ ====================
+
+function sgSectionCalendar(host) {
+  host.innerHTML =
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">📅 Календар известия</div>' +
+      '<div class="sg-section__desc">Ново събитие в Google Calendar → съобщение в Basecamp с тагнати създател и отговорници. Промяна или отмяна → коментар под същото съобщение. Никой друг не получава известие.</div>' +
+      '<div id="gaBody"><div class="ga-loading">Зареждане…</div></div>' +
+    '</div>';
   gaLoad();
+}
+
+// ==================== СЕКЦИЯ: КП-АВТОМАТИЗАЦИЯ ====================
+// Настройки за създаването на КП (контент план) карти: дестинация в Basecamp
+// (дъска/колона), заглавие и текстове, дати, авто-график. Самите клиенти са на #/kp-auto.
+
+var _kpAdm = null; // { s: settings, tpl: {template, videoSection}, boards: [...] | null, bcError }
+
+function sgSectionKp(host) {
+  host.innerHTML = '<div class="sg-section"><div class="ga-loading">Зареждане…</div></div>';
+  kpAdminLoad();
+}
+
+async function kpAdminLoad() {
+  try {
+    var results = await Promise.all([
+      fetch('/api/settings').then(function (r) { return r.json(); }),
+      fetch('/api/kp/template').then(function (r) { return r.json(); }),
+      fetch('/api/kp/bc-options').then(function (r) {
+        return r.json().then(function (j) { return r.ok ? j : Promise.reject(new Error(j.error || ('HTTP ' + r.status))); });
+      }).catch(function (e) { return { error: e.message }; }),
+    ]);
+    _kpAdm = {
+      s: results[0].settings || {},
+      tpl: results[1] || {},
+      boards: results[2].boards || null,
+      bcError: results[2].error || null,
+    };
+    kpAdminRender();
+  } catch (e) {
+    var body = document.getElementById('sgBody');
+    if (body) body.innerHTML = '<div class="sg-section"><div style="color:var(--red);font-size:13px">Грешка при зареждане: ' + esc(e.message) + '</div></div>';
+  }
+}
+
+function kpAdmBoardOpts(sel) {
+  var opts = '<option value=""' + (!sel ? ' selected' : '') + '>— авто: Pre-Production —</option>';
+  (_kpAdm.boards || []).forEach(function (b) {
+    opts += '<option value="' + esc(b.id) + '"' + (String(sel) === String(b.id) ? ' selected' : '') + '>' + esc(b.title) + '</option>';
+  });
+  return opts;
+}
+
+function kpAdmColOpts(boardId, sel) {
+  var opts = '<option value=""' + (!sel ? ' selected' : '') + '>— авто: Измисляне —</option>';
+  var board = (_kpAdm.boards || []).find(function (b) { return String(b.id) === String(boardId); });
+  // Без избрана дъска колоните идват от авто-дъската (Pre-Production), ако я намерим.
+  if (!board) board = (_kpAdm.boards || []).find(function (b) { return /pre[\s-]*produc|предпрод/i.test(b.title || '') && !/post|пост/i.test(b.title || ''); });
+  ((board && board.columns) || []).forEach(function (c) {
+    opts += '<option value="' + esc(c.id) + '"' + (String(sel) === String(c.id) ? ' selected' : '') + '>' + esc(c.title) + (c.isDone ? ' (Done)' : '') + '</option>';
+  });
+  return opts;
+}
+
+function kpAdminRender() {
+  var host = document.getElementById('sgBody');
+  if (!host || !_kpAdm) return;
+  var s = _kpAdm.s;
+  var bcOn = s.kp_bc_enabled !== 'false';
+  var html = '';
+
+  // --- 1. Дестинация ---
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">📦 Къде се създават КП картите</div>' +
+    '<div class="sg-section__desc">Всеки нов контент план (ръчен бутон или авто-графикът) създава карта тук. Списъкът с клиенти е в <a href="#/kp-auto">КП-Автоматизация</a>.</div>' +
+    '<div class="ga-row ga-row--config">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (bcOn ? 'checked' : '') + ' onchange="kpAdmSave(\'kp_bc_enabled\', this.checked ? \'true\' : \'false\', true)"> Създавай в Basecamp</label>' +
+      '<span class="ga-dim">' + (bcOn ? 'картите отиват в Basecamp' : 'изключено — картите остават в локалната платформа (старо поведение)') + '</span>' +
+    '</div>';
+
+  if (bcOn) {
+    if (_kpAdm.bcError) {
+      html += '<div class="ga-empty" style="color:var(--yellow);margin-top:10px">⚠ Basecamp не отговори (' + esc(_kpAdm.bcError) + ') — дъската/колоната не могат да се изберат сега, но останалите настройки работят.</div>';
+    } else {
+      html += '<div class="sg-kp-grid">' +
+        '<label class="sg-kp-field"><span class="sg-kp-label">Дъска (Card Table)</span>' +
+          '<select class="ga-select sg-kp-select" id="kpAdmBoard" onchange="kpAdmBoardChange(this.value)">' + kpAdmBoardOpts(s.kp_bc_board_id) + '</select></label>' +
+        '<label class="sg-kp-field"><span class="sg-kp-label">Колона</span>' +
+          '<select class="ga-select sg-kp-select" id="kpAdmCol" onchange="kpAdmSave(\'kp_bc_column_id\', this.value)">' + kpAdmColOpts(s.kp_bc_board_id, s.kp_bc_column_id) + '</select></label>' +
+      '</div>';
+    }
+    html += '<div class="sg-kp-grid">' +
+      '<label class="sg-kp-field"><span class="sg-kp-label">Ръчното пускане създава картата като</span>' +
+        '<select class="ga-select sg-kp-select" onchange="kpAdmSave(\'kp_bc_actor\', this.value)">' +
+          '<option value="user"' + (s.kp_bc_actor !== 'bot' ? ' selected' : '') + '>Логнатия потребител</option>' +
+          '<option value="bot"' + (s.kp_bc_actor === 'bot' ? ' selected' : '') + '>Бота ThePactAlerts</option>' +
+        '</select>' +
+        '<span class="sg-kp-note">Авто-графикът винаги действа като бота.</span></label>' +
+      '<label class="sg-kp-field"><span class="sg-kp-label">Следващ КП се пуска, щом предишният напусне</span>' +
+        '<select class="ga-select sg-kp-select" onchange="kpAdmSave(\'kp_bc_check_scope\', this.value)">' +
+          '<option value="column"' + (s.kp_bc_check_scope !== 'board' ? ' selected' : '') + '>колоната (напр. Измисляне)</option>' +
+          '<option value="board"' + (s.kp_bc_check_scope === 'board' ? ' selected' : '') + '>целия борд (без Done)</option>' +
+        '</select>' +
+        '<span class="sg-kp-note">Така се разпознава „клиентът вече има активен КП".</span></label>' +
+    '</div>' +
+    '<div class="ga-row">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (s.kp_bc_notify === 'true' ? 'checked' : '') + ' onchange="kpAdmSave(\'kp_bc_notify\', this.checked ? \'true\' : \'false\')"> Basecamp известие при създаване</label>' +
+      '<span class="ga-dim">изключено = картата се появява тихо</span>' +
+    '</div>' +
+    '<div class="ga-row ga-row--foot">' +
+      '<button class="btn btn-sm" onclick="kpAdmTest(this)">🔧 Провери връзката</button>' +
+      '<span class="ga-dim">показва къде точно ще отиде следващата КП карта — нищо не се създава</span>' +
+    '</div>';
+  }
+  html += '</div>';
+
+  // --- 2. Заглавие и текст ---
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">✏️ Заглавие и текст на картата</div>' +
+    '<div class="sg-section__desc">Плейсхолдърите се заменят автоматично при създаване.</div>' +
+    '<label class="sg-kp-field"><span class="sg-kp-label">Заглавие</span>' +
+      '<input type="text" class="ga-input" id="kpAdmTitle" value="' + esc(s.kp_bc_title_template || '{клиент} КП-{номер}') + '" onblur="kpAdmSave(\'kp_bc_title_template\', this.value || \'{клиент} КП-{номер}\')">' +
+      '<span class="sg-kp-note">{клиент} = име на клиента · {номер} = номер на КП. Пример: „Cineland КП-18".</span></label>' +
+    '<label class="sg-kp-field" style="margin-top:12px"><span class="sg-kp-label">Основен текст</span>' +
+      '<textarea class="ga-input sg-kp-textarea" id="kpAdmTplMain" rows="7">' + esc(_kpAdm.tpl.template || '') + '</textarea>' +
+      '<span class="sg-kp-note">{first_publish_date} = дата на първото видео · {publish_dates} = всички дати (по една на ред) · {video_sections} = секциите за видеата · {клиент} · {номер}</span></label>' +
+    '<label class="sg-kp-field" style="margin-top:12px"><span class="sg-kp-label">Секция за всяко видео</span>' +
+      '<textarea class="ga-input sg-kp-textarea" id="kpAdmTplVideo" rows="7">' + esc(_kpAdm.tpl.videoSection || '') + '</textarea>' +
+      '<span class="sg-kp-note">{N} = номер на видеото. Повтаря се за всяко видео в плана.</span></label>' +
+    '<div class="ga-row ga-row--foot">' +
+      '<button class="btn btn-sm" onclick="kpAdmSaveTemplates(this)">💾 Запази текстовете</button>' +
+    '</div>' +
+  '</div>';
+
+  // --- 3. Дати и обем ---
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">📆 Дати и обем</div>' +
+    '<div class="sg-kp-rows">' +
+      kpAdmNumRow('kp_bc_due_days', 'Срок на КП картата (Due date)', s.kp_bc_due_days === undefined ? '10' : s.kp_bc_due_days, 'работни дни преди първото видео · празно = без срок', true) +
+      kpAdmNumRow('kp_calendar_window', 'Календарен прозорец', s.kp_calendar_window || '30', 'календарни дни, в които се разпределят видеата') +
+      kpAdmNumRow('kp_days_before_next_kp', 'Създаване на следващ КП', s.kp_days_before_next_kp || '15', 'работни дни преди първото видео на следващия КП') +
+      kpAdmNumRow('kp_default_videos', 'Видеа по подразбиране', s.kp_default_videos || '10', 'за нов клиент, ако не е зададено друго') +
+    '</div>' +
+  '</div>';
+
+  // --- 4. Авто-създаване ---
+  var autoOn = s.kp_auto_create_enabled !== 'false';
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">⏰ Автоматично създаване</div>' +
+    '<div class="sg-section__desc">Всеки ден в зададения час (българско време) проверява клиентите и пуска КП карта на всеки, който няма активна и му е дошло времето.</div>' +
+    '<div class="ga-row ga-row--config">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (autoOn ? 'checked' : '') + ' onchange="kpAdmSave(\'kp_auto_create_enabled\', this.checked ? \'true\' : \'false\', true)"> Включено</label>' +
+      '<span class="sg-kp-label" style="margin-left:10px">Час:</span>' +
+      '<input type="time" class="ga-input" style="flex:0 0 110px;min-width:110px" value="' + esc(s.kp_auto_create_time || '08:00') + '" onchange="kpAdmSave(\'kp_auto_create_time\', this.value || \'08:00\')">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (s.kp_auto_create_weekends === 'true' ? 'checked' : '') + ' onchange="kpAdmSave(\'kp_auto_create_weekends\', this.checked ? \'true\' : \'false\')"> и в събота/неделя</label>' +
+    '</div>' +
+    '<div class="sg-kp-note" style="margin-top:8px">Промените важат веднага — графикът се презарежда автоматично.</div>' +
+  '</div>';
+
+  host.innerHTML = html;
+}
+
+// Един ред „число + описание" за секцията с дати.
+function kpAdmNumRow(key, label, value, hint, allowEmpty) {
+  return '<div class="sg-kp-row">' +
+    '<span class="sg-kp-row__label">' + esc(label) + '</span>' +
+    '<input type="number" min="0" max="90" class="ga-input sg-kp-num" value="' + esc(value == null ? '' : String(value)) + '"' +
+      ' onblur="kpAdmSave(\'' + key + '\', this.value' + (allowEmpty ? '' : ' || \'0\'') + ')">' +
+    '<span class="sg-kp-row__hint">' + esc(hint) + '</span>' +
+  '</div>';
+}
+
+// Запазва настройка + (по избор) презарежда КП секцията, за да се преначертае.
+function kpAdmSave(key, value, rerender) {
+  saveSetting(key, value);
+  if (_kpAdm) _kpAdm.s[key] = String(value);
+  if (typeof _platformConfig === 'object') _platformConfig[key] = String(value);
+  showToast('Запазено ✓', 'success', 1500);
+  if (rerender) kpAdminRender();
+}
+
+// Смяна на дъската: нулира колоната (авто) — колоните са на новата дъска.
+function kpAdmBoardChange(boardId) {
+  saveSetting('kp_bc_column_id', '');
+  if (_kpAdm) _kpAdm.s.kp_bc_column_id = '';
+  kpAdmSave('kp_bc_board_id', boardId);
+  var colSel = document.getElementById('kpAdmCol');
+  if (colSel) colSel.innerHTML = kpAdmColOpts(boardId, '');
+}
+
+async function kpAdmSaveTemplates(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+  try {
+    var title = (document.getElementById('kpAdmTitle') || {}).value;
+    if (title) await saveSetting('kp_bc_title_template', title);
+    var res = await fetch('/api/kp/template', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        template: (document.getElementById('kpAdmTplMain') || {}).value,
+        videoSection: (document.getElementById('kpAdmTplVideo') || {}).value,
+      }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    showToast('Текстовете са запазени ✓', 'success');
+  } catch (e) {
+    showToast('Грешка: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Запази текстовете'; }
+  }
+}
+
+async function kpAdmTest(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Проверка…'; }
+  try {
+    var res = await fetch('/api/kp/bc-test', { method: 'POST' });
+    var j = await res.json();
+    if (j.ok) {
+      showToast('✓ КП картите отиват в: ' + j.board + ' → ' + j.column +
+        (j.dueDays != null ? ' · срок ' + j.dueDays + ' раб. дни преди 1-то видео' : ' · без срок') +
+        ' · пример: „' + j.titleExample + '"', 'success', 8000);
+    } else {
+      showToast('⚠ ' + (j.error || 'Неуспешна проверка'), 'error', 8000);
+    }
+  } catch (e) {
+    showToast('Грешка: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔧 Провери връзката'; }
+  }
 }
 
 // ==================== DASHBOARD ДЪСКИ (кои Card Tables виждат всички) ====================
@@ -370,6 +640,8 @@ function gaSyncNow(btn) {
     .finally(function () { if (btn) { btn.disabled = false; btn.textContent = '🔄 Синхронизирай сега'; } });
 }
 
+// ==================== ТЕМА: ШРИФТ + ЦВЕТОВЕ ====================
+
 function sgRenderFonts() {
   var host = document.getElementById('sgFonts');
   if (!host) return;
@@ -413,5 +685,5 @@ function sgRenderColors() {
 
 function sgResetAll() {
   if (typeof resetAllTheme === 'function') resetAllTheme();
-  renderSettings(document.getElementById('pageContent'));
+  renderSettings(document.getElementById('pageContent'), 'theme');
 }

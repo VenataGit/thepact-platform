@@ -44,7 +44,7 @@ function router() {
     case 'campfire': return renderCampfire(el, id || 1);
     case 'schedule': return renderSchedule(el);
     case 'checkins': return renderCheckins(el);
-    case 'admin': return renderSettings(el);
+    case 'admin': return renderSettings(el, parts[1] || null);
     case 'admin-legacy': return renderAdmin(el);
     case 'reports': return renderReports(el);
     case 'bookmarks': return renderBookmarks(el);
