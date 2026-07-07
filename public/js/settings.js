@@ -38,6 +38,7 @@ var SG_SECTIONS = [
   { id: 'kp', icon: '📋', label: 'КП-Автоматизация', hint: 'Basecamp, текстове, график', adminOnly: true },
   { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
   { id: 'calendar', icon: '📅', label: 'Календар известия', hint: 'GCal → Basecamp', adminOnly: false },
+  { id: 'agent', icon: '🤖', label: 'PM Agent', hint: 'Одит и синхрон', adminOnly: true },
 ];
 
 function _sgFontsLink() {
@@ -92,6 +93,7 @@ async function renderSettings(el, sub) {
   else if (active === 'kp') sgSectionKp(body);
   else if (active === 'dashboard') sgSectionDashboard(body);
   else if (active === 'calendar') sgSectionCalendar(body);
+  else if (active === 'agent') sgSectionAgent(body);
 }
 
 // ==================== СЕКЦИЯ: ТЕМА ====================
@@ -686,4 +688,157 @@ function sgRenderColors() {
 function sgResetAll() {
   if (typeof resetAllTheme === 'function') resetAllTheme();
   renderSettings(document.getElementById('pageContent'), 'theme');
+}
+
+// ==================== СЕКЦИЯ: PM AGENT ====================
+// AI project manager (Фаза 0/1): снапшот на Basecamp + одит „какво изпускаме".
+// Одитният доклад се публикува в Basecamp от ThePactAlerts (известие само до админа)
+// и се пази и тук, в журнала.
+
+var _agPollTimer = null;
+
+function sgSectionAgent(host) {
+  host.innerHTML =
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">🤖 PM Agent</div>' +
+      '<div class="sg-section__desc">Агентът държи снапшот на целия Basecamp (карти, коментари, клиентски проекти) и при одит го анализира с Claude (Opus). Докладът пристига като съобщение от ThePactAlerts — известие получаваш само ти.</div>' +
+      '<div id="agBody"><div class="ga-loading">Зареждане…</div></div>' +
+    '</div>';
+  agLoad();
+}
+
+async function agLoad() {
+  var body = document.getElementById('agBody');
+  if (!body) { agStopPoll(); return; }
+  try {
+    var res = await fetch('/api/agent/status');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    agRender(data);
+    var hasRunning = (data.runs || []).some(function (r) { return r.status === 'running'; });
+    if (hasRunning) agStartPoll(); else agStopPoll();
+  } catch (e) {
+    body.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка: ' + esc(e.message) + '</div>';
+    agStopPoll();
+  }
+}
+
+function agStartPoll() {
+  if (_agPollTimer) return;
+  _agPollTimer = setInterval(function () {
+    if (!document.getElementById('agBody')) { agStopPoll(); return; }
+    agLoad();
+  }, 5000);
+}
+function agStopPoll() {
+  if (_agPollTimer) { clearInterval(_agPollTimer); _agPollTimer = null; }
+}
+
+function agFmtTime(t) {
+  if (!t) return '—';
+  var d = new Date(t);
+  return d.toLocaleDateString('bg-BG') + ' ' + d.toLocaleTimeString('bg-BG', { hour: '2-digit', minute: '2-digit' });
+}
+
+function agKindLabel(k) {
+  return k === 'audit' ? '🕵️ Одит' : k === 'digest' ? '📋 Дайджест' : '🔄 Синхрон';
+}
+
+function agStatusBadge(s) {
+  if (s === 'running') return '<span style="color:var(--yellow,#e5c07b)">⏳ работи…</span>';
+  if (s === 'done') return '<span style="color:var(--green,#46a374)">✓ готово</span>';
+  return '<span style="color:var(--red)">✗ грешка</span>';
+}
+
+function agRender(data) {
+  var body = document.getElementById('agBody');
+  if (!body) return;
+  var c = data.counts || {};
+  var runs = data.runs || [];
+  var busy = runs.some(function (r) { return r.status === 'running'; });
+
+  var html =
+    '<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;margin-bottom:14px">' +
+      '<span>📁 Проекти: <b>' + (c.projects || 0) + '</b></span>' +
+      '<span>🗂 Карти: <b>' + (c.cards || 0) + '</b></span>' +
+      '<span>💬 Коментари: <b>' + (c.comments || 0) + '</b></span>' +
+      '<span>✉ Съобщения: <b>' + (c.messages || 0) + '</b></span>' +
+      '<span>☐ Задачи: <b>' + (c.todos || 0) + '</b></span>' +
+      '<span>🔥 Чат: <b>' + (c.campfireLines || 0) + '</b></span>' +
+      '<span>Последен синхрон: <b>' + agFmtTime(c.lastSyncAt) + '</b></span>' +
+    '</div>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">' +
+      '<button class="btn btn-sm" onclick="agSync(false)"' + (busy ? ' disabled' : '') + '>🔄 Синхронизирай</button>' +
+      '<button class="btn btn-sm" onclick="agSync(true)"' + (busy ? ' disabled' : '') + ' title="Изтегля всичко наново (карти, коментари, клиентски проекти)">⟳ Пълен синхрон</button>' +
+      '<button class="btn btn-sm btn-primary" onclick="agAudit()"' + (busy ? ' disabled' : '') + '>🕵️ Пусни одит</button>' +
+    '</div>';
+
+  if (runs.length) {
+    html += '<div class="sg-section__hdr" style="font-size:13px">Журнал</div>';
+    html += runs.map(function (r) {
+      var stats = r.stats || {};
+      var extra = '';
+      if (r.kind === 'audit' && stats.costUsd != null) extra = ' · ~$' + stats.costUsd;
+      if (stats.seconds) extra += ' · ' + stats.seconds + 'с';
+      var links = '';
+      if (r.status === 'done' && r.kind === 'audit') {
+        links += ' <a href="javascript:void(0)" onclick="agShowReport(' + r.id + ')">виж доклада</a>';
+        if (r.bc_message_url) links += ' · <a href="' + esc(r.bc_message_url) + '" target="_blank" rel="noopener">в Basecamp ↗</a>';
+      }
+      var err = r.status === 'error' && r.error ? '<div style="color:var(--red);font-size:12px;margin-top:2px">' + esc(String(r.error).slice(0, 300)) + '</div>' : '';
+      return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px">' +
+        agKindLabel(r.kind) + ' · ' + agStatusBadge(r.status) + ' · ' + agFmtTime(r.started_at) + esc(extra) + links + err +
+      '</div>';
+    }).join('');
+  }
+
+  html += '<div id="agReport" style="margin-top:16px"></div>';
+  // Poll-ът презарежда цялата секция — пазим отворения доклад да не изчезне.
+  var prevReport = document.getElementById('agReport');
+  var prevReportHtml = prevReport ? prevReport.innerHTML : '';
+  body.innerHTML = html;
+  if (prevReportHtml) {
+    var holder = document.getElementById('agReport');
+    if (holder) holder.innerHTML = prevReportHtml;
+  }
+}
+
+async function agSync(full) {
+  try {
+    var res = await fetch('/api/agent/sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ full: Boolean(full) }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    agLoad(); agStartPoll();
+  } catch (e) { alert('Грешка: ' + e.message); }
+}
+
+async function agAudit() {
+  if (!confirm('Пускам пълен одит с Claude (Opus). Отнема няколко минути и струва няколко долара. Продължавам ли?')) return;
+  try {
+    var res = await fetch('/api/agent/audit', { method: 'POST' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    agLoad(); agStartPoll();
+  } catch (e) { alert('Грешка: ' + e.message); }
+}
+
+async function agShowReport(runId) {
+  var holder = document.getElementById('agReport');
+  if (!holder) return;
+  holder.innerHTML = '<div class="ga-loading">Зареждане на доклада…</div>';
+  try {
+    var res = await fetch('/api/agent/runs/' + runId);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    // Докладът е генериран от нашия агент (доверен HTML) и е видим само за админ.
+    holder.innerHTML =
+      '<div class="sg-section" style="margin-top:8px">' +
+        '<div class="sg-section__hdr">Доклад #' + runId + '</div>' +
+        '<div class="ag-report" style="font-size:14px;line-height:1.55">' + (data.run && data.run.report ? data.run.report : '<em>Празен доклад.</em>') + '</div>' +
+      '</div>';
+    holder.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    holder.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка: ' + esc(e.message) + '</div>';
+  }
 }

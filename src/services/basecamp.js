@@ -213,6 +213,77 @@ async function getProjectPeople(token, account, projectId) {
   return out;
 }
 
+// ---- Read helpers за PM Agent (Фаза 0) — всичко е само GET, с пагинация ----
+
+// Follows Link rel="next" pagination and returns the concatenated array.
+// `maxPages` пази от неочаквано огромни списъци (15 елемента/страница).
+async function pagedGet(url, token, maxPages = 100) {
+  const out = [];
+  let pages = 0;
+  while (url && pages < maxPages) {
+    const { json, next } = await authedGet(url, token);
+    if (Array.isArray(json)) out.push(...json);
+    url = next;
+    pages += 1;
+  }
+  return out;
+}
+
+// Всички проекти, които токенът вижда (Video Production + клиентските).
+async function getProjects(token, account) {
+  return pagedGet(`${API_BASE}/${account}/projects.json`, token, 30);
+}
+
+// Коментарите под който и да е recording (карта, съобщение, todo...).
+async function getComments(token, account, projectId, recordingId) {
+  return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/recordings/${recordingId}/comments.json`, token, 40);
+}
+
+// Съобщенията от message board (най-новите първи).
+async function getMessages(token, account, projectId, boardId) {
+  return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/message_boards/${boardId}/messages.json`, token, 20);
+}
+
+// To-do списъците на проект (през todoset id от dock-а).
+async function getTodoLists(token, account, projectId, todosetId) {
+  return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/todosets/${todosetId}/todolists.json`, token, 20);
+}
+
+// To-do задачите в списък. completed=true връща и завършените.
+async function getTodos(token, account, projectId, todolistId, { completed = false } = {}) {
+  const qs = completed ? '?completed=true' : '';
+  return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/todolists/${todolistId}/todos.json${qs}`, token, 30);
+}
+
+// Campfire редове (чат) — най-новите първи; по подразбиране само първите страници.
+async function getCampfireLines(token, account, projectId, chatId, maxPages = 2) {
+  return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/chats/${chatId}/lines.json`, token, maxPages);
+}
+
+// Recordings cross-project: всички записи от даден тип (Comment/Message/Todo)
+// през ВСИЧКИ проекти, сортирани по updated_at desc. Спира щом стигне запис,
+// по-стар от `sinceIso` (или изчерпи maxPages). Идеално за инкрементален sync.
+async function getRecordingsSince(token, account, type, sinceIso, maxPages = 30) {
+  let url = `${API_BASE}/${account}/projects/recordings.json?type=${encodeURIComponent(type)}&sort=updated_at&direction=desc`;
+  const out = [];
+  let pages = 0;
+  const since = sinceIso ? new Date(sinceIso).getTime() : 0;
+  while (url && pages < maxPages) {
+    const { json, next } = await authedGet(url, token);
+    if (!Array.isArray(json) || !json.length) break;
+    let reachedOld = false;
+    for (const rec of json) {
+      const at = new Date(rec.updated_at || rec.created_at || 0).getTime();
+      if (since && at < since) { reachedOld = true; break; }
+      out.push(rec);
+    }
+    if (reachedOld) break;
+    url = next;
+    pages += 1;
+  }
+  return out;
+}
+
 // Post a message to a Message Board. status:'active' publishes it immediately.
 // ВАЖНО: без `subscriptions` Basecamp известява ЦЕЛИЯ проект при публикуване.
 // Подаваме масив от person ids → само те са абонирани/известени ("notify: No one"
@@ -298,6 +369,13 @@ module.exports = {
   createCard,
   createStep,
   getProjectPeople,
+  getProjects,
+  getComments,
+  getMessages,
+  getTodoLists,
+  getTodos,
+  getCampfireLines,
+  getRecordingsSince,
   createMessage,
   createComment,
   setSubscription,

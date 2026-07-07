@@ -168,6 +168,7 @@ app.use('/api/trash', require('./routes/trash'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/positions', require('./routes/positions'));
 app.use('/api/transcribe', require('./routes/transcribe'));
+app.use('/api/agent', require('./routes/agent'));
 // Online users endpoint
 app.get('/api/users/online', require('./middleware/auth').requireAuth, (req, res) => {
   const { getOnlineUserIds } = require('./ws/broadcast');

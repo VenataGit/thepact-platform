@@ -44,6 +44,7 @@ const { initDailyReport } = require('./services/daily-report');
 const { initKpScheduler } = require('./services/kp-scheduler');
 const { initPush } = require('./services/push');
 const { initGcalAlerts } = require('./services/gcal-alerts');
+const { initPmAgent } = require('./services/pm-agent/snapshot');
 setTimeout(() => {
   initCheckInScheduler();
   initEmail();
@@ -51,6 +52,7 @@ setTimeout(() => {
   initKpScheduler();
   initPush();
   initGcalAlerts();
+  initPmAgent();
 }, 2000);
 
 // Auto-cleanup: permanently delete cards that have been in trash for 30+ days
