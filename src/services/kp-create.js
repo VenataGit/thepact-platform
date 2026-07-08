@@ -184,16 +184,29 @@ function textToHtml(text) {
   }).join('');
 }
 
-// Plain text -> Basecamp rich HTML (bold "Видео N" headings; Basecamp strips inline styles).
+// Plain text -> Basecamp rich HTML in Trix's OWN canonical format.
+//
+// Trix (Basecamp's editor) stores plain paragraphs as ONE block with <br> between
+// lines; a blank line is simply an extra <br>. Emitting a separate <div> per line
+// (with <div><br></div> for blanks) looks right in read mode, but the moment you
+// open the card for edit, Basecamp's Trix re-parses it and collapses the empty
+// blocks → the spacing is lost. So we emit exactly what Trix itself produces
+// (verified as a stable round-trip fixed point), which keeps the blank separator
+// lines intact through the edit round-trip.
+//
+// "Видео N - …" headings are wrapped in <mark> (Basecamp's highlight → yellow, the
+// first colour) AND <strong>: the <mark> gives the colour, and <strong> keeps the
+// heading emphasised even if an older Trix drops the highlight attribute.
 function textToBcHtml(text) {
   if (!text) return '';
-  return text.split('\n').map(line => {
+  const lines = text.split('\n').map((line) => {
     const t = line.trim();
-    const esc = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    if (esc === '') return '<div><br></div>';
-    if (/^Видео\s+\d+\s*[-–—]/.test(t)) return `<div><strong>${esc}</strong></div>`;
-    return `<div>${esc}</div>`;
-  }).join('');
+    if (t === '') return ''; // празен ред → допълнителен <br> при join-а
+    const e = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (/^Видео\s+\d+\s*[-–—]/.test(t)) return `<strong><mark>${e}</mark></strong>`;
+    return e;
+  });
+  return `<div>${lines.join('<br>')}</div>`;
 }
 
 // ---------- Basecamp destination ----------
