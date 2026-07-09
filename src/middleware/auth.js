@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const config = require('../config');
 
 const COOKIE_NAME = '__pact_jwt';
@@ -33,7 +34,7 @@ const ACTIVE_CHECK_TTL = 60_000;   // re-check every 60 seconds
 
 function requireAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
-  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  if (!token) return extensionTokenAuth(req, res, next);
 
   try {
     const payload = jwt.verify(token, config.JWT_SECRET);
@@ -82,6 +83,47 @@ function invalidateUserCache(userId) {
   activeUserCache.set(userId, { active: false, checkedAt: Date.now() });
 }
 
+// --- Extension bearer tokens (The Pact Tools) ---
+// Fallback auth path when there is no session cookie: Authorization: Bearer pt_<64 hex>.
+// The token itself is never stored — only its SHA-256 hash (extension_tokens table).
+// Role comes live from the users table, so role changes apply within the cache TTL.
+const extTokenCache = new Map(); // tokenHash -> { user: payload|null, checkedAt: ms }
+const EXT_TOKEN_TTL = 60_000;
+
+function extensionTokenAuth(req, res, next) {
+  const m = (req.headers.authorization || '').match(/^Bearer (pt_[a-f0-9]{64})$/);
+  if (!m) return res.status(401).json({ error: 'Not authenticated' });
+  const hash = crypto.createHash('sha256').update(m[1]).digest('hex');
+
+  const cached = extTokenCache.get(hash);
+  if (cached && Date.now() - cached.checkedAt < EXT_TOKEN_TTL) {
+    if (!cached.user) return res.status(401).json({ error: 'Invalid token' });
+    req.user = cached.user;
+    return next();
+  }
+
+  const { queryOne, execute } = require('../db/pool');
+  queryOne(
+    `SELECT u.id, u.role, u.name
+       FROM extension_tokens t
+       JOIN users u ON u.id = t.user_id
+      WHERE t.token_hash = $1 AND t.revoked_at IS NULL AND u.is_active IS NOT FALSE`,
+    [hash]
+  ).then((u) => {
+    const user = u ? { userId: u.id, role: u.role, name: u.name, viaExtension: true } : null;
+    extTokenCache.set(hash, { user, checkedAt: Date.now() });
+    if (!user) return res.status(401).json({ error: 'Invalid token' });
+    req.user = user;
+    execute('UPDATE extension_tokens SET last_used_at = NOW() WHERE token_hash = $1', [hash]).catch(() => {});
+    next();
+  }).catch(() => res.status(500).json({ error: 'Auth check failed' }));
+}
+
+// Call after revoking a token so it stops working immediately (not after TTL)
+function clearExtensionTokenCache() {
+  extTokenCache.clear();
+}
+
 // Middleware: require moderator, mini_admin, or admin role
 function requireModerator(req, res, next) {
   const r = req.user?.role;
@@ -123,5 +165,5 @@ function verifyFromCookieHeader(cookieHeader) {
 module.exports = {
   COOKIE_NAME, signToken, setTokenCookie, clearTokenCookie,
   requireAuth, requireModerator, requireMiniAdmin, requireAdmin, verifyFromCookieHeader,
-  invalidateUserCache
+  invalidateUserCache, clearExtensionTokenCache
 };

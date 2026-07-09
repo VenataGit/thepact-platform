@@ -129,31 +129,43 @@ CREATE INDEX IF NOT EXISTS idx_card_events_card ON card_events(card_id);
 CREATE INDEX IF NOT EXISTS idx_card_events_date ON card_events(created_at);
 
 -- ============================================================
--- TIME TRACKING
+-- TIME TRACKING (през The Pact Tools разширението; виж migrations/046)
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS time_entries (
-    id              SERIAL PRIMARY KEY,
-    card_id         INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
-    user_id         INTEGER NOT NULL REFERENCES users(id),
-    started_at      TIMESTAMPTZ NOT NULL,
-    ended_at        TIMESTAMPTZ,
-    duration_minutes INTEGER,
-    stage           VARCHAR(100),
-    is_manual       BOOLEAN DEFAULT FALSE,
-    created_at      TIMESTAMPTZ DEFAULT NOW()
+    id               SERIAL PRIMARY KEY,
+    user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    bc_project_id    BIGINT,
+    bc_recording_id  BIGINT,
+    recording_type   TEXT NOT NULL DEFAULT '',
+    title            TEXT NOT NULL DEFAULT '',
+    url              TEXT NOT NULL DEFAULT '',
+    started_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ended_at         TIMESTAMPTZ,
+    last_beat        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    duration_seconds INTEGER,
+    is_manual        BOOLEAN NOT NULL DEFAULT FALSE,
+    stopped_by       TEXT NOT NULL DEFAULT '',
+    note             TEXT NOT NULL DEFAULT '',
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_time_entries_card ON time_entries(card_id);
-CREATE INDEX IF NOT EXISTS idx_time_entries_user ON time_entries(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_time_entries_one_running
+    ON time_entries(user_id) WHERE ended_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_time_entries_user_started ON time_entries(user_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_time_entries_recording    ON time_entries(bc_recording_id);
+CREATE INDEX IF NOT EXISTS idx_time_entries_project      ON time_entries(bc_project_id);
+CREATE INDEX IF NOT EXISTS idx_time_entries_started      ON time_entries(started_at);
 
-CREATE TABLE IF NOT EXISTS active_timers (
-    id              SERIAL PRIMARY KEY,
-    card_id         INTEGER NOT NULL,
-    user_id         INTEGER NOT NULL,
-    started_at      TIMESTAMPTZ NOT NULL,
-    stage           VARCHAR(100),
-    UNIQUE(user_id)
+CREATE TABLE IF NOT EXISTS extension_tokens (
+    id           SERIAL PRIMARY KEY,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash   TEXT NOT NULL UNIQUE,
+    label        TEXT NOT NULL DEFAULT '',
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at TIMESTAMPTZ,
+    revoked_at   TIMESTAMPTZ
 );
+CREATE INDEX IF NOT EXISTS idx_extension_tokens_user ON extension_tokens(user_id);
 
 -- ============================================================
 -- KP AUTOMATION
