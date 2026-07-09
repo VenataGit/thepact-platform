@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { query, queryOne } = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { broadcast } = require('../ws/broadcast');
 
 const TZ = 'Europe/Sofia';
@@ -274,6 +274,75 @@ router.delete('/entries/:id', requireAuth, async (req, res, next) => {
     await query('DELETE FROM time_entries WHERE id = $1', [id]);
     if (!existing.ended_at) broadcastStop(existing);
     res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+/* ---------------- админ отчет ---------------- */
+
+// Вървящите таймери влизат в сумите с изтеклото до момента време.
+const DUR = "COALESCE(duration_seconds, GREATEST(0, EXTRACT(EPOCH FROM (NOW() - e.started_at)))::int)";
+const RANGE = `WHERE ($1::date IS NULL OR (e.started_at AT TIME ZONE '${TZ}')::date >= $1::date)
+                 AND ($2::date IS NULL OR (e.started_at AT TIME ZONE '${TZ}')::date <= $2::date)`;
+
+function dateParam(v) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null;
+}
+
+// GET /api/time/report?from&to — агрегати за периода (общо/хора/проекти/задачи/дни)
+router.get('/report', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const params = [dateParam(req.query.from), dateParam(req.query.to)];
+    const [totals, byUser, byProject, byTask, byDay] = await Promise.all([
+      queryOne(
+        `SELECT COALESCE(SUM(${DUR}),0)::int AS seconds, COUNT(*)::int AS entries,
+                COUNT(DISTINCT e.user_id)::int AS users,
+                COUNT(DISTINCT e.bc_recording_id)::int AS tasks,
+                COALESCE(SUM(CASE WHEN e.is_manual THEN ${DUR} ELSE 0 END),0)::int AS manual_seconds
+           FROM time_entries e ${RANGE}`, params),
+      query(
+        `SELECT e.user_id, u.name, COALESCE(SUM(${DUR}),0)::int AS seconds, COUNT(*)::int AS entries,
+                COALESCE(SUM(CASE WHEN e.is_manual THEN ${DUR} ELSE 0 END),0)::int AS manual_seconds
+           FROM time_entries e JOIN users u ON u.id = e.user_id ${RANGE}
+          GROUP BY e.user_id, u.name ORDER BY seconds DESC`, params),
+      query(
+        `SELECT e.bc_project_id, COALESCE(p.name, '(без проект)') AS project_name,
+                COALESCE(SUM(${DUR}),0)::int AS seconds,
+                COUNT(DISTINCT e.user_id)::int AS users, COUNT(*)::int AS entries
+           FROM time_entries e LEFT JOIN bc_projects p ON p.project_id = e.bc_project_id ${RANGE}
+          GROUP BY e.bc_project_id, p.name ORDER BY seconds DESC`, params),
+      query(
+        `SELECT e.bc_recording_id, MAX(e.title) AS title, e.bc_project_id,
+                COALESCE(p.name, '') AS project_name,
+                COALESCE(SUM(${DUR}),0)::int AS seconds, COUNT(DISTINCT e.user_id)::int AS users
+           FROM time_entries e LEFT JOIN bc_projects p ON p.project_id = e.bc_project_id ${RANGE}
+          GROUP BY e.bc_recording_id, e.bc_project_id, p.name ORDER BY seconds DESC LIMIT 200`, params),
+      query(
+        `SELECT ((e.started_at AT TIME ZONE '${TZ}')::date)::text AS day, COALESCE(SUM(${DUR}),0)::int AS seconds
+           FROM time_entries e ${RANGE} GROUP BY day ORDER BY day`, params)
+    ]);
+    res.json({ totals, byUser, byProject, byTask, byDay });
+  } catch (err) { next(err); }
+});
+
+// GET /api/time/report/entries?from&to&user_id&project_id&recording_id — записите поединично
+router.get('/report/entries', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const userId = parseInt(req.query.user_id) || null;
+    const projectId = String(req.query.project_id || '').replace(/\D/g, '') || null;
+    const recordingId = String(req.query.recording_id || '').replace(/\D/g, '') || null;
+    const rows = await query(
+      `SELECT e.*, u.name AS user_name, COALESCE(p.name, '') AS project_name
+         FROM time_entries e
+         JOIN users u ON u.id = e.user_id
+         LEFT JOIN bc_projects p ON p.project_id = e.bc_project_id
+        ${RANGE}
+          AND ($3::int IS NULL OR e.user_id = $3::int)
+          AND ($4::bigint IS NULL OR e.bc_project_id = $4::bigint)
+          AND ($5::bigint IS NULL OR e.bc_recording_id = $5::bigint)
+        ORDER BY e.started_at DESC LIMIT 1000`,
+      [dateParam(req.query.from), dateParam(req.query.to), userId, projectId, recordingId]
+    );
+    res.json(rows.map((r) => Object.assign(entryPublic(r), { projectName: r.project_name })));
   } catch (err) { next(err); }
 });
 

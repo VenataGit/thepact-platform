@@ -55,6 +55,11 @@ function handleWSEvent(ev) {
   if (t === 'chat:channel:updated' || t === 'chat:member:added' || t === 'chat:member:removed') { if (location.hash.startsWith('#/chat')) wsRouter(); return; }
   if (t === 'campfire:message' && location.hash.startsWith('#/campfire/')) { if (ev.message) appendCampfireMsg(ev.message); return; }
   if (t === 'checkin:reminder') wsRouter();
+  // Кой работи сега (The Pact Tools таймери) — без re-render
+  if (t === 'time:working:start' || t === 'time:working:stop') {
+    if (typeof twHandleWS === 'function') twHandleWS(ev);
+    return;
+  }
   // Presence
   if (t === 'presence:online') { onlineUsers.add(ev.userId); updatePresenceDots(); }
   if (t === 'presence:offline') { onlineUsers.delete(ev.userId); updatePresenceDots(); }

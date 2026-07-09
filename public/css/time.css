@@ -1,0 +1,137 @@
+/* ==================== ВРЕМЕ: индикатор + админ отчет ==================== */
+
+/* часовничето на dash картите свети, докато някой работи по картата */
+.dash-card__timer--working {
+  color: #e5484d !important;
+  animation: tw-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tw-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* ---------- отчетна страница ---------- */
+
+.tr-page h2 { margin: 0; }
+.tr-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.tr-presets { display: flex; gap: 6px; }
+.tr-preset, .tr-apply, .tr-csv {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  color: var(--text, #e6e6e6);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.tr-preset:hover, .tr-apply:hover, .tr-csv:hover { background: rgba(255, 255, 255, 0.12); }
+.tr-apply { background: #46a374; border-color: #46a374; color: #fff; font-weight: 600; }
+.tr-range { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.tr-range input[type="date"] {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  color: var(--text, #e6e6e6);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+.tr-live {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13.5px;
+}
+.tr-live__item i { color: var(--text-dim, #9aa7ad); font-style: normal; }
+.tr-live__none { color: var(--text-dim, #9aa7ad); }
+
+.tr-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.tr-tile {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.tr-tile__num { font-size: 22px; font-weight: 700; }
+.tr-tile__label { font-size: 12px; color: var(--text-dim, #9aa7ad); margin-top: 3px; }
+
+.tr-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 900px) { .tr-grid { grid-template-columns: 1fr; } }
+
+.tr-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.tr-box h3 { margin: 0 0 10px; font-size: 14.5px; }
+
+.tr-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) 2fr 70px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+}
+.tr-row:hover { background: rgba(255, 255, 255, 0.06); }
+.tr-row__bar { background: rgba(255, 255, 255, 0.07); border-radius: 6px; height: 12px; overflow: hidden; }
+.tr-row__fill { background: #46a374; height: 100%; border-radius: 6px; }
+.tr-row__val { text-align: right; font-weight: 600; white-space: nowrap; }
+.tr-dim, .tr-manual { color: var(--text-dim, #9aa7ad); font-size: 12px; }
+.tr-manual { margin-left: 6px; }
+
+.tr-days { display: flex; gap: 6px; align-items: flex-end; overflow-x: auto; padding-bottom: 4px; }
+.tr-day { text-align: center; min-width: 34px; }
+.tr-day__bar { height: 80px; display: flex; align-items: flex-end; background: rgba(255, 255, 255, 0.05); border-radius: 6px; }
+.tr-day__fill { width: 100%; background: #46a374; border-radius: 6px; }
+.tr-day__label { font-size: 10.5px; color: var(--text-dim, #9aa7ad); margin-top: 4px; white-space: nowrap; }
+
+.tr-table { width: 100%; font-size: 13px; }
+.tr-task { cursor: pointer; }
+.tr-task:hover { background: rgba(255, 255, 255, 0.05); }
+
+.tr-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-dim, #b6c2c8);
+}
+.tr-badge--manual { background: rgba(240, 197, 65, 0.18); color: #f0c541; }
+.tr-runchip { color: #e5484d; font-weight: 700; font-size: 12px; }
+.tr-filterchip {
+  font-size: 12px;
+  font-weight: 400;
+  background: rgba(70, 163, 116, 0.15);
+  color: #6fc79b;
+  border-radius: 999px;
+  padding: 3px 10px;
+  margin-left: 8px;
+}
+.tr-filterchip a { color: inherit; text-decoration: none; margin-left: 4px; }
+.tr-empty { color: var(--text-dim, #9aa7ad); font-size: 13px; padding: 6px 2px; }

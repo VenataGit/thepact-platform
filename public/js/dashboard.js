@@ -365,11 +365,23 @@ function renderDashCard(card) {
   '</div>';
 }
 
-// Time-tracking button — placeholder for now; the tracking mechanics come later.
+// Time-tracking button: свети червено, докато колега работи по картата (виж
+// time-working.js). Клик: показва кой работи; иначе отваря картата в Basecamp,
+// където живее таймерът (The Pact Tools разширението).
 function dashCardTimer(e, cardId) {
   e.stopPropagation(); // don't open the card in Basecamp
   e.preventDefault();
-  if (typeof showToast === 'function') showToast('Следене на времето — скоро 🕐', 'info');
+  const w = typeof _twWorking !== 'undefined' ? _twWorking.get(String(cardId)) : null;
+  if (w) {
+    if (typeof showToast === 'function') showToast('⏱ ' + w.userName + ' работи по това от ' + twMinutes(w) + ' мин', 'info');
+    return;
+  }
+  const cardEl = e.target.closest('.dash-card');
+  const url = cardEl && cardEl.dataset.url;
+  if (url) {
+    window.open(url, '_blank');
+    if (typeof showToast === 'function') showToast('Пусни таймера от прозорчето на The Pact Tools в Basecamp ⏱', 'info');
+  }
 }
 
 // --- drag & drop: move a card to another column of the SAME board, in Basecamp ---

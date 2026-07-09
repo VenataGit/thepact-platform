@@ -137,6 +137,7 @@ function populateMore(el) {
     </div>
     ${currentUser?.role === 'admin' || currentUser?.role === 'mini_admin' ? `<div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
       ${currentUser?.role === 'admin' ? `<a class="nav-dropdown__item" href="#/agent" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(28,176,246,.15);color:var(--accent,#1cb0f6)">🤖</div> PM Agent</a>` : ''}
+      ${currentUser?.role === 'admin' ? `<a class="nav-dropdown__item" href="#/time-report" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(229,72,77,.15);color:#e5484d">⏱</div> Време</a>` : ''}
       <a class="nav-dropdown__item" href="#/admin" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">⚙️</div> Настройки</a>
     </div>` : ''}
   `;
