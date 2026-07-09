@@ -435,9 +435,11 @@ function gaRender() {
   var team = d.team || [];
   var html = '';
 
-  // Глобален ред: on/off + Message Board линк
+  // Глобален ред: on/off + Campfire ping + Message Board линк
   html += '<div class="ga-row ga-row--config">' +
       '<label class="ga-toggle"><input type="checkbox" ' + (d.enabled ? 'checked' : '') + ' onchange="gaToggleEnabled(this.checked)"> Включено</label>' +
+      '<label class="ga-toggle" title="Ред в Campfire чата на проекта с таг на създателя и отговорниците — най-близкото до Ping, което Basecamp API позволява.">' +
+        '<input type="checkbox" ' + (d.pingCampfire ? 'checked' : '') + ' onchange="gaTogglePing(this.checked)"> 🔔 Ping в Campfire</label>' +
       '<input type="text" class="ga-input ga-input--board" id="gaBoardUrl" value="' + esc(d.boardUrl) + '" placeholder="Линк към Basecamp Message Board…">' +
       '<button class="btn btn-sm" onclick="gaSaveBoard()">Запази</button>' +
     '</div>';
@@ -550,6 +552,12 @@ async function _gaCall(url, method, body) {
 function gaToggleEnabled(on) {
   _gaCall('/api/gcal-alerts/config', 'PUT', { enabled: on })
     .then(function () { _gaData.enabled = on; showToast(on ? 'Календар известията са включени.' : 'Календар известията са спрени.', 'success'); })
+    .catch(function (e) { showToast(e.message, 'error'); gaLoad(); });
+}
+
+function gaTogglePing(on) {
+  _gaCall('/api/gcal-alerts/config', 'PUT', { pingCampfire: on })
+    .then(function () { _gaData.pingCampfire = on; showToast(on ? 'Campfire ping е включен.' : 'Campfire ping е спрян.', 'success'); })
     .catch(function (e) { showToast(e.message, 'error'); gaLoad(); });
 }
 

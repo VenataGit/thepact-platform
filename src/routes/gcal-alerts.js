@@ -63,6 +63,7 @@ router.get('/overview', requireAuth, requireAdmin, async (req, res) => {
     res.json({
       saEmail: getServiceAccountEmail(),
       enabled: s.gcal_alerts_enabled === 'true',
+      pingCampfire: s.gcal_alerts_ping_campfire !== 'false',
       boardUrl: s.gcal_alerts_bc_board_url || '',
       project: s.gcal_alerts_bc_project || '',
       board: s.gcal_alerts_bc_board || '',
@@ -91,13 +92,14 @@ router.post('/refresh-people', requireAuth, requireAdmin, async (req, res) => {
 // PUT /api/gcal-alerts/config — глобален toggle + Message Board линк.
 router.put('/config', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { enabled, boardUrl } = req.body || {};
+    const { enabled, boardUrl, pingCampfire } = req.body || {};
     const save = (key, value) => execute(
       `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, NOW())
        ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
       [key, String(value)]
     );
     if (enabled !== undefined) await save('gcal_alerts_enabled', enabled ? 'true' : 'false');
+    if (pingCampfire !== undefined) await save('gcal_alerts_ping_campfire', pingCampfire ? 'true' : 'false');
     if (boardUrl !== undefined) {
       const ids = parseBoardUrl(boardUrl);
       if (!ids) return res.status(400).json({ error: 'Невалиден линк — очаквам …/buckets/…/message_boards/… от Basecamp.' });

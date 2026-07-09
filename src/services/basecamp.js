@@ -300,6 +300,19 @@ async function createMessage(token, account, projectId, boardId, { subject, cont
   return r.json();
 }
 
+// Post a line to a Campfire chat. Content is rich text — <bc-attachment sgid>
+// mentions work and notify the mentioned people (closest thing to a Ping the
+// public API offers; real Pings/DMs are not exposed by Basecamp).
+async function createCampfireLine(token, account, projectId, chatId, content) {
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/chats/${chatId}/lines.json`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ content }),
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp campfire line failed (${r.status}): ${b.slice(0, 200)}`); }
+  return r.json();
+}
+
 // Comment under any recording (e.g. a message). Notifies the thread's subscribers.
 async function createComment(token, account, projectId, recordingId, content) {
   const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/recordings/${recordingId}/comments.json`, {
@@ -377,6 +390,7 @@ module.exports = {
   getCampfireLines,
   getRecordingsSince,
   createMessage,
+  createCampfireLine,
   createComment,
   setSubscription,
   downloadFile,
