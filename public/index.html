@@ -15,12 +15,12 @@
   <!-- ?v=… busts the browser cache. BUMP this date whenever a CSS file changes,
        so everyone gets the new styles without a manual hard-refresh. -->
   <link rel="stylesheet" href="/css/base.css?v=20260627b">
-  <link rel="stylesheet" href="/css/layout.css?v=20260627b">
+  <link rel="stylesheet" href="/css/layout.css?v=20260710b">
   <!-- Feature CSS (split from old monolithic board.css) -->
   <link rel="stylesheet" href="/css/kanban.css?v=20260627b">
   <link rel="stylesheet" href="/css/card-detail.css?v=20260627b">
   <link rel="stylesheet" href="/css/chat-campfire.css?v=20260627b">
-  <link rel="stylesheet" href="/css/dashboard.css?v=20260706e">
+  <link rel="stylesheet" href="/css/dashboard.css?v=20260710b">
   <link rel="stylesheet" href="/css/clients.css?v=20260627b">
   <link rel="stylesheet" href="/css/settings.css?v=20260707a">
   <link rel="stylesheet" href="/css/basecamp-kanban.css?v=20260627b">
@@ -75,9 +75,10 @@
           </a>
         </li>
         <li class="nav__item">
-          <a class="nav__link" href="#/calendar" data-nav="calendar">
+          <a class="nav__link" href="#/calendar" data-nav="calendar" title="Production Calendar">
             <img src="/img/icon-calendar.png" alt="" width="16" height="16" class="nav__icon">
-            <span>Production Calendar</span>
+            <span class="nav__lbl-full">Production Calendar</span>
+            <span class="nav__lbl-short">Календар</span>
           </a>
         </li>
         <li class="nav__item">
@@ -87,20 +88,21 @@
           </a>
         </li>
         <li class="nav__item">
-          <button class="nav__link" data-nav="find" onclick="toggleDropdown('findDropdown', this, event)">
+          <button class="nav__link" data-nav="find" onclick="toggleDropdown('findDropdown', this, event)" title="Find — търсене">
             <img src="/img/icon-search.png" alt="" width="16" height="16" class="nav__icon">
             <span>Find</span>
           </button>
           <div class="nav-dropdown nav-dropdown--center nav-dropdown--large" id="findDropdown"></div>
         </li>
         <li class="nav__item">
-          <button class="nav__link" data-nav="kp-split" onclick="showKpSplit()">
+          <button class="nav__link" data-nav="kp-split" onclick="showKpSplit()" title="Създай задачи по КП">
             <img src="/img/icon-kp-avto.png" alt="" width="16" height="16" class="nav__icon">
-            <span>Създай задачи по КП</span>
+            <span class="nav__lbl-full">Създай задачи по КП</span>
+            <span class="nav__lbl-short">КП задачи</span>
           </button>
         </li>
         <li class="nav__item">
-          <button class="nav__link" data-nav="more" onclick="toggleDropdown('moreDropdown', this, event)">
+          <button class="nav__link" data-nav="more" onclick="toggleDropdown('moreDropdown', this, event)" title="More — инструменти">
             <img src="/img/icon-tools.png" alt="" width="16" height="16" class="nav__icon">
             <span>More</span>
           </button>
@@ -218,7 +220,7 @@
   <script src="/js/time-report.js?v=20260710a" defer></script>
   <script src="/js/home.js?v=20260627b" defer></script>
   <script src="/js/project.js?v=20260627b" defer></script>
-  <script src="/js/dashboard.js?v=20260710a" defer></script>
+  <script src="/js/dashboard.js?v=20260710b" defer></script>
   <script src="/js/clients.js?v=20260627b" defer></script>
   <script src="/js/kp-split.js?v=20260627b" defer></script>
   <script src="/js/kanban.js?v=20260627b" defer></script>

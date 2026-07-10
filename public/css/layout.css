@@ -664,6 +664,38 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
   #pageContent.page-tool { border-radius: 10px; margin: 12px; }
 }
 
+/* ==================== NAV RESPONSIVE 1200–1780px ====================
+   .nav__main е абсолютно центрирано и под ~1780px започва да застъпва логото
+   и дясната група (и текстът се чупи на 2 реда). Под този праг барът минава
+   на нормален flex поток; етикетите се скъсяват на стъпала. */
+.nav__link span { white-space: nowrap; }
+.nav__lbl-short { display: none; }
+
+@media (max-width: 1780px) {
+  .nav__bar { justify-content: flex-start; }
+  .nav__main {
+    position: static;
+    transform: none;
+    margin: 0 auto;
+    min-width: 0;
+  }
+  .nav__me { position: static; }
+  .nav__link { padding: 6px 10px; }
+}
+
+@media (max-width: 1640px) {
+  .nav__lbl-full { display: none; }
+  .nav__lbl-short { display: inline; }
+  .nav__link { padding: 6px 8px; }
+}
+
+/* Само икони за второстепенните действия — заглавието (title) става tooltip */
+@media (max-width: 1380px) {
+  .nav__link[data-nav="find"] span,
+  .nav__link[data-nav="kp-split"] span,
+  .nav__link[data-nav="more"] span { display: none; }
+}
+
 /* ==================== COMPREHENSIVE RESPONSIVE — layout.css ==================== */
 
 /* ---- Tablet: 768px–1200px ---- */
