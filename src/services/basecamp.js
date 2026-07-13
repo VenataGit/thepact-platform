@@ -125,6 +125,16 @@ async function isTeamMember(accessToken, accountId, teamProjectId) {
 // ---- Card Table (kanban) API — all helpers take whatever token the caller provides ----
 const API_BASE = 'https://3.basecampapi.com';
 
+// Basecamp's API returns app_url links on their NEW app.basecamp.com host, but the team's
+// browser sessions — and the per-account appearance setting (dark mode) — live on the
+// classic 3.basecamp.com. The two are separate origins, so a link opened on app.* renders
+// the default LIGHT theme even for people who set "Always dark" (Ventsi, 13.07.2026).
+// Rewrite every link we hand out to the classic host; if Basecamp ever retires it, the
+// old host just 302s forward and nothing breaks.
+function normalizeAppUrl(url) {
+  return typeof url === 'string' ? url.replace(/^https:\/\/app\.basecamp\.com\//i, 'https://3.basecamp.com/') : url;
+}
+
 async function getProject(token, account, projectId) {
   return (await authedGet(`${API_BASE}/${account}/projects/${projectId}.json`, token)).json;
 }
@@ -366,6 +376,7 @@ async function uploadAttachment(token, account, { name, contentType, buffer }) {
 module.exports = {
   AUTH_BASE,
   API_BASE,
+  normalizeAppUrl,
   isConfigured,
   buildAuthorizeUrl,
   exchangeCodeForToken,

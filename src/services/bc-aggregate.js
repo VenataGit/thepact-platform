@@ -68,7 +68,7 @@ function mapCard(c, stepPrefix) {
     completed: c.completed,
     assignees: (c.assignees || []).map((a) => ({ id: a.id, name: a.name })),
     stepsCount: (c.steps || []).length,
-    url: c.app_url,
+    url: bc.normalizeAppUrl(c.app_url), // 3.basecamp.com — там са сесията и тъмната тема
     position: c.position,
   };
   if (sd) { out.dueFromStep = true; out.dueStep = sd.title; out.cardDueOn = c.due_on; }

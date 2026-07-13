@@ -6,6 +6,7 @@ const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { getServiceAccountEmail } = require('../services/google-calendar');
 const { checkCalendarAccess, postTestMessage, syncAllFeeds, refreshBcPeople } = require('../services/gcal-alerts');
+const { normalizeAppUrl } = require('../services/basecamp');
 
 // Приема суров Calendar ID ("xxx@group.calendar.google.com") или embed/share линк с ?src=.
 function parseCalendarInput(input) {
@@ -216,7 +217,7 @@ router.put('/person-map', requireAuth, requireAdmin, async (req, res) => {
 router.post('/test', requireAuth, requireAdmin, async (req, res) => {
   try {
     const message = await postTestMessage();
-    res.json({ ok: true, url: message.app_url || null });
+    res.json({ ok: true, url: normalizeAppUrl(message.app_url) || null });
   } catch (err) {
     console.error('[gcal-alerts] test error:', err.message);
     res.status(500).json({ error: err.message });

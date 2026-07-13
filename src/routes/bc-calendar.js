@@ -47,7 +47,7 @@ async function getProductionCards(token, account) {
     cards.forEach((c) => {
       // Prefer the filming step's date (current workflow); fall back to publish − 11 wd.
       const deadline = filmingFromSteps(c.steps) || filmingDeadline(c.due_on);
-      out.push({ id: c.id, title: c.title, url: c.app_url, due_on: c.due_on, column: list.title, deadline, dl_class: dlClassFor(deadline) });
+      out.push({ id: c.id, title: c.title, url: bc.normalizeAppUrl(c.app_url), due_on: c.due_on, column: list.title, deadline, dl_class: dlClassFor(deadline) });
     });
   }
   return out;

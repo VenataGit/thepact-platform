@@ -260,7 +260,7 @@ router.post('/create', requireAuth, async (req, res) => {
           try { await bc.createStep(token, account, projectId, newCard.id, { title: stepTitle, due_on: stepDate }); }
           catch (e) { console.warn('[kp-split] step failed', stepTitle, e.message); }
         }
-        created.push({ id: newCard.id, title: newCard.title, url: newCard.app_url, publishDate: publishDate || null, media: idxs.length });
+        created.push({ id: newCard.id, title: newCard.title, url: bc.normalizeAppUrl(newCard.app_url), publishDate: publishDate || null, media: idxs.length });
       } catch (e) {
         errors.push({ title, error: e.message });
       }

@@ -309,7 +309,7 @@ async function createKpForClient({ client, firstPublishDate, cfg, auth, dest, cr
       notify: cfg.notify,
     });
     agg.invalidateBoard(d.boardId); // дашбордът/КП списъкът да видят новата карта веднага
-    result = { title: card.title || title, url: card.app_url, basecamp: true, board: d.boardTitle, column: d.columnTitle };
+    result = { title: card.title || title, url: bc.normalizeAppUrl(card.app_url), basecamp: true, board: d.boardTitle, column: d.columnTitle };
   } else {
     result = await createLocalKpCard({ client, kpNumber, contentText, firstPublishDate, cfg, creatorId, title });
   }

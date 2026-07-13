@@ -578,7 +578,7 @@ async function postNewEventMessage(feed, ev, cfg, fp) {
   if (pingPeople.length) {
     const tags = pingPeople.map((p) => mentionOf(p)).join(' ');
     await campfirePing(cfg, auth,
-      `<div>📅 Ново събитие: „${escHtml(ev.summary || 'Без заглавие')}" — ${escHtml(fmtEventTime(ev.start, ev.end))} · ${tags} · <a href="${escHtml(message.app_url || messageUrl(auth, cfg.project, message.id))}">Виж известието</a></div>`);
+      `<div>📅 Ново събитие: „${escHtml(ev.summary || 'Без заглавие')}" — ${escHtml(fmtEventTime(ev.start, ev.end))} · ${tags} · <a href="${escHtml(bc.normalizeAppUrl(message.app_url) || messageUrl(auth, cfg.project, message.id))}">Виж известието</a></div>`);
   }
 
   console.log(`[gcal-alerts] posted: "${subject}" (message ${message.id}, notified ${subscriberIds.length})`);
