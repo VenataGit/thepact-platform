@@ -173,27 +173,6 @@ router.get('/me/today', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/time/me/top-boards — по кои дъски съм работил най-много (30 дни).
-// Дашбордът ползва това, за да реши коя дъска да остане разгъната на тесен екран.
-router.get('/me/top-boards', requireAuth, async (req, res, next) => {
-  try {
-    const rows = await query(
-      `SELECT c.board_id::text AS board_id,
-              SUM(COALESCE(e.duration_seconds, GREATEST(0, EXTRACT(EPOCH FROM (NOW() - e.started_at)))))::int AS seconds
-         FROM time_entries e
-         JOIN bc_cards_snap c ON c.card_id = e.bc_recording_id
-        WHERE e.user_id = $1
-          AND e.started_at > NOW() - INTERVAL '30 days'
-          AND c.board_id IS NOT NULL
-        GROUP BY c.board_id
-        ORDER BY seconds DESC
-        LIMIT 10`,
-      [req.user.userId]
-    );
-    res.json(rows);
-  } catch (err) { next(err); }
-});
-
 // GET /api/time/me/entries?from=YYYY-MM-DD&to=YYYY-MM-DD — моите записи
 router.get('/me/entries', requireAuth, async (req, res, next) => {
   try {

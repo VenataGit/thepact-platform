@@ -132,14 +132,13 @@
 }
 
 .dash-col-body {
-  flex: 1; overflow-y: auto; overflow-x: auto; padding: 8px;
+  flex: 1; overflow-y: auto; padding: 8px;
   display: flex; gap: 6px;
 }
 
-/* Sub-columns: под 148px картите стават нечетими — при недостиг тялото на
-   дъската скролва хоризонтално, вместо колоните да се мачкат. */
+/* Sub-columns */
 .dash-subcol {
-  flex: 1; min-width: 148px;
+  flex: 1; min-width: 0;
   background: var(--bg-elevated); border-radius: 6px;
   padding: 0 3px 5px;
   display: flex; flex-direction: column;

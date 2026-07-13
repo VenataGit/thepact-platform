@@ -134,13 +134,6 @@ async function dashLoadStructure() {
     expandedDashCol = _dashPrefs.maximized;
     dashRenderStats();
     dashRenderBoards();
-    // „моята" дъска (по тракнато време) определя кое остава разгънато при тесен
-    // прозорец — щом пристигне, преподреждаме ако се налага
-    dashLoadAffinity().then(() => {
-      const before = [..._dashAutoMin].sort().join(',');
-      dashComputeAutoMin();
-      if ([..._dashAutoMin].sort().join(',') !== before) dashRenderBoards();
-    });
     dashLoadTimers();
     const hidden = getDashHiddenBoards(), minimized = getDashMinimized();
     const visible = (_dashStruct.boards || []).filter((b) => !hidden.has(String(b.id)) && !minimized.has(String(b.id)));
@@ -242,69 +235,6 @@ function dashRenderStats() {
 const DASH_NARROW = 900;
 function dashIsNarrow() { return window.innerWidth < DASH_NARROW; }
 
-// --- responsive auto-minimize (900px … широк екран) ---------------------------
-// Когато разгънатите дъски не се събират в прозореца, излишните се прибират САМИ
-// в тесни ленти — само визуално, записаните prefs не се пипат (разшириш ли
-// прозореца, всичко се връща). Кои остават разгънати: първо дъската, по която
-// потребителят реално работи (най-много тракнато време през последния месец),
-// после по реда на дъските — докато има място.
-let _dashAutoMin = new Set();      // прибрани от логиката (не от потребителя)
-let _dashUserRestored = new Set(); // ръчно разгънати при тесен екран — пазят се
-let _dashAffinity = null;          // [boardId, ...] по моето време, най-работената първа
-
-function dashLoadAffinity() {
-  if (_dashAffinity) return Promise.resolve();
-  return fetch('/api/time/me/top-boards')
-    .then((r) => (r.ok ? r.json() : []))
-    .then((rows) => { _dashAffinity = (rows || []).map((x) => String(x.board_id)); })
-    .catch(() => { _dashAffinity = []; });
-}
-
-const DASH_SUBCOL_MIN = 156; // мин. четима подколона (виж .dash-subcol в CSS) + луфт
-const DASH_STRIP_W = 56;     // прибрана лента + gap
-
-function dashBoardNeededWidth(b) {
-  const hiddenCols = getDashHiddenCols();
-  const cols = (b.columns || []).filter((c) => !hiddenCols.has(String(c.id))).length || 1;
-  return cols * DASH_SUBCOL_MIN + 26;
-}
-
-function dashComputeAutoMin() {
-  _dashAutoMin = new Set();
-  if (dashIsNarrow()) return; // под 900px фокус режимът поема изгледа
-  const host = document.getElementById('dashBoard');
-  if (!host || !_dashStruct) return;
-  const avail = (host.clientWidth || window.innerWidth) - 4;
-  const prefMin = getDashMinimized();
-  const boards = dashOrderedVisibleBoards().filter((b) => !prefMin.has(String(b.id)));
-  if (boards.length <= 1) return;
-
-  const rank = (b) => {
-    const i = (_dashAffinity || []).indexOf(String(b.id));
-    return i < 0 ? 1000 + boards.indexOf(b) : i;
-  };
-  const byRank = boards.slice().sort((a, b) => rank(a) - rank(b));
-
-  const kept = new Set();
-  let used = 0;
-  // ръчно разгънатите винаги остават
-  byRank.forEach((b) => {
-    const id = String(b.id);
-    if (_dashUserRestored.has(id)) { kept.add(id); used += dashBoardNeededWidth(b) + 8; }
-  });
-  for (const b of byRank) {
-    const id = String(b.id);
-    if (kept.has(id)) continue;
-    const w = dashBoardNeededWidth(b) + 8;
-    const stripsAfter = (boards.length - kept.size - 1) * DASH_STRIP_W;
-    if (kept.size === 0 || used + w + stripsAfter <= avail) {
-      kept.add(id);
-      used += w;
-    }
-  }
-  boards.forEach((b) => { const id = String(b.id); if (!kept.has(id)) _dashAutoMin.add(id); });
-}
-
 // Visible boards in their display order (shared by the renderer and the focus logic).
 function dashOrderedVisibleBoards() {
   if (!_dashStruct) return [];
@@ -331,7 +261,6 @@ function dashEffectiveExpanded() {
 function dashRenderBoards() {
   const container = document.getElementById('dashBoard');
   if (!container || !_dashStruct) return;
-  dashComputeAutoMin();
   const boards = dashOrderedVisibleBoards();
   if (!boards.length) { container.innerHTML = '<div style="padding:40px;color:var(--text-dim)">Няма видими дъски. Виж ⚙ Настройки.</div>'; return; }
   container.innerHTML = boards.map(dashBoardSectionHtml).join('');
@@ -357,7 +286,7 @@ function dashBoardSectionHtml(b) {
   const tag = loaded ? '' : (_dashLoading[b.id] ? ' <span class="bc-mini">зареждам…</span>' : '');
   const eff = dashEffectiveExpanded();
   const isExpanded = eff === String(b.id);
-  const isMinimized = !isExpanded && (getDashMinimized().has(String(b.id)) || _dashAutoMin.has(String(b.id)));
+  const isMinimized = !isExpanded && getDashMinimized().has(String(b.id));
   const isCollapsed = !isExpanded && (isMinimized || !!eff);
   const colClass = 'dash-col' + (isExpanded ? ' expanded' : '') + (isCollapsed ? ' collapsed' : '') + (isMinimized ? ' minimized' : '');
   const body = isCollapsed ? '' : ('<div class="dash-col-body">' + cols.map((c) => dashSubColHtml(b, c, loaded)).join('') + '</div>');
@@ -573,7 +502,6 @@ function toggleDashColVisibility(colId, visible) {
 function dashMinimizeBoard(e, boardId) {
   e.stopPropagation(); e.preventDefault();
   const id = String(boardId);
-  _dashUserRestored.delete(id);
   const min = getDashMinimized(); min.add(id); saveDashMinimized(min);
   if (expandedDashCol === id) expandedDashCol = null;
   dashSavePrefs(); dashRenderBoards();
@@ -581,7 +509,6 @@ function dashMinimizeBoard(e, boardId) {
 function dashMaximizeBoard(e, boardId) {
   e.stopPropagation(); e.preventDefault();
   const id = String(boardId);
-  _dashUserRestored.add(id); // изрично поискана — responsive логиката не я прибира
   const min = getDashMinimized();
   if (min.has(id)) { min.delete(id); saveDashMinimized(min); }
   expandedDashCol = (expandedDashCol === id && !dashIsNarrow()) ? null : id;
@@ -594,14 +521,6 @@ function dashMaximizeBoard(e, boardId) {
 // toggles fullscreen; a strip collapsed by someone else's fullscreen switches it here.
 function toggleDashCol(boardId) {
   const id = String(boardId);
-  // Лента, прибрана от responsive логиката: клик я разгъва и я пази разгъната
-  // (друга дъска може да се прибере, за да ѝ направи място).
-  if (_dashAutoMin.has(id)) {
-    _dashUserRestored.add(id);
-    dashRenderBoards();
-    if (!_dashCards[boardId]) dashLoadBoardCards(boardId);
-    return;
-  }
   const min = getDashMinimized();
   if (min.has(id)) {
     min.delete(id); saveDashMinimized(min);
@@ -615,24 +534,15 @@ function toggleDashCol(boardId) {
   if (!_dashCards[boardId]) dashLoadBoardCards(boardId);
 }
 
-// Re-render on resize: when the narrow/wide threshold is crossed OR when the
-// responsive auto-minimize set changes (boards folding/unfolding to fit) —
-// but only while the dashboard is the active view.
+// Re-render when the viewport crosses the narrow/wide threshold so the focus layout
+// engages (or releases) automatically — but only while the dashboard is the active view.
 let _dashWasNarrow = null;
-let _dashResizeT = null;
 window.addEventListener('resize', () => {
   if (!document.getElementById('dashBoard')) return;
-  clearTimeout(_dashResizeT);
-  _dashResizeT = setTimeout(() => {
-    const narrow = dashIsNarrow();
-    const before = [..._dashAutoMin].sort().join(',');
-    dashComputeAutoMin();
-    const after = [..._dashAutoMin].sort().join(',');
-    if (narrow !== _dashWasNarrow || before !== after) {
-      _dashWasNarrow = narrow;
-      dashRenderBoards();
-    }
-  }, 150);
+  const narrow = dashIsNarrow();
+  if (narrow === _dashWasNarrow) return;
+  _dashWasNarrow = narrow;
+  dashRenderBoards();
 });
 
 // Open a card on its own page in Basecamp, in a new tab.
