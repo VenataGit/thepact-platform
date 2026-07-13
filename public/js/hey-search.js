@@ -153,8 +153,9 @@ function populateFind(el) {
   setTimeout(() => document.getElementById('dashSearchInput')?.focus(), 50);
 }
 
-// Search the cards currently loaded on the Basecamp dashboard (_dashCards),
-// across every board/column. Clicking a result opens the card in Basecamp.
+// Search the cards currently loaded on the Basecamp dashboard — the normal ones
+// (_dashCards) AND the on-hold ones (_dashOnHold, shown with a ⏸ badge), across
+// every board/column. Clicking a result opens the card in Basecamp.
 function doDashSearch() {
   const q = (document.getElementById('dashSearchInput')?.value || '').trim().toLowerCase();
   const container = document.getElementById('dashSearchResults');
@@ -163,17 +164,21 @@ function doDashSearch() {
   const titles = {};
   ((typeof _dashStruct !== 'undefined' && _dashStruct && _dashStruct.boards) || []).forEach(b => { titles[b.id] = b.title; });
   const results = [];
-  if (typeof _dashCards !== 'undefined' && _dashCards) {
-    Object.keys(_dashCards).forEach(bid => {
-      Object.values(_dashCards[bid] || {}).forEach(cards => (cards || []).forEach(c => {
-        if ((c.title || '').toLowerCase().includes(q)) results.push({ c, board: titles[bid] || '' });
+  const collect = (store, onHold) => {
+    if (!store) return;
+    Object.keys(store).forEach(bid => {
+      Object.values(store[bid] || {}).forEach(cards => (cards || []).forEach(c => {
+        if ((c.title || '').toLowerCase().includes(q)) results.push({ c, board: titles[bid] || '', onHold });
       }));
     });
-  }
+  };
+  collect(typeof _dashCards !== 'undefined' ? _dashCards : null, false);
+  collect(typeof _dashOnHold !== 'undefined' ? _dashOnHold : null, true);
   if (!results.length) { container.innerHTML = '<div class="nav-dropdown__empty">Няма карти. Отвори Dashboard-а, ако не си на него.</div>'; return; }
   results.sort((a, b) => (a.c.title || '').localeCompare(b.c.title || ''));
   container.innerHTML = results.slice(0, 40).map(r =>
     '<a class="nav-dropdown__item" href="' + esc(r.c.url || '#') + '" target="_blank" rel="noopener" onclick="closeAllDropdowns()">' +
-      esc(r.c.title || '') + '<span style="margin-left:auto;font-size:11px;color:var(--text-dim)">' + esc(r.board) + '</span></a>'
+      (r.onHold ? '⏸ ' : '') + esc(r.c.title || '') +
+      '<span style="margin-left:auto;font-size:11px;color:var(--text-dim)">' + esc(r.board) + (r.onHold ? ' · On Hold' : '') + '</span></a>'
   ).join('') + (results.length > 40 ? '<div class="nav-dropdown__empty">…и още ' + (results.length - 40) + '</div>' : '');
 }
