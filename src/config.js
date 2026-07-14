@@ -36,6 +36,9 @@ module.exports = {
   ADMIN_EMAILS: (process.env.ADMIN_EMAILS || 'kalchev@thepact.bg').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   // Secret embedded in the Basecamp webhook URL path — only Basecamp (told the URL) can POST.
   BASECAMP_WEBHOOK_SECRET: process.env.BASECAMP_WEBHOOK_SECRET || null,
+  // Shared secret for the Dev Queue watcher on Ventsi's PC (header X-Dev-Queue-Key).
+  // Unset = the /api/dev-queue endpoints are disabled entirely.
+  DEV_QUEUE_SECRET: process.env.DEV_QUEUE_SECRET || null,
   // Card ids the date-sync is ALLOWED to modify. Empty = all cards with a Due date.
   // Keep this set to ONLY the test card during testing so nothing else is ever touched.
   BASECAMP_DATESYNC_CARD_IDS: (process.env.BASECAMP_DATESYNC_CARD_IDS || '').split(',').map((s) => s.trim()).filter(Boolean),

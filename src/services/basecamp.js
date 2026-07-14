@@ -259,10 +259,17 @@ async function getTodoLists(token, account, projectId, todosetId) {
   return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/todosets/${todosetId}/todolists.json`, token, 20);
 }
 
-// To-do задачите в списък. completed=true връща и завършените.
+// To-do задачите в списък. По подразбиране само отворените; completed=true връща
+// САМО завършените (Basecamp няма режим „всички наведнъж").
 async function getTodos(token, account, projectId, todolistId, { completed = false } = {}) {
   const qs = completed ? '?completed=true' : '';
   return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/todolists/${todolistId}/todos.json${qs}`, token, 30);
+}
+
+// Групите вътре в един to-do лист (Basecamp ги връща като mini-списъци със свои
+// id-та; задачите в група НЕ излизат от todos.json на родителския лист).
+async function getTodoGroups(token, account, projectId, todolistId) {
+  return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/todolists/${todolistId}/groups.json`, token, 10);
 }
 
 // Campfire редове (чат) — най-новите първи; по подразбиране само първите страници.
@@ -398,6 +405,7 @@ module.exports = {
   getMessages,
   getTodoLists,
   getTodos,
+  getTodoGroups,
   getCampfireLines,
   getRecordingsSince,
   createMessage,
