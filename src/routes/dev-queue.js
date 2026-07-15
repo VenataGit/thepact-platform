@@ -105,6 +105,26 @@ router.post('/:id(\\d+)/complete', async (req, res) => {
   }
 });
 
+// Връщане в опашката БЕЗ резултат и без коментар — за инфраструктурни провали
+// на watcher-а (напр. CLI-то не е логнато): задачата не е виновна, не бива да
+// изгаря като error, нито да чака stale recovery.
+router.post('/:id(\\d+)/release', async (req, res) => {
+  try {
+    const task = await loadClaimed(req, res);
+    if (!task) return;
+    const updated = await queryOne(
+      `UPDATE dev_tasks SET status = 'pending', updated_at = NOW()
+       WHERE id = $1 AND status = 'running' AND attempts = $2
+       RETURNING id`,
+      [task.id, task.attempts]
+    );
+    if (!updated) return res.status(409).json({ error: 'stale claim (raced)' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Диагностика: последните задачи в опашката (за наблюдение от watcher-а/админа).
 router.get('/status', async (req, res) => {
   try {
