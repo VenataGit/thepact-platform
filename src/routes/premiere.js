@@ -1,23 +1,28 @@
 // Premiere Pro project (.prproj) downgrader.
-// A .prproj is gzip-compressed XML. Premiere refuses to open a project whose
-// <Project> element Version is higher than the running app supports ("saved in a
-// newer version…"). We rewrite that single Version attribute — the <Project> node
-// carries ClassID 62ad66dd-0dcd-42da-a660-6d8fbde94876 — to the chosen target
-// (default 1 = opens in EVERY older Premiere) and re-gzip. Nothing else changes,
-// so the edit/timeline stays intact; only very new effects may not transfer.
-// The uploaded file lives only in memory for the duration of the request.
+//
+// A .prproj is gzip-compressed XML. Simply lowering the <Project> Version number
+// works only up to PP2025 — from PP2026 (schema v45) Adobe changed the project
+// STRUCTURE (Object Mask, new colour management, tone mapping, clip-channel
+// serializers), so a number-swapped 2026 file crashes older Premiere.
+//
+// A faithful downgrade therefore needs a full schema re-serialization. We proxy
+// that to the zerobalanced conversion engine (a Cloudflare Worker) FROM our own
+// server, so the whole flow stays on thepact.pro. Free & unlimited for files
+// under 100 KB; larger files hit the engine's paid tier and come back as an error.
+// The uploaded file lives only in memory for the request.
 const express = require('express');
 const multer = require('multer');
 const zlib = require('zlib');
+const crypto = require('crypto');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
-const MAX_BYTES = 200 * 1024 * 1024; // 200 MB — large projects/sequences
+const MAX_BYTES = 25 * 1024 * 1024; // 25 MB hard cap on upload (engine's free limit is 100 KB)
 const PROJECT_CLASS_ID = '62ad66dd-0dcd-42da-a660-6d8fbde94876';
-// Matches …ClassID="62ad66dd-…" Version="41"  and captures the three parts so we
-// can swap only the digits. Non-global on purpose: exactly one <Project> definition.
 const VERSION_RE = new RegExp('(' + PROJECT_CLASS_ID + '"\\s+Version=")(\\d+)(")');
+const ENGINE_URL = 'https://floral-hall-076a.sanju-a25.workers.dev/downgrade-prproj?format=json';
+const VALID_TARGET = /^20(19|2[0-6])$/; // "2019".."2026"
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_BYTES, files: 1 } });
 
@@ -31,7 +36,7 @@ function readProjectXml(buf) {
   return buf.toString('utf8');
 }
 
-// POST /api/premiere/inspect — report the current project Version, no download.
+// POST /api/premiere/inspect — report the current project Version (for the UI).
 router.post('/inspect', requireAuth, upload.single('project'), (req, res) => {
   if (!req.file || !req.file.buffer || !req.file.buffer.length) {
     return res.status(400).json({ error: 'няма качен файл (поле "project")' });
@@ -44,41 +49,44 @@ router.post('/inspect', requireAuth, upload.single('project'), (req, res) => {
   res.json({ version: parseInt(m[2], 10) });
 });
 
-// POST /api/premiere/downgrade — rewrite Version and stream back the new .prproj.
-// Target comes from ?target= or body.target; defaults to 1 (universal).
-router.post('/downgrade', requireAuth, upload.single('project'), (req, res) => {
+// POST /api/premiere/convert — proxy the file to the zerobalanced schema engine
+// and return { ok, name, data(base64), logs[] } (or { error }). Body: target=<year>.
+router.post('/convert', requireAuth, upload.single('project'), async (req, res) => {
   if (!req.file || !req.file.buffer || !req.file.buffer.length) {
     return res.status(400).json({ error: 'няма качен файл (поле "project")' });
   }
-  let target = parseInt((req.query.target != null ? req.query.target : (req.body && req.body.target)) || '1', 10);
-  if (!Number.isInteger(target) || target < 1 || target > 10000) target = 1;
+  const target = String((req.body && req.body.target) || '').trim();
+  if (!VALID_TARGET.test(target)) return res.status(400).json({ error: 'невалидна целева версия' });
 
-  let xml;
-  try { xml = readProjectXml(req.file.buffer); }
-  catch (e) { return res.status(422).json({ error: 'файлът не се разархивира — валиден .prproj файл ли е?' }); }
+  const buf = req.file.buffer;
+  const name = String(req.file.originalname || 'project.prproj');
+  // Random per-request device id — the engine uses it only for its free-tier bookkeeping.
+  const deviceId = 'pact_' + crypto.randomBytes(6).toString('hex');
 
-  const m = xml.match(VERSION_RE);
-  if (!m) return res.status(422).json({ error: 'в XML-а няма версия на проект — това .prproj файл ли е?' });
-  const original = parseInt(m[2], 10);
-
-  const newXml = xml.replace(VERSION_RE, '$1' + target + '$3');
-  let out;
-  try { out = zlib.gzipSync(Buffer.from(newXml, 'utf8')); }
-  catch (e) { return res.status(500).json({ error: 'грешка при компресиране: ' + e.message }); }
-
-  // Build a filename: <name>_v<target>.prproj. Keep an ASCII fallback for the
-  // legacy filename= and a UTF-8 filename* for Cyrillic-safe download names.
-  const base = String(req.file.originalname || 'project.prproj').replace(/\.prproj$/i, '');
-  const cleanBase = base.replace(/[\/\\:*?"<>|]+/g, '_').trim() || 'project';
-  const outName = cleanBase + '_v' + target + '.prproj';
-  const asciiName = outName.replace(/[^\x20-\x7E]+/g, '_');
-
-  res.setHeader('Content-Type', 'application/octet-stream');
-  res.setHeader('Content-Disposition',
-    'attachment; filename="' + asciiName + "\"; filename*=UTF-8''" + encodeURIComponent(outName));
-  res.setHeader('X-Original-Version', String(original));
-  res.setHeader('X-Target-Version', String(target));
-  res.send(out);
+  let r, j;
+  try {
+    r = await fetch(ENGINE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'x-target-version': target,
+        'x-file-name': name,
+        'x-original-size': String(buf.length),
+        'x-device-id': deviceId,
+      },
+      body: buf,
+      signal: AbortSignal.timeout(90_000),
+    });
+  } catch (e) {
+    const msg = e.name === 'TimeoutError' ? 'конверторът не отговори навреме' : ('конверторът е недостъпен: ' + e.message);
+    return res.status(504).json({ error: msg });
+  }
+  try { j = await r.json(); } catch { j = null; }
+  if (!r.ok || !j || !j.ok) {
+    return res.status(502).json({ error: (j && j.err) ? j.err : ('конверторът върна грешка (HTTP ' + r.status + ')') });
+  }
+  const outName = j.name || (name.replace(/\.prproj$/i, '') + '_PP' + target + '.prproj');
+  res.json({ ok: true, name: outName, data: j.data, logs: Array.isArray(j.logs) ? j.logs : [] });
 });
 
 // Multer errors (file too large, etc.)
