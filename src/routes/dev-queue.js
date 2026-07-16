@@ -138,6 +138,20 @@ router.get('/fetch-attachment', async (req, res) => {
       return res.status(400).json({ error: 'url must be a Basecamp storage host' });
     }
     const auth = await getServiceAuth();
+    if (req.query.debug) {
+      const out = [];
+      for (const variant of [u.toString(), u.toString().replace('storage.app.basecamp.com', 'storage.3.basecamp.com')]) {
+        for (const withAuth of [true, false]) {
+          const h = { 'User-Agent': config.BASECAMP_USER_AGENT, Accept: '*/*' };
+          if (withAuth) h.Authorization = `Bearer ${auth.token}`;
+          try {
+            const r = await fetch(variant, { headers: h, redirect: 'manual' });
+            out.push({ variant, withAuth, status: r.status, ct: r.headers.get('content-type'), loc: r.headers.get('location') });
+          } catch (e) { out.push({ variant, withAuth, err: e.message }); }
+        }
+      }
+      return res.json({ account: auth.account, tries: out });
+    }
     const { buffer, contentType } = await bc.downloadFile(auth.token, u.toString());
     res.setHeader('Content-Type', contentType || 'application/octet-stream');
     res.send(buffer);
