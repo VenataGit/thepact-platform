@@ -125,6 +125,27 @@ router.post('/:id(\\d+)/release', async (req, res) => {
   }
 });
 
+// Сваля прикачен към задача Basecamp файл през сервизния (бот) токен и го връща
+// суров. Нужно е, защото storage.app.basecamp.com иска сесия — watcher-ът (локално)
+// няма Basecamp токен. Ограничено само до Basecamp storage/API хостове (без SSRF).
+const BC_DOWNLOAD_HOSTS = new Set(['storage.app.basecamp.com', 'storage.3.basecamp.com', '3.basecampapi.com', 'bc3-production-blobs.s3.amazonaws.com']);
+router.get('/fetch-attachment', async (req, res) => {
+  try {
+    const raw = String(req.query.url || '');
+    let u;
+    try { u = new URL(raw); } catch { return res.status(400).json({ error: 'bad url' }); }
+    if (u.protocol !== 'https:' || !BC_DOWNLOAD_HOSTS.has(u.hostname)) {
+      return res.status(400).json({ error: 'url must be a Basecamp storage host' });
+    }
+    const auth = await getServiceAuth();
+    const { buffer, contentType } = await bc.downloadFile(auth.token, u.toString());
+    res.setHeader('Content-Type', contentType || 'application/octet-stream');
+    res.send(buffer);
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
 // Диагностика: последните задачи в опашката (за наблюдение от watcher-а/админа).
 router.get('/status', async (req, res) => {
   try {
