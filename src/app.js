@@ -164,6 +164,7 @@ app.use('/api/bc-calendar', require('./routes/bc-calendar'));
 app.use('/api/kp-split', require('./routes/kp-split'));
 app.use('/api/gcal-alerts', require('./routes/gcal-alerts'));
 app.use('/webhooks', require('./routes/webhooks'));
+app.use('/go', require('./routes/go'));
 app.use('/api/trash', require('./routes/trash'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/positions', require('./routes/positions'));

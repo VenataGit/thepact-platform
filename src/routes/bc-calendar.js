@@ -149,6 +149,15 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Basecamp линк → „smart deep-link" мост на платформата (/go/basecamp/...).
+// Тапнат от Google Calendar, той отваря нативното приложение на телефона (ако е инсталирано)
+// и сайта на десктоп — вместо да дава грешка във вградения браузър на календара.
+function goLink(bcUrl) {
+  if (!bcUrl) return '';
+  const m = /^https?:\/\/(?:3\.basecamp\.com|app\.basecamp\.com)\/(.+)$/i.exec(bcUrl);
+  return m ? 'https://thepact.pro/go/basecamp/' + m[1] : bcUrl;
+}
+
 async function syncCalToGCal(action, entry) {
   try {
     const dateStr = typeof entry.scheduled_date === 'string' ? entry.scheduled_date.split('T')[0] : ymd(new Date(entry.scheduled_date));
@@ -158,7 +167,7 @@ async function syncCalToGCal(action, entry) {
     const eH = Math.floor(endMin / 60), eM = endMin % 60;
     const event = {
       title: '🎬 ' + (entry.card_title || ('Карта ' + entry.basecamp_card_id)),
-      description: entry.card_url ? ('📋 Отвори в Basecamp: ' + entry.card_url) : '',
+      description: entry.card_url ? ('📋 Отвори в Basecamp: ' + goLink(entry.card_url)) : '',
       starts_at: dateStr + 'T' + pad(sH) + ':' + pad(sM) + ':00',
       ends_at: dateStr + 'T' + pad(eH) + ':' + pad(eM) + ':00',
       all_day: false,
