@@ -1,23 +1,23 @@
 // Публичен „smart deep-link" мост към Basecamp.
 //
-// Линковете в Google Calendar сочат тук (напр. /go/basecamp/5750544/buckets/47742842/todos/123)
-// вместо директно към Basecamp. Причина: тапнат от календара на телефона, директен линк отваря
-// вградения мини-браузър, а класическият хост 3.basecamp.com не се разпознава от нативното
-// приложение → „This page couldn't be found".
+// Линковете в Google Calendar сочат тук (напр. /go/basecamp/5750544/buckets/39396506/card_tables/cards/123)
+// вместо директно към Basecamp.
 //
-// Basecamp има ДВА хоста със СЪЩИЯ път:
-//   • app.basecamp.com — новият/каноничният хост; нативните приложения (iOS/Android) отварят
-//     точно него през своите universal / app links. → ползваме го на ТЕЛЕФОН.
-//   • 3.basecamp.com   — класическият хост; пази тъмната тема в браузъра на десктоп, но на
-//     уеб само 302-ва напред (затова на компютър работи, а в приложението дава 404). → ползваме
-//     го на ДЕСКТОП.
+// Наблюдение (Венци, iPhone, 16.07.2026): нативното приложение Basecamp НЕ отваря директен линк
+// към отделна карта от Card Table (kanban) — вътрешният му рутер не разпознава пътя
+// `card_tables/cards/<id>` и дава „This page couldn't be found", докато на десктоп уеб същият
+// адрес работи. Обикновени неща (to-do, известия) се отварят нормално. Затова:
+//   • Десктоп        → директно самата карта на 3.basecamp.com (тъмна тема, активна сесия).
+//   • Телефон        → отваряме ПРОЕКТА в приложението (него приложението разпознава), а картата
+//                      е на един-два тапа вътре. Директната карта остава като резервен линк за браузър.
 //
-// Без auth — тапва се от календар, където няма сесия към платформата.
+// Двата хоста имат същия път: app.basecamp.com (каноничен, за приложението) и 3.basecamp.com
+// (класически, тъмна тема в браузъра). Без auth — тапва се от календар без сесия към платформата.
 const express = require('express');
 const router = express.Router();
 
-const WEB_HOST = 'https://3.basecamp.com/';   // десктоп браузър (тъмна тема)
-const APP_HOST = 'https://app.basecamp.com/'; // телефон (нативно приложение)
+const WEB_HOST = 'https://3.basecamp.com/';   // класически хост (десктоп браузър, тъмна тема)
+const APP_HOST = 'https://app.basecamp.com/'; // каноничен хост (нативно приложение)
 
 function escHtml(s) {
   return String(s == null ? '' : s)
@@ -30,10 +30,12 @@ router.get('/basecamp/*', (req, res) => {
   const raw = req.params[0] || '';
   // Допускаме само безопасната форма на Basecamp път (без схема, без хост, без опасни знаци).
   const safePath = /^[\w/\-.]*$/.test(raw) ? raw : '';
-  const webUrl = WEB_HOST + safePath;
-  const appUrl = APP_HOST + safePath;
+  const webUrl = WEB_HOST + safePath;                 // точната карта (браузър)
+  // Проектът (bucket) — приложението го отваря надеждно; картата е вътре.
+  const bucket = /^(\d+\/buckets\/\d+)(?:\/|$)/.exec(safePath);
+  const projectUrl = bucket ? APP_HOST + bucket[1] : APP_HOST;
 
-  const payload = JSON.stringify({ path: safePath, web: webUrl, app: appUrl });
+  const payload = JSON.stringify({ path: safePath, web: webUrl, project: projectUrl, hasBucket: !!bucket });
 
   res.set('Cache-Control', 'no-store');
   res.type('html').send(`<!DOCTYPE html>
@@ -66,8 +68,8 @@ router.get('/basecamp/*', (req, res) => {
     <h1 id="title">Отваряне в Basecamp…</h1>
     <p id="hint">Пренасочваме те към задачата.</p>
     <div id="actions" class="hidden">
-      <a class="btn primary" id="openBtn">Отвори задачата в Basecamp</a>
-      <a class="link" id="altLink">Не се отвори? Пробвай в браузър</a>
+      <a class="btn primary" id="openBtn">Отвори в Basecamp</a>
+      <a class="link" id="altLink"></a>
     </div>
   </div>
 <script>
@@ -77,37 +79,39 @@ router.get('/basecamp/*', (req, res) => {
   var isMobile = /Android|iPhone|iPad|iPod/i.test(ua) ||
                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  // primaryUrl = основният бутон (тап от потребителя = отваря нативното приложение на iOS/Android);
-  // altUrl = резервният линк към другия хост.
-  function showActions(primaryUrl, altUrl, altLabel) {
+  function showActions(primaryUrl, primaryLabel, hint, altUrl, altLabel) {
     document.getElementById('spin').className = 'hidden';
-    document.getElementById('title').textContent = 'Отвори задачата в Basecamp';
-    document.getElementById('hint').textContent = isMobile
-      ? 'Тапни бутона — задачата ще се отвори в приложението Basecamp.'
-      : 'Ако не се пренасочиш автоматично, натисни бутона.';
-    document.getElementById('openBtn').setAttribute('href', primaryUrl);
+    document.getElementById('title').textContent = 'Отвори в Basecamp';
+    document.getElementById('hint').textContent = hint;
+    var b = document.getElementById('openBtn');
+    b.setAttribute('href', primaryUrl); b.textContent = primaryLabel;
     var alt = document.getElementById('altLink');
-    alt.setAttribute('href', altUrl);
-    alt.textContent = altLabel;
+    if (altUrl) { alt.setAttribute('href', altUrl); alt.textContent = altLabel; alt.className = 'link'; }
+    else { alt.className = 'link hidden'; }
     document.getElementById('actions').className = '';
   }
 
-  if (!D.path) {
-    showActions(D.app, D.web, 'Отвори в браузър');
+  if (isMobile && D.hasBucket) {
+    // Телефон: приложението не отваря директно отделна карта → отваряме проекта в него.
+    showActions(
+      D.project, 'Отвори проекта в Basecamp',
+      'Приложението на телефона не отваря директно отделна карта — тапни, за да влезеш в проекта, картата е вътре.',
+      D.web, 'Или отвори картата в браузър'
+    );
   } else if (isMobile) {
-    // Телефон: каноничният хост (app.basecamp.com) се отваря коректно в нативното приложение.
-    // Изисква тап от потребителя (universal link не сработва при автоматично пренасочване).
-    showActions(D.app, D.web, 'Не се отвори? Пробвай в браузър');
+    showActions(D.web, 'Отвори в Basecamp', 'Тапни, за да отвориш в Basecamp.');
   } else {
-    // Десктоп: направо към класическия хост (тъмна тема, активна сесия).
+    // Десктоп: направо към точната карта (тъмна тема, активна сесия).
     window.location.replace(D.web);
-    setTimeout(function () { showActions(D.web, D.app, 'Отвори в приложението Basecamp'); }, 1500);
+    setTimeout(function () {
+      showActions(D.web, 'Отвори задачата в Basecamp', 'Ако не се пренасочиш автоматично, натисни бутона.');
+    }, 1500);
   }
 })();
 </script>
 <noscript>
   <div class="box">
-    <a class="btn primary" href="${escHtml(appUrl)}">Отвори задачата в Basecamp</a>
+    <a class="btn primary" href="${escHtml(webUrl)}">Отвори в Basecamp</a>
   </div>
 </noscript>
 </body>
