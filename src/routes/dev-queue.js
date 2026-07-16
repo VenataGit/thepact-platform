@@ -10,7 +10,7 @@ const router = express.Router();
 const config = require('../config');
 const { query, queryOne, execute } = require('../db/pool');
 const bc = require('../services/basecamp');
-const { getServiceAuth } = require('../services/basecamp-token');
+const { getServiceAuth, getUserAuth } = require('../services/basecamp-token');
 const dq = require('../services/dev-queue');
 
 router.use((req, res, next) => {
@@ -137,24 +137,28 @@ router.get('/fetch-attachment', async (req, res) => {
     if (u.protocol !== 'https:' || !BC_DOWNLOAD_HOSTS.has(u.hostname)) {
       return res.status(400).json({ error: 'url must be a Basecamp storage host' });
     }
-    const auth = await getServiceAuth();
-    if (req.query.debug) {
-      const out = [];
-      for (const variant of [u.toString(), u.toString().replace('storage.app.basecamp.com', 'storage.3.basecamp.com')]) {
-        for (const withAuth of [true, false]) {
-          const h = { 'User-Agent': config.BASECAMP_USER_AGENT, Accept: '*/*' };
-          if (withAuth) h.Authorization = `Bearer ${auth.token}`;
-          try {
-            const r = await fetch(variant, { headers: h, redirect: 'manual' });
-            out.push({ variant, withAuth, status: r.status, ct: r.headers.get('content-type'), loc: r.headers.get('location') });
-          } catch (e) { out.push({ variant, withAuth, err: e.message }); }
-        }
+    // Signed Basecamp download URLs are scoped to the person they were minted for,
+    // so the bot token often 404s. Try the service token first, then fall back to
+    // each connected user's own token (one of them owns the URL).
+    const errors = [];
+    let got = null;
+    try {
+      const auth = await getServiceAuth();
+      got = await bc.downloadFile(auth.token, u.toString());
+    } catch (e) { errors.push('service: ' + e.message); }
+    if (!got) {
+      const users = await query('SELECT user_id FROM basecamp_tokens ORDER BY updated_at DESC');
+      for (const row of users) {
+        try {
+          const ua = await getUserAuth(row.user_id);
+          got = await bc.downloadFile(ua.token, u.toString());
+          if (got) break;
+        } catch (e) { errors.push('user ' + row.user_id + ': ' + e.message); }
       }
-      return res.json({ account: auth.account, tries: out });
     }
-    const { buffer, contentType } = await bc.downloadFile(auth.token, u.toString());
-    res.setHeader('Content-Type', contentType || 'application/octet-stream');
-    res.send(buffer);
+    if (!got) return res.status(502).json({ error: 'download failed', tried: errors });
+    res.setHeader('Content-Type', got.contentType || 'application/octet-stream');
+    res.send(got.buffer);
   } catch (e) {
     res.status(502).json({ error: e.message });
   }
