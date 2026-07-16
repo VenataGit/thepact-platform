@@ -131,6 +131,15 @@ router.post('/:id(\\d+)/release', async (req, res) => {
 const BC_DOWNLOAD_HOSTS = new Set(['storage.app.basecamp.com', 'storage.3.basecamp.com', '3.basecampapi.com', 'bc3-production-blobs.s3.amazonaws.com']);
 router.get('/fetch-attachment', async (req, res) => {
   try {
+    // TEMP probe: list Upload recordings in a bucket (name + token-downloadable url).
+    if (req.query.probe) {
+      const auth = await getServiceAuth();
+      const api = `https://3.basecampapi.com/${auth.account}/projects/recordings.json?type=Upload&bucket=${encodeURIComponent(req.query.probe)}`;
+      const r = await fetch(api, { headers: { 'User-Agent': config.BASECAMP_USER_AGENT, Accept: 'application/json', Authorization: `Bearer ${auth.token}` } });
+      const j = await r.json().catch(() => null);
+      const list = Array.isArray(j) ? j.map(x => ({ id: x.id, name: x.filename || x.title, url: x.download_url || (x.attachable && x.attachable.download_url), app: x.app_url })) : j;
+      return res.json({ status: r.status, list });
+    }
     const raw = String(req.query.url || '');
     let u;
     try { u = new URL(raw); } catch { return res.status(400).json({ error: 'bad url' }); }
