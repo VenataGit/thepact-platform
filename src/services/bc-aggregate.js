@@ -264,6 +264,9 @@ async function aggregateAll(token, account) {
           column: info.title, isDoneColumn: isDone,
           dueOn: card.dueOn || null, completed: !!card.completed, onHold: !!card.onHold,
           overdue, soon, url: card.url,
+          // Датата на публикуване = собственият Due на картата. dueOn може да е изместен
+          // към стъпка (bc_step_date_rules), затова тук винаги връщаме картовия Due.
+          publishOn: (card.dueFromStep ? card.cardDueOn : card.dueOn) || null,
         };
         if (!isVideo && role === 'pre') {
           // The content-plan card itself. Prefer a non-archived/active one if duplicated.

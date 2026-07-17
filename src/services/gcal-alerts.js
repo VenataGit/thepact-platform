@@ -635,5 +635,6 @@ module.exports = {
   checkCalendarAccess,
   postTestMessage,
   refreshBcPeople,
+  mentionOf,
   bestCardMatch,
 };

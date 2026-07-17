@@ -56,6 +56,14 @@ function subtractWorkingDays(dateStr, days) {
   return ymd(d);
 }
 
+// N working days AFTER `dateStr` (skips weekends + BG holidays). Returns 'YYYY-MM-DD'.
+function addWorkingDays(dateStr, days) {
+  const d = parse(dateStr);
+  let n = days;
+  while (n > 0) { d.setUTCDate(d.getUTCDate() + 1); if (!isNonWorking(d)) n--; }
+  return ymd(d);
+}
+
 // Working days from today until `dateStr` (negative if past). Skips weekends + BG holidays.
 function workingDaysUntil(dateStr) {
   const today = parse(ymd(new Date()));
@@ -66,4 +74,4 @@ function workingDaysUntil(dateStr) {
   return n;
 }
 
-module.exports = { ymd, subtractWorkingDays, workingDaysUntil, holidaySet, orthodoxEaster };
+module.exports = { ymd, subtractWorkingDays, addWorkingDays, workingDaysUntil, holidaySet, orthodoxEaster };

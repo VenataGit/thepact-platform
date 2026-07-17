@@ -12,6 +12,7 @@ const config = require('../config');
 const bc = require('../services/basecamp');
 const { getUserAuth } = require('../services/basecamp-token');
 const { subtractWorkingDays } = require('../services/workdays');
+const { parsePlan, parsePublishDate, planHtml } = require('../services/kp-plan');
 
 const MAX_VIDEOS = 30; // hard safety cap so a malformed plan can't flood the board
 const MAX_ATTACH_BYTES = 200 * 1024 * 1024; // skip media larger than this
@@ -28,56 +29,7 @@ const VIDEO_STEPS = Object.keys(STEP_OFFSETS);
 const escAttr = (s) => (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 // --- parsing (attachment-aware) ---
-// Media is pulled out as whole-line placeholder tokens ("A<idx>") so each can be
-// re-uploaded and re-embedded in place; text is preserved. Headings ("Видео N - …")
-// may sit mid-paragraph (Basecamp <br>-separates them), so splitting is line-based
-// after a tag→text pass. Placeholders are matched LINE-ANCHORED to avoid collisions.
-const ATTACH_RE = /<bc-attachment\b[^>]*>[\s\S]*?<\/bc-attachment>/gi;
-
-function attrOf(html, name) {
-  const m = html.match(new RegExp('\\b' + name + '="([^"]*)"', 'i'));
-  return m ? m[1] : '';
-}
-function parseAttachment(html) {
-  return {
-    sgid: attrOf(html, 'sgid'),
-    href: attrOf(html, 'href') || attrOf(html, 'url'), // href = the real download URL (in `description`)
-    contentType: attrOf(html, 'content-type'),
-    filename: attrOf(html, 'filename') || attrOf(html, 'alt') || 'file',
-    caption: attrOf(html, 'caption'),
-    filesize: parseInt(attrOf(html, 'filesize') || '0', 10),
-  };
-}
-function htmlToText(html) {
-  return (html || '')
-    .replace(/<br\s*\/?>/gi, '\n').replace(/<\/div>/gi, '\n').replace(/<\/p>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-}
-
-// Returns { sections:[{videoNumber,title,sectionText}], attachments:[{href,...}] }.
-function parsePlan(html) {
-  const attachments = [];
-  const withPlaceholders = (html || '').replace(ATTACH_RE, (m) => {
-    const i = attachments.length;
-    attachments.push(parseAttachment(m));
-    return '\nA' + i + '\n';
-  });
-  const sections = [];
-  let cur = null, curLines = [];
-  for (const raw of htmlToText(withPlaceholders).split('\n')) {
-    const line = raw.trim();
-    const m = line.match(/^Видео\s+(\d+)\s*[-–—]\s*(.+)$/);
-    if (m) {
-      if (cur) sections.push({ ...cur, sectionText: curLines.join('\n') });
-      cur = { videoNumber: parseInt(m[1], 10), title: m[2].trim() };
-      curLines = [line];
-    } else if (cur) { curLines.push(raw); }
-  }
-  if (cur) sections.push({ ...cur, sectionText: curLines.join('\n') });
-  return { sections, attachments };
-}
+// Самото парсване живее в services/kp-plan.js (споделено с kp-results.js).
 
 // Attachment indices a section references (placeholders are whole lines).
 function attachmentIdxs(sectionText) {
@@ -105,16 +57,6 @@ function buildContent(sectionText, attachMap) {
 
 function snippetOf(sectionText) {
   return sectionText.split('\n').filter((l) => !/^A\d+$/.test(l.trim())).slice(1).join(' ').trim().slice(0, 180);
-}
-
-// "Дата на/за публикуване - DD.MM.YYYY" → YYYY-MM-DD.
-function parsePublishDate(text) {
-  if (!text) return null;
-  const m = text.match(/Дата\s+(?:на|за)\s+публикуване\s*[-–—:]?\s*(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/i);
-  if (!m) return null;
-  const d = parseInt(m[1], 10), mo = parseInt(m[2], 10), y = parseInt(m[3], 10);
-  if (d < 1 || d > 31 || mo < 1 || mo > 12) return null;
-  return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
 }
 
 // Card-title prefix from the plan card's title (strip "контент план" tails).
@@ -148,7 +90,6 @@ async function resolveDestinations(token, tools) {
 }
 
 // Plans come from the `description` field (it carries the attachments' download `href`).
-function planHtml(card) { return card.description || card.content || ''; }
 
 // GET /api/kp-split/init — content-plan cards to pick + the destination boards.
 router.get('/init', requireAuth, async (req, res) => {

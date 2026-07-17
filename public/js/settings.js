@@ -4,6 +4,7 @@
 //   📋 КП-Автоматизация   — къде отиват КП картите (Basecamp), текстове, дати, график
 //   🗂 Dashboard          — кои Card Tables виждат всички
 //   📅 Календар известия  — Google Calendar → Basecamp
+//   📊 Резултати          — известие, когато всички видеа по един КП са публикувани
 // Старият панел остава достъпен на #/admin-legacy (линк долу в навигацията).
 
 // Кирилично-съвместими качествени шрифтове (Google Fonts). „Системен" = base default.
@@ -38,6 +39,7 @@ var SG_SECTIONS = [
   { id: 'kp', icon: '📋', label: 'КП-Автоматизация', hint: 'Basecamp, текстове, график', adminOnly: true },
   { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
   { id: 'calendar', icon: '📅', label: 'Календар известия', hint: 'GCal → Basecamp', adminOnly: false },
+  { id: 'results', icon: '📊', label: 'Резултати', hint: 'Известие при изпубликуван КП', adminOnly: true },
   { id: 'agent', icon: '🤖', label: 'PM Agent', hint: 'Одит и синхрон', adminOnly: true },
 ];
 
@@ -93,6 +95,7 @@ async function renderSettings(el, sub) {
   else if (active === 'kp') sgSectionKp(body);
   else if (active === 'dashboard') sgSectionDashboard(body);
   else if (active === 'calendar') sgSectionCalendar(body);
+  else if (active === 'results') sgSectionResults(body);
   else if (active === 'agent') sgSectionAgent(body);
 }
 
@@ -140,6 +143,229 @@ function sgSectionCalendar(host) {
       '<div id="gaBody"><div class="ga-loading">Зареждане…</div></div>' +
     '</div>';
   gaLoad();
+}
+
+// ==================== СЕКЦИЯ: РЕЗУЛТАТИ ====================
+
+function sgSectionResults(host) {
+  host.innerHTML =
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">📊 Известия за резултати</div>' +
+      '<div class="sg-section__desc">Когато всички видеа по един контент план са публикувани, ботът пише в Basecamp, че е време да подготвим резултати за клиента — и казва за кой период. Периодът е от датата на публикуване на първото видео до последното + 3 дни. Известието идва в деня, в който периодът приключва.</div>' +
+      '<div id="krBody"><div class="ga-loading">Зареждане…</div></div>' +
+    '</div>';
+  krLoad();
+}
+
+var _krData = null;
+
+async function krLoad() {
+  var host = document.getElementById('krBody');
+  if (!host) return;
+  try {
+    var res = await fetch('/api/kp-results/overview');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _krData = await res.json();
+    krRender();
+  } catch (e) {
+    host.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка при зареждане: ' + esc(e.message) + '</div>';
+  }
+}
+
+function krRender() {
+  var host = document.getElementById('krBody');
+  if (!host || !_krData) return;
+  var d = _krData;
+  var team = d.team || [];
+  var html = '';
+
+  // Включено + Message Board
+  html += '<div class="ga-row ga-row--config">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (d.enabled ? 'checked' : '') + ' onchange="krToggleEnabled(this.checked)"> Включено</label>' +
+      '<input type="text" class="ga-input ga-input--board" id="krBoardUrl" value="' + esc(d.boardUrl) + '" placeholder="Линк към Basecamp Message Board…">' +
+      '<button class="btn btn-sm" onclick="krSaveBoard()">Запази</button>' +
+    '</div>';
+  if (!d.boardUrl) {
+    html += '<div class="ga-empty" style="color:var(--yellow)">Постави линк към Message Board-а, в който да излизат известията — иначе не може да се включи.</div>';
+  }
+  if (d.since) {
+    html += '<div class="ga-share">Обявяват се само КП-та, чийто период приключва след <strong>' + esc(d.since) + '</strong> (денят на включване) — за да не се изсипят наведнъж всички стари планове.</div>';
+  }
+
+  // Кога и как
+  html += '<div class="ga-row ga-row--config">' +
+      '<label class="ga-toggle">Проверка всеки ден в <input type="text" class="ga-input" style="width:70px" id="krTime" value="' + esc(d.time) + '"> BG</label>' +
+      '<label class="ga-toggle"><input type="text" class="ga-input" style="width:56px" id="krDaysAfter" value="' + String(d.daysAfter) + '"> календарни дни след последното видео</label>' +
+      '<button class="btn btn-sm" onclick="krSaveTiming()">Запази</button>' +
+    '</div>';
+
+  // Картата „Резултати"
+  var destTxt = d.dest
+    ? esc((d.dest.boardTitle || 'дъска #' + d.dest.boardId) + ' → ' + (d.dest.columnTitle || 'колона #' + d.dest.columnId)) + (d.dest.auto ? ' <span class="ga-dim">(авто-открита)</span>' : '')
+    : '<span style="color:var(--yellow)">' + esc(d.destError || 'няма') + '</span>';
+  html += '<div class="ga-add">' +
+      '<div class="ga-add__hdr">📋 Задача „Резултати"</div>' +
+      '<div class="ga-row" style="margin-top:6px">' +
+        '<label class="ga-toggle"><input type="checkbox" ' + (d.cardEnabled ? 'checked' : '') + ' onchange="krToggleCard(this.checked)"> Създавай карта</label>' +
+        '<label class="ga-toggle">срок <input type="text" class="ga-input" style="width:56px" id="krCardWorkdays" value="' + String(d.cardWorkdays) + '"> работни дни</label>' +
+        '<input type="text" class="ga-input" id="krCardTitle" value="' + esc(d.cardTitle) + '" placeholder="{клиент} КП-{номер} - Резултати">' +
+        '<button class="btn btn-sm" onclick="krSaveCard()">Запази</button>' +
+      '</div>' +
+      '<div class="ga-share">Отива в: ' + destTxt + '</div>' +
+    '</div>';
+
+  // Отговорници (екипът е споделен с Календар известията)
+  var chips = (d.responsibles || []).map(function (pid) {
+    var p = team.find(function (x) { return String(x.person_id) === String(pid); });
+    return '<span class="ga-chip">' + esc(p ? p.name : '#' + pid) +
+      '<button onclick="krRemoveResponsible(\'' + String(pid) + '\')" title="Махни">✕</button></span>';
+  }).join('');
+  var opts = '<option value="">+ отговорник</option>' + team
+    .filter(function (p) { return (d.responsibles || []).indexOf(String(p.person_id)) === -1; })
+    .map(function (p) { return '<option value="' + String(p.person_id) + '">' + esc(p.name) + '</option>'; }).join('');
+  html += '<div class="ga-feed">' +
+      '<div class="ga-feed__resp">👥 Тагват се: ' + (chips || '<span class="ga-dim">никой — известието ще е само в борда</span>') +
+        '<select class="ga-select" onchange="krAddResponsible(this.value)">' + opts + '</select>' +
+        '<button class="ga-btn" onclick="krRefreshTeam(this)">🔄 Обнови екипа</button>' +
+      '</div>' +
+    '</div>';
+
+  // Последни известия
+  if ((d.history || []).length) {
+    html += '<div class="ga-map"><div class="ga-map__hdr">Последни известия</div>';
+    d.history.forEach(function (h) {
+      html += '<div class="ga-map__row">' + esc(h.client_name) + ' <strong>КП-' + h.kp + '</strong> · ' +
+        esc(krBg(h.range_start)) + ' – ' + esc(krBg(h.range_end)) + ' · ' + h.videos_count + ' видеа ' +
+        '<span class="ga-dim">' + esc(new Date(h.announced_at).toLocaleDateString('bg-BG')) + '</span></div>';
+    });
+    html += '</div>';
+  }
+
+  html += '<div class="ga-row ga-row--foot">' +
+      '<button class="btn btn-sm" onclick="krPreview(this)">👁 Преглед (без писане)</button>' +
+      '<button class="btn btn-sm" onclick="krRun(this)">▶ Провери сега</button>' +
+      '<button class="btn btn-sm" onclick="krTest(this)">🔧 Тест към Basecamp</button>' +
+    '</div>' +
+    '<div id="krPreviewBox"></div>';
+
+  host.innerHTML = html;
+}
+
+function krBg(v) {
+  if (!v) return '—';
+  var p = String(v).slice(0, 10).split('-');
+  return p[2] + '.' + p[1] + '.' + p[0];
+}
+
+function krToggleEnabled(on) {
+  _gaCall('/api/kp-results/config', 'PUT', { enabled: on })
+    .then(function () { showToast(on ? 'Известията за резултати са включени.' : 'Известията за резултати са спрени.', 'success'); krLoad(); })
+    .catch(function (e) { showToast(e.message, 'error', 6000); krLoad(); });
+}
+
+function krToggleCard(on) {
+  _gaCall('/api/kp-results/config', 'PUT', { cardEnabled: on })
+    .then(function () { _krData.cardEnabled = on; showToast(on ? 'Ще се създава карта „Резултати".' : 'Картата няма да се създава.', 'success'); })
+    .catch(function (e) { showToast(e.message, 'error'); krLoad(); });
+}
+
+function krSaveBoard() {
+  var el = document.getElementById('krBoardUrl');
+  _gaCall('/api/kp-results/config', 'PUT', { boardUrl: el ? el.value : '' })
+    .then(function () { showToast('Message Board-ът е запазен.', 'success'); krLoad(); })
+    .catch(function (e) { showToast(e.message, 'error', 6000); });
+}
+
+function krSaveTiming() {
+  var t = document.getElementById('krTime'), da = document.getElementById('krDaysAfter');
+  _gaCall('/api/kp-results/config', 'PUT', { time: t ? t.value : undefined, daysAfter: da ? da.value : undefined })
+    .then(function () { showToast('Запазено.', 'success'); krLoad(); })
+    .catch(function (e) { showToast(e.message, 'error', 6000); });
+}
+
+function krSaveCard() {
+  var w = document.getElementById('krCardWorkdays'), t = document.getElementById('krCardTitle');
+  _gaCall('/api/kp-results/config', 'PUT', { cardWorkdays: w ? w.value : undefined, cardTitle: t ? t.value : undefined })
+    .then(function () { showToast('Запазено.', 'success'); krLoad(); })
+    .catch(function (e) { showToast(e.message, 'error', 6000); });
+}
+
+function krAddResponsible(pid) {
+  if (!pid) return;
+  _gaCall('/api/kp-results/responsibles', 'POST', { personId: pid })
+    .then(function () { krLoad(); })
+    .catch(function (e) { showToast(e.message, 'error'); });
+}
+
+function krRemoveResponsible(pid) {
+  _gaCall('/api/kp-results/responsibles/' + pid, 'DELETE')
+    .then(function () { krLoad(); })
+    .catch(function (e) { showToast(e.message, 'error'); });
+}
+
+function krRefreshTeam(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+  _gaCall('/api/kp-results/refresh-people', 'POST')
+    .then(function (r) { showToast('Екипът е обновен: ' + r.count + ' души.', 'success'); krLoad(); })
+    .catch(function (e) { showToast('Грешка: ' + e.message, 'error', 6000); })
+    .finally(function () { if (btn) { btn.disabled = false; btn.textContent = '🔄 Обнови екипа'; } });
+}
+
+var KR_ACTION_TXT = {
+  announce: '<span style="color:var(--green)">ще се обяви сега</span>',
+  pending: 'чака края на периода',
+  announced: '<span class="ga-dim">вече обявено</span>',
+  change: '<span style="color:var(--yellow)">периодът се е променил → коментар</span>',
+  'skipped-old': '<span class="ga-dim">старо (преди включването)</span>',
+};
+
+function krRenderPreview(data) {
+  var box = document.getElementById('krPreviewBox');
+  if (!box) return;
+  var items = data.items || [];
+  if (!items.length) { box.innerHTML = '<div class="ga-empty">Няма контент планове с видеа в Basecamp.</div>'; return; }
+  var html = '<div class="ga-map"><div class="ga-map__hdr">Преглед към ' + esc(data.today) + ' <span class="ga-dim">— нищо не е записано</span></div>';
+  items.forEach(function (i) {
+    var what = i.status === 'no-dates'
+      ? '<span style="color:var(--yellow)">няма дати (' + esc(i.note || '') + ')</span>'
+      : (KR_ACTION_TXT[i.action] || esc(i.action || ''));
+    html += '<div class="ga-map__row">' + esc(i.client) + ' <strong>КП-' + i.kp + '</strong> · ' +
+      (i.start ? esc(krBg(i.start)) + ' – ' + esc(krBg(i.end)) : '—') + ' · ' + i.videosCount + ' видеа' +
+      (i.mismatch ? ' <span style="color:var(--yellow)" title="По плана има повече видеа, отколкото карти">⚠ ' + i.cardVideos + '/' + i.planVideos + '</span>' : '') +
+      ' → ' + what + '</div>';
+  });
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+function krPreview(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+  fetch('/api/kp-results/preview')
+    .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; }); })
+    .then(krRenderPreview)
+    .catch(function (e) { showToast('Грешка: ' + e.message, 'error', 6000); })
+    .finally(function () { if (btn) { btn.disabled = false; btn.textContent = '👁 Преглед (без писане)'; } });
+}
+
+function krRun(btn) {
+  if (!confirm('Да пусна проверката сега? Ако има готов КП, ботът ще напише известие в Basecamp.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+  _gaCall('/api/kp-results/run', 'POST')
+    .then(function (r) {
+      if (r.skipped) showToast('Пропуснато: ' + r.skipped, 'error');
+      else showToast('Готово: ' + (r.announced || []).length + ' нови известия, ' + (r.changed || []).length + ' промени.', 'success');
+      krRenderPreview(r); krLoad();
+    })
+    .catch(function (e) { showToast('Грешка: ' + e.message, 'error', 6000); })
+    .finally(function () { if (btn) { btn.disabled = false; btn.textContent = '▶ Провери сега'; } });
+}
+
+function krTest(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+  _gaCall('/api/kp-results/test', 'POST')
+    .then(function () { showToast('Тестовото съобщение е публикувано в Basecamp.', 'success'); })
+    .catch(function (e) { showToast('Грешка: ' + e.message, 'error', 6000); })
+    .finally(function () { if (btn) { btn.disabled = false; btn.textContent = '🔧 Тест към Basecamp'; } });
 }
 
 // ==================== СЕКЦИЯ: КП-АВТОМАТИЗАЦИЯ ====================
