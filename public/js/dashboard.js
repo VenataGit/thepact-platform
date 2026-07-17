@@ -120,22 +120,41 @@ function dashCardMatches(card) {
   return true;
 }
 
-// Всички заредени карти (нормални + on hold) от всички дъски — за списъците с опции.
-function dashAllLoadedCards() {
+// Картите, от които се градят опциите на филтъра: САМО актуалните и налични задачи —
+// тези, които реално стоят по видимите таблици/колони на дашборда.
+//
+// Не стига да се минат всички заредени карти: скритите колони пак се теглят от
+// Basecamp (а по подразбиране „Done" и „Not now" са скрити), а дъска, скрита след
+// като веднъж се е заредила, си остава в _dashCards. И двете вкарват в списъка
+// клиенти, които са приключени или изобщо не са на дъската — точно това, което
+// Венци не иска да вижда. Затова филтрираме изрично по видимост.
+//
+// Активна карта = отворена задача: не е завършена и не е в Done колона (същата
+// дефиниция като `active` в src/services/bc-aggregate.js). On hold картите остават —
+// те се показват на дъската и клиентът им още е в игра.
+function dashVisibleActiveCards() {
+  if (!_dashStruct) return [];
+  const hiddenCols = getDashHiddenCols();
   const out = [];
-  Object.keys(_dashCards).forEach((bid) => {
-    [_dashCards[bid] || {}, _dashOnHold[bid] || {}].forEach((src) => {
-      Object.keys(src).forEach((cid) => out.push(...(src[cid] || [])));
+  dashOrderedVisibleBoards().forEach((b) => {   // вече без скритите дъски
+    const byCol = _dashCards[b.id];
+    if (!byCol) return;                          // дъската още не е заредена
+    const hold = _dashOnHold[b.id] || {};
+    (b.columns || []).forEach((c) => {
+      if (c.isDone || hiddenCols.has(String(c.id))) return;
+      [...(byCol[c.id] || []), ...(hold[c.id] || [])].forEach((card) => {
+        if (!card.completed) out.push(card);
+      });
     });
   });
   return out;
 }
 
-// Опциите се градят от реално заредените карти. КП списъкът се стеснява до избрания
+// Опциите се градят от видимите активни карти. КП списъкът се стеснява до избрания
 // клиент, за да не предлагаме комбинации, които не съществуват.
 function dashFilterOptions() {
   const clients = new Map(), kps = new Set(), assignees = new Map();
-  dashAllLoadedCards().forEach((c) => {
+  dashVisibleActiveCards().forEach((c) => {
     const p = dashParseClientKp(c.title);
     if (p) {
       clients.set(p.client.toLowerCase(), p.client);
