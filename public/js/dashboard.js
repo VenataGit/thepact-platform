@@ -73,7 +73,95 @@ let _dashAutoRefreshId = null;
 let expandedDashCol = null;   // board id expanded to full width (others collapse)
 let _dashDragCardId = null, _dashDragBoardId = null, _dashDragFromCol = null;
 
-function dashBoardTotal(b) { return (b.columns || []).reduce((s, c) => s + (c.cardsCount || 0), 0); }
+// --- филтър (⛃ Филтър до ⚙ Настройки) ------------------------------------------
+// Само за текущата сесия — нарочно НЕ се пази (нито в prefs, нито в localStorage),
+// за да не завариш дашборда мистериозно "празен" при следващо влизане. „Изчисти"
+// връща нормалния изглед с всички задачи.
+let _dashFilter = { client: '', kp: '', due: '', assignee: '' };
+
+function dashFilterCount() { return ['client', 'kp', 'due', 'assignee'].filter((k) => _dashFilter[k]).length; }
+function dashFilterActive() { return dashFilterCount() > 0; }
+
+// Клиент/КП живеят само в заглавието на картата — Basecamp няма структурно поле за тях.
+// Същата конвенция като в src/services/bc-aggregate.js: "Cineland КП-18 - Видео 3 - …".
+function dashParseClientKp(title) {
+  const m = String(title || '').match(/^(.+?)\s+(?:КП|KP)\s*[-–—]?\s*0*(\d+)/i);
+  if (!m) return null;
+  const client = m[1].trim().replace(/\s+/g, ' ');
+  const kp = parseInt(m[2], 10);
+  if (!client || !Number.isFinite(kp)) return null;
+  return { client, kp };
+}
+
+function dashDueMatches(card, mode) {
+  if (mode === 'nodate') return !card.dueOn;
+  if (!card.dueOn) return false;
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const d = _parseDateMidnight(card.dueOn);
+  const diff = Math.round((d - now) / 86400000);
+  if (mode === 'overdue') return diff < 0 && !card.completed;
+  if (mode === 'today') return diff === 0;
+  if (mode === 'soon') return diff >= 0 && diff <= 3;
+  if (mode === 'week') return diff >= 0 && diff <= 7;
+  return true;
+}
+
+function dashCardMatches(card) {
+  const f = _dashFilter;
+  if (!dashFilterActive()) return true;
+  if (f.client || f.kp) {
+    const p = dashParseClientKp(card.title);
+    if (!p) return false; // картата не следва конвенцията „Клиент КП-N …"
+    if (f.client && p.client.toLowerCase() !== f.client.toLowerCase()) return false;
+    if (f.kp && String(p.kp) !== String(f.kp)) return false;
+  }
+  if (f.assignee && !(card.assignees || []).some((a) => String(a.id) === String(f.assignee))) return false;
+  if (f.due && !dashDueMatches(card, f.due)) return false;
+  return true;
+}
+
+// Всички заредени карти (нормални + on hold) от всички дъски — за списъците с опции.
+function dashAllLoadedCards() {
+  const out = [];
+  Object.keys(_dashCards).forEach((bid) => {
+    [_dashCards[bid] || {}, _dashOnHold[bid] || {}].forEach((src) => {
+      Object.keys(src).forEach((cid) => out.push(...(src[cid] || [])));
+    });
+  });
+  return out;
+}
+
+// Опциите се градят от реално заредените карти. КП списъкът се стеснява до избрания
+// клиент, за да не предлагаме комбинации, които не съществуват.
+function dashFilterOptions() {
+  const clients = new Map(), kps = new Set(), assignees = new Map();
+  dashAllLoadedCards().forEach((c) => {
+    const p = dashParseClientKp(c.title);
+    if (p) {
+      clients.set(p.client.toLowerCase(), p.client);
+      if (!_dashFilter.client || p.client.toLowerCase() === _dashFilter.client.toLowerCase()) kps.add(p.kp);
+    }
+    (c.assignees || []).forEach((a) => assignees.set(String(a.id), a.name));
+  });
+  return {
+    clients: [...clients.values()].sort((a, b) => a.localeCompare(b, 'bg')),
+    kps: [...kps].sort((a, b) => b - a),
+    assignees: [...assignees.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'bg')),
+  };
+}
+
+function dashBoardTotal(b) {
+  // При активен филтър броячът в хедъра трябва да отговаря на това, което се вижда.
+  // Незаредена дъска пада към структурния брой — оправя се щом картите дойдат.
+  if (dashFilterActive() && _dashCards[b.id]) {
+    let n = 0;
+    [_dashCards[b.id] || {}, _dashOnHold[b.id] || {}].forEach((src) => {
+      Object.keys(src).forEach((cid) => { n += (src[cid] || []).filter(dashCardMatches).length; });
+    });
+    return n;
+  }
+  return (b.columns || []).reduce((s, c) => s + (c.cardsCount || 0), 0);
+}
 
 // Order `items` by a saved array of ids; unlisted items keep their original order at the end.
 function applyOrder(items, order) {
@@ -228,6 +316,70 @@ function dashRenderStats() {
   // dashboard is the active view (router.js hides it again on navigation away).
   const btn = document.getElementById('navDashSettings');
   if (btn) btn.style.display = 'inline-flex';
+  const fbtn = document.getElementById('navDashFilter');
+  if (fbtn) { fbtn.style.display = 'inline-flex'; dashUpdateFilterBtn(); }
+}
+
+var DASH_FILTER_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h18l-7 8.5v6.5l-4 2v-8.5z"/></svg>';
+
+function dashUpdateFilterBtn() {
+  const btn = document.getElementById('navDashFilter');
+  if (!btn) return;
+  const n = dashFilterCount();
+  btn.classList.toggle('dash-filter-btn--on', n > 0);
+  btn.innerHTML = DASH_FILTER_SVG + '<span>Филтър</span>' + (n ? '<span class="dash-filter-badge">' + n + '</span>' : '');
+}
+
+const DASH_DUE_OPTS = [
+  ['overdue', 'Просрочени'], ['today', 'Днес'], ['soon', 'До 3 дни'], ['week', 'До 7 дни'], ['nodate', 'Без дата'],
+];
+
+function _dashSelect(key, label, placeholder, opts) {
+  const cur = _dashFilter[key];
+  const o = opts.map(([v, t]) =>
+    '<option value="' + esc(String(v)) + '"' + (String(cur) === String(v) ? ' selected' : '') + '>' + esc(String(t)) + '</option>').join('');
+  return '<label class="dash-filter-field"><span class="dash-filter-lbl">' + esc(label) + '</span>' +
+    '<select onchange="dashSetFilter(\'' + key + '\', this.value)">' +
+      '<option value="">' + esc(placeholder) + '</option>' + o +
+    '</select></label>';
+}
+
+function showDashFilter() {
+  document.querySelectorAll('.dash-filter-panel').forEach((p) => p.remove());
+  const btn = document.getElementById('navDashFilter'); if (!btn) return;
+  const opts = dashFilterOptions();
+  const panel = document.createElement('div'); panel.className = 'dash-filter-panel';
+  const n = dashFilterCount();
+  let html = '<div class="dash-settings-panel__header"><strong>Филтрирай задачите</strong>' +
+    '<button onclick="this.closest(\'.dash-filter-panel\').remove()">✕</button></div>' +
+    '<div class="dash-filter-panel__body">';
+  html += _dashSelect('client', 'Клиент', 'Всички клиенти', opts.clients.map((c) => [c, c]));
+  html += _dashSelect('kp', 'Контент план', 'Всички КП', opts.kps.map((k) => [k, 'КП-' + k]));
+  html += _dashSelect('due', 'Дата', 'Всички дати', DASH_DUE_OPTS);
+  html += _dashSelect('assignee', 'Изпълнител', 'Всички', opts.assignees.map((a) => [a.id, a.name]));
+  if (!opts.clients.length) html += '<div class="dash-filter-note">Клиенти/КП се четат от заглавията („Клиент КП-18 — …"). Изчакай дъските да се заредят.</div>';
+  html += '</div>';
+  html += '<div class="dash-settings-panel__footer"><button class="btn btn-sm btn-ghost dash-advanced-btn" onclick="dashClearFilter()"' +
+    (n ? '' : ' disabled') + '>Изчисти филтрите' + (n ? ' (' + n + ')' : '') + '</button></div>';
+  panel.innerHTML = html;
+  const rect = btn.getBoundingClientRect();
+  panel.style.cssText = 'position:fixed;top:' + (rect.bottom + 6) + 'px;right:' + Math.max(8, window.innerWidth - rect.right) + 'px;z-index:1000';
+  document.body.appendChild(panel);
+  setTimeout(() => document.addEventListener('click', function h(ev) {
+    if (!document.body.contains(panel)) { document.removeEventListener('click', h); return; }
+    if (!panel.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) { panel.remove(); document.removeEventListener('click', h); }
+  }), 10);
+}
+
+function dashSetFilter(key, val) {
+  _dashFilter[key] = val || '';
+  if (key === 'client') _dashFilter.kp = ''; // КП-тата зависят от клиента — старият избор може да не съществува
+  dashRenderBoards(); dashUpdateFilterBtn(); showDashFilter();
+}
+
+function dashClearFilter() {
+  _dashFilter = { client: '', kp: '', due: '', assignee: '' };
+  dashRenderBoards(); dashUpdateFilterBtn(); showDashFilter();
 }
 
 // Below this width the dashboard switches to "focus" mode: one board expanded, the rest
@@ -320,8 +472,8 @@ function dashCardCompare(a, b) {
 }
 
 function dashSubColHtml(board, col, loaded) {
-  const cards = ((_dashCards[board.id] || {})[col.id] || []).slice().sort(dashCardCompare);
-  const onHold = ((_dashOnHold[board.id] || {})[col.id] || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+  const cards = ((_dashCards[board.id] || {})[col.id] || []).filter(dashCardMatches).sort(dashCardCompare);
+  const onHold = ((_dashOnHold[board.id] || {})[col.id] || []).filter(dashCardMatches).sort((a, b) => (a.position || 0) - (b.position || 0));
   const count = loaded ? cards.length : (col.cardsCount || 0);
   const body = loaded
     ? ((cards.map(renderDashCard).join('') || '<div class="dash-subcol-empty"></div>') +

@@ -34,6 +34,20 @@
 .dash-settings-panel__footer { padding: 10px 14px; border-top: 1px solid var(--border); }
 .dash-advanced-btn { width: 100%; }
 
+/* ==================== DASHBOARD FILTER ==================== */
+/* Бутонът ползва вида на .dash-settings-btn; свети зелено при активен филтър. */
+.dash-filter-btn--on { color: var(--accent, #46a374); border-color: var(--accent, #46a374); }
+.dash-filter-badge { background: var(--accent, #46a374); color: #fff; border-radius: 9px; font-size: 10px; line-height: 1; padding: 2px 5px; min-width: 8px; text-align: center; }
+.dash-filter-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg); width: 260px; max-width: calc(100vw - 16px); }
+.dash-filter-panel__body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.dash-filter-field { display: flex; flex-direction: column; gap: 4px; }
+.dash-filter-lbl { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.4px; }
+.dash-filter-field select { width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; padding: 7px 9px; cursor: pointer; outline: none; }
+.dash-filter-field select:hover { border-color: var(--border-hover); }
+.dash-filter-field select:focus { border-color: var(--accent, #46a374); }
+.dash-filter-note { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+.dash-settings-panel__footer .dash-advanced-btn[disabled] { opacity: 0.45; cursor: default; }
+
 /* Advanced settings modal (placeholder — content TBD) */
 .dash-advanced-modal {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;

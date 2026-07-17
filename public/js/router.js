@@ -14,9 +14,12 @@ function router() {
 
   const el = document.getElementById('pageContent');
   closeAllDropdowns();
-  // Dashboard-only settings gear (top nav) — hide on every navigation; renderDashboard re-shows it.
+  // Dashboard-only settings gear + filter (top nav) — hide on every navigation; renderDashboard re-shows them.
   const _dashGear = document.getElementById('navDashSettings');
   if (_dashGear) _dashGear.style.display = 'none';
+  const _dashFilterBtn = document.getElementById('navDashFilter');
+  if (_dashFilterBtn) _dashFilterBtn.style.display = 'none';
+  document.querySelectorAll('.dash-filter-panel').forEach((p) => p.remove());
 
   // Reset card edit mode when navigating away from card page
   if (page !== 'card') _cardEditMode = false;
