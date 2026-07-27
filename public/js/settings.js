@@ -495,7 +495,7 @@ function kpAdminRender() {
     '<div class="sg-section__hdr">📆 Дати и обем</div>' +
     '<div class="sg-kp-rows">' +
       kpAdmNumRow('kp_bc_due_days', 'Срок на КП картата (Due date)', s.kp_bc_due_days === undefined ? '10' : s.kp_bc_due_days, 'работни дни преди първото видео · празно = без срок', true) +
-      kpAdmNumRow('kp_calendar_window', 'Календарен прозорец', s.kp_calendar_window || '30', 'календарни дни, в които се разпределят видеата') +
+      kpAdmNumRow('kp_calendar_window', 'Календарен прозорец', s.kp_calendar_window || '30', 'резерва · дължината на месеца се хваща автоматично (28/30/31 дни)') +
       kpAdmNumRow('kp_days_before_next_kp', 'Създаване на следващ КП', s.kp_days_before_next_kp || '15', 'работни дни преди първото видео на следващия КП') +
       kpAdmNumRow('kp_default_videos', 'Видеа по подразбиране', s.kp_default_videos || '10', 'за нов клиент, ако не е зададено друго') +
     '</div>' +

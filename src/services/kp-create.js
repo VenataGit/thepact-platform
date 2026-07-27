@@ -103,18 +103,45 @@ function toBgDate(d) {
   return d.toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-// Distribute N videos evenly across a calendar window.
+// Add whole calendar months, keeping the day-of-month (clamped to the last day of
+// the target month, so 31.01 → 28/29.02). This is how the next КП „хваща" реалната
+// дължина на месеца вместо фиксирани 30 дни.
+function addCalendarMonths(date, months) {
+  const d = new Date(date);
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + months);
+  const daysInTarget = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, daysInTarget));
+  return d;
+}
+
+// Distribute N videos across the client's calendar month, aiming for roughly one
+// every 3 calendar days, and place the NEXT КП's first video exactly one calendar
+// month later (same day-of-month). The window length is taken automatically from
+// the real month (28/30/31 дни), NOT a fixed 30 — so plans never drift and no
+// video slot is lost between two consecutive КП-та.
+//
+// Пример: 01.09 → 04.09 → 07.09 → … → 28.09 (10 видеа), следващ КП: 01.10.
+//
+// `calendarWindow` вече е само резервна стойност — ползва се единствено ако датата
+// не позволява да се изчисли реалната дължина на месеца.
 function distributePublishDates(firstDateStr, videoCount, calendarWindow) {
   const first = new Date(firstDateStr + 'T12:00:00');
+
+  // Следващият КП започва на същия ден от следващия календарен месец.
+  const nextKpFirst = addCalendarMonths(first, 1);
+  // Календарни дни от първото видео на този КП до първото на следващия.
+  let windowDays = Math.round((nextKpFirst.getTime() - first.getTime()) / 86400000);
+  if (!Number.isFinite(windowDays) || windowDays < 1) windowDays = calendarWindow || 30;
+
   if (videoCount <= 1) {
-    return {
-      dates: [first],
-      interval: calendarWindow,
-      lastVideoDate: first,
-      nextKpFirstDate: new Date(first.getTime() + calendarWindow * 86400000),
-    };
+    return { dates: [first], interval: windowDays, lastVideoDate: first, nextKpFirstDate: nextKpFirst };
   }
-  const gap = calendarWindow / (videoCount - 1);
+
+  // videoCount равни стъпки в прозореца → последното видео пада една стъпка преди
+  // първото на следващия КП, така кадансът продължава плавно през границата.
+  const gap = windowDays / videoCount;
   const dates = [];
   for (let i = 0; i < videoCount; i++) {
     const d = new Date(first);
@@ -122,8 +149,6 @@ function distributePublishDates(firstDateStr, videoCount, calendarWindow) {
     dates.push(d);
   }
   const lastVideoDate = dates[dates.length - 1];
-  const nextKpFirst = new Date(lastVideoDate);
-  nextKpFirst.setDate(nextKpFirst.getDate() + Math.round(gap));
   return { dates, interval: Math.round(gap * 10) / 10, lastVideoDate, nextKpFirstDate: nextKpFirst };
 }
 

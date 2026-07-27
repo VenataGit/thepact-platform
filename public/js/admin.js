@@ -381,7 +381,7 @@ async function loadAdminSettings() {
           <input class="input-sm" type="number" min="7" max="90" style="width:60px"
                  value="${esc(s.kp_calendar_window || '30')}"
                  onblur="saveSetting('kp_calendar_window', this.value)">
-          <span style="font-size:11px;color:var(--text-dim)">календарни дни за разпределение на видеата</span>
+          <span style="font-size:11px;color:var(--text-dim)">резерва · дължината на месеца се хваща автоматично</span>
         </div>
         <div class="admin-setting-row">
           <label>Дни преди следващ КП</label>
