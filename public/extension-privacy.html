@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>The Pact Tools — Политика за поверителност</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; padding: 40px 20px;
+      background: #111a1e; color: #e6e6e6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.65;
+    }
+    main { max-width: 760px; margin: 0 auto; }
+    h1 { font-size: 26px; margin: 0 0 6px; }
+    h2 { font-size: 20px; margin: 38px 0 12px; color: #46a374; }
+    h3 { font-size: 16px; margin: 24px 0 8px; }
+    .updated { color: #8a9aa3; font-size: 14px; margin: 0 0 30px; }
+    ul { padding-left: 22px; }
+    li { margin: 6px 0; }
+    a { color: #46a374; }
+    hr { border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 44px 0; }
+    .box { background: rgba(255,255,255,0.05); border-radius: 15px; padding: 20px 25px; }
+  </style>
+</head>
+<body>
+<main>
+
+  <h1>The Pact Tools — Политика за поверителност</h1>
+  <p class="updated">Последна редакция: 28 юли 2026 г.</p>
+
+  <div class="box">
+    <strong>The Pact Tools</strong> е вътрешно Chrome разширение на агенция The Pact. Работи само на
+    страниците на Basecamp (<code>3.basecamp.com</code>) и комуникира само със собствената платформа на
+    агенцията (<code>thepact.pro</code>). Разширението е служебен инструмент за екипа и не се предлага на
+    външни потребители.
+  </div>
+
+  <h2>Какви данни обработва</h2>
+
+  <h3>1. Кой редактира в момента (presence)</h3>
+  <ul>
+    <li>име на потребителя, взето от неговия Basecamp профил (или въведено ръчно в настройките);</li>
+    <li>идентификатор и заглавие на елемента (задача, съобщение, документ), който потребителят редактира в момента, и часът на започване.</li>
+  </ul>
+  <p>
+    Използва се единствено за да се покаже на колегите предупреждение „този елемент се редактира в момента от X“.
+    Записите се пазят в база на екипа (Google Firebase Realtime Database, регион ЕС — Белгия), изтриват се
+    автоматично при приключване на редакцията и се игнорират след 2,5 минути неактивност.
+  </p>
+
+  <h3>2. Тракване на време по задачите</h3>
+  <ul>
+    <li>идентификатор и заглавие на задачата в Basecamp, по която потребителят е пуснал таймер;</li>
+    <li>начален и краен час на всеки работен сегмент и периодичен сигнал „таймерът още върви“.</li>
+  </ul>
+  <p>
+    Използва се, за да види потребителят колко време е работил по дадена задача, и за служебни отчети на
+    ръководството на агенцията. Данните се записват в базата на платформата на The Pact
+    (PostgreSQL на собствен сървър в ЕС — Германия, Hetzner). Всеки член на екипа вижда своето време;
+    пълните разбивки са достъпни само за администраторите на агенцията.
+  </p>
+
+  <h3>3. Локални настройки в браузъра</h3>
+  <ul>
+    <li>настройки на разширението и закачени коментари — през <code>chrome.storage</code> / <code>localStorage</code>;</li>
+    <li>служебен токен за достъп, издаден от <code>thepact.pro</code> след като потребителят сам натисне „Свържи“ — служи само за заявките към платформата и се трие при отвързване.</li>
+  </ul>
+
+  <h2>Какво НЕ се обработва</h2>
+  <ul>
+    <li>Съдържанието на задачите, коментарите и документите в Basecamp <strong>не се изпраща никъде</strong> — то остава само в браузъра на потребителя.</li>
+    <li>Не се събират пароли, банкови или платежни данни, здравна информация, местоположение или история на сърфирането.</li>
+    <li>Разширението не следи страници извън <code>3.basecamp.com</code>.</li>
+  </ul>
+
+  <h2>Кой има достъп</h2>
+  <p>
+    Само екипът на The Pact. Данните не се продават, не се използват за реклама или за цели, несвързани с
+    основната функция на разширението, и не се споделят с трети страни извън инфраструктурните доставчици
+    (Google Firebase и Hetzner), върху които работят базите.
+  </p>
+
+  <h2>Контакт</h2>
+  <p>Въпроси и заявки за изтриване на данни: <a href="mailto:kalchev@thepact.bg">kalchev@thepact.bg</a></p>
+
+  <hr>
+
+  <h1>The Pact Tools — Privacy Policy</h1>
+  <p class="updated">Last updated: July 28, 2026</p>
+
+  <div class="box">
+    <strong>The Pact Tools</strong> is an internal Chrome extension of The Pact agency. It runs only on
+    Basecamp pages (<code>3.basecamp.com</code>) and communicates only with the agency's own platform
+    (<code>thepact.pro</code>). It is a work tool for the team and is not offered to outside users.
+  </div>
+
+  <h2>Data processed</h2>
+
+  <h3>1. Editing presence</h3>
+  <ul>
+    <li>the user's name, taken from their Basecamp profile (or entered manually in the extension options);</li>
+    <li>the identifier and title of the item (to-do, message, document) the user is currently editing, and the time editing started.</li>
+  </ul>
+  <p>
+    Used solely to show teammates a "this item is currently being edited by X" warning. Records are stored in a
+    team-owned Google Firebase Realtime Database (EU region — Belgium), are deleted automatically when editing
+    ends, and are ignored after 2.5 minutes of inactivity.
+  </p>
+
+  <h3>2. Task time tracking</h3>
+  <ul>
+    <li>the identifier and title of the Basecamp task the user started a timer on;</li>
+    <li>start and end time of each work segment, plus a periodic "timer still running" heartbeat.</li>
+  </ul>
+  <p>
+    Used so the user can see how much time they spent on a task, and for the agency's internal reporting.
+    Stored in The Pact platform database (PostgreSQL on the company's own server in the EU — Germany, Hetzner).
+    Each team member sees their own time; full breakdowns are available only to agency administrators.
+  </p>
+
+  <h3>3. Local browser settings</h3>
+  <ul>
+    <li>extension settings and pinned comments — via <code>chrome.storage</code> / <code>localStorage</code>;</li>
+    <li>an access token issued by <code>thepact.pro</code> after the user explicitly clicks "Connect"; it is used only for requests to the platform and is deleted on disconnect.</li>
+  </ul>
+
+  <h2>What is NOT processed</h2>
+  <ul>
+    <li>The content of Basecamp tasks, comments and documents is <strong>never transmitted anywhere</strong> — it stays in the user's browser.</li>
+    <li>No passwords, financial or payment data, health information, location or browsing history is collected.</li>
+    <li>The extension does not observe any pages outside <code>3.basecamp.com</code>.</li>
+  </ul>
+
+  <h2>Access</h2>
+  <p>
+    The Pact team only. Data is not sold, is not used for advertising or for any purpose unrelated to the
+    extension's single purpose, and is not shared with third parties beyond the infrastructure providers
+    (Google Firebase and Hetzner) hosting the databases.
+  </p>
+
+  <h2>Contact</h2>
+  <p>Questions and data deletion requests: <a href="mailto:kalchev@thepact.bg">kalchev@thepact.bg</a></p>
+
+</main>
+</body>
+</html>
