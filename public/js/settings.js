@@ -1,11 +1,34 @@
-// ==================== ГЛОБАЛНИ НАСТРОЙКИ (нов админ панел) ====================
+// ==================== ГЛОБАЛНИ НАСТРОЙКИ (админ панел) ====================
 // Панелът е разделен на подменюта (лява навигация): #/admin/<секция>.
-//   🎨 Тема               — шрифт + основни цветове (прилага се за целия екип)
+//   🎨 Тема               — шрифт + основни цветове (+ разширена персонализация)
+//   👥 Екип и роли        — хора, позиции, профили и права
 //   📋 КП-Автоматизация   — къде отиват КП картите (Basecamp), текстове, дати, график
 //   🗂 Dashboard          — кои Card Tables виждат всички
 //   📅 Календар известия  — Google Calendar → Basecamp
 //   📊 Резултати          — известие, когато всички видеа по един КП са публикувани
-// Старият панел остава достъпен на #/admin-legacy (линк долу в навигацията).
+//   🤖 PM Agent           — одит и синхрон
+//   🛠 Система            — дневен отчет, коментари, Google Calendar синхрон, логика
+// Менюто „Настройки" (More) се вижда от всички, но самият панел е само за админи —
+// на останалите излиза съобщението SG_NO_ACCESS_MSG. Старият панел (#/admin-legacy)
+// е премахнат — всичките му живи настройки са в секциите горе.
+
+var SG_NO_ACCESS_MSG = 'Настройките са налични само за потребителите с администраторски права. Моля, свържи се с администратор, при нужда от помощ.';
+
+// Пълен админ или мини админ — само те могат да отворят панела.
+function sgHasSettingsAccess() {
+  return !!(typeof currentUser !== 'undefined' && currentUser &&
+    (currentUser.role === 'admin' || currentUser.role === 'mini_admin'));
+}
+
+// Клик върху „Настройки" в More: за админ пуска линка, за останалите показва
+// съобщението и не навигира.
+function sgOpenSettings(e) {
+  if (typeof closeAllDropdowns === 'function') closeAllDropdowns();
+  if (sgHasSettingsAccess()) return true;
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  if (typeof showToast === 'function') showToast(SG_NO_ACCESS_MSG, 'error', 8000);
+  return false;
+}
 
 // Кирилично-съвместими качествени шрифтове (Google Fonts). „Системен" = base default.
 var SG_FONTS = [
@@ -42,6 +65,7 @@ var SG_SECTIONS = [
   { id: 'calendar', icon: '📅', label: 'Календар известия', hint: 'GCal → Basecamp', adminOnly: false },
   { id: 'results', icon: '📊', label: 'Резултати', hint: 'Известие при изпубликуван КП', adminOnly: true },
   { id: 'agent', icon: '🤖', label: 'PM Agent', hint: 'Одит и синхрон', adminOnly: true },
+  { id: 'system', icon: '🛠', label: 'Система', hint: 'Отчет, коментари, логика', adminOnly: true },
 ];
 
 function _sgFontsLink() {
@@ -57,8 +81,14 @@ function _sgEnsureFontsLoaded() {
 }
 
 async function renderSettings(el, sub) {
-  if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'mini_admin') {
-    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">Нямаш достъп до тази страница.</div>';
+  if (currentUser && !sgHasSettingsAccess()) {
+    el.innerHTML =
+      '<div class="sg-wrap">' +
+        '<div class="sg-noaccess">' +
+          '<div class="sg-noaccess__icon">🔒</div>' +
+          '<div class="sg-noaccess__txt">' + esc(SG_NO_ACCESS_MSG) + '</div>' +
+        '</div>' +
+      '</div>';
     return;
   }
   setBreadcrumb(null); el.className = '';
@@ -81,11 +111,6 @@ async function renderSettings(el, sub) {
               '<span class="sg-nav__hint">' + esc(s.hint) + '</span></span>' +
             '</a>';
           }).join('') +
-          '<a class="sg-nav__item sg-nav__item--legacy" href="#/admin-legacy">' +
-            '<span class="sg-nav__icon">🛠</span>' +
-            '<span class="sg-nav__txt"><span class="sg-nav__label">Разширени</span>' +
-            '<span class="sg-nav__hint">Стар панел</span></span>' +
-          '</a>' +
         '</nav>' +
         '<div class="sg-body" id="sgBody"></div>' +
       '</div>' +
@@ -99,6 +124,7 @@ async function renderSettings(el, sub) {
   else if (active === 'calendar') sgSectionCalendar(body);
   else if (active === 'results') sgSectionResults(body);
   else if (active === 'agent') sgSectionAgent(body);
+  else if (active === 'system') sgSectionSystem(body);
 }
 
 // ==================== СЕКЦИЯ: ТЕМА ====================
@@ -116,11 +142,27 @@ function sgSectionTheme(host) {
       '<div class="sg-section__desc">Промяната се вижда веднага. ↺ връща стойността по подразбиране.</div>' +
       '<div class="sg-colors" id="sgColors"></div>' +
     '</div>' +
+    '<div class="sg-section">' +
+      '<details class="sg-adv" ontoggle="if(this.open) sgLoadAdvancedTheme()">' +
+        '<summary class="sg-adv__sum">🎛 Разширена персонализация' +
+          '<span class="ga-dim"> — всеки цвят и размер по компоненти (нав, карти, дъски…)</span></summary>' +
+        '<div class="sg-adv__body" id="adminColorsContent"></div>' +
+      '</details>' +
+    '</div>' +
     '<div class="sg-foot">' +
       '<button class="btn btn-sm" onclick="sgResetAll()">↺ Нулирай темата</button>' +
     '</div>';
   sgRenderFonts();
   sgRenderColors();
+}
+
+// Разширената персонализация (старият таб „Персонализация") се чертае чак при
+// отваряне — иначе всеки път се строи излишно голям DOM.
+function sgLoadAdvancedTheme() {
+  var host = document.getElementById('adminColorsContent');
+  if (!host || host.getAttribute('data-loaded') === '1') return;
+  host.setAttribute('data-loaded', '1');
+  if (typeof loadAdminColors === 'function') loadAdminColors();
 }
 
 // ==================== СЕКЦИЯ: DASHBOARD ДЪСКИ ====================
@@ -374,7 +416,7 @@ function krTest(btn) {
 // Настройки за създаването на КП (контент план) карти: дестинация в Basecamp
 // (дъска/колона), заглавие и текстове, дати, авто-график. Самите клиенти са на #/kp-auto.
 
-var _kpAdm = null; // { s: settings, tpl: {template, videoSection}, boards: [...] | null, bcError }
+var _kpAdm = null; // { s: settings, tpl: {template, videoSection}, boards: [...] | null, bcError, localBoards }
 
 function sgSectionKp(host) {
   host.innerHTML = '<div class="sg-section"><div class="ga-loading">Зареждане…</div></div>';
@@ -389,12 +431,15 @@ async function kpAdminLoad() {
       fetch('/api/kp/bc-options').then(function (r) {
         return r.json().then(function (j) { return r.ok ? j : Promise.reject(new Error(j.error || ('HTTP ' + r.status))); });
       }).catch(function (e) { return { error: e.message }; }),
+      // Локалните дъски/колони — нужни само за „Локални карти" (Basecamp изключен).
+      fetch('/api/boards').then(function (r) { return r.json(); }).catch(function () { return []; }),
     ]);
     _kpAdm = {
       s: results[0].settings || {},
       tpl: results[1] || {},
       boards: results[2].boards || null,
       bcError: results[2].error || null,
+      localBoards: Array.isArray(results[3]) ? results[3] : [],
     };
     kpAdminRender();
   } catch (e) {
@@ -539,7 +584,37 @@ function kpAdminRender() {
     '<div class="sg-kp-note" style="margin-top:8px">Промените важат веднага — графикът се презарежда автоматично.</div>' +
   '</div>';
 
+  // --- 6. Локални карти (старото поведение, когато Basecamp е изключен) ---
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">🗃 Локални карти в платформата</div>' +
+    '<div class="sg-section__desc">Важи, когато „Създавай в Basecamp" горе е изключено: КП картата се създава в платформата, ' +
+      'а бутонът „Създай видео задачи" ги разпределя в избраната колона. При Basecamp режим тези три настройки не се ползват.</div>' +
+    '<div class="sg-kp-grid">' +
+      '<label class="sg-kp-field"><span class="sg-kp-label">Колона „Измисляне" (тук отива КП картата)</span>' +
+        '<select class="ga-select sg-kp-select" onchange="kpAdmSave(\'kp_izmislyane_column_id\', this.value)">' +
+          kpAdmLocalColOpts(s.kp_izmislyane_column_id) + '</select></label>' +
+      '<label class="sg-kp-field"><span class="sg-kp-label">Колона „Разпределение" (тук отиват видео задачите)</span>' +
+        '<select class="ga-select sg-kp-select" onchange="kpAdmSave(\'kp_razpredelenie_column_id\', this.value)">' +
+          kpAdmLocalColOpts(s.kp_razpredelenie_column_id) + '</select></label>' +
+    '</div>' +
+    '<div class="sg-kp-rows" style="margin-top:12px">' +
+      kpAdmNumRow('kp_days_brainstorm', 'Дата за измисляне', s.kp_days_brainstorm || '10', 'работни дни преди публикуване') +
+    '</div>' +
+  '</div>';
+
   host.innerHTML = html;
+}
+
+// Опции „дъска → колона" от локалната платформа (за секция „Локални карти").
+function kpAdmLocalColOpts(sel) {
+  var opts = '<option value="">— автоматично по име —</option>';
+  ((_kpAdm && _kpAdm.localBoards) || []).forEach(function (b) {
+    (b.columns || []).forEach(function (c) {
+      opts += '<option value="' + esc(c.id) + '"' + (String(sel) === String(c.id) ? ' selected' : '') + '>' +
+        esc(b.title) + ' → ' + esc(c.title) + '</option>';
+    });
+  });
+  return opts;
 }
 
 // Един ред „число + описание" за секцията с дати.
@@ -1162,4 +1237,137 @@ async function agWatchdog() {
     if (data.skipped === 'watchdog-disabled') alert('Watchdog-ът е изключен — включи го от настройката по-долу.');
     else alert(data.alerts ? ('Изпратени ' + data.alerts + ' аларми към Basecamp.') : 'Няма чакащи клиенти над прага.');
   } catch (e) { alert('Грешка: ' + e.message); }
+}
+
+// ==================== СЕКЦИЯ: СИСТЕМА ====================
+// Тук са настройките, които преди живееха в стария панел („Разширени"):
+// дневният отчет в Campfire, прозорецът за редакция на коментари, синхронът към
+// Google Calendar и двете логически настройки, които кодът наистина чете.
+// Мъртвите настройки от стария панел (board_keyword_*, deadline_soon_days,
+// auto_refresh_seconds, kp_card_pattern, kp_days_filming/editing/upload) не са
+// пренесени — нищо в кода не ги ползваше.
+
+var _sysData = null; // { s: settings, rooms: [...] }
+
+function sgSectionSystem(host) {
+  host.innerHTML = '<div class="sg-section"><div class="ga-loading">Зареждане…</div></div>';
+  sysLoad();
+}
+
+async function sysLoad() {
+  var host = document.getElementById('sgBody');
+  if (!host) return;
+  try {
+    var results = await Promise.all([
+      fetch('/api/settings').then(function (r) { return r.json(); }),
+      fetch('/api/campfire/rooms').then(function (r) { return r.json(); }).catch(function () { return []; }),
+    ]);
+    _sysData = {
+      s: results[0].settings || {},
+      rooms: Array.isArray(results[1]) ? results[1] : [],
+    };
+    sysRender();
+  } catch (e) {
+    host.innerHTML = '<div class="sg-section"><div style="color:var(--red);font-size:13px">Грешка при зареждане: ' + esc(e.message) + '</div></div>';
+  }
+}
+
+function sysRender() {
+  var host = document.getElementById('sgBody');
+  if (!host || !_sysData) return;
+  var s = _sysData.s;
+  var reportOn = s.daily_report_enabled !== 'false';
+  var gcalOn = s.google_calendar_enabled === 'true';
+  var html = '';
+
+  // --- 1. Дневен отчет ---
+  var roomOpts = '<option value="">— избери канал —</option>' + _sysData.rooms.map(function (r) {
+    return '<option value="' + esc(r.id) + '"' + (String(s.daily_report_room_id) === String(r.id) ? ' selected' : '') + '>' + esc(r.name) + '</option>';
+  }).join('');
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">📊 Дневен отчет</div>' +
+    '<div class="sg-section__desc">Сутрешно съобщение в Campfire — задачите за деня, публикациите и просрочените.</div>' +
+    '<div class="ga-row ga-row--config">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (reportOn ? 'checked' : '') +
+        ' onchange="sysSave(\'daily_report_enabled\', this.checked ? \'true\' : \'false\', true)"> Включено</label>' +
+      '<span class="ga-dim">' + (reportOn ? 'отчетът се изпраща по график' : 'изключено — нищо не се изпраща') + '</span>' +
+    '</div>' +
+    '<div class="sg-kp-grid">' +
+      '<label class="sg-kp-field"><span class="sg-kp-label">Campfire канал</span>' +
+        '<select class="ga-select sg-kp-select" onchange="sysSave(\'daily_report_room_id\', this.value)">' + roomOpts + '</select></label>' +
+      '<label class="sg-kp-field"><span class="sg-kp-label">Час (cron израз)</span>' +
+        '<input type="text" class="ga-input" value="' + esc(s.daily_report_cron || '30 9 * * 1-5') + '" placeholder="30 9 * * 1-5"' +
+          ' onblur="sysSave(\'daily_report_cron\', this.value || \'30 9 * * 1-5\')">' +
+        '<span class="sg-kp-note">„30 9 * * 1-5" = понеделник–петък в 9:30.</span></label>' +
+    '</div>' +
+    '<div class="ga-row ga-row--foot">' +
+      '<button class="btn btn-sm" onclick="testDailyReport(this)">📤 Изпрати сега</button>' +
+      '<span class="ga-dim">изпраща веднага в избрания канал</span>' +
+    '</div>' +
+  '</div>';
+
+  // --- 2. Коментари ---
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">💬 Коментари</div>' +
+    '<div class="sg-kp-rows">' +
+      sysNumRow('comment_edit_window_minutes', 'Прозорец за редакция', s.comment_edit_window_minutes || '10', 1440, 'минути след изпращане, в които авторът може да редактира') +
+    '</div>' +
+  '</div>';
+
+  // --- 3. Google Calendar (изнасяне на събития) ---
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">📅 Google Calendar — синхрон</div>' +
+    '<div class="sg-section__desc">Изнася събитията от „Календар" в платформата към този Google календар. ' +
+      'Различно от <a href="#/admin/calendar">Календар известия</a>, което чете Google календари и пише в Basecamp.</div>' +
+    '<div class="ga-row ga-row--config">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (gcalOn ? 'checked' : '') +
+        ' onchange="sysSave(\'google_calendar_enabled\', this.checked ? \'true\' : \'false\', true)"> Включено</label>' +
+      '<span class="ga-dim">' + (gcalOn ? 'синхронизацията работи' : 'изключено') + '</span>' +
+    '</div>' +
+    '<label class="sg-kp-field" style="margin-top:12px"><span class="sg-kp-label">Calendar ID</span>' +
+      '<input type="text" class="ga-input" value="' + esc(s.google_calendar_id || '') + '" placeholder="xxxxx@group.calendar.google.com"' +
+        ' onblur="sysSave(\'google_calendar_id\', this.value)"></label>' +
+    '<div class="ga-share" style="display:block;line-height:1.6">' +
+      '<strong>Настройка:</strong> Google Cloud Console → Google Calendar API → Service Account → JSON ключът се качва като ' +
+      '<code>google-credentials.json</code> в root папката на сървъра → календарът се споделя със service account имейла (Make changes to events) → Calendar ID-то идва тук.' +
+    '</div>' +
+    '<div class="ga-row ga-row--foot">' +
+      '<button class="btn btn-sm" onclick="testGoogleCalendar(this)">🔗 Тествай връзката</button>' +
+      '<span class="ga-dim">проверява дали credentials-ът работи</span>' +
+    '</div>' +
+  '</div>';
+
+  // --- 4. Логика: таймер + успеваемост ---
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">⏱ Таймер и успеваемост</div>' +
+    '<div class="sg-section__desc">Таймерът на всяка дъска в Dashboard брои от последната просрочена задача. ' +
+      'По подразбиране реагира само на production датите (измисляне, заснемане, монтаж, качване), не и на общия краен срок.</div>' +
+    '<div class="ga-row ga-row--config">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (s.timer_checks_due_on === 'true' ? 'checked' : '') +
+        ' onchange="sysSave(\'timer_checks_due_on\', this.checked ? \'true\' : \'false\')"> Крайният срок (due date) също спира таймера</label>' +
+    '</div>' +
+    '<div class="sg-kp-rows" style="margin-top:12px">' +
+      sysNumRow('success_rate_days', 'Успеваемост — период', s.success_rate_days || '90', 365, 'дни назад, за които се смята процентът завършени навреме (начална страница)', 7) +
+    '</div>' +
+  '</div>';
+
+  host.innerHTML = html;
+}
+
+function sysNumRow(key, label, value, max, hint, min) {
+  return '<div class="sg-kp-row">' +
+    '<span class="sg-kp-row__label">' + esc(label) + '</span>' +
+    '<input type="number" min="' + (min == null ? 0 : min) + '" max="' + max + '" class="ga-input sg-kp-num" value="' + esc(String(value)) + '"' +
+      ' onblur="sysSave(\'' + key + '\', this.value || \'0\')">' +
+    '<span class="sg-kp-row__hint">' + esc(hint) + '</span>' +
+  '</div>';
+}
+
+// Запис + (по избор) преначертаване на секцията.
+function sysSave(key, value, rerender) {
+  saveSetting(key, value);
+  if (_sysData) _sysData.s[key] = String(value);
+  if (typeof _platformConfig === 'object') _platformConfig[key] = String(value);
+  showToast('Запазено ✓', 'success', 1500);
+  if (rerender) sysRender();
 }

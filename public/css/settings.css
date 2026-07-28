@@ -23,7 +23,6 @@
 .sg-nav__txt { display: flex; flex-direction: column; min-width: 0; }
 .sg-nav__label { font-size: 13px; font-weight: 600; color: #fff; }
 .sg-nav__hint { font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sg-nav__item--legacy { margin-top: 10px; opacity: 0.75; }
 .sg-body { flex: 1; min-width: 0; }
 
 @media (max-width: 760px) {
@@ -31,8 +30,26 @@
   .sg-nav { position: static; flex-direction: row; flex-wrap: wrap; flex-basis: auto; width: 100%; }
   .sg-nav__item { padding: 7px 10px; }
   .sg-nav__hint { display: none; }
-  .sg-nav__item--legacy { margin-top: 0; }
 }
+
+/* ---- няма достъп (не-админ отвори #/admin) ---- */
+.sg-noaccess {
+  display: flex; align-items: center; gap: 14px; margin-top: 40px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 22px 24px;
+}
+.sg-noaccess__icon { font-size: 26px; flex-shrink: 0; }
+.sg-noaccess__txt { font-size: 14px; line-height: 1.6; color: var(--text); }
+
+/* ---- разширена персонализация (вътре в „Тема") ---- */
+.sg-adv__sum {
+  cursor: pointer; font-size: 14px; font-weight: 600; color: #fff;
+  list-style: none; display: flex; align-items: baseline; flex-wrap: wrap;
+}
+.sg-adv__sum::-webkit-details-marker { display: none; }
+.sg-adv__sum::before { content: '▸'; color: var(--text-dim); margin-right: 8px; font-size: 12px; }
+.sg-adv[open] > .sg-adv__sum::before { content: '▾'; }
+.sg-adv__body { margin-top: 16px; }
 
 /* ---- КП-Автоматизация ---- */
 .sg-kp-grid {

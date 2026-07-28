@@ -120,10 +120,12 @@ function tmRender() {
   '</div>';
 
   // ---------- 3. Профили в платформата ----------
+  // Ролята и активността се сменят тук (преди бяха само в стария „Разширени" панел).
   var users = _tm.users || [];
   html += '<div class="sg-section">' +
     '<div class="sg-section__hdr">🔑 Профили в платформата</div>' +
-    '<div class="sg-section__desc">Кой може да влиза в thepact.pro. Различно от екипа горе — човек от Basecamp няма профил, докато не влезе поне веднъж. ' +
+    '<div class="sg-section__desc">Кой може да влиза в thepact.pro и с какви права. Различно от екипа горе — човек от Basecamp няма профил, докато не влезе поне веднъж. ' +
+      '<strong>Админ</strong> вижда и променя всички настройки, <strong>мини админ</strong> — всичко без правата на другите админи. ' +
       'Изтриването е окончателно и работи само за профили без създадено съдържание (иначе остава деактивиране).</div>' +
     '<div class="tm-table-wrap"><table class="tm-table">' +
       '<thead><tr><th>Име</th><th>Имейл</th><th>Роля</th><th>Статус</th><th>Последно влизане</th><th></th></tr></thead><tbody>';
@@ -132,18 +134,44 @@ function tmRender() {
     var del = (isMe || u.role === 'admin')
       ? '<span class="ga-dim" title="' + (isMe ? 'Собственият ти профил' : 'Първо смени ролята') + '">—</span>'
       : '<button class="ga-btn ga-btn--del" onclick="tmDeleteUser(' + u.id + ', \'' + esc(u.name || u.email).replace(/'/g, "\\'") + '\')">🗑</button>';
+    // Собствената роля не се пипа оттук — иначе човек може да се самозаключи.
+    var roleCell = isMe
+      ? '<span class="tm-mail">' + esc(u.role || '') + '</span>'
+      : '<select class="ga-select" onchange="tmSetRole(' + u.id + ', this.value)">' + tmRoleOpts(u.role) + '</select>';
+    var statusCell = isMe
+      ? '<span style="color:var(--green)">активен</span>'
+      : '<button class="ga-btn" onclick="tmToggleActive(' + u.id + ', ' + (u.is_active ? 'false' : 'true') + ')">' +
+          (u.is_active ? '<span style="color:var(--green)">активен</span>' : '<span class="ga-dim">деактивиран</span>') + '</button>';
     html += '<tr' + (u.is_active ? '' : ' class="tm-row--off"') + '>' +
       '<td><span class="tm-name">' + esc(u.name || '') + (isMe ? ' <span class="ga-dim">(ти)</span>' : '') + '</span></td>' +
       '<td class="tm-mail">' + esc(u.email || '') + '</td>' +
-      '<td class="tm-mail">' + esc(u.role || '') + (u.has_basecamp ? ' <span class="ga-dim">· Basecamp</span>' : '') + '</td>' +
-      '<td>' + (u.is_active ? '<span style="color:var(--green)">активен</span>' : '<span class="ga-dim">деактивиран</span>') + '</td>' +
+      '<td>' + roleCell + (u.has_basecamp ? ' <span class="ga-dim">· Basecamp</span>' : '') + '</td>' +
+      '<td>' + statusCell + '</td>' +
       '<td class="tm-mail">' + (u.last_login_at ? esc(tmDateTime(u.last_login_at)) : '—') + '</td>' +
       '<td>' + del + '</td>' +
     '</tr>';
   });
-  html += '</tbody></table></div></div>';
+  html += '</tbody></table></div>' +
+    '<div class="ga-row">' +
+      '<button class="btn btn-sm" onclick="tmNewUser()">+ Нов профил</button>' +
+      '<span class="ga-dim">за човек без Basecamp — влиза с имейл и парола</span>' +
+    '</div>' +
+  '</div>';
 
   host.innerHTML = html;
+}
+
+var TM_ROLES = [
+  { v: 'member', label: 'Член' },
+  { v: 'moderator', label: 'Модератор' },
+  { v: 'mini_admin', label: 'Мини админ' },
+  { v: 'admin', label: 'Админ' },
+];
+
+function tmRoleOpts(selected) {
+  return TM_ROLES.map(function (r) {
+    return '<option value="' + r.v + '"' + (r.v === selected ? ' selected' : '') + '>' + r.label + '</option>';
+  }).join('');
 }
 
 // ---------- действия ----------
@@ -198,6 +226,49 @@ function tmDeletePosition(posId, name) {
       .then(function () { showToast('Позицията е изтрита.', 'success'); tmLoad(); })
       .catch(function (e) { showToast(e.message, 'error'); });
   }, true);
+}
+
+function tmSetRole(userId, role) {
+  _gaCall('/api/users/' + userId + '/role', 'PUT', { role: role })
+    .then(function () { showToast('Ролята е запазена ✓', 'success', 2000); tmLoad(); })
+    .catch(function (e) { showToast(e.message, 'error', 6000); tmLoad(); });
+}
+
+function tmToggleActive(userId, active) {
+  _gaCall('/api/users/' + userId + '/active', 'PUT', { is_active: active })
+    .then(function () { showToast(active ? 'Профилът е активиран.' : 'Профилът е деактивиран.', 'success'); tmLoad(); })
+    .catch(function (e) { showToast(e.message, 'error', 6000); tmLoad(); });
+}
+
+// Ръчно създаване на профил (за хора без Basecamp) — беше в стария панел.
+function tmNewUser() {
+  var ov = document.createElement('div'); ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="confirm-modal-box">' +
+    '<p class="confirm-modal-msg">Нов профил</p>' +
+    '<input class="confirm-modal-input" id="tmNuName" placeholder="Име…">' +
+    '<input class="confirm-modal-input" type="email" id="tmNuEmail" placeholder="Имейл…">' +
+    '<input class="confirm-modal-input" type="password" id="tmNuPass" placeholder="Парола…">' +
+    '<div class="confirm-modal-actions">' +
+      '<button class="btn btn-primary" id="tmNuOk">Създай</button>' +
+      '<button class="btn btn-ghost" id="tmNuCancel">Откажи</button>' +
+    '</div></div>';
+  document.body.appendChild(ov);
+  setTimeout(function () { ov.querySelector('#tmNuName').focus(); }, 50);
+  ov.querySelector('#tmNuOk').onclick = function () {
+    var name = ov.querySelector('#tmNuName').value.trim();
+    var email = ov.querySelector('#tmNuEmail').value.trim();
+    var password = ov.querySelector('#tmNuPass').value;
+    if (!name) { ov.querySelector('#tmNuName').focus(); return; }
+    if (!email) { ov.querySelector('#tmNuEmail').focus(); return; }
+    if (!password) { ov.querySelector('#tmNuPass').focus(); return; }
+    ov.remove();
+    _gaCall('/api/users', 'POST', { name: name, email: email, password: password })
+      .then(function () { showToast('Профилът е създаден ✓', 'success'); tmLoad(); })
+      .catch(function (e) { showToast('Грешка: ' + e.message, 'error', 6000); });
+  };
+  ov.querySelector('#tmNuCancel').onclick = function () { ov.remove(); };
+  ov.onclick = function (e) { if (e.target === ov) ov.remove(); };
+  ov.querySelector('#tmNuName').onkeydown = function (e) { if (e.key === 'Escape') ov.remove(); };
 }
 
 function tmDeleteUser(userId, name) {
