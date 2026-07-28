@@ -7,7 +7,7 @@ const { requireAuth, requireMiniAdmin } = require('../middleware/auth');
 router.get('/', requireAuth, async (req, res) => {
   try {
     const positions = await query(
-      `SELECT p.id, p.name, p.description, p.created_at,
+      `SELECT p.id, p.name, p.description, p.kp_responsible, p.created_at,
               COUNT(u.id)::int AS user_count
        FROM positions p
        LEFT JOIN users u ON u.position_id = p.id AND u.is_active = TRUE
@@ -24,7 +24,7 @@ router.get('/', requireAuth, async (req, res) => {
 // GET /api/positions/:id — get position with permissions
 router.get('/:id', requireAuth, async (req, res) => {
   try {
-    const position = await queryOne('SELECT id, name, description, created_at FROM positions WHERE id = $1', [req.params.id]);
+    const position = await queryOne('SELECT id, name, description, kp_responsible, created_at FROM positions WHERE id = $1', [req.params.id]);
     if (!position) return res.status(404).json({ error: 'Position not found' });
 
     const permissions = await query(
@@ -49,8 +49,8 @@ router.post('/', requireAuth, requireMiniAdmin, async (req, res) => {
     if (existing) return res.status(409).json({ error: 'Position already exists' });
 
     const position = await queryOne(
-      'INSERT INTO positions (name, description) VALUES ($1, $2) RETURNING id, name, description, created_at',
-      [name.trim(), description || '']
+      'INSERT INTO positions (name, description, kp_responsible) VALUES ($1, $2, $3) RETURNING id, name, description, kp_responsible, created_at',
+      [name.trim(), description || '', Boolean(req.body.kp_responsible)]
     );
     res.status(201).json(position);
   } catch (err) {
@@ -59,15 +59,27 @@ router.post('/', requireAuth, requireMiniAdmin, async (req, res) => {
   }
 });
 
-// PUT /api/positions/:id — update position (mini_admin+)
+// PUT /api/positions/:id — update position (mini_admin+).
+// kp_responsible е отделно поле: „хората с тази позиция правят контент плановете"
+// и се тагват автоматично в коментара под всяка нова КП карта. Праща се само то,
+// когато се сменя чекбоксът в Настройки → Екип и роли — затова name не е задължително.
 router.put('/:id', requireAuth, requireMiniAdmin, async (req, res) => {
   try {
-    const { name, description } = req.body;
-    if (!name || !name.trim()) return res.status(400).json({ error: 'Name required' });
+    const { name, description, kp_responsible } = req.body;
+    const onlyFlag = name === undefined && description === undefined && kp_responsible !== undefined;
+    if (!onlyFlag && (!name || !name.trim())) return res.status(400).json({ error: 'Name required' });
+
+    const sets = [];
+    const params = [];
+    let i = 1;
+    if (name !== undefined) { sets.push(`name = $${i++}`); params.push(name.trim()); }
+    if (description !== undefined || name !== undefined) { sets.push(`description = $${i++}`); params.push(description || ''); }
+    if (kp_responsible !== undefined) { sets.push(`kp_responsible = $${i++}`); params.push(Boolean(kp_responsible)); }
+    params.push(req.params.id);
 
     const position = await queryOne(
-      'UPDATE positions SET name = $1, description = $2 WHERE id = $3 RETURNING id, name, description, created_at',
-      [name.trim(), description || '', req.params.id]
+      `UPDATE positions SET ${sets.join(', ')} WHERE id = $${i} RETURNING id, name, description, kp_responsible, created_at`,
+      params
     );
     if (!position) return res.status(404).json({ error: 'Position not found' });
     res.json(position);

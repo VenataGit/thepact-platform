@@ -36,6 +36,7 @@ var SG_COLORS = [
 // Секциите на панела. adminOnly секциите се виждат само от пълен админ.
 var SG_SECTIONS = [
   { id: 'theme', icon: '🎨', label: 'Тема', hint: 'Шрифт и цветове', adminOnly: false },
+  { id: 'team', icon: '👥', label: 'Екип и роли', hint: 'Позиции и профили', adminOnly: true },
   { id: 'kp', icon: '📋', label: 'КП-Автоматизация', hint: 'Basecamp, текстове, график', adminOnly: true },
   { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
   { id: 'calendar', icon: '📅', label: 'Календар известия', hint: 'GCal → Basecamp', adminOnly: false },
@@ -92,6 +93,7 @@ async function renderSettings(el, sub) {
 
   var body = document.getElementById('sgBody');
   if (active === 'theme') sgSectionTheme(body);
+  else if (active === 'team') sgSectionTeam(body);
   else if (active === 'kp') sgSectionKp(body);
   else if (active === 'dashboard') sgSectionDashboard(body);
   else if (active === 'calendar') sgSectionCalendar(body);
@@ -490,7 +492,29 @@ function kpAdminRender() {
     '</div>' +
   '</div>';
 
-  // --- 3. Дати и обем ---
+  // --- 3. Коментар с тагове под новата КП карта ---
+  var cmOn = s.kp_comment_enabled !== 'false';
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">💬 Коментар под новата КП карта</div>' +
+    '<div class="sg-section__desc">Веднага след създаването на КП картата ботът пише коментар под нея: тагва хората, отговорни за контент плановете, ' +
+      'и добавя какво конкретно трябва да се направи по този план — извадено от проекта на клиента в Basecamp (съобщения, отворени задачи, коментари, чат). ' +
+      'Кой се тагва се задава в <a href="#/admin/team">Екип и роли</a> (позиция „прави КП").</div>' +
+    '<div class="ga-row ga-row--config">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (cmOn ? 'checked' : '') + ' onchange="kpAdmSave(\'kp_comment_enabled\', this.checked ? \'true\' : \'false\', true)"> Включено</label>' +
+      '<span class="ga-dim">' + (cmOn ? 'всяка нова КП карта получава коментар' : 'изключено — картата се създава без коментар') + '</span>' +
+    '</div>';
+  if (cmOn) {
+    html += '<div class="ga-row">' +
+        '<label class="ga-toggle"><input type="checkbox" ' + (s.kp_comment_ai !== 'false' ? 'checked' : '') + ' onchange="kpAdmSave(\'kp_comment_ai\', this.checked ? \'true\' : \'false\')"> 🤖 Claude обобщава проекта на клиента</label>' +
+        '<span class="ga-dim">изключено = сухо изброяване на последните съобщения и отворени задачи</span>' +
+      '</div>' +
+      '<div class="sg-kp-rows">' +
+        kpAdmNumRow('kp_comment_lookback_days', 'Чете назад от проекта на клиента', s.kp_comment_lookback_days || '45', 'календарни дни') +
+      '</div>';
+  }
+  html += '</div>';
+
+  // --- 4. Дати и обем ---
   html += '<div class="sg-section">' +
     '<div class="sg-section__hdr">📆 Дати и обем</div>' +
     '<div class="sg-kp-rows">' +
@@ -501,7 +525,7 @@ function kpAdminRender() {
     '</div>' +
   '</div>';
 
-  // --- 4. Авто-създаване ---
+  // --- 5. Авто-създаване ---
   var autoOn = s.kp_auto_create_enabled !== 'false';
   html += '<div class="sg-section">' +
     '<div class="sg-section__hdr">⏰ Автоматично създаване</div>' +

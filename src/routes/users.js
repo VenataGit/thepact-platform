@@ -126,6 +126,38 @@ router.put('/:id/active', requireAuth, requireMiniAdmin, async (req, res) => {
   }
 });
 
+// DELETE /api/users/:id — окончателно изтриване на профил (само пълен админ).
+// За тестови/непотребни акаунти. Съдържанието в платформата пази реалните хора:
+// картите, коментарите и т.н. сочат към users(id) без ON DELETE, така че при човек
+// с история базата отказва изтриването и връщаме ясно съобщение (остава деактивиране).
+router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ error: 'Невалиден потребител.' });
+    if (userId === req.user.userId) return res.status(400).json({ error: 'Не можеш да изтриеш собствения си профил.' });
+
+    const target = await queryOne('SELECT id, name, email, role FROM users WHERE id = $1', [userId]);
+    if (!target) return res.status(404).json({ error: 'Потребителят не съществува.' });
+    if (target.role === 'admin') return res.status(403).json({ error: 'Админ профил не може да се изтрие — първо му смени ролята.' });
+
+    // Изгонваме го и чистим това, което е чисто негово (останалото е с ON DELETE CASCADE).
+    invalidateUserCache(userId);
+    disconnectUser(userId);
+    await execute('DELETE FROM push_subscriptions WHERE user_id = $1', [userId]);
+    await execute('DELETE FROM users WHERE id = $1', [userId]);
+
+    res.json({ ok: true, deleted: { id: target.id, name: target.name, email: target.email } });
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(409).json({
+        error: 'Този профил има съдържание в платформата (карти, коментари, часове) и не може да се изтрие. Деактивирай го вместо това.',
+      });
+    }
+    console.error('Delete user error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // PUT /api/users/:id/position — assign position to user (mini_admin+)
 router.put('/:id/position', requireAuth, requireMiniAdmin, async (req, res) => {
   try {

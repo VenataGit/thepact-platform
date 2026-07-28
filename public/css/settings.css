@@ -184,3 +184,31 @@
 .ga-map__hdr { font-size: 13px; font-weight: 600; color: var(--text); }
 .ga-map__row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); margin-top: 8px; }
 .ga-map__row code { font-family: monospace; color: var(--text-dim); }
+
+/* ===== Екип и роли (Настройки → 👥) ===== */
+.tm-table-wrap { margin-top: 12px; overflow-x: auto; }
+.tm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tm-table th {
+  text-align: left; font-size: 11px; font-weight: 600; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.03em; padding: 0 10px 7px; white-space: nowrap;
+}
+.tm-table td { padding: 7px 10px; border-top: 1px solid var(--border); vertical-align: middle; }
+.tm-table tr:hover td { background: var(--bg-hover); }
+.tm-row--off td { opacity: 0.5; }
+.tm-avatar {
+  width: 26px; height: 26px; border-radius: 50%; object-fit: cover;
+  vertical-align: middle; margin-right: 8px; flex-shrink: 0;
+}
+.tm-avatar--ph {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 12px; font-weight: 600;
+}
+.tm-name { display: inline-block; vertical-align: middle; font-weight: 600; color: #fff; }
+.tm-title { display: block; font-size: 11px; font-weight: 400; color: var(--text-dim); }
+.tm-mail { color: var(--text-dim); font-size: 12px; word-break: break-all; }
+.tm-badge {
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+  color: var(--accent); border: 1px solid var(--accent); border-radius: 4px;
+  padding: 0 4px; margin-left: 5px; vertical-align: 1px;
+}

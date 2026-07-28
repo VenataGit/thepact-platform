@@ -169,6 +169,7 @@ app.use('/go', require('./routes/go'));
 app.use('/api/trash', require('./routes/trash'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/positions', require('./routes/positions'));
+app.use('/api/team', require('./routes/team'));
 app.use('/api/transcribe', require('./routes/transcribe'));
 app.use('/api/premiere', require('./routes/premiere'));
 app.use('/api/agent', require('./routes/agent'));

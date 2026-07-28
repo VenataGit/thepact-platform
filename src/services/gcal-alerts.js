@@ -11,11 +11,11 @@
 // ограничен с timeMin=сега — стари събития не заливат борда. Събития, създадени от
 // самия service account (Production Calendar sync-а), се пропускат — анти-шум.
 const cron = require('node-cron');
-const config = require('../config');
 const { query, queryOne, execute } = require('../db/pool');
 const { getCalendarClient, getServiceAccountEmail } = require('./google-calendar');
 const bc = require('./basecamp');
 const agg = require('./bc-aggregate');
+const team = require('./bc-team');
 const { getServiceAuth } = require('./basecamp-token');
 
 const TZ = 'Europe/Sofia';
@@ -50,46 +50,19 @@ async function loadConfig() {
 
 // ---------- екип от Basecamp (bc_people кеш) ----------
 // Хората идват от Video Production проекта — никой не трябва да се логва в платформата.
+// Самият sync живее в services/bc-team.js със свой дневен cron, за да работи и когато
+// Календар известията са изключени. Тук остават само делегиращи обвивки, защото
+// routes/gcal-alerts.js и services/kp-results.js викат тези имена.
 
 async function refreshBcPeople() {
-  const auth = await getServiceAuth();
-  const people = await bc.getProjectPeople(auth.token, auth.account, config.BASECAMP_TEAM_PROJECT_ID);
-  const team = people.filter((p) => !p.client && p.personable_type !== 'Integration');
-  for (const p of team) {
-    await execute(
-      `INSERT INTO bc_people (person_id, name, email, title, avatar_url, attachable_sgid, active, synced_at)
-       VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW())
-       ON CONFLICT (person_id) DO UPDATE SET
-         name = $2, email = $3, title = $4, avatar_url = $5, attachable_sgid = $6, active = TRUE, synced_at = NOW()`,
-      [p.id, p.name || '', String(p.email_address || '').toLowerCase(), p.title || '', p.avatar_url || '', p.attachable_sgid || '']
-    );
-  }
-  if (team.length) {
-    await execute('UPDATE bc_people SET active = FALSE WHERE person_id != ALL($1::bigint[])', [team.map((p) => p.id)]);
-  }
-  console.log(`[gcal-alerts] екип обновен от Basecamp: ${team.length} души`);
-  return team.length;
+  return (await team.refreshTeam()).count;
 }
 
-// Опресняване най-много веднъж на 6ч (и не по-често от 10 мин при грешки).
-let _lastPeopleAttempt = 0;
 async function ensurePeopleFresh() {
-  if (Date.now() - _lastPeopleAttempt < 10 * 60_000) return;
-  const row = await queryOne('SELECT MAX(synced_at) AS at FROM bc_people');
-  const at = row && row.at ? new Date(row.at).getTime() : 0;
-  if (Date.now() - at < 6 * 3600_000) return;
-  _lastPeopleAttempt = Date.now();
-  try {
-    await refreshBcPeople();
-  } catch (err) {
-    console.warn('[gcal-alerts] people refresh failed:', err.message);
-  }
+  return team.ensureFresh();
 }
 
-function mentionOf(person, fallbackName) {
-  if (person && person.attachable_sgid) return `<bc-attachment sgid="${person.attachable_sgid}"></bc-attachment>`;
-  return `<strong>${escHtml((person && person.name) || fallbackName || 'неизвестен')}</strong>`;
-}
+const mentionOf = team.mentionOf;
 
 // Person id на самия бот (ThePactAlerts) — ползва се като „празен" абонатен списък:
 // Basecamp известява целия проект, ако subscriptions липсва/е празен, затова

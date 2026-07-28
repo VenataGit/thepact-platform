@@ -44,6 +44,7 @@ const { initDailyReport } = require('./services/daily-report');
 const { initKpScheduler } = require('./services/kp-scheduler');
 const { initPush } = require('./services/push');
 const { initGcalAlerts } = require('./services/gcal-alerts');
+const { initBcTeamSync } = require('./services/bc-team');
 const { initKpResults } = require('./services/kp-results');
 const { initPmAgent } = require('./services/pm-agent/snapshot');
 const { initPmDigest } = require('./services/pm-agent/digest');
@@ -57,6 +58,7 @@ setTimeout(() => {
   initKpScheduler();
   initPush();
   initGcalAlerts();
+  initBcTeamSync();
   initKpResults();
   initPmAgent();
   initPmDigest();
