@@ -189,6 +189,8 @@ describe('GET /api/boards/:id', () => {
 
 describe('DELETE /api/boards/:id', () => {
   it('deletes a board (admin)', async () => {
+    // 1) lookup SELECT, 2) DELETE ... RETURNING *
+    mockDb.queryOne.mockResolvedValueOnce({ id: 50, title: 'Deleted Board', type: 'kanban' });
     mockDb.queryOne.mockResolvedValueOnce({ id: 50, title: 'Deleted Board' });
 
     const res = await request(app)
