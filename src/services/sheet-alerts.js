@@ -137,7 +137,9 @@ function sanitize(raw) {
     spreadsheetName: trunc(p.spreadsheetName),
     spreadsheetUrl: String(p.spreadsheetUrl || '').slice(0, 500),
     sheetName: trunc(p.sheetName) || 'Без име',
-    gid: Number.isFinite(Number(p.gid)) ? Number(p.gid) : null,
+    // Липсващ gid трябва да остане null — иначе 0 сочи към първия шийт, не към този.
+    gid: (p.gid === null || p.gid === undefined || p.gid === '' || !Number.isFinite(Number(p.gid)))
+      ? null : Number(p.gid),
     row: parseInt(p.row, 10) || 0,
     headers: arr(p.headers).slice(0, 100).map((h) => trunc(h)),
     rowValues: arr(p.rowValues).slice(0, 100).map((v) => trunc(v)),

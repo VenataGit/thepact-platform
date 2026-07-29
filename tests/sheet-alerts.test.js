@@ -90,6 +90,11 @@ describe('линк към реда', () => {
   test('без spreadsheetId няма линк', () => {
     expect(sa.rowUrl({ row: 7 })).toBe('');
   });
+
+  test('липсващ gid не се преправя на 0 (иначе сочи първия шийт)', () => {
+    expect(sa.sanitize({ spreadsheetId: 'ABC' }).gid).toBeNull();
+    expect(sa.sanitize({ spreadsheetId: 'ABC', gid: 0 }).gid).toBe(0);
+  });
 });
 
 describe('обработка на промяна от таблицата', () => {
