@@ -6,6 +6,7 @@
 //   🗂 Dashboard          — кои Card Tables виждат всички
 //   📅 Календар известия  — Google Calendar → Basecamp
 //   📊 Резултати          — известие, когато всички видеа по един КП са публикувани
+//   📄 Таблица известия   — Google Sheets (Apps Script) → Basecamp
 //   🤖 PM Agent           — одит и синхрон
 //   🛠 Система            — дневен отчет, коментари, Google Calendar синхрон, логика
 // Менюто „Настройки" (More) се вижда от всички, но самият панел е само за админи —
@@ -64,6 +65,7 @@ var SG_SECTIONS = [
   { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
   { id: 'calendar', icon: '📅', label: 'Календар известия', hint: 'GCal → Basecamp', adminOnly: false },
   { id: 'results', icon: '📊', label: 'Резултати', hint: 'Известие при изпубликуван КП', adminOnly: true },
+  { id: 'sheets', icon: '📄', label: 'Таблица известия', hint: 'Google Sheets → Basecamp', adminOnly: true },
   { id: 'agent', icon: '🤖', label: 'PM Agent', hint: 'Одит и синхрон', adminOnly: true },
   { id: 'system', icon: '🛠', label: 'Система', hint: 'Отчет, коментари, логика', adminOnly: true },
 ];
@@ -123,6 +125,7 @@ async function renderSettings(el, sub) {
   else if (active === 'dashboard') sgSectionDashboard(body);
   else if (active === 'calendar') sgSectionCalendar(body);
   else if (active === 'results') sgSectionResults(body);
+  else if (active === 'sheets') sgSectionSheets(body);
   else if (active === 'agent') sgSectionAgent(body);
   else if (active === 'system') sgSectionSystem(body);
 }
@@ -417,6 +420,237 @@ function krTest(btn) {
 // (дъска/колона), заглавие и текстове, дати, авто-график. Самите клиенти са на #/kp-auto.
 
 var _kpAdm = null; // { s: settings, tpl: {template, videoSection}, boards: [...] | null, bcError, localBoards }
+
+// ==================== СЕКЦИЯ: ТАБЛИЦА ИЗВЕСТИЯ ====================
+// Клиентът Re/Shape работи в Google Sheets, не в Basecamp. Скрипт в самата
+// таблица праща всяка редакция насам, а тук се решава кое е важно и кой се тагва.
+
+function sgSectionSheets(host) {
+  host.innerHTML =
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">📄 Известия от таблица</div>' +
+      '<div class="sg-section__desc">Промяна в Google Sheets → съобщение в Basecamp. Едно видео (ред) = една нишка: първата важна промяна отваря съобщение, следващите се закачат като коментари под него. Работи за <b>всички шийтове</b> в таблицата, включително новодобавените, и казва за кой шийт се отнася.</div>' +
+      '<div id="shBody"><div class="ga-loading">Зареждане…</div></div>' +
+    '</div>';
+  shLoad();
+}
+
+var _shData = null;
+
+async function shLoad() {
+  var host = document.getElementById('shBody');
+  if (!host) return;
+  try {
+    var res = await fetch('/api/sheet-alerts/overview');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _shData = await res.json();
+    shRender();
+  } catch (e) {
+    host.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка при зареждане: ' + esc(e.message) + '</div>';
+  }
+}
+
+function shRender() {
+  var host = document.getElementById('shBody');
+  if (!host || !_shData) return;
+  var d = _shData;
+  var team = d.team || [];
+  var html = '';
+
+  // Включено + Message Board
+  html += '<div class="ga-row ga-row--config">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (d.enabled ? 'checked' : '') + ' onchange="shToggleEnabled(this.checked)"> Включено</label>' +
+      '<input type="text" class="ga-input ga-input--board" id="shBoardUrl" value="' + esc(d.boardUrl) + '" placeholder="Линк към Basecamp Message Board…">' +
+      '<button class="btn btn-sm" onclick="shSaveBoard()">Запази</button>' +
+    '</div>';
+  if (!d.boardUrl) {
+    html += '<div class="ga-empty" style="color:var(--yellow)">Постави линк към Message Board-а, в който да излизат известията — иначе не може да се включи.</div>';
+  }
+
+  // Инсталация в таблицата
+  html += '<div class="ga-add">' +
+      '<div class="ga-add__hdr">🔌 Инсталиране в таблицата</div>' +
+      '<div class="ga-share">В таблицата: <b>Разширения → Apps Script</b> → изтрий каквото е вътре → постави кода долу → избери функцията <code>pactSetup</code> и натисни <b>Run</b> → одобри достъпа. Това се прави <b>веднъж</b>; след това всяка промяна по настройките тук важи веднага, без пипане на скрипта.</div>' +
+      '<div class="ga-row" style="margin-top:6px">' +
+        '<input type="text" class="ga-input ga-input--board" id="shHookUrl" value="' + esc(d.hookUrl) + '" readonly>' +
+        '<button class="btn btn-sm" onclick="shCopy(\'shHookUrl\')">📋 Копирай адреса</button>' +
+      '</div>' +
+      '<textarea id="shScript" class="ga-input" readonly rows="10" style="width:100%;margin-top:8px;font-family:monospace;font-size:11px;white-space:pre">' + esc(d.script) + '</textarea>' +
+      '<div class="ga-row" style="margin-top:6px">' +
+        '<button class="btn btn-sm" onclick="shCopy(\'shScript\')">📋 Копирай скрипта</button>' +
+        '<span class="ga-dim">Адресът съдържа тайна — не го публикувай никъде другаде.</span>' +
+      '</div>' +
+    '</div>';
+
+  // Кое е важно
+  html += '<div class="ga-add">' +
+      '<div class="ga-add__hdr">⭐ Кои промени пораждат известие</div>' +
+      '<div class="ga-row" style="margin-top:6px">' +
+        '<label class="ga-toggle" style="flex:1">Важни колони <input type="text" class="ga-input" id="shImportant" value="' + esc(d.important) + '" placeholder="одобрение, коментар"></label>' +
+        '<button class="btn btn-sm" onclick="shSaveCols()">Запази</button>' +
+      '</div>' +
+      '<div class="ga-row" style="margin-top:6px">' +
+        '<label class="ga-toggle" style="flex:1">Име на видеото идва от <input type="text" class="ga-input" id="shTitleCols" value="' + esc(d.titleCols) + '" placeholder="име, видео, заглавие"></label>' +
+      '</div>' +
+      '<div class="ga-share">Колоните се търсят по <b>съдържание в името на заглавния ред</b>, не по позиция — вмъкната колона не чупи нищо. Разделяй със запетая.</div>' +
+      '<div class="ga-row" style="margin-top:6px">' +
+        '<label class="ga-toggle"><input type="checkbox" ' + (d.allChanges ? 'checked' : '') + ' onchange="shToggleAll(this.checked)"> Известие при <b>всяка</b> промяна (шумно)</label>' +
+        '<label class="ga-toggle">Изчакване <input type="text" class="ga-input" style="width:56px" id="shDelay" value="' + String(d.delay) + '"> сек.</label>' +
+        '<button class="btn btn-sm" onclick="shSaveDelay()">Запази</button>' +
+      '</div>' +
+      '<div class="ga-share">Изчакването събира няколко бързи редакции по един и същи ред в едно известие, вместо да пуска по едно на всяка клетка.</div>' +
+    '</div>';
+
+  // Отговорници
+  var chips = (d.responsibles || []).map(function (pid) {
+    var p = team.find(function (x) { return String(x.person_id) === String(pid); });
+    return '<span class="ga-chip">' + esc(p ? p.name : '#' + pid) +
+      '<button onclick="shRemoveResponsible(\'' + String(pid) + '\')" title="Махни">✕</button></span>';
+  }).join('');
+  var opts = '<option value="">+ отговорник</option>' + team
+    .filter(function (p) { return (d.responsibles || []).indexOf(String(p.person_id)) === -1; })
+    .map(function (p) { return '<option value="' + String(p.person_id) + '">' + esc(p.name) + '</option>'; }).join('');
+  html += '<div class="ga-feed">' +
+      '<div class="ga-feed__resp">👥 Тагват се и се абонират: ' + (chips || '<span class="ga-dim">никой — известието стои само в борда</span>') +
+        '<select class="ga-select" onchange="shAddResponsible(this.value)">' + opts + '</select>' +
+        '<button class="ga-btn" onclick="shRefreshTeam(this)">🔄 Обнови екипа</button>' +
+      '</div>' +
+    '</div>';
+
+  // Последни получени промени — вижда се дали изобщо идва нещо от таблицата.
+  html += '<div class="ga-map"><div class="ga-map__hdr">Последни промени от таблицата</div>';
+  if (!(d.events || []).length) {
+    html += '<div class="ga-empty">Още нищо не е дошло. Сложи скрипта в таблицата и пипни някоя клетка.</div>';
+  } else {
+    d.events.forEach(function (ev) {
+      var when = new Date(ev.created_at).toLocaleString('bg-BG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      html += '<div class="ga-map__row">' +
+        (ev.important ? '⭐ ' : '• ') +
+        '<strong>' + esc(ev.sheet_name) + '</strong>' + (ev.row_num ? ' · ред ' + ev.row_num : '') +
+        (ev.title ? ' · ' + esc(ev.title) : '') +
+        ' · ' + esc(ev.column_name) + ': ' + esc(ev.new_value || '—') +
+        (ev.editor_email ? ' <span class="ga-dim">(' + esc(ev.editor_email) + ')</span>' : '') +
+        ' <span class="ga-dim">' + esc(when) + (ev.posted ? ' · в Basecamp' : '') + '</span>' +
+      '</div>';
+    });
+  }
+  html += '</div>';
+
+  if ((d.threads || []).length) {
+    html += '<div class="ga-map"><div class="ga-map__hdr">Отворени нишки (едно видео = една нишка)</div>';
+    d.threads.forEach(function (t) {
+      html += '<div class="ga-map__row">' + esc(t.title) + ' <span class="ga-dim">· ' + esc(t.sheet_name) + '</span></div>';
+    });
+    html += '</div>';
+  }
+
+  html += '<div class="ga-row ga-row--foot">' +
+      '<button class="btn btn-sm" onclick="shTest(this)">🔧 Тест към Basecamp</button>' +
+      '<button class="btn btn-sm" onclick="shClearEvents(this)">🧹 Изчисти дневника</button>' +
+      '<button class="btn btn-sm" onclick="shClearThreads(this)">↺ Забрави нишките</button>' +
+      '<button class="btn btn-sm" onclick="shRotate(this)">🔑 Нова тайна</button>' +
+    '</div>';
+
+  host.innerHTML = html;
+}
+
+function shCopy(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.value).then(function () { showToast('Копирано.', 'success', 1500); });
+}
+
+function shToggleEnabled(on) {
+  _gaCall('/api/sheet-alerts/config', 'PUT', { enabled: on })
+    .then(function () { _shData.enabled = on; showToast(on ? 'Известията от таблица са включени.' : 'Известията от таблица са спрени.', 'success'); })
+    .catch(function (e) { showToast(e.message, 'error'); shLoad(); });
+}
+
+function shToggleAll(on) {
+  _gaCall('/api/sheet-alerts/config', 'PUT', { allChanges: on })
+    .then(function () { _shData.allChanges = on; showToast(on ? 'Известие при всяка промяна.' : 'Само важните колони.', 'success'); })
+    .catch(function (e) { showToast(e.message, 'error'); shLoad(); });
+}
+
+function shSaveBoard() {
+  var el = document.getElementById('shBoardUrl');
+  _gaCall('/api/sheet-alerts/config', 'PUT', { boardUrl: el ? el.value : '' })
+    .then(function () { showToast('Message Board е запазен.', 'success'); shLoad(); })
+    .catch(function (e) { showToast(e.message, 'error'); });
+}
+
+function shSaveCols() {
+  var imp = document.getElementById('shImportant');
+  var tit = document.getElementById('shTitleCols');
+  _gaCall('/api/sheet-alerts/config', 'PUT', {
+    important: imp ? imp.value : undefined,
+    titleCols: tit ? tit.value : undefined,
+  })
+    .then(function () { showToast('Колоните са запазени.', 'success'); shLoad(); })
+    .catch(function (e) { showToast(e.message, 'error'); });
+}
+
+function shSaveDelay() {
+  var el = document.getElementById('shDelay');
+  _gaCall('/api/sheet-alerts/config', 'PUT', { delay: el ? el.value : undefined })
+    .then(function () { showToast('Изчакването е запазено.', 'success'); shLoad(); })
+    .catch(function (e) { showToast(e.message, 'error'); });
+}
+
+function shAddResponsible(pid) {
+  if (!pid) return;
+  _gaCall('/api/sheet-alerts/responsibles', 'POST', { personId: pid })
+    .then(shLoad)
+    .catch(function (e) { showToast(e.message, 'error'); });
+}
+
+function shRemoveResponsible(pid) {
+  _gaCall('/api/sheet-alerts/responsibles/' + pid, 'DELETE')
+    .then(shLoad)
+    .catch(function (e) { showToast(e.message, 'error'); });
+}
+
+function shRefreshTeam(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+  _gaCall('/api/sheet-alerts/refresh-people', 'POST')
+    .then(function (r) { showToast('Екипът е обновен: ' + r.count + ' души.', 'success'); shLoad(); })
+    .catch(function (e) { showToast('Грешка: ' + e.message, 'error', 6000); })
+    .finally(function () { if (btn) { btn.disabled = false; btn.textContent = '🔄 Обнови екипа'; } });
+}
+
+function shTest(btn) {
+  if (btn) btn.disabled = true;
+  _gaCall('/api/sheet-alerts/test', 'POST')
+    .then(function (r) { showToast('Тестовото съобщение е публикувано.' + (r.url ? '' : ''), 'success'); })
+    .catch(function (e) { showToast('Грешка: ' + e.message, 'error', 6000); })
+    .finally(function () { if (btn) btn.disabled = false; });
+}
+
+function shClearEvents(btn) {
+  if (btn) btn.disabled = true;
+  _gaCall('/api/sheet-alerts/events', 'DELETE')
+    .then(function () { showToast('Дневникът е изчистен.', 'success'); shLoad(); })
+    .catch(function (e) { showToast(e.message, 'error'); })
+    .finally(function () { if (btn) btn.disabled = false; });
+}
+
+function shClearThreads(btn) {
+  if (!confirm('Нишките ще се забравят — следващата промяна ще отвори НОВО съобщение за всяко видео. Продължаваме ли?')) return;
+  if (btn) btn.disabled = true;
+  _gaCall('/api/sheet-alerts/threads', 'DELETE')
+    .then(function () { showToast('Нишките са забравени.', 'success'); shLoad(); })
+    .catch(function (e) { showToast(e.message, 'error'); })
+    .finally(function () { if (btn) btn.disabled = false; });
+}
+
+function shRotate(btn) {
+  if (!confirm('Старият скрипт в таблицата ще спре да работи, докато не поставиш новия. Продължаваме ли?')) return;
+  if (btn) btn.disabled = true;
+  _gaCall('/api/sheet-alerts/rotate', 'POST')
+    .then(function () { showToast('Тайната е сменена — постави новия скрипт в таблицата.', 'success', 6000); shLoad(); })
+    .catch(function (e) { showToast(e.message, 'error'); })
+    .finally(function () { if (btn) btn.disabled = false; });
+}
 
 function sgSectionKp(host) {
   host.innerHTML = '<div class="sg-section"><div class="ga-loading">Зареждане…</div></div>';

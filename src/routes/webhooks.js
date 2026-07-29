@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const config = require('../config');
 const { syncCardDates } = require('../services/bc-date-sync');
+const sheetAlerts = require('../services/sheet-alerts');
 
 router.post('/basecamp/:secret', (req, res) => {
   if (!config.BASECAMP_WEBHOOK_SECRET || req.params.secret !== config.BASECAMP_WEBHOOK_SECRET) {
@@ -24,6 +25,26 @@ router.post('/basecamp/:secret', (req, res) => {
   } catch (e) {
     console.error('[webhook basecamp]', e.message);
   }
+});
+
+// Google Sheets → „Известия от таблица". Apps Script в таблицата на клиента праща
+// всяка редакция тук; тайната е в пътя (както при Basecamp), а се пази в settings,
+// за да може да се върти от админ панела. Отговаряме веднага — Apps Script чака
+// отговор синхронно и не бива да го бавим с Basecamp заявки.
+router.post('/sheet/:secret', async (req, res) => {
+  let cfg;
+  try {
+    cfg = await sheetAlerts.loadConfig();
+  } catch (e) {
+    console.error('[webhook sheet] config:', e.message);
+    return res.status(500).json({ error: 'config' });
+  }
+  if (!cfg.secret || req.params.secret !== cfg.secret) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  res.status(200).json({ ok: true });
+
+  sheetAlerts.handleHit(req.body).catch((e) => console.error('[webhook sheet]', e.message));
 });
 
 module.exports = router;
