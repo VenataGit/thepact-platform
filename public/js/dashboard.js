@@ -555,7 +555,10 @@ function dashCardTimer(e, cardId) {
   }
 }
 
-// --- drag & drop: move a card to another column of the SAME board, in Basecamp ---
+// --- drag & drop: move a card to another column, in Basecamp ---
+// Between columns of one board it is a plain move. Between two boards Basecamp teleports
+// the card through a portal (виж routes/bc-board.js) — това е асинхронно и картата излиза
+// от другата страна с НОВО id, затова презареждаме и двете дъски след малко.
 function dashBcDragStart(e) {
   const card = e.target.closest('.dash-card');
   _dashDragCardId = card.dataset.cardId;
@@ -577,24 +580,39 @@ async function dashBcDrop(e) {
   const zone = e.currentTarget; zone.classList.remove('drag-over');
   if (!_dashDragCardId) return;
   const targetCol = zone.dataset.columnId, targetBoard = zone.dataset.boardId;
-  const cardId = _dashDragCardId, fromCol = _dashDragFromCol;
+  const cardId = _dashDragCardId, fromCol = _dashDragFromCol, fromBoard = _dashDragBoardId;
   _dashDragCardId = null;
-  if (targetBoard !== _dashDragBoardId) { if (window.showToast) showToast('Местене между различни дъски още не се поддържа.', 'warn'); return; }
-  if (targetCol === fromCol) return;
+  const crossBoard = targetBoard !== fromBoard;
+  if (!crossBoard && targetCol === fromCol) return;
   const cardEl = document.querySelector('.dash-card[data-card-id="' + cardId + '"]');
   if (cardEl) zone.appendChild(cardEl); // optimistic
   try {
     const res = await fetch('/api/bc-board/move', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cardTableId: Number(targetBoard), cardId: Number(cardId), targetColumnId: Number(targetCol), position: 0 }),
+      body: JSON.stringify({
+        cardTableId: Number(targetBoard), fromCardTableId: Number(fromBoard),
+        cardId: Number(cardId), targetColumnId: Number(targetCol), position: 0,
+      }),
     });
-    if (!res.ok) throw new Error('move');
-    if (window.showToast) showToast('Преместено в Basecamp ✓', 'success');
-    setTimeout(() => dashLoadBoardCards(targetBoard), 900); // reconcile just this board
-  } catch {
-    if (window.showToast) showToast('Грешка при местене — връщам.', 'error');
-    dashLoadBoardCards(targetBoard);
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error || 'move');
+    }
+    if (!crossBoard) {
+      if (window.showToast) showToast('Преместено в Basecamp ✓', 'success');
+      setTimeout(() => dashLoadBoardCards(targetBoard), 900); // reconcile just this board
+      return;
+    }
+    // Teleport: Basecamp го обработва на опашка, затова изчакваме и опресняваме двете дъски.
+    if (window.showToast) showToast('Местя в другата дъска… (Basecamp го обработва)', 'info');
+    const both = () => { dashLoadBoardCards(fromBoard); dashLoadBoardCards(targetBoard); };
+    setTimeout(both, 3000);
+    setTimeout(() => { both(); if (window.showToast) showToast('Преместено в Basecamp ✓', 'success'); }, 9000);
+  } catch (err) {
+    if (window.showToast) showToast('Грешка при местене: ' + (err.message || 'връщам'), 'error');
+    dashLoadBoardCards(fromBoard);
+    if (crossBoard) dashLoadBoardCards(targetBoard);
   }
 }
 

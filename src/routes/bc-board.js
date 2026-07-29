@@ -217,20 +217,91 @@ router.get('/inspect', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// --- moving a card to a column on a DIFFERENT board (card table) ---
+// Basecamp only allows this through a "wormhole" — a portal on the SOURCE board pointing
+// at the destination column (see services/basecamp.js). We create one on demand, teleport
+// the card onto it and remove the portal again, so the boards look untouched.
+const MAX_WORMHOLES = 4; // Basecamp's hard cap per card table
+const WORMHOLE_CLEANUP_MS = 15_000; // the teleport is queued — give it time before unhooking
+// Wormholes THIS process created, per source board. We only ever delete our own, so a
+// portal the team set up by hand in Basecamp is never touched.
+const ownWormholes = new Map(); // cardTableId -> Set(wormholeId)
+function rememberWormhole(cardTableId, id) {
+  const key = String(cardTableId);
+  if (!ownWormholes.has(key)) ownWormholes.set(key, new Set());
+  ownWormholes.get(key).add(String(id));
+}
+function forgetWormhole(cardTableId, id) {
+  const s = ownWormholes.get(String(cardTableId));
+  if (s) s.delete(String(id));
+}
+
+async function teleportCard(token, account, projectId, { fromCardTableId, toCardTableId, cardId, targetColumnId }) {
+  const table = await bc.getCardTable(token, account, projectId, fromCardTableId);
+  const holes = Array.isArray(table.wormholes) ? table.wormholes : [];
+  // A leftover portal to the same column (ours or the team's) is reusable as is.
+  let hole = holes.find(
+    (w) => bc.wormholeDestinationId(w) === String(targetColumnId) && w.linked !== false
+  );
+  let created = false;
+  if (!hole) {
+    if (holes.length >= MAX_WORMHOLES) {
+      const ours = ownWormholes.get(String(fromCardTableId)) || new Set();
+      const victim = holes.find((w) => ours.has(String(w.id)));
+      if (!victim) {
+        const e = new Error('Дъската вече има 4 портала в Basecamp — Basecamp не позволява повече. Махни един ръчно.');
+        e.expected = true;
+        throw e;
+      }
+      await bc.deleteWormhole(token, account, projectId, victim.id);
+      forgetWormhole(fromCardTableId, victim.id);
+    }
+    hole = await bc.createWormhole(token, account, projectId, fromCardTableId, targetColumnId);
+    created = true;
+    rememberWormhole(fromCardTableId, hole.id);
+  }
+  await bc.moveCardToColumn(token, account, projectId, cardId, hole.id);
+
+  // The card travels asynchronously, so unhook the portal a little later — and refresh
+  // both boards then, since the card arrives with a NEW id on the other side.
+  if (created) {
+    const t = setTimeout(async () => {
+      try { await bc.deleteWormhole(token, account, projectId, hole.id); }
+      catch (e) { console.warn('[bc-board wormhole cleanup]', e.message); }
+      forgetWormhole(fromCardTableId, hole.id);
+      invalidateBoard(fromCardTableId);
+      invalidateBoard(toCardTableId);
+    }, WORMHOLE_CLEANUP_MS);
+    if (t.unref) t.unref();
+  }
+}
+
 // POST /api/bc-board/move — move a card to another column, recorded AS the logged-in user.
+// `fromCardTableId` (optional, sent by the dashboard) tells us whether this is a plain
+// move inside one board or a cross-board teleport.
 router.post('/move', requireAuth, async (req, res) => {
   try {
-    const { cardTableId, cardId, targetColumnId, position } = req.body || {};
+    const { cardTableId, cardId, targetColumnId, position, fromCardTableId } = req.body || {};
     if (!cardTableId || !cardId || !targetColumnId) {
       return res.status(400).json({ error: 'cardTableId, cardId, targetColumnId required' });
     }
     const { token, account } = await getUserAuth(req.user.userId);
-    await bc.moveCard(token, account, config.BASECAMP_TEAM_PROJECT_ID, cardTableId, cardId, targetColumnId, position || 0);
+    const projectId = config.BASECAMP_TEAM_PROJECT_ID;
+    const crossBoard = fromCardTableId && String(fromCardTableId) !== String(cardTableId);
+    if (crossBoard) {
+      await teleportCard(token, account, projectId, {
+        fromCardTableId, toCardTableId: cardTableId, cardId, targetColumnId,
+      });
+      invalidateBoard(fromCardTableId);
+      invalidateBoard(cardTableId);
+      return res.json({ ok: true, teleported: true });
+    }
+    await bc.moveCard(token, account, projectId, cardTableId, cardId, targetColumnId, position || 0);
     invalidateBoard(cardTableId); // this board re-fetches on next load
     res.json({ ok: true });
   } catch (err) {
     console.error('[bc-board move]', err.message);
-    res.status(502).json({ error: err.message });
+    res.status(err.expected ? 409 : 502).json({ error: err.message });
   }
 });
 

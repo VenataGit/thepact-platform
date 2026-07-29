@@ -175,6 +175,71 @@ async function moveCard(token, account, projectId, cardTableId, cardId, targetCo
   return true;
 }
 
+// ---- Moving a card to ANOTHER card table ("wormholes") ----
+// Basecamp refuses a plain move into a column of a different card table. The only
+// sanctioned route is a wormhole: a portal created ON THE SOURCE table that points at a
+// column of the destination table. Dropping a card on the wormhole teleports it.
+// Docs: bc3-api sections/card_table_wormholes.md + card_table_cards.md ("Move a card").
+// The rules we have to live with:
+//   * max 4 wormholes per card table (create returns 422 above that);
+//   * the teleport is QUEUED — 204 means accepted, not arrived;
+//   * the card comes out the other side with a NEW id (the old one 404s afterwards);
+//   * `position` is ignored for a teleport.
+
+// The card table payload carries its portals in `wormholes`. The destination id sits in
+// different places depending on the payload version, so read it defensively.
+function wormholeDestinationId(w) {
+  if (!w) return null;
+  const id = w.destination_recording_id || (w.destination && w.destination.id) || w.destination_id;
+  return id ? String(id) : null;
+}
+
+// POST .../card_tables/{tableId}/wormholes.json  body { destination_recording_id }
+async function createWormhole(token, account, projectId, cardTableId, destinationColumnId) {
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/${cardTableId}/wormholes.json`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ destination_recording_id: destinationColumnId }),
+  });
+  if (!r.ok) {
+    const b = await r.text().catch(() => '');
+    const e = new Error(`Basecamp create wormhole failed (${r.status}): ${b.slice(0, 200)}`);
+    e.status = r.status;
+    throw e;
+  }
+  return r.json();
+}
+
+// DELETE .../card_tables/wormholes/{id}.json — 204 on success.
+async function deleteWormhole(token, account, projectId, wormholeId) {
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/wormholes/${wormholeId}.json`, {
+    method: 'DELETE',
+    headers: headers({ Authorization: `Bearer ${token}` }),
+  });
+  if (!r.ok && r.status !== 204) {
+    const b = await r.text().catch(() => '');
+    throw new Error(`Basecamp delete wormhole failed (${r.status}): ${b.slice(0, 200)}`);
+  }
+  return true;
+}
+
+// POST .../card_tables/cards/{cardId}/moves.json  body { column_id, position }.
+// `column_id` may be a normal column OR a wormhole id (that is what makes it a teleport).
+async function moveCardToColumn(token, account, projectId, cardId, columnId, position) {
+  const body = { column_id: columnId };
+  if (position != null) body.position = position;
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${cardId}/moves.json`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  if (!r.ok && r.status !== 204) {
+    const b = await r.text().catch(() => '');
+    throw new Error(`Basecamp card move failed (${r.status}): ${b.slice(0, 200)}`);
+  }
+  return true;
+}
+
 // Fetch a single card with its full payload (incl. `content` rich HTML + steps).
 async function getCard(token, account, projectId, cardId) {
   return (await authedGet(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${cardId}.json`, token)).json;
@@ -396,6 +461,10 @@ module.exports = {
   getCardTable,
   getColumnCards,
   moveCard,
+  wormholeDestinationId,
+  createWormhole,
+  deleteWormhole,
+  moveCardToColumn,
   getCard,
   createCard,
   createStep,
