@@ -44,8 +44,13 @@ const { MEMBER_USER, getAuthCookie } = require('./setup');
 const cookie = getAuthCookie(MEMBER_USER);
 const PRODUCTION = 111, PREPRODUCTION = 222, COL = 999, CARD = 555;
 
+// Порталите, които платформата е направила, се пазят в app_settings.
+const ownWormholesRow = (map) => ({ value: JSON.stringify(map) });
+
 beforeEach(() => {
   jest.clearAllMocks();
+  mockDb.queryOne.mockResolvedValue(null);
+  mockDb.execute.mockResolvedValue(undefined);
   bc.moveCard.mockResolvedValue(true);
   bc.deleteWormhole.mockResolvedValue(true);
   bc.moveCardToColumn.mockResolvedValue(true);
@@ -116,6 +121,38 @@ describe('между различни дъски', () => {
     expect(bc.moveCardToColumn).toHaveBeenCalledWith('tok', '5750544', expect.anything(), CARD, 7002);
   });
 
+  it('измита наш забравен портал към друга колона, преди да прави нов', async () => {
+    // Сценарий: деплой в 15-те секунди за чистене е оставил портал 8001 да виси.
+    mockDb.queryOne.mockResolvedValue(ownWormholesRow({ [PRODUCTION]: ['8001'] }));
+    bc.getCardTable.mockResolvedValue({
+      id: PRODUCTION,
+      wormholes: [{ id: 8001, linked: true, destination_recording_id: 4242 }],
+    });
+    bc.createWormhole.mockResolvedValue({ id: 8002, linked: true });
+
+    const res = await request(app).post('/api/bc-board/move').set('Cookie', cookie)
+      .send({ cardTableId: PREPRODUCTION, fromCardTableId: PRODUCTION, cardId: CARD, targetColumnId: COL });
+
+    expect(res.status).toBe(200);
+    expect(bc.deleteWormhole).toHaveBeenCalledWith('tok', '5750544', expect.anything(), 8001);
+    expect(bc.createWormhole).toHaveBeenCalledWith('tok', '5750544', expect.anything(), PRODUCTION, COL);
+  });
+
+  it('не мете наш портал, който вече сочи точно накъдето трябва', async () => {
+    mockDb.queryOne.mockResolvedValue(ownWormholesRow({ [PRODUCTION]: ['8003'] }));
+    bc.getCardTable.mockResolvedValue({
+      id: PRODUCTION,
+      wormholes: [{ id: 8003, linked: true, destination_recording_id: COL }],
+    });
+    const res = await request(app).post('/api/bc-board/move').set('Cookie', cookie)
+      .send({ cardTableId: PREPRODUCTION, fromCardTableId: PRODUCTION, cardId: CARD, targetColumnId: COL });
+
+    expect(res.status).toBe(200);
+    expect(bc.deleteWormhole).not.toHaveBeenCalled();
+    expect(bc.createWormhole).not.toHaveBeenCalled();
+    expect(bc.moveCardToColumn).toHaveBeenCalledWith('tok', '5750544', expect.anything(), CARD, 8003);
+  });
+
   it('не пипа чужд портал и връща разбираема грешка при 4 налични', async () => {
     bc.getCardTable.mockResolvedValue({
       id: PRODUCTION,
@@ -126,6 +163,7 @@ describe('между различни дъски', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error).toMatch(/4 портала/);
+    expect(res.body.error).toMatch(/Basecamp/);
     expect(bc.deleteWormhole).not.toHaveBeenCalled();
     expect(bc.createWormhole).not.toHaveBeenCalled();
     expect(bc.moveCardToColumn).not.toHaveBeenCalled();

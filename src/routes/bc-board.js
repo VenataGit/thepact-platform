@@ -28,6 +28,12 @@ async function getAppSetting(key) {
     return row && row.value ? JSON.parse(row.value) : null;
   } catch { return null; }
 }
+async function setAppSetting(key, value) {
+  await execute(
+    'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()',
+    [key, JSON.stringify(value)]
+  );
+}
 const getLayout = async () => (await getAppSetting(LAYOUT_KEY)) || {};
 
 // Per-user dashboard prefs (hidden/minimized/maximized boards, hidden columns) —
@@ -223,22 +229,50 @@ router.get('/inspect', requireAuth, requireAdmin, async (req, res) => {
 // the card onto it and remove the portal again, so the boards look untouched.
 const MAX_WORMHOLES = 4; // Basecamp's hard cap per card table
 const WORMHOLE_CLEANUP_MS = 15_000; // the teleport is queued — give it time before unhooking
-// Wormholes THIS process created, per source board. We only ever delete our own, so a
-// portal the team set up by hand in Basecamp is never touched.
-const ownWormholes = new Map(); // cardTableId -> Set(wormholeId)
-function rememberWormhole(cardTableId, id) {
-  const key = String(cardTableId);
-  if (!ownWormholes.has(key)) ownWormholes.set(key, new Set());
-  ownWormholes.get(key).add(String(id));
+// Which portals the platform itself made, per source board: { cardTableId: [wormholeId] }.
+// Kept in the DB, not in memory, so a deploy in the 15s cleanup window can't orphan a
+// portal we would then no longer recognise as ours. We only ever delete portals from this
+// list, so one the team set up by hand in Basecamp is never touched.
+const WORMHOLES_KEY = 'bc_dashboard_wormholes';
+async function getOwnWormholes(cardTableId) {
+  const all = (await getAppSetting(WORMHOLES_KEY)) || {};
+  const ids = all[String(cardTableId)];
+  return Array.isArray(ids) ? ids.map(String) : [];
 }
-function forgetWormhole(cardTableId, id) {
-  const s = ownWormholes.get(String(cardTableId));
-  if (s) s.delete(String(id));
+async function saveOwnWormholes(cardTableId, ids) {
+  const all = (await getAppSetting(WORMHOLES_KEY)) || {};
+  if (ids.length) all[String(cardTableId)] = ids.map(String);
+  else delete all[String(cardTableId)];
+  await setAppSetting(WORMHOLES_KEY, all);
 }
 
 async function teleportCard(token, account, projectId, { fromCardTableId, toCardTableId, cardId, targetColumnId }) {
   const table = await bc.getCardTable(token, account, projectId, fromCardTableId);
-  const holes = Array.isArray(table.wormholes) ? table.wormholes : [];
+  let holes = Array.isArray(table.wormholes) ? table.wormholes : [];
+  let ours = await getOwnWormholes(fromCardTableId);
+
+  // Sweep first: a portal of ours that survived a failed cleanup is dead weight against
+  // Basecamp's cap of 4, so drop every leftover except one already aimed where we need it.
+  const stale = holes.filter(
+    (w) => ours.includes(String(w.id)) && bc.wormholeDestinationId(w) !== String(targetColumnId)
+  );
+  if (stale.length) {
+    for (const w of stale) {
+      try { await bc.deleteWormhole(token, account, projectId, w.id); }
+      catch (e) { console.warn('[bc-board wormhole sweep]', e.message); }
+    }
+    const gone = new Set(stale.map((w) => String(w.id)));
+    holes = holes.filter((w) => !gone.has(String(w.id)));
+    ours = ours.filter((id) => !gone.has(id));
+  }
+  // Forget ids Basecamp no longer has (removed by hand), so the list can't grow forever.
+  const live = new Set(holes.map((w) => String(w.id)));
+  const pruned = ours.filter((id) => live.has(id));
+  if (stale.length || pruned.length !== ours.length) {
+    ours = pruned;
+    await saveOwnWormholes(fromCardTableId, ours);
+  }
+
   // A leftover portal to the same column (ours or the team's) is reusable as is.
   let hole = holes.find(
     (w) => bc.wormholeDestinationId(w) === String(targetColumnId) && w.linked !== false
@@ -246,19 +280,16 @@ async function teleportCard(token, account, projectId, { fromCardTableId, toCard
   let created = false;
   if (!hole) {
     if (holes.length >= MAX_WORMHOLES) {
-      const ours = ownWormholes.get(String(fromCardTableId)) || new Set();
-      const victim = holes.find((w) => ours.has(String(w.id)));
-      if (!victim) {
-        const e = new Error('Дъската вече има 4 портала в Basecamp — Basecamp не позволява повече. Махни един ръчно.');
-        e.expected = true;
-        throw e;
-      }
-      await bc.deleteWormhole(token, account, projectId, victim.id);
-      forgetWormhole(fromCardTableId, victim.id);
+      // Nothing of ours left to free — the 4 slots are portals the team made by hand.
+      const e = new Error(
+        'Тази дъска вече има 4 портала към други дъски, направени ръчно в Basecamp — това е таванът на Basecamp. Махни един от тях в Basecamp и опитай пак.'
+      );
+      e.expected = true;
+      throw e;
     }
     hole = await bc.createWormhole(token, account, projectId, fromCardTableId, targetColumnId);
     created = true;
-    rememberWormhole(fromCardTableId, hole.id);
+    await saveOwnWormholes(fromCardTableId, ours.concat(String(hole.id)));
   }
   await bc.moveCardToColumn(token, account, projectId, cardId, hole.id);
 
@@ -266,9 +297,14 @@ async function teleportCard(token, account, projectId, { fromCardTableId, toCard
   // both boards then, since the card arrives with a NEW id on the other side.
   if (created) {
     const t = setTimeout(async () => {
-      try { await bc.deleteWormhole(token, account, projectId, hole.id); }
-      catch (e) { console.warn('[bc-board wormhole cleanup]', e.message); }
-      forgetWormhole(fromCardTableId, hole.id);
+      try {
+        await bc.deleteWormhole(token, account, projectId, hole.id);
+        const left = (await getOwnWormholes(fromCardTableId)).filter((id) => id !== String(hole.id));
+        await saveOwnWormholes(fromCardTableId, left);
+      } catch (e) {
+        // Left in the list on purpose — the next cross-board move sweeps it away.
+        console.warn('[bc-board wormhole cleanup]', e.message);
+      }
       invalidateBoard(fromCardTableId);
       invalidateBoard(toCardTableId);
     }, WORMHOLE_CLEANUP_MS);
