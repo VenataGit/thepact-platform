@@ -1,13 +1,14 @@
 // ==================== PREMIERE PRO DOWNGRADE ====================
-// Сваля .prproj проект към по-стара версия на Premiere. От PP2026 нагоре само
-// смяната на номера не стига (Adobe смени структурата на файла), затова истинската
-// конверсия минава през специализиран схема-енджин — но всичко през нашия сървър
-// (thepact.pro). Безплатно за файлове под 100 KB. Файлът се обработва временно.
-var _pp = { file: null, currentVersion: null, busy: false };
+// Сваля .prproj проект към по-стара версия на Premiere.
+// Проекти от Premiere 2025 и по-стари се свалят на нашия сървър — без ограничение
+// за размер и без външни услуги. Проекти от 2026 са специален случай: Adobe смени
+// структурата на файла, само смяната на номера ги чупи, затова те минават през
+// външен схема-енджин, който е безплатен до 500 KB.
+var _pp = { file: null, currentVersion: null, needsEngine: false, tooBig: false, busy: false };
 
 // Вътрешен Version номер → приблизителна година (само за показване на текущата).
 function ppVersionLabel(v) {
-  var map = { 38: '2020', 39: '2021', 40: '2022', 41: '2023', 42: '2024', 43: '2025', 44: '2025', 45: '2026' };
+  var map = { 37: '2019', 38: '2020', 39: '2021', 40: '2022', 41: '2023', 42: '2024', 43: '2025', 44: '2025', 45: '2026' };
   if (map[v]) return 'Premiere ' + map[v];
   if (v >= 46) return 'Premiere 2026+';
   if (v <= 37) return 'стара (CC/CS)';
@@ -27,13 +28,13 @@ async function renderPremiere(el) {
     <div class="home-content-box">
       <div class="page-header" style="margin-bottom:20px">
         <h1>🎬 Premiere Pro Downgrade</h1>
-        <div class="page-subtitle">Отвори проект (<code>.prproj</code>), запазен в по-нова версия на Premiere Pro, в по-стара — включително сваляне от 2026. Истинската конверсия се прави от специализиран енджин, но всичко минава през нашия сървър. Монтажът и секвенциите се пренасят; много нови ефекти може да изискват донастройка (напр. Lumetri look).</div>
+        <div class="page-subtitle">Отвори проект (<code>.prproj</code>), запазен в по-нова версия на Premiere Pro, в по-стара. Проекти от <strong>Premiere 2025 и по-стари</strong> се преработват при нас — без ограничение за размер. Проекти от <strong>2026</strong> минават през външен енджин (безплатно до 500 KB), защото Adobe смени структурата на файла. Монтажът и секвенциите се пренасят; ефекти, въведени след целевата версия, може да изискват донастройка (напр. Lumetri look).</div>
       </div>
 
       <div id="ppDrop" style="border:2px dashed var(--border);border-radius:14px;padding:34px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:var(--bg)">
         <div style="font-size:38px;line-height:1;margin-bottom:10px">📁</div>
         <div id="ppDropLabel" style="font-size:15px;color:var(--text);font-weight:600;margin-bottom:4px">Пусни тук .prproj файл или кликни за избор</div>
-        <div style="font-size:12.5px;color:var(--text-dim)">Файлът се обработва временно и не се запазва. Безплатно за файлове под 100 KB.</div>
+        <div style="font-size:12.5px;color:var(--text-dim)">Файлът се обработва временно и не се запазва.</div>
         <input type="file" id="ppFile" accept=".prproj" style="display:none">
       </div>
 
@@ -53,6 +54,8 @@ async function renderPremiere(el) {
             ${yearOptions}
           </select>
         </div>
+
+        <div id="ppNotice" style="display:none;margin-top:14px;border-radius:10px;padding:11px 13px;font-size:12.5px;line-height:1.5"></div>
 
         <div style="margin-top:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <button id="ppConvertBtn" class="btn btn-primary" onclick="ppConvert()" style="font-weight:600;padding:11px 20px">⬇️ Свали сваления проект</button>
@@ -87,6 +90,23 @@ function ppFmtSize(bytes) {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 }
 
+// Показва как ще мине конверсията за този конкретен файл.
+function ppSetNotice(kind, html) {
+  var box = document.getElementById('ppNotice');
+  if (!box) return;
+  if (!kind) { box.style.display = 'none'; return; }
+  var c = kind === 'err'
+    ? { bg: 'rgba(200,80,80,0.10)', bd: 'var(--red)', fg: 'var(--red)' }
+    : kind === 'warn'
+      ? { bg: 'rgba(212,162,75,0.10)', bd: 'var(--gold,#d4a24b)', fg: 'var(--gold,#d4a24b)' }
+      : { bg: 'rgba(70,163,116,0.10)', bd: 'var(--green,#46a374)', fg: 'var(--green,#46a374)' };
+  box.style.background = c.bg;
+  box.style.border = '1px solid ' + c.bd;
+  box.style.color = c.fg;
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+
 async function ppOnFile(file) {
   if (!/\.prproj$/i.test(file.name)) {
     if (typeof showToast === 'function') showToast('Трябва .prproj файл.', 'error');
@@ -94,33 +114,77 @@ async function ppOnFile(file) {
   }
   _pp.file = file;
   _pp.currentVersion = null;
+  _pp.needsEngine = false;
+  _pp.tooBig = false;
   document.getElementById('ppInfo').style.display = 'block';
   document.getElementById('ppFileName').textContent = file.name;
   document.getElementById('ppFileMeta').textContent = ppFmtSize(file.size) + ' · проверка на версията…';
   document.getElementById('ppStatus').textContent = '';
   document.getElementById('ppLogs').style.display = 'none';
+  ppSetNotice(null);
 
-  var sizeNote = file.size > 100 * 1024 ? ' · ⚠️ над 100 KB — безплатната конверсия е до 100 KB' : '';
   try {
     var fd = new FormData();
     fd.append('project', file, file.name);
     var resp = await fetch('/api/premiere/inspect', { method: 'POST', body: fd });
     var data = await resp.json();
     if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
     _pp.currentVersion = data.version;
+    _pp.needsEngine = !!data.needsEngine;
+    _pp.tooBig = !!data.tooBigForEngine;
+
     var label = ppVersionLabel(data.version);
     document.getElementById('ppFileMeta').textContent =
-      ppFmtSize(file.size) + ' · текуща версия: ' + data.version + (label ? ' (' + label + ')' : '') + sizeNote;
+      ppFmtSize(file.size) + ' · текуща версия: ' + data.version + (label ? ' (' + label + ')' : '');
+
+    var btn = document.getElementById('ppConvertBtn');
+    if (_pp.tooBig) {
+      btn.disabled = true;
+      ppSetNotice('err', '<strong>Този файл не може да се свали в момента.</strong><br>'
+        + 'Проектът е от Premiere 2026, а такива минават през външния енджин, който е безплатен до 500 KB — този е '
+        + ppFmtSize(file.size) + '. Проекти от 2025 и по-стари се свалят при нас без ограничение за размер.');
+    } else if (_pp.needsEngine) {
+      btn.disabled = false;
+      ppSetNotice('warn', 'Проектът е от <strong>Premiere 2026</strong> — минава през външния схема-енджин, '
+        + 'защото само смяната на номера чупи такъв файл.');
+    } else {
+      btn.disabled = false;
+      ppSetNotice('ok', 'Проектът е от <strong>Premiere 2025 или по-стар</strong> — свалянето е при нас, '
+        + 'без външни услуги и без ограничение за размер.');
+    }
+    ppSyncTargets();
   } catch (err) {
-    document.getElementById('ppFileMeta').textContent = ppFmtSize(file.size) + ' · ' + err.message + sizeNote;
+    document.getElementById('ppFileMeta').textContent = ppFmtSize(file.size) + ' · ' + err.message;
     if (typeof showToast === 'function') showToast('Внимание: ' + err.message, 'error');
   }
+}
+
+// Изключва целевите години, които не са надолу спрямо текущата версия.
+var PP_YEAR_VERSION = { 2019: 37, 2020: 38, 2021: 39, 2022: 40, 2023: 41, 2024: 42, 2025: 43 };
+function ppSyncTargets() {
+  var sel = document.getElementById('ppTarget');
+  if (!sel || !_pp.currentVersion) return;
+  var firstEnabled = null;
+  Array.prototype.forEach.call(sel.options, function (opt) {
+    var v = PP_YEAR_VERSION[parseInt(opt.value, 10)];
+    var ok = _pp.needsEngine ? true : (v < _pp.currentVersion);
+    opt.disabled = !ok;
+    opt.textContent = 'Premiere ' + opt.value + (ok ? '' : ' — проектът вече се отваря там');
+    if (ok && firstEnabled === null) firstEnabled = opt.value;
+  });
+  if (sel.selectedOptions[0] && sel.selectedOptions[0].disabled && firstEnabled !== null) sel.value = firstEnabled;
 }
 
 function ppReset() {
   _pp.file = null;
   _pp.currentVersion = null;
+  _pp.needsEngine = false;
+  _pp.tooBig = false;
   document.getElementById('ppInfo').style.display = 'none';
+  ppSetNotice(null);
+  var btn = document.getElementById('ppConvertBtn');
+  if (btn) btn.disabled = false;
   var input = document.getElementById('ppFile');
   if (input) input.value = '';
 }
@@ -182,7 +246,7 @@ async function ppConvert() {
     if (typeof showToast === 'function') showToast('Грешка: ' + err.message, 'error');
   } finally {
     _pp.busy = false;
-    btn.disabled = false;
+    btn.disabled = !!_pp.tooBig;
     btn.textContent = origLabel;
   }
 }
