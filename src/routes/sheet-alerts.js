@@ -45,9 +45,15 @@ router.get('/overview', requireAuth, requireAdmin, async (req, res) => {
 
     const events = await query(
       `SELECT sheet_name, row_num, title, column_name, old_value, new_value,
-              editor_email, important, posted, created_at
+              editor_email, important, posted, ignored, created_at
        FROM sheet_alert_events ORDER BY id DESC LIMIT 25`
     );
+    // Кои акаунти изобщо са пипали таблицата — за да се игнорират с един клик,
+    // вместо да се преписват имейли на ръка.
+    const seenEditors = (await query(
+      `SELECT DISTINCT editor_email FROM sheet_alert_events
+       WHERE editor_email <> '' ORDER BY editor_email LIMIT 30`
+    )).map((r) => r.editor_email);
     const threads = await query(
       `SELECT sheet_name, title, last_row, bc_message_id, updated_at
        FROM sheet_alert_threads ORDER BY updated_at DESC LIMIT 15`
@@ -61,6 +67,8 @@ router.get('/overview', requireAuth, requireAdmin, async (req, res) => {
       important: cfg.important.join(', '),
       titleCols: cfg.titleCols.join(', '),
       allChanges: cfg.allChanges,
+      ignored: cfg.ignored.join(', '),
+      seenEditors,
       delay: cfg.delay,
       hookUrl: `${originOf(req)}/webhooks/sheet/${secret}`,
       script: sa.appsScriptCode(secret, originOf(req)),
@@ -78,7 +86,7 @@ router.get('/overview', requireAuth, requireAdmin, async (req, res) => {
 // PUT /api/sheet-alerts/config
 router.put('/config', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { enabled, boardUrl, important, titleCols, allChanges, delay } = req.body || {};
+    const { enabled, boardUrl, important, titleCols, allChanges, ignored, delay } = req.body || {};
 
     if (boardUrl !== undefined) {
       const ids = parseBoardUrl(boardUrl);
@@ -98,6 +106,13 @@ router.put('/config', requireAuth, requireAdmin, async (req, res) => {
       await save('sheet_alerts_title_cols', list.join(','));
     }
     if (allChanges !== undefined) await save('sheet_alerts_all_changes', allChanges ? 'true' : 'false');
+    if (ignored !== undefined) {
+      // Празният списък е валиден — значи „известявай за всички".
+      const list = String(ignored).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+      const bad = list.find((v) => !v.includes('@'));
+      if (bad) return res.status(400).json({ error: `„${bad}" не е имейл или домейн — очаквам ivan@thepact.bg или @thepact.bg.` });
+      await save('sheet_alerts_ignored', list.join(','));
+    }
     if (delay !== undefined) {
       const n = parseInt(delay, 10);
       if (!Number.isFinite(n) || n < 0 || n > 600) return res.status(400).json({ error: 'Изчакването трябва да е между 0 и 600 секунди.' });

@@ -501,6 +501,23 @@ function shRender() {
       '<div class="ga-share">Изчакването събира няколко бързи редакции по един и същи ред в едно известие, вместо да пуска по едно на всяка клетка.</div>' +
     '</div>';
 
+  // Игнорирани акаунти — спирачката срещу „някой пренарежда датите на всички видеа".
+  var seen = (d.seenEditors || []).filter(function (m) {
+    return (d.ignored || '').toLowerCase().indexOf(String(m).toLowerCase()) === -1;
+  });
+  var seenOpts = '<option value="">+ игнорирай видян акаунт</option>' +
+    seen.map(function (m) { return '<option value="' + esc(m) + '">' + esc(m) + '</option>'; }).join('');
+  html += '<div class="ga-add">' +
+      '<div class="ga-add__hdr">🙈 Игнорирани акаунти</div>' +
+      '<div class="ga-row" style="margin-top:6px">' +
+        '<input type="text" class="ga-input ga-input--board" id="shIgnored" value="' + esc(d.ignored) + '" placeholder="@thepact.bg, ivan@example.com">' +
+        '<button class="btn btn-sm" onclick="shSaveIgnored()">Запази</button>' +
+        (seen.length ? '<select class="ga-select" onchange="shIgnoreEditor(this.value)">' + seenOpts + '</select>' : '') +
+      '</div>' +
+      '<div class="ga-share">Промените от тези акаунти <b>не пораждат известия</b> — само се записват в дневника отдолу. Приема цял имейл (<code>ivan@thepact.bg</code>) или цял домейн (<code>@thepact.bg</code>), разделени със запетая. Празно = известия от всички.</div>' +
+      '<div class="ga-share">Така пренареждането на дати от екипа не залива борда. <b>Внимание:</b> Google дава имейла на редактора надеждно само за акаунти от нашия домейн — при външен редактор полето често е празно, а празен имейл никога не се игнорира (иначе одобренията на клиента биха изчезнали).</div>' +
+    '</div>';
+
   // Отговорници
   var chips = (d.responsibles || []).map(function (pid) {
     var p = team.find(function (x) { return String(x.person_id) === String(pid); });
@@ -524,13 +541,15 @@ function shRender() {
   } else {
     d.events.forEach(function (ev) {
       var when = new Date(ev.created_at).toLocaleString('bg-BG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-      html += '<div class="ga-map__row">' +
-        (ev.important ? '⭐ ' : '• ') +
+      var mark = ev.ignored ? '🙈 ' : (ev.important ? '⭐ ' : '• ');
+      var state = ev.posted ? ' · в Basecamp' : (ev.ignored ? ' · игнориран акаунт' : '');
+      html += '<div class="ga-map__row"' + (ev.ignored ? ' style="opacity:.55"' : '') + '>' +
+        mark +
         '<strong>' + esc(ev.sheet_name) + '</strong>' + (ev.row_num ? ' · ред ' + ev.row_num : '') +
         (ev.title ? ' · ' + esc(ev.title) : '') +
         ' · ' + esc(ev.column_name) + ': ' + esc(ev.new_value || '—') +
         (ev.editor_email ? ' <span class="ga-dim">(' + esc(ev.editor_email) + ')</span>' : '') +
-        ' <span class="ga-dim">' + esc(when) + (ev.posted ? ' · в Basecamp' : '') + '</span>' +
+        ' <span class="ga-dim">' + esc(when) + esc(state) + '</span>' +
       '</div>';
     });
   }
@@ -588,6 +607,23 @@ function shSaveCols() {
   })
     .then(function () { showToast('Колоните са запазени.', 'success'); shLoad(); })
     .catch(function (e) { showToast(e.message, 'error'); });
+}
+
+function shSaveIgnored() {
+  var el = document.getElementById('shIgnored');
+  _gaCall('/api/sheet-alerts/config', 'PUT', { ignored: el ? el.value : '' })
+    .then(function () { showToast('Игнорираните акаунти са запазени.', 'success'); shLoad(); })
+    .catch(function (e) { showToast(e.message, 'error', 6000); });
+}
+
+// Добавя видян акаунт към списъка, без да се преписва имейлът на ръка.
+function shIgnoreEditor(email) {
+  if (!email) return;
+  var el = document.getElementById('shIgnored');
+  var cur = (el && el.value ? el.value : '').trim();
+  _gaCall('/api/sheet-alerts/config', 'PUT', { ignored: cur ? cur + ', ' + email : email })
+    .then(function () { showToast(email + ' вече се игнорира.', 'success'); shLoad(); })
+    .catch(function (e) { showToast(e.message, 'error', 6000); });
 }
 
 function shSaveDelay() {

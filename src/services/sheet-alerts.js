@@ -48,6 +48,7 @@ async function loadConfig() {
     important: splitList(s.sheet_alerts_important),
     titleCols: splitList(s.sheet_alerts_title_cols),
     allChanges: s.sheet_alerts_all_changes === 'true',
+    ignored: splitList(s.sheet_alerts_ignored),
     delay: Math.min(600, Math.max(0, parseInt(s.sheet_alerts_delay, 10) || 0)),
   };
 }
@@ -90,6 +91,16 @@ function pretty(v) {
   if (/^true$/i.test(s)) return 'ДА ✅';
   if (/^false$/i.test(s)) return 'не';
   return s;
+}
+
+// Игнориран ли е акаунтът, направил промяната.
+// Приема цял имейл (ivan@thepact.bg) или цял домейн (@thepact.bg).
+// ПРАЗЕН имейл никога не се игнорира: Google не дава имейла на външните
+// редактори, а точно те са клиентът — иначе одобренията му биха изчезнали.
+function isIgnored(email, list) {
+  const e = norm(email);
+  if (!e || !list || !list.length) return false;
+  return list.some((rule) => (rule.startsWith('@') ? e.endsWith(rule) : e === rule));
 }
 
 function matchesAny(header, needles) {
@@ -164,10 +175,12 @@ async function handleHit(raw) {
     return { ok: true, kind: 'setup' };
   }
 
+  const ignored = isIgnored(p.editor, cfg.ignored);
+
   if (p.kind === 'new_sheet') {
-    await logEvent(p, { header: '— нов шийт —', old: '', new: p.sheetName, important: true }, cfg.enabled);
-    if (cfg.enabled) await postNewSheet(cfg, p).catch((e) => console.error('[sheet-alerts] new sheet:', e.message));
-    return { ok: true, kind: 'new_sheet' };
+    await logEvent(p, { header: '— нов шийт —', old: '', new: p.sheetName, important: true }, cfg.enabled && !ignored, ignored);
+    if (cfg.enabled && !ignored) await postNewSheet(cfg, p).catch((e) => console.error('[sheet-alerts] new sheet:', e.message));
+    return { ok: true, kind: 'new_sheet', ignored };
   }
 
   if (!p.changes.length || p.row <= 1) return { ok: true, skipped: true };
@@ -183,22 +196,25 @@ async function handleHit(raw) {
   if (!changes.length) return { ok: true, skipped: true };
 
   const notable = cfg.allChanges ? changes : changes.filter((c) => c.important);
-  const willPost = cfg.enabled && notable.length > 0;
-  for (const c of changes) await logEvent({ ...p, title }, c, willPost && notable.includes(c));
+  // Промените от игнориран акаунт се записват в дневника (за да се вижда защо е
+  // тихо), но не отиват в Basecamp — това е спирачката срещу масовите преправяния
+  // на дати от екипа.
+  const willPost = cfg.enabled && !ignored && notable.length > 0;
+  for (const c of changes) await logEvent({ ...p, title }, c, willPost && notable.includes(c), ignored);
 
-  if (!willPost) return { ok: true, logged: changes.length, posted: false };
+  if (!willPost) return { ok: true, logged: changes.length, posted: false, ignored };
 
   buffer(cfg, { ...p, title }, notable);
-  return { ok: true, logged: changes.length, posted: true };
+  return { ok: true, logged: changes.length, posted: true, ignored: false };
 }
 
-async function logEvent(p, c, posted) {
+async function logEvent(p, c, posted, ignored) {
   await execute(
     `INSERT INTO sheet_alert_events
-       (spreadsheet_id, sheet_name, row_num, title, column_name, old_value, new_value, editor_email, important, posted)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+       (spreadsheet_id, sheet_name, row_num, title, column_name, old_value, new_value, editor_email, important, posted, ignored)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
     [p.spreadsheetId, p.sheetName, p.row || null, p.title || '', c.header,
-     c.old, c.new, p.editor, !!c.important, !!posted]
+     c.old, c.new, p.editor, !!c.important, !!posted, !!ignored]
   );
   await execute(
     `DELETE FROM sheet_alert_events
@@ -516,6 +532,7 @@ module.exports = {
   rowTitle,
   threadKeyOf,
   matchesAny,
+  isIgnored,
   sanitize,
   pretty,
   rowUrl,

@@ -97,6 +97,38 @@ describe('линк към реда', () => {
   });
 });
 
+describe('игнорирани акаунти', () => {
+  const list = ['@thepact.bg', 'външен@example.com'];
+
+  test('цял домейн се игнорира', () => {
+    expect(sa.isIgnored('ivan@thepact.bg', list)).toBe(true);
+    expect(sa.isIgnored('IVAN@ThePact.BG', list)).toBe(true);
+  });
+
+  test('конкретен имейл се игнорира', () => {
+    expect(sa.isIgnored('външен@example.com', list)).toBe(true);
+  });
+
+  test('клиентът минава', () => {
+    expect(sa.isIgnored('client@reshape.bg', list)).toBe(false);
+  });
+
+  test('празен имейл НИКОГА не се игнорира', () => {
+    // Google не дава имейла на външните редактори — ако ги мълчахме, точно
+    // одобренията на клиента щяха да изчезнат.
+    expect(sa.isIgnored('', list)).toBe(false);
+    expect(sa.isIgnored(undefined, list)).toBe(false);
+  });
+
+  test('празен списък пуска всички', () => {
+    expect(sa.isIgnored('ivan@thepact.bg', [])).toBe(false);
+  });
+
+  test('домейнът не хваща подобен, но различен домейн', () => {
+    expect(sa.isIgnored('ivan@nethepact.bg', ['@thepact.bg'])).toBe(false);
+  });
+});
+
 describe('обработка на промяна от таблицата', () => {
   // Изчакването е нарочно голямо, за да не тръгне публикуването по време на теста.
   const SETTINGS = [
@@ -141,6 +173,35 @@ describe('обработка на промяна от таблицата', () =>
   test('заглавният ред не е промяна по видео', async () => {
     const r = await hit([{ col: 4, old: '', new: 'TRUE' }], 1);
     expect(r.skipped).toBe(true);
+  });
+
+  test('одобрение от игнориран акаунт не отива в Basecamp', async () => {
+    // Сценарият на Венци: човек от екипа минава през таблицата и пипа редовете.
+    mockDb.query.mockResolvedValue(SETTINGS.concat([{ key: 'sheet_alerts_ignored', value: '@thepact.bg' }]));
+    const r = await sa.handleHit({
+      kind: 'edit', spreadsheetId: 'ABC', sheetName: 'Юли', row: 7,
+      headers: HEADERS, rowValues: ['Видео 3'], editor: 'ivan@thepact.bg',
+      changes: [{ col: 4, old: 'FALSE', new: 'TRUE' }],
+    });
+    expect(r.ignored).toBe(true);
+    expect(r.posted).toBe(false);
+    expect(r.logged).toBe(1); // пак се вижда в дневника
+  });
+
+  test('клиентът минава, дори когато екипът е игнориран', async () => {
+    mockDb.query.mockResolvedValue(SETTINGS.concat([{ key: 'sheet_alerts_ignored', value: '@thepact.bg' }]));
+    const r = await hit([{ col: 4, old: 'FALSE', new: 'TRUE' }]); // editor: client@reshape.bg
+    expect(r.posted).toBe(true);
+  });
+
+  test('непознат редактор (празен имейл) минава', async () => {
+    mockDb.query.mockResolvedValue(SETTINGS.concat([{ key: 'sheet_alerts_ignored', value: '@thepact.bg' }]));
+    const r = await sa.handleHit({
+      kind: 'edit', spreadsheetId: 'ABC', sheetName: 'Юли', row: 7,
+      headers: HEADERS, rowValues: ['Видео 3'], editor: '',
+      changes: [{ col: 3, old: '', new: 'Моля сменете музиката' }],
+    });
+    expect(r.posted).toBe(true);
   });
 
   test('важното се публикува дори когато е сред неважни промени', async () => {
