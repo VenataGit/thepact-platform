@@ -97,6 +97,46 @@ describe('линк към реда', () => {
   });
 });
 
+describe('намиране на заглавния ред', () => {
+  const needles = ['одобрение', 'коментар', 'име', 'видео', 'заглавие'];
+
+  test('заглавният ред не е първи (отгоре стои заглавие на плана)', () => {
+    // Точно случаят от таблицата на Re/Shape — затова нито една колона не се
+    // разпознаваше и „важните колони" на практика не работеха.
+    const top = [
+      ['ФИНАЛЕН ПОСТИНГ ПЛАН КП-2 + Реклами', '', '', ''],
+      ['', '', '', ''],
+      HEADERS.slice(0, 4),
+      ['Видео 1', 'скрипт', '', 'FALSE'],
+    ];
+    const r = sa.pickHeaderRow(top, needles);
+    expect(r.headerRow).toBe(3);
+    expect(r.headers[3]).toBe('Одобрение от клиента');
+  });
+
+  test('нормалната таблица със заглавия на първи ред пак работи', () => {
+    const r = sa.pickHeaderRow([HEADERS, ['Видео 1']], needles);
+    expect(r.headerRow).toBe(1);
+    expect(r.headers[2]).toBe('Коментар от клиента');
+  });
+});
+
+describe('стабилност на нишката', () => {
+  test('дописан Drive линк към името не отваря нова нишка', () => {
+    // Наблюдавано на живо: един и същи ред роди 3 нишки, защото към името
+    // постепенно се дописваше линк към Google Drive.
+    const a = 'КП-3 - Видео 1 - Повдигането и намаляването на бюста';
+    const b = a + '\nhttps://drive.google.com/file/d/1fFViw/view?usp=drive_link';
+    const c = a + 'https://drive.google.com/file/d/1fFViw/view?usp=drive_link';
+    expect(sa.threadKeyOf(b, 25)).toBe(sa.threadKeyOf(a, 25));
+    expect(sa.threadKeyOf(c, 25)).toBe(sa.threadKeyOf(a, 25));
+  });
+
+  test('различни видеа пак са различни нишки', () => {
+    expect(sa.threadKeyOf('КП-3 - Видео 1', 5)).not.toBe(sa.threadKeyOf('КП-3 - Видео 2', 6));
+  });
+});
+
 describe('игнорирани акаунти', () => {
   const list = ['@thepact.bg', 'външен@example.com'];
 
@@ -202,6 +242,28 @@ describe('обработка на промяна от таблицата', () =>
       changes: [{ col: 3, old: '', new: 'Моля сменете музиката' }],
     });
     expect(r.posted).toBe(true);
+  });
+
+  test('одобрение се разпознава и когато заглавният ред е трети', async () => {
+    // Без намирането на заглавния ред тази промяна излизаше като „Колона 4",
+    // важно=false — тоест изобщо не стигаше до Basecamp.
+    const r = await sa.handleHit({
+      kind: 'edit', spreadsheetId: 'ABC', sheetName: 'ФИНАЛЕН ПОСТИНГ ПЛАН', row: 9,
+      topRows: [['ФИНАЛЕН ПОСТИНГ ПЛАН КП-2', '', '', ''], ['', '', '', ''], HEADERS.slice(0, 4)],
+      rowValues: ['Видео 1', '', '', 'TRUE'], editor: 'client@reshape.bg',
+      changes: [{ col: 4, old: 'FALSE', new: 'TRUE' }],
+    });
+    expect(r.posted).toBe(true);
+  });
+
+  test('редовете НАД заглавния не са промени по видео', async () => {
+    const r = await sa.handleHit({
+      kind: 'edit', spreadsheetId: 'ABC', sheetName: 'ФИНАЛЕН ПОСТИНГ ПЛАН', row: 2,
+      topRows: [['ФИНАЛЕН ПОСТИНГ ПЛАН КП-2', '', '', ''], ['', '', '', ''], HEADERS.slice(0, 4)],
+      rowValues: [], editor: 'client@reshape.bg',
+      changes: [{ col: 1, old: '', new: 'нещо в шапката' }],
+    });
+    expect(r.skipped).toBe(true);
   });
 
   test('важното се публикува дори когато е сред неважни промени', async () => {

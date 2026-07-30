@@ -471,6 +471,7 @@ function shRender() {
   html += '<div class="ga-add">' +
       '<div class="ga-add__hdr">🔌 Инсталиране в таблицата</div>' +
       '<div class="ga-share">В таблицата: <b>Разширения → Apps Script</b> → изтрий каквото е вътре → постави кода долу → избери функцията <code>pactSetup</code> и натисни <b>Run</b> → одобри достъпа. Това се прави <b>веднъж</b>; след това всяка промяна по настройките тук важи веднага, без пипане на скрипта.</div>' +
+      '<div class="ga-share" style="color:var(--yellow)"><b>Ако скриптът е сложен преди 30.07.2026 — постави го наново.</b> Старата версия пращаше само първия ред като заглавен, а в плана отгоре стои заглавие, затова колоните излизаха като „Колона 5" и <b>нито една не се разпознаваше като важна</b>. Новата праща горните редове и сървърът сам намира заглавния ред.</div>' +
       '<div class="ga-row" style="margin-top:6px">' +
         '<input type="text" class="ga-input ga-input--board" id="shHookUrl" value="' + esc(d.hookUrl) + '" readonly>' +
         '<button class="btn btn-sm" onclick="shCopy(\'shHookUrl\')">📋 Копирай адреса</button>' +

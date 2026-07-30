@@ -123,9 +123,35 @@ function rowTitle(headers, values, row, titleCols) {
 }
 
 // Ключът е по ИМЕ, не по номер на ред: вмъкването на ред размества номерата.
+// Линковете и пунктуацията отпадат — в плана постоянно се дописва Drive линк към
+// името, а това е същото видео, не ново. Без това всяко дописване раждаше нова
+// нишка и ново съобщение в Basecamp.
+function stableTitleKey(title) {
+  return norm(title)
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[^a-zа-я0-9]+/gi, ' ')
+    .trim();
+}
+
 function threadKeyOf(title, row) {
-  const n = norm(title);
-  return n || `row:${row}`;
+  return stableTitleKey(title) || `row:${row}`;
+}
+
+// Заглавният ред НЕ е задължително първи — в постинг плановете отгоре стои
+// заглавие/шапка, а истинските колони идват по-долу. Избираме реда, който най-много
+// прилича на заглавен: съвпадение с търсените имена тежи най-много, иначе печели
+// редът с най-много попълнени клетки.
+function pickHeaderRow(topRows, needles) {
+  let best = { idx: 0, headers: [], score: -1 };
+  for (let i = 0; i < topRows.length; i++) {
+    const row = topRows[i] || [];
+    const filled = row.filter((v) => norm(v)).length;
+    if (!filled) continue;
+    const hits = row.filter((v) => matchesAny(v, needles)).length;
+    const score = hits * 10 + filled;
+    if (score > best.score) best = { idx: i, headers: row, score };
+  }
+  return { headers: best.headers, headerRow: best.idx + 1 };
 }
 
 function rowUrl(p) {
@@ -153,6 +179,9 @@ function sanitize(raw) {
       ? null : Number(p.gid),
     row: parseInt(p.row, 10) || 0,
     headers: arr(p.headers).slice(0, 100).map((h) => trunc(h)),
+    // Първите редове на шийта — сървърът сам избира кой е заглавният.
+    // Стар скрипт (v1) не ги праща; тогава се пада обратно на `headers`.
+    topRows: arr(p.topRows).slice(0, 8).map((r) => arr(r).slice(0, 100).map((v) => trunc(v))),
     rowValues: arr(p.rowValues).slice(0, 100).map((v) => trunc(v)),
     editor: trunc(p.editor),
     changes: arr(p.changes).slice(0, MAX_CHANGES).map((c) => ({
@@ -183,12 +212,18 @@ async function handleHit(raw) {
     return { ok: true, kind: 'new_sheet', ignored };
   }
 
-  if (!p.changes.length || p.row <= 1) return { ok: true, skipped: true };
+  // Кой ред е заглавният — и съответно откъде започват данните.
+  const needles = [...cfg.important, ...cfg.titleCols];
+  const hdr = p.topRows.length
+    ? pickHeaderRow(p.topRows, needles)
+    : { headers: p.headers, headerRow: 1 };
 
-  const title = rowTitle(p.headers, p.rowValues, p.row, cfg.titleCols);
+  if (!p.changes.length || p.row <= hdr.headerRow) return { ok: true, skipped: true };
+
+  const title = rowTitle(hdr.headers, p.rowValues, p.row, cfg.titleCols);
   const changes = [];
   for (const c of p.changes) {
-    const header = p.headers[c.col - 1] || `Колона ${c.col}`;
+    const header = hdr.headers[c.col - 1] || `Колона ${c.col}`;
     // Празно → празно (Sheets праща и такива при клик) не е промяна.
     if (norm(c.old) === norm(c.new)) continue;
     changes.push({ header, old: c.old, new: c.new, important: matchesAny(header, cfg.important) });
@@ -310,10 +345,20 @@ async function postChanges(p, changes) {
   const mentions = people.map((x) => mentionOf(x)).join(' ');
   const key = threadKeyOf(p.title, p.row);
 
-  const thread = await queryOne(
+  let thread = await queryOne(
     'SELECT * FROM sheet_alert_threads WHERE spreadsheet_id = $1 AND sheet_name = $2 AND row_key = $3',
     [p.spreadsheetId, p.sheetName, key]
   );
+  // Името се е сменило до неузнаваемост (пренаписано видео)? Хващаме нишката по
+  // реда, вместо да отваряме второ съобщение за същото видео.
+  if (!thread && p.row) {
+    thread = await queryOne(
+      `SELECT * FROM sheet_alert_threads
+       WHERE spreadsheet_id = $1 AND sheet_name = $2 AND last_row = $3 AND bc_message_id IS NOT NULL
+       ORDER BY updated_at DESC LIMIT 1`,
+      [p.spreadsheetId, p.sheetName, p.row]
+    );
+  }
 
   const rowLink = rowUrl(p);
   const body = changeLines(changes);
@@ -448,7 +493,7 @@ function pactOnEdit(e) {
     var rows = e.range.getNumRows();
     var cols = e.range.getNumColumns();
     if (rows * cols > 200) return;
-    var headers = pactHeaders(sh);
+    var top = pactTop(sh);
     var single = (rows === 1 && cols === 1);
     var values = single ? null : e.range.getDisplayValues();
     var editor = pactEditor(e);
@@ -468,8 +513,8 @@ function pactOnEdit(e) {
         sheetName: sh.getName(),
         gid: sh.getSheetId(),
         row: row,
-        headers: headers,
-        rowValues: pactRow(sh, row, headers.length),
+        topRows: top,
+        rowValues: pactRow(sh, row, top.length ? top[0].length : 0),
         changes: changes,
         editor: editor
       });
@@ -489,10 +534,13 @@ function pactOnChange(e) {
   }
 }
 
-function pactHeaders(sh) {
+// Първите редове на шийта. Пращаме няколко, защото заглавният ред невинаги е
+// първи (отгоре често стои заглавие на плана) — сървърът сам избира кой е.
+function pactTop(sh) {
   var last = sh.getLastColumn();
   if (last < 1) return [];
-  return sh.getRange(1, 1, 1, last).getDisplayValues()[0];
+  var n = Math.min(8, sh.getMaxRows());
+  return sh.getRange(1, 1, n, last).getDisplayValues();
 }
 
 function pactRow(sh, row, n) {
@@ -531,6 +579,7 @@ module.exports = {
   // за тестове
   rowTitle,
   threadKeyOf,
+  pickHeaderRow,
   matchesAny,
   isIgnored,
   sanitize,
