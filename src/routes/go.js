@@ -1,23 +1,32 @@
 // Публичен мост към Basecamp за линковете в Google Calendar.
 //
-// Проблемът: тапнат директен basecamp.com линк от календара на iPhone → iOS го подава на
-// нативното приложение (universal link), а то НЕ отваря отделна Card Table карта → „This page
-// couldn't be found". (Потвърдено с Венци, 16.07.2026.)
+// Защо изобщо съществува: тапнат ДИРЕКТЕН basecamp.com линк от календара на iPhone → iOS го
+// подава на нативното приложение (universal link), а то не отваря отделна Card Table карта →
+// „This page couldn't be found". (Потвърдено с Венци, 16.07.2026.) Затова линкът в календара
+// сочи ТУК (thepact.pro — не е basecamp домейн, така iOS не го прихваща) и оттук решаваме
+// накъде да го пуснем.
 //
-// Решението (вариант Б, избран от Венци): линкът в календара сочи ТУК (thepact.pro — не е
-// basecamp домейн, затова се отваря в БРАУЗЪРА, не в приложението). Оттук правим
-// `window.location.replace(...)` към точната карта. Ключово: universal links на iOS НЕ
-// сработват при JavaScript-пренасочване (само при потребителски тап върху basecamp линк),
-// затова браузърът зарежда самата карта, вместо да я подаде на приложението. Ако браузърът е
-// логнат в Basecamp — картата се отваря директно; ако не — Basecamp иска вход (еднократно).
+// Двата вида потребители се държат различно (30.07.2026):
 //
-// Десктоп работи по същия начин (пренасочва към картата в активната сесия). Без auth — тапва
-// се от календар без сесия към платформата.
+// ДЕСКТОП — авто-пренасочване към уеб, както досега (Венци: „работи перфектно"). Ключово:
+// прави се с `window.location.replace(...)`, защото universal links на iOS НЕ сработват при
+// JS навигация — така браузърът зарежда самата карта, вместо да я подаде на приложението.
+//
+// ТЕЛЕФОН — БЕЗ авто-пренасочване. Причината: браузърът на телефона няма Basecamp сесия, а
+// Basecamp връща `302 → launchpad.37signals.com/bc3/<id>/signin` БЕЗ return-параметър, тоест
+// след входа човекът остава на началната страница и картата се губи (проверено с curl,
+// 30.07.2026 — точно това докладва Венци). Нативното приложение обаче е вече логнато, а и
+// двата хоста обявяват `"/": "*"` в `apple-app-site-association` / `assetlinks.json`, т.е.
+// приложението е валидна цел за universal link към пътя на картата. Затова на телефон даваме
+// ИСТИНСКИ линк за тапване (universal link сработва само при потребителски тап) + резервен
+// бутон към браузъра за случаите, в които приложението не разпознае пътя.
 const express = require('express');
 const router = express.Router();
 
 // Класическият хост пази тъмната тема на акаунта; на уеб препраща напред при нужда.
 const WEB_HOST = 'https://3.basecamp.com/';
+// Каноничният хост на приложението — за тапа, който отваря нативното приложение.
+const APP_HOST = 'https://app.basecamp.com/';
 
 function escHtml(s) {
   return String(s == null ? '' : s)
@@ -31,8 +40,9 @@ router.get('/basecamp/*', (req, res) => {
   // Допускаме само безопасната форма на Basecamp път (без схема, без хост, без опасни знаци).
   const safePath = /^[\w/\-.]*$/.test(raw) ? raw : '';
   const webUrl = WEB_HOST + safePath;
+  const appUrl = APP_HOST + safePath;
 
-  const payload = JSON.stringify({ web: webUrl });
+  const payload = JSON.stringify({ web: webUrl, app: appUrl });
 
   res.set('Cache-Control', 'no-store');
   res.type('html').send(`<!DOCTYPE html>
@@ -51,6 +61,7 @@ router.get('/basecamp/*', (req, res) => {
   p { font-size: 15px; line-height: 1.5; color: #a9b3b6; margin: 0 0 24px; }
   a.btn { display: block; width: 100%; padding: 14px 18px; border-radius: 20px;
           font-size: 16px; font-weight: 700; text-decoration: none; background: #46a374; color: #fff; }
+  a.alt { display: inline-block; margin-top: 18px; font-size: 14px; color: #a9b3b6; text-decoration: underline; }
   .spin { width: 34px; height: 34px; margin: 0 auto 20px; border: 3px solid rgba(255,255,255,0.15);
           border-top-color: #46a374; border-radius: 50%; animation: r 0.8s linear infinite; }
   @keyframes r { to { transform: rotate(360deg); } }
@@ -63,33 +74,59 @@ router.get('/basecamp/*', (req, res) => {
     <h1 id="title">Отваряне на задачата…</h1>
     <p id="hint">Пренасочваме те към Basecamp.</p>
     <a class="btn hidden" id="openBtn" href="#">Отвори задачата</a>
+    <a class="alt hidden" id="altBtn" href="#"></a>
   </div>
 <script>
 (function () {
   var D = ${payload};
   if (!D.web) return;
 
+  var ua = navigator.userAgent || '';
+  var isMobile = /Android|iPhone|iPad|iPod/i.test(ua) ||
+                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS
+
+  var spin = document.getElementById('spin');
+  var title = document.getElementById('title');
+  var hint = document.getElementById('hint');
+  var openBtn = document.getElementById('openBtn');
+  var altBtn = document.getElementById('altBtn');
+
   // JS-пренасочване (НЕ тап върху basecamp домейн) → браузърът зарежда картата, вместо
   // iOS да я подаде на приложението (universal link не сработва при JS navigation).
-  function go() { window.location.replace(D.web); }
-  go();
+  function goWeb() { window.location.replace(D.web); }
 
-  // Резервен бутон, ако автоматичното пренасочване е блокирано — пак през JS (не href handoff),
-  // за да не подаде линка на приложението.
-  setTimeout(function () {
-    document.getElementById('spin').className = 'hidden';
-    document.getElementById('title').textContent = 'Отвори задачата в Basecamp';
-    document.getElementById('hint').textContent =
-      'Ако не се отвори автоматично, натисни бутона. (Трябва да си логнат в Basecamp в браузъра.)';
-    var b = document.getElementById('openBtn');
-    b.className = 'btn';
-    b.onclick = function (e) { e.preventDefault(); go(); };
-  }, 2000);
+  if (!isMobile) {
+    // ДЕСКТОП: авто-пренасочване към уеб (сесията там е активна).
+    goWeb();
+    setTimeout(function () {
+      spin.className = 'hidden';
+      title.textContent = 'Отвори задачата в Basecamp';
+      hint.textContent = 'Ако не се отвори автоматично, натисни бутона.';
+      openBtn.className = 'btn';
+      openBtn.onclick = function (e) { e.preventDefault(); goWeb(); };
+    }, 2000);
+    return;
+  }
+
+  // ТЕЛЕФОН: без авто-пренасочване. Тапът върху истински basecamp линк вдига universal link
+  // и отваря нативното приложение, което вече е логнато. (Авто-пренасочването към уеб
+  // изхвърля на началната страница, защото Basecamp иска вход без да пази пътя.)
+  spin.className = 'hidden';
+  title.textContent = 'Отвори задачата';
+  hint.textContent = 'В приложението Basecamp се отваря директно — вече си логнат там.';
+
+  openBtn.className = 'btn';
+  openBtn.textContent = 'Отвори в приложението Basecamp';
+  openBtn.setAttribute('href', D.app); // истински href → тапът вдига universal link / App Link
+
+  altBtn.className = 'alt';
+  altBtn.textContent = 'Отвори в браузъра вместо това';
+  altBtn.onclick = function (e) { e.preventDefault(); goWeb(); };
 })();
 </script>
 <noscript>
   <div class="box">
-    <a class="btn" href="${escHtml(webUrl)}">Отвори задачата в Basecamp</a>
+    <a class="btn" href="${escHtml(appUrl)}">Отвори задачата в Basecamp</a>
   </div>
 </noscript>
 </body>
