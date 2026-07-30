@@ -8,6 +8,7 @@ const router = express.Router();
 const { query, queryOne } = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { broadcast } = require('../ws/broadcast');
+const { parseClientKp } = require('../services/bc-aggregate');
 
 const TZ = 'Europe/Sofia';
 const STOP_REASONS = new Set(['user', 'pause', 'unload']);
@@ -288,15 +289,65 @@ function dateParam(v) {
   return /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null;
 }
 
-// GET /api/time/report?from&to — агрегати за периода (общо/хора/проекти/задачи/дни)
+const NO_CLIENT = 'Без клиент';
+
+// Времето се групира по ЗАГЛАВИЕ на задачата, а не по bc_recording_id.
+// Защо: картите се местят между дъски през „портал" на Basecamp и излизат от
+// другата страна с НОВО id — всичко, закачено за старото id, се разцепва на две.
+// Заглавието остава същото, затова ключът идва от него: малки букви, събрани
+// интервали, без крайни празни знаци.
+//
+// Ключът се смята в SQL, а не се пази в колона — така не може да се разсинхронизира
+// със заглавието (например при ръчна корекция през PATCH /api/time/entries/:id) и
+// цялата стара история се пресмята наново със задна дата, без миграция на данни.
+// Ако таблицата някога стане голяма, това се вдига в STORED колона с индекс.
+// bc_recording_id СЕ ПАЗИ като второстепенен признак (линк към Basecamp, филтър
+// по конкретна карта) — сменя се кой е водещият ключ, id-то не се маха.
+const TITLE_KEY = "lower(btrim(regexp_replace(e.title, '\\s+', ' ', 'g')))";
+
+// Клиент и КП идват от самото заглавие (конвенция „Cineland КП-18 - Видео 3 - …"),
+// защото всички карти на екипа живеят в един Basecamp проект и bc_project_id НЕ
+// различава клиентите. Затова се групира тук, върху вече сумираните по заглавие
+// редове — едно разчитане на заглавието дава и трите нива (клиент / КП / задача).
+function rollUp(byTitle) {
+  const clients = new Map();
+  const plans = new Map();
+  for (const t of byTitle) {
+    const secs = Number(t.seconds) || 0;
+    const parsed = parseClientKp(t.title);
+    const client = parsed ? parsed.client : NO_CLIENT;
+
+    if (!clients.has(client)) clients.set(client, { client, seconds: 0, tasks: 0, entries: 0 });
+    const c = clients.get(client);
+    c.seconds += secs;
+    c.tasks += 1;
+    c.entries += Number(t.entries) || 0;
+
+    if (parsed) {
+      const key = parsed.client + ' КП-' + parsed.kp;
+      if (!plans.has(key)) plans.set(key, { label: key, client: parsed.client, kp: parsed.kp, seconds: 0, tasks: 0 });
+      const p = plans.get(key);
+      p.seconds += secs;
+      p.tasks += 1;
+    }
+  }
+  const bySecs = (a, b) => b.seconds - a.seconds;
+  return {
+    byClient: [...clients.values()].sort(bySecs),
+    byKp: [...plans.values()].sort(bySecs)
+  };
+}
+
+// GET /api/time/report?from&to — агрегати за периода
+// (общо / хора / клиенти / КП / задачи по заглавие / Basecamp проекти / дни)
 router.get('/report', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const params = [dateParam(req.query.from), dateParam(req.query.to)];
-    const [totals, byUser, byProject, byTask, byDay] = await Promise.all([
+    const [totals, byUser, byProject, byTitle, byDay] = await Promise.all([
       queryOne(
         `SELECT COALESCE(SUM(${DUR}),0)::int AS seconds, COUNT(*)::int AS entries,
                 COUNT(DISTINCT e.user_id)::int AS users,
-                COUNT(DISTINCT e.bc_recording_id)::int AS tasks,
+                COUNT(DISTINCT ${TITLE_KEY})::int AS tasks,
                 COALESCE(SUM(CASE WHEN e.is_manual THEN ${DUR} ELSE 0 END),0)::int AS manual_seconds
            FROM time_entries e ${RANGE}`, params),
       query(
@@ -310,26 +361,78 @@ router.get('/report', requireAuth, requireAdmin, async (req, res, next) => {
                 COUNT(DISTINCT e.user_id)::int AS users, COUNT(*)::int AS entries
            FROM time_entries e LEFT JOIN bc_projects p ON p.project_id = e.bc_project_id ${RANGE}
           GROUP BY e.bc_project_id, p.name ORDER BY seconds DESC`, params),
+      // Задачите се групират по нормализирано заглавие, не по карта — така времето
+      // по една и съща задача остава събрано, дори картата да е минала през портал
+      // и да е излязла с ново id. cards показва през колко различни карти е минала
+      // задачата, bc_recording_id е само за линка/филтъра.
       query(
-        `SELECT e.bc_recording_id, MAX(e.title) AS title, e.bc_project_id,
-                COALESCE(p.name, '') AS project_name,
-                COALESCE(SUM(${DUR}),0)::int AS seconds, COUNT(DISTINCT e.user_id)::int AS users
+        `SELECT ${TITLE_KEY} AS title_key, MAX(e.title) AS title,
+                COALESCE(SUM(${DUR}),0)::int AS seconds,
+                COUNT(DISTINCT e.user_id)::int AS users, COUNT(*)::int AS entries,
+                COUNT(DISTINCT e.bc_recording_id)::int AS cards,
+                MAX(e.bc_recording_id) AS bc_recording_id,
+                MAX(COALESCE(p.name, '')) AS project_name
            FROM time_entries e LEFT JOIN bc_projects p ON p.project_id = e.bc_project_id ${RANGE}
-          GROUP BY e.bc_recording_id, e.bc_project_id, p.name ORDER BY seconds DESC LIMIT 200`, params),
+          GROUP BY ${TITLE_KEY} ORDER BY seconds DESC`, params),
       query(
         `SELECT ((e.started_at AT TIME ZONE '${TZ}')::date)::text AS day, COALESCE(SUM(${DUR}),0)::int AS seconds
            FROM time_entries e ${RANGE} GROUP BY day ORDER BY day`, params)
     ]);
-    res.json({ totals, byUser, byProject, byTask, byDay });
+    const { byClient, byKp } = rollUp(byTitle);
+    res.json({
+      totals, byUser, byClient, byKp, byProject, byDay,
+      byTask: byTitle.slice(0, 200),
+      tasksTotal: byTitle.length
+    });
   } catch (err) { next(err); }
 });
 
-// GET /api/time/report/entries?from&to&user_id&project_id&recording_id — записите поединично
+// Кои title_key-ове в периода принадлежат на даден клиент / КП. Ползва същия
+// parseClientKp като отчета, за да няма два различни начина за разчитане на
+// заглавието (иначе филтърът и сумите биха се разминали).
+async function titleKeysFor(from, to, client, kp) {
+  const rows = await query(
+    `SELECT ${TITLE_KEY} AS title_key, MAX(e.title) AS title
+       FROM time_entries e ${RANGE} GROUP BY ${TITLE_KEY}`,
+    [from, to]
+  );
+  const keys = [];
+  for (const r of rows) {
+    const parsed = parseClientKp(r.title);
+    if (client === NO_CLIENT) {
+      if (!parsed) keys.push(r.title_key);
+      continue;
+    }
+    if (!parsed) continue;
+    if (client && parsed.client.toLowerCase() !== client.toLowerCase()) continue;
+    if (kp !== null && parsed.kp !== kp) continue;
+    keys.push(r.title_key);
+  }
+  return keys;
+}
+
+// GET /api/time/report/entries?from&to&user_id&project_id&recording_id&title_key&client&kp
 router.get('/report/entries', requireAuth, requireAdmin, async (req, res, next) => {
   try {
+    const from = dateParam(req.query.from);
+    const to = dateParam(req.query.to);
     const userId = parseInt(req.query.user_id) || null;
     const projectId = String(req.query.project_id || '').replace(/\D/g, '') || null;
     const recordingId = String(req.query.recording_id || '').replace(/\D/g, '') || null;
+
+    // Задачата се филтрира по нормализирано заглавие, не по карта — виж TITLE_KEY.
+    // Ключовете идват от самия SQL (от /report), затова двете страни винаги съвпадат.
+    let titleKeys = null;
+    const oneKey = String(req.query.title_key || '').trim();
+    const client = String(req.query.client || '').trim();
+    const kpRaw = String(req.query.kp || '').trim();
+    if (oneKey) {
+      titleKeys = [oneKey];
+    } else if (client) {
+      titleKeys = await titleKeysFor(from, to, client, kpRaw ? parseInt(kpRaw, 10) : null);
+      if (!titleKeys.length) return res.json([]);
+    }
+
     const rows = await query(
       `SELECT e.*, u.name AS user_name, COALESCE(p.name, '') AS project_name
          FROM time_entries e
@@ -339,8 +442,9 @@ router.get('/report/entries', requireAuth, requireAdmin, async (req, res, next) 
           AND ($3::int IS NULL OR e.user_id = $3::int)
           AND ($4::bigint IS NULL OR e.bc_project_id = $4::bigint)
           AND ($5::bigint IS NULL OR e.bc_recording_id = $5::bigint)
+          AND ($6::text[] IS NULL OR ${TITLE_KEY} = ANY($6::text[]))
         ORDER BY e.started_at DESC LIMIT 1000`,
-      [dateParam(req.query.from), dateParam(req.query.to), userId, projectId, recordingId]
+      [from, to, userId, projectId, recordingId, titleKeys]
     );
     res.json(rows.map((r) => Object.assign(entryPublic(r), { projectName: r.project_name })));
   } catch (err) { next(err); }

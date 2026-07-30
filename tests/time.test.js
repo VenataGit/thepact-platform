@@ -247,3 +247,121 @@ describe('POST /api/time/manual', () => {
     expect(res.body).toHaveProperty('isManual', true);
   });
 });
+
+// Времето се групира по ЗАГЛАВИЕ, не по bc_recording_id (картите сменят id при
+// местене между дъски през портал). Клиентът и КП-то се разчитат от заглавието.
+describe('GET /api/time/report — групиране по заглавие', () => {
+  const titleRows = [
+    {
+      title_key: 'cineland кп-18 - видео 3 - монтаж',
+      title: 'Cineland КП-18 - Видео 3 - Монтаж',
+      seconds: 3600, users: 1, entries: 2, cards: 2,
+      bc_recording_id: '999', project_name: 'Video Production'
+    },
+    {
+      title_key: 'cineland кп-18 - видео 4 - заснемане',
+      title: 'Cineland КП-18 - Видео 4 - Заснемане',
+      seconds: 1800, users: 1, entries: 1, cards: 1,
+      bc_recording_id: '1000', project_name: 'Video Production'
+    },
+    {
+      title_key: 'вътрешна задача',
+      title: 'Вътрешна задача',
+      seconds: 1200, users: 1, entries: 1, cards: 1,
+      bc_recording_id: null, project_name: ''
+    }
+  ];
+
+  const mockReport = () => {
+    mockDb.queryOne.mockResolvedValueOnce({ seconds: 6600, entries: 4, users: 2, tasks: 3, manual_seconds: 0 });
+    mockDb.query
+      .mockResolvedValueOnce([])         // byUser
+      .mockResolvedValueOnce([])         // byProject
+      .mockResolvedValueOnce(titleRows)  // задачите по заглавие
+      .mockResolvedValueOnce([]);        // byDay
+  };
+
+  it('изисква админ', async () => {
+    const res = await request(app).get('/api/time/report').set('Cookie', memberCookie);
+    expect(res.status).toBe(403);
+  });
+
+  it('сумира по клиент, вкл. „Без клиент" за заглавия без КП', async () => {
+    mockReport();
+    const res = await request(app)
+      .get('/api/time/report?from=2026-07-01&to=2026-07-31')
+      .set('Cookie', adminCookie);
+    expect(res.status).toBe(200);
+    expect(res.body.byClient).toEqual([
+      { client: 'Cineland', seconds: 5400, tasks: 2, entries: 3 },
+      { client: 'Без клиент', seconds: 1200, tasks: 1, entries: 1 }
+    ]);
+  });
+
+  it('сумира по контент план', async () => {
+    mockReport();
+    const res = await request(app).get('/api/time/report').set('Cookie', adminCookie);
+    expect(res.body.byKp).toHaveLength(1);
+    expect(res.body.byKp[0]).toMatchObject({
+      label: 'Cineland КП-18', client: 'Cineland', kp: 18, seconds: 5400, tasks: 2
+    });
+  });
+
+  it('задача, минала през две карти, е един ред с cards: 2', async () => {
+    mockReport();
+    const res = await request(app).get('/api/time/report').set('Cookie', adminCookie);
+    expect(res.body.byTask[0]).toMatchObject({ cards: 2, seconds: 3600 });
+    expect(res.body.tasksTotal).toBe(3);
+  });
+
+  it('групира по нормализирано заглавие, а не по bc_recording_id', async () => {
+    mockReport();
+    await request(app).get('/api/time/report').set('Cookie', adminCookie);
+    const taskSql = mockDb.query.mock.calls[2][0];
+    expect(taskSql).toMatch(/GROUP BY lower\(btrim\(regexp_replace\(e\.title/);
+    expect(taskSql).not.toMatch(/GROUP BY e\.bc_recording_id/);
+  });
+});
+
+describe('GET /api/time/report/entries — филтър по клиент / КП', () => {
+  const keyRows = [
+    { title_key: 'cineland кп-18 - видео 3 - монтаж', title: 'Cineland КП-18 - Видео 3 - Монтаж' },
+    { title_key: 'cineland кп-19 - видео 1 - монтаж', title: 'Cineland КП-19 - Видео 1 - Монтаж' },
+    { title_key: 'друг клиент кп-2 - видео 1', title: 'Друг Клиент КП-2 - Видео 1' },
+    { title_key: 'вътрешна задача', title: 'Вътрешна задача' }
+  ];
+
+  it('клиентът се превежда до своите заглавия и чуждите не влизат', async () => {
+    mockDb.query.mockResolvedValueOnce(keyRows).mockResolvedValueOnce([]);
+    const res = await request(app)
+      .get('/api/time/report/entries?client=Cineland')
+      .set('Cookie', adminCookie);
+    expect(res.status).toBe(200);
+    expect(mockDb.query.mock.calls[1][1][5]).toEqual([
+      'cineland кп-18 - видео 3 - монтаж',
+      'cineland кп-19 - видео 1 - монтаж'
+    ]);
+  });
+
+  it('клиент + КП стеснява до един контент план', async () => {
+    mockDb.query.mockResolvedValueOnce(keyRows).mockResolvedValueOnce([]);
+    await request(app)
+      .get('/api/time/report/entries?client=Cineland&kp=19')
+      .set('Cookie', adminCookie);
+    expect(mockDb.query.mock.calls[1][1][5]).toEqual(['cineland кп-19 - видео 1 - монтаж']);
+  });
+
+  it('„Без клиент" хваща само заглавията без КП', async () => {
+    mockDb.query.mockResolvedValueOnce(keyRows).mockResolvedValueOnce([]);
+    await request(app)
+      .get('/api/time/report/entries?client=' + encodeURIComponent('Без клиент'))
+      .set('Cookie', adminCookie);
+    expect(mockDb.query.mock.calls[1][1][5]).toEqual(['вътрешна задача']);
+  });
+
+  it('без филтър по задача не се подава списък заглавия', async () => {
+    mockDb.query.mockResolvedValueOnce([]);
+    await request(app).get('/api/time/report/entries').set('Cookie', adminCookie);
+    expect(mockDb.query.mock.calls[0][1][5]).toBeNull();
+  });
+});

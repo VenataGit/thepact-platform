@@ -1,8 +1,11 @@
 // ==================== ОТЧЕТ „ВРЕМЕ" (само за админ) ====================
 // Детайлни разбивки на изработеното време от The Pact Tools таймерите:
-// общо / по хора / по клиенти (Basecamp проекти) / по задачи / по дни,
-// живо „кой работи сега" и списък на записите поединично + CSV. Данните
-// идват от /api/time/report* (requireAdmin на API ниво).
+// общо / по хора / по клиенти / по КП / по задачи / по дни, живо „кой работи
+// сега" и списък на записите поединично + CSV. Данните идват от
+// /api/time/report* (requireAdmin на API ниво).
+// Задачите се групират по ЗАГЛАВИЕ, не по id на карта — картите сменят id при
+// местене между дъски. Клиентът и КП-то също се разчитат от заглавието.
+// Виж TITLE_KEY в src/routes/time.js.
 
 let _trState = { from: null, to: null, filter: null, data: null };
 
@@ -65,7 +68,11 @@ async function renderTimeReport(el) {
       <div class="tr-tiles" id="trTiles"></div>
       <div class="tr-grid">
         <div class="tr-box"><h3>По хора</h3><div id="trByUser"></div></div>
-        <div class="tr-box"><h3>По клиенти / проекти</h3><div id="trByProject"></div></div>
+        <div class="tr-box"><h3>По клиенти</h3><div id="trByClient"></div></div>
+      </div>
+      <div class="tr-grid">
+        <div class="tr-box"><h3>По контент план (КП)</h3><div id="trByKp"></div></div>
+        <div class="tr-box"><h3>По Basecamp проекти</h3><div id="trByProject"></div></div>
       </div>
       <div class="tr-box"><h3>По дни</h3><div id="trByDay" class="tr-days"></div></div>
       <div class="tr-box"><h3 id="trTasksTitle">Топ задачи</h3><div id="trByTask"></div></div>
@@ -148,6 +155,28 @@ async function trLoadReport() {
     trLoadEntries();
   }));
 
+  // Клиентът и КП-то идват от заглавието на задачата (не от Basecamp проекта —
+  // всички карти са в един проект). Виж миграция 052 / rollUp() в routes/time.js.
+  const byClientHost = document.getElementById('trByClient');
+  byClientHost.innerHTML = bars(data.byClient,
+    (c) => esc(c.client) + ' <span class="tr-dim">(' + c.tasks + ' задачи)</span>',
+    (c) => Number(c.seconds));
+  byClientHost.querySelectorAll('.tr-row').forEach((row) => row.addEventListener('click', () => {
+    const c = data.byClient[Number(row.dataset.i)];
+    _trState.filter = { client: c.client, label: 'клиент: ' + c.client };
+    trLoadEntries();
+  }));
+
+  const byKpHost = document.getElementById('trByKp');
+  byKpHost.innerHTML = bars(data.byKp,
+    (p) => esc(p.label) + ' <span class="tr-dim">(' + p.tasks + ' задачи)</span>',
+    (p) => Number(p.seconds));
+  byKpHost.querySelectorAll('.tr-row').forEach((row) => row.addEventListener('click', () => {
+    const p = data.byKp[Number(row.dataset.i)];
+    _trState.filter = { client: p.client, kp: p.kp, label: p.label };
+    trLoadEntries();
+  }));
+
   const byProjHost = document.getElementById('trByProject');
   byProjHost.innerHTML = bars(data.byProject,
     (p) => esc(p.project_name) + ' <span class="tr-dim">(' + p.users + ' души)</span>',
@@ -167,16 +196,28 @@ async function trLoadReport() {
       '</div>').join('')
     : '<div class="tr-empty">Няма данни за периода.</div>';
 
+  // Задачите са групирани по заглавие, затова една и съща задача остава един ред,
+  // дори картата да е минала през портал и да е сменила id. „Карти: 2" значи точно
+  // това — времето от двете карти е събрано обратно заедно.
   const tasks = data.byTask || [];
+  const tasksTitle = document.getElementById('trTasksTitle');
+  if (tasksTitle) {
+    tasksTitle.textContent = 'Топ задачи (по заглавие)' +
+      (data.tasksTotal > tasks.length ? ' — показани ' + tasks.length + ' от ' + data.tasksTotal : '');
+  }
   document.getElementById('trByTask').innerHTML = tasks.length
-    ? '<table class="admin-table tr-table"><thead><tr><th>Задача</th><th>Проект</th><th>Души</th><th style="text-align:right">Време</th></tr></thead><tbody>' +
+    ? '<table class="admin-table tr-table"><thead><tr><th>Задача</th><th>Проект</th><th>Карти</th><th>Души</th><th style="text-align:right">Време</th></tr></thead><tbody>' +
       tasks.map((x, i) => '<tr class="tr-task" data-i="' + i + '"><td>' + esc(x.title || '(без заглавие)') + '</td><td>' +
-        esc(x.project_name || '') + '</td><td>' + x.users + '</td><td style="text-align:right"><b>' + trFmtDur(x.seconds) + '</b></td></tr>').join('') +
+        esc(x.project_name || '') + '</td><td>' +
+        (Number(x.cards) > 1
+          ? '<span class="tr-dim" title="Задачата е минала през ' + x.cards + ' различни карти — времето е събрано по заглавие">' + x.cards + ' ⧉</span>'
+          : '1') +
+        '</td><td>' + x.users + '</td><td style="text-align:right"><b>' + trFmtDur(x.seconds) + '</b></td></tr>').join('') +
       '</tbody></table>'
     : '<div class="tr-empty">Няма данни за периода.</div>';
   document.querySelectorAll('.tr-task').forEach((row) => row.addEventListener('click', () => {
     const x = tasks[Number(row.dataset.i)];
-    _trState.filter = { recording_id: x.bc_recording_id, label: 'задача: ' + (x.title || x.bc_recording_id) };
+    _trState.filter = { title_key: x.title_key, label: 'задача: ' + (x.title || x.title_key) };
     trLoadEntries();
   }));
 }
@@ -187,6 +228,9 @@ function trEntriesQuery() {
   if (f.user_id) q += '&user_id=' + f.user_id;
   if (f.project_id) q += '&project_id=' + f.project_id;
   if (f.recording_id) q += '&recording_id=' + f.recording_id;
+  if (f.title_key) q += '&title_key=' + encodeURIComponent(f.title_key);
+  if (f.client) q += '&client=' + encodeURIComponent(f.client);
+  if (f.kp) q += '&kp=' + f.kp;
   return q;
 }
 
