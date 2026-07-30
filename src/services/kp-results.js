@@ -320,11 +320,13 @@ async function runResultsCheck({ dryRun = false } = {}) {
   try {
     const cfg = await loadConfig();
     if (!cfg.enabled && !dryRun) return { skipped: 'disabled' };
+    // Прегледът само смята — бордът му е излишен, за да може да се види какво
+    // излиза още преди нещо да е настроено.
     if (!cfg.project || !cfg.board) {
-      const msg = 'Няма зададен Message Board за известията.';
-      if (dryRun) throw new Error(msg);
-      console.warn('[kp-results]', msg);
-      return { skipped: 'no-board' };
+      if (!dryRun) {
+        console.warn('[kp-results] Няма зададен Message Board за известията.');
+        return { skipped: 'no-board' };
+      }
     }
 
     const auth = await getServiceAuth();
