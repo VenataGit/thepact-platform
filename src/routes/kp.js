@@ -339,6 +339,10 @@ router.post('/bc-test', requireAuth, requireAdmin, async (req, res) => {
       column: dest.columnTitle,
       titleExample: kpc.renderKpTitle(cfg, 'Клиент', 5),
       dueDays: cfg.dueDays,
+      checkScope: cfg.checkScope,
+      readyColumn: dest.readyColumnTitle,
+      // Колоните, в които главна КП карта задържа следващия план.
+      blockingColumns: (dest.blockingColumnIds || []).map((id) => dest.columnTitles[id]).filter(Boolean),
     });
   } catch (err) {
     res.status(200).json({ ok: false, error: err.message });

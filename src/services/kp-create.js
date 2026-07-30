@@ -44,7 +44,7 @@ async function loadKpConfig() {
   const rows = await query(
     `SELECT key, value FROM settings WHERE key IN (
       'kp_bc_enabled','kp_bc_board_id','kp_bc_column_id','kp_bc_title_template',
-      'kp_bc_due_days','kp_bc_notify','kp_bc_actor','kp_bc_check_scope',
+      'kp_bc_due_days','kp_bc_notify','kp_bc_actor','kp_bc_check_scope','kp_bc_ready_column_id',
       'kp_auto_create_enabled','kp_auto_create_time','kp_auto_create_weekends',
       'kp_default_videos','kp_calendar_window','kp_days_before_next_kp',
       'kp_izmislyane_column_id','kp_days_brainstorm'
@@ -67,7 +67,13 @@ async function loadKpConfig() {
     dueDays: s.kp_bc_due_days === '' ? null : intOr(s.kp_bc_due_days, 10),
     notify: s.kp_bc_notify === 'true',
     actor: s.kp_bc_actor === 'bot' ? 'bot' : 'user', // кой създава при ръчно пускане
-    checkScope: s.kp_bc_check_scope === 'board' ? 'board' : 'column',
+    // Кога клиентът се счита за „зает" с текущия КП:
+    //   'ready'  (по подразбиране) — докато главната карта е ПРЕДИ колоната „В продукция";
+    //            стигне ли я, готови сме за следващия план, без значение колко по-рано е
+    //   'column' — само докато е в колоната за създаване (напр. Измисляне)
+    //   'board'  — докато е някъде на дъската извън Done (старото поведение)
+    checkScope: ['column', 'board'].includes(s.kp_bc_check_scope) ? s.kp_bc_check_scope : 'ready',
+    readyColumnId: s.kp_bc_ready_column_id || null, // null = авто по име („В продукция")
     autoEnabled: s.kp_auto_create_enabled !== 'false',
     autoTime: /^\d{1,2}:\d{2}$/.test(s.kp_auto_create_time || '') ? s.kp_auto_create_time : '08:00',
     autoWeekends: s.kp_auto_create_weekends === 'true',
@@ -169,6 +175,28 @@ function kpTitlePrefix(cfg, clientName) {
   return tpl.replace(/\{клиент\}|\{client\}/gi, clientName).trim();
 }
 
+function escRe(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Регекс, който хваща САМО ГЛАВНАТА КП карта на клиента ("Credissimo КП-11") —
+// заглавието по шаблона и нищо след номера.
+//
+// Защо: досега се търсеше само по префикса ("Credissimo КП-"), а на него отговарят
+// и картите за отделните видеа ("Credissimo КП-11 - Видео 1 - …", които kp-split
+// произвежда). Едно върнато за корекции видео от стар КП държеше клиента „зает"
+// и следващият контент план никога не се пускаше, макар главната карта отдавна да
+// е в Done (Credissimo, 30.07.2026).
+function kpMainTitleRegex(cfg, clientName) {
+  const tpl = cfg.titleTemplate || KP_DEFAULT_TITLE_TEMPLATE;
+  const numToken = tpl.match(/\{номер\}|\{n\}|\{number\}/i);
+  const fillClient = (s) => s.replace(/\{клиент\}|\{client\}/gi, clientName).trim();
+  if (!numToken) return new RegExp('^\\s*' + escRe(fillClient(tpl)) + '\\s*$', 'i');
+  const before = fillClient(tpl.slice(0, numToken.index));
+  const after = fillClient(tpl.slice(numToken.index + numToken[0].length));
+  return new RegExp('^\\s*' + escRe(before) + '\\s*\\d+\\s*' + escRe(after) + '\\s*$', 'i');
+}
+
 // Plain text of the КП card from the admin templates.
 function buildKpContentText(cfg, client, kpNumber, publishDatesBg) {
   const videoCount = publishDatesBg.length;
@@ -262,37 +290,75 @@ async function resolveKpDestination(auth, cfg) {
     if (!column) throw new Error(`Дъската „${board.title}" няма подходяща колона за КП картите.`);
   }
 
+  const cols = board.columns || [];
+
+  // Колоната „готови сме за следващия план" (по подразбиране „В продукция").
+  // Стигне ли главната КП карта дотук, планът е приет и екипът може да започне да
+  // мисли следващия — затова колоните ПРЕДИ нея са тези, които държат клиента зает.
+  let readyColumn = null;
+  if (cfg.readyColumnId) readyColumn = cols.find((c) => String(c.id) === String(cfg.readyColumnId)) || null;
+  if (!readyColumn) readyColumn = cols.find((c) => /продукц/i.test(c.title || '') && !c.isDone) || null;
+
+  const readyIdx = readyColumn ? cols.findIndex((c) => String(c.id) === String(readyColumn.id)) : -1;
+  // readyIdx <= 0 значи „не е намерена смислена колона" (или е първата на дъската) →
+  // няма как да има колони преди нея, оставяме списъка празен и се пада на старото.
+  const blockingColumnIds = readyIdx > 0
+    ? cols.slice(0, readyIdx).filter((c) => !c.isDone).map((c) => String(c.id))
+    : [];
+
   return {
     projectId: struct.projectId,
     boardId: board.id,
     boardTitle: board.title,
     columnId: column.id,
     columnTitle: column.title,
-    doneColumnIds: (board.columns || []).filter((c) => c.isDone).map((c) => String(c.id)),
+    doneColumnIds: cols.filter((c) => c.isDone).map((c) => String(c.id)),
+    readyColumnId: readyColumn ? readyColumn.id : null,
+    readyColumnTitle: readyColumn ? readyColumn.title : null,
+    blockingColumnIds,
+    // loadBoardCards връща колоните само с id — заглавията идват оттук (същия кеш),
+    // за да можем да кажем В КОЯ колона стои главната карта.
+    columnTitles: Object.fromEntries(cols.map((c) => [String(c.id), c.title || ''])),
   };
 }
 
+// Кои колони държат клиента „зает" според cfg.checkScope.
+function isBlockingColumn(cfg, dest, columnId) {
+  const id = String(columnId);
+  if (cfg.checkScope === 'column') return id === String(dest.columnId);
+  if (cfg.checkScope === 'board') return !dest.doneColumnIds.includes(id);
+  // 'ready': колоните преди „В продукция". Ако такава колона няма на дъската,
+  // падаме на старото поведение, за да не пуснем КП върху активен план.
+  if (dest.blockingColumnIds && dest.blockingColumnIds.length) return dest.blockingColumnIds.includes(id);
+  return !dest.doneColumnIds.includes(id);
+}
+
 // Existing КП cards in the destination, one Basecamp fetch for ALL clients.
-// Returns Map(lowercased client name -> { id, title, url }) for clients that
-// already have an active КП card (matched by the title prefix from the template).
+// Returns Map(lowercased client name -> { id, title, url, columnId, columnTitle })
+// за клиентите, чиято ГЛАВНА КП карта още държи текущия план отворен.
+// Картите за отделните видеа не се броят — виж kpMainTitleRegex.
 async function findExistingKpCards(auth, cfg, dest, clients) {
   const data = await agg.loadBoardCards(auth.token, auth.account, dest.boardId);
+  const titles = dest.columnTitles || {};
   const cards = [];
   for (const col of data.columns || []) {
-    const inScope = cfg.checkScope === 'board'
-      ? !dest.doneColumnIds.includes(String(col.id))
-      : String(col.id) === String(dest.columnId);
-    if (!inScope) continue;
+    if (!isBlockingColumn(cfg, dest, col.id)) continue;
+    const title = titles[String(col.id)] || '';
     for (const c of [...(col.cards || []), ...(col.onHoldCards || [])]) {
-      if (!c.completed) cards.push(c);
+      if (!c.completed) cards.push({ ...c, columnId: col.id, columnTitle: title });
     }
   }
   const found = new Map();
   for (const client of clients) {
-    const prefix = kpTitlePrefix(cfg, client.name).toLowerCase();
-    if (!prefix) continue;
-    const hit = cards.find((c) => (c.title || '').trim().toLowerCase().startsWith(prefix));
-    if (hit) found.set(client.name.toLowerCase(), { id: hit.id, title: hit.title, url: hit.url });
+    if (!client.name) continue;
+    const mainRe = kpMainTitleRegex(cfg, client.name);
+    const hit = cards.find((c) => mainRe.test(String(c.title || '')));
+    if (hit) {
+      found.set(client.name.toLowerCase(), {
+        id: hit.id, title: hit.title, url: hit.url,
+        columnId: hit.columnId, columnTitle: hit.columnTitle,
+      });
+    }
   }
   return found;
 }
@@ -391,6 +457,8 @@ module.exports = {
   distributePublishDates,
   renderKpTitle,
   kpTitlePrefix,
+  kpMainTitleRegex,
+  isBlockingColumn,
   buildKpContentText,
   textToHtml,
   textToBcHtml,

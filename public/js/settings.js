@@ -701,6 +701,19 @@ function kpAdmColOpts(boardId, sel) {
   return opts;
 }
 
+// Колоната „готово за продукция" — същите колони, но с авто-разпознаване по име.
+function kpAdmReadyColOpts(boardId, sel) {
+  var board = (_kpAdm.boards || []).find(function (b) { return String(b.id) === String(boardId); });
+  if (!board) board = (_kpAdm.boards || []).find(function (b) { return /pre[\s-]*produc|предпрод/i.test(b.title || '') && !/post|пост/i.test(b.title || ''); });
+  var cols = (board && board.columns) || [];
+  var auto = cols.find(function (c) { return /продукц/i.test(c.title || '') && !c.isDone; });
+  var opts = '<option value=""' + (!sel ? ' selected' : '') + '>— авто: ' + esc(auto ? auto.title : 'В продукция') + ' —</option>';
+  cols.forEach(function (c) {
+    opts += '<option value="' + esc(c.id) + '"' + (String(sel) === String(c.id) ? ' selected' : '') + '>' + esc(c.title) + (c.isDone ? ' (Done)' : '') + '</option>';
+  });
+  return opts;
+}
+
 function kpAdminRender() {
   var host = document.getElementById('sgBody');
   if (!host || !_kpAdm) return;
@@ -735,13 +748,21 @@ function kpAdminRender() {
           '<option value="bot"' + (s.kp_bc_actor === 'bot' ? ' selected' : '') + '>Бота ThePactAlerts</option>' +
         '</select>' +
         '<span class="sg-kp-note">Авто-графикът винаги действа като бота.</span></label>' +
-      '<label class="sg-kp-field"><span class="sg-kp-label">Следващ КП се пуска, щом предишният напусне</span>' +
-        '<select class="ga-select sg-kp-select" onchange="kpAdmSave(\'kp_bc_check_scope\', this.value)">' +
-          '<option value="column"' + (s.kp_bc_check_scope !== 'board' ? ' selected' : '') + '>колоната (напр. Измисляне)</option>' +
-          '<option value="board"' + (s.kp_bc_check_scope === 'board' ? ' selected' : '') + '>целия борд (без Done)</option>' +
+      '<label class="sg-kp-field"><span class="sg-kp-label">Следващ КП се пуска, щом главната карта стигне</span>' +
+        '<select class="ga-select sg-kp-select" onchange="kpAdmSave(\'kp_bc_check_scope\', this.value, true)">' +
+          '<option value="ready"' + (s.kp_bc_check_scope !== 'board' && s.kp_bc_check_scope !== 'column' ? ' selected' : '') + '>колоната „готово за продукция"</option>' +
+          '<option value="column"' + (s.kp_bc_check_scope === 'column' ? ' selected' : '') + '>щом напусне колоната за създаване</option>' +
+          '<option value="board"' + (s.kp_bc_check_scope === 'board' ? ' selected' : '') + '>щом излезе от целия борд (Done)</option>' +
         '</select>' +
-        '<span class="sg-kp-note">Така се разпознава „клиентът вече има активен КП".</span></label>' +
+        '<span class="sg-kp-note">Брои се само <strong>главната</strong> КП карта („{клиент} КП-11"); картите за отделните видеа не задържат следващия план.</span></label>' +
     '</div>' +
+    (s.kp_bc_check_scope !== 'board' && s.kp_bc_check_scope !== 'column' && !_kpAdm.bcError
+      ? '<div class="sg-kp-grid">' +
+          '<label class="sg-kp-field"><span class="sg-kp-label">Колона „готово за продукция"</span>' +
+            '<select class="ga-select sg-kp-select" onchange="kpAdmSave(\'kp_bc_ready_column_id\', this.value)">' + kpAdmReadyColOpts(s.kp_bc_board_id, s.kp_bc_ready_column_id) + '</select>' +
+            '<span class="sg-kp-note">Стигне ли главната карта дотук, планът е приет и следващият се пуска веднага — без значение колко дни по-рано е.</span></label>' +
+        '</div>'
+      : '') +
     '<div class="ga-row">' +
       '<label class="ga-toggle"><input type="checkbox" ' + (s.kp_bc_notify === 'true' ? 'checked' : '') + ' onchange="kpAdmSave(\'kp_bc_notify\', this.checked ? \'true\' : \'false\')"> Basecamp известие при създаване</label>' +
       '<span class="ga-dim">изключено = картата се появява тихо</span>' +
@@ -906,9 +927,15 @@ async function kpAdmTest(btn) {
     var res = await fetch('/api/kp/bc-test', { method: 'POST' });
     var j = await res.json();
     if (j.ok) {
+      var scopeTxt = '';
+      if (j.checkScope === 'ready') {
+        scopeTxt = j.blockingColumns && j.blockingColumns.length
+          ? ' · следващ КП, щом главната карта напусне: ' + j.blockingColumns.join(' / ')
+          : ' · ⚠ няма колона „В продукция" на дъската — брои се целият борд';
+      }
       showToast('✓ КП картите отиват в: ' + j.board + ' → ' + j.column +
         (j.dueDays != null ? ' · срок ' + j.dueDays + ' раб. дни преди 1-то видео' : ' · без срок') +
-        ' · пример: „' + j.titleExample + '"', 'success', 8000);
+        scopeTxt + ' · пример: „' + j.titleExample + '"', 'success', 10000);
     } else {
       showToast('⚠ ' + (j.error || 'Неуспешна проверка'), 'error', 8000);
     }

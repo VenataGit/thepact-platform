@@ -103,16 +103,19 @@ async function runKpAutoCreate() {
           const autoDate = kpc.subtractWorkingDaysSimple(nkd, cfg.daysBeforeNextKp);
           if (today >= autoDate) {
             shouldCreate = true;
-            reason = `scheduled (${cfg.daysBeforeNextKp} working days before ${nkd.toISOString().split('T')[0]})`;
+            reason = `по график (${cfg.daysBeforeNextKp} работни дни преди ${nkd.toISOString().split('T')[0]})`;
           }
         }
       }
 
-      // Early creation: no active card at the destination at all → create now
-      // (handles the case where the previous KP was finished early).
+      // Няма активна ГЛАВНА КП карта преди „В продукция" → пускаме следващия план
+      // веднага, без значение колко дни по-рано е (Венци, 30.07.2026): щом планът е
+      // минал напред, екипът може да мисли следващия, вместо да чака срока.
       if (!shouldCreate && client.next_kp_date) {
         shouldCreate = true;
-        reason = 'early (няма активна КП карта, предишният КП вероятно е приключен)';
+        reason = dest && dest.readyColumnTitle
+          ? `по-рано (главната КП карта е стигнала „${dest.readyColumnTitle}" или е приключена — готови сме за следващия)`
+          : 'по-рано (няма активна главна КП карта, предишният план вероятно е приключен)';
       }
 
       if (!shouldCreate) continue;
