@@ -168,7 +168,7 @@ async function renderNotifications(el) {
       const senderName = n.sender_name || '';
       const savUrl = _findAvatar(senderName);
       const link = n.reference_type === 'card' ? '#/card/' + n.reference_id
-                 : n.reference_type === 'crm' ? '#/crm' + (n.reference_id ? '?deal=' + n.reference_id : '')
+                 : n.reference_type === 'crm' ? '#/crm' + (n.reference_id ? '/' + n.reference_id : '')
                  : '#';
       const scrollId = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
       return '<a class="hey-item' + (n.is_read ? '' : ' unread') + '" href="' + link + '"' +

@@ -119,7 +119,7 @@ function notifyOwner(ownerId, req, title, body, dealId) {
      VALUES ($1, 'crm', $2, $3, 'crm', $4, $5)`,
     [ownerId, title, body || '', dealId, req.user.name || '']
   ).catch((e) => console.error('[crm notify]', e.message));
-  sendPushToUser(ownerId, { title, body: body || '', tag: `crm-${dealId}`, url: `/#/crm?deal=${dealId}` });
+  sendPushToUser(ownerId, { title, body: body || '', tag: `crm-${dealId}`, url: `/#/crm/${dealId}` });
 }
 
 const statusForStage = (stage) => (stage && (stage.kind === 'won' || stage.kind === 'lost') ? stage.kind : 'open');

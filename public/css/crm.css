@@ -1,4 +1,18 @@
 /* ==================== CRM (#/crm) ==================== */
+/* Инструментът заема ЦЯЛАТА страница (#pageContent.full-width) — нито фунията,
+   нито сделките живеят в центрирана кутия или в изскачащо прозорче. */
+
+.crm-wrap { padding: 0 8px 28px; }
+
+.crm-head { padding: 4px 0 14px; }
+.crm-head__t { font-size: 20px; font-weight: 800; color: #fff; margin: 0 0 5px; }
+.crm-head__s { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; max-width: 900px; }
+
+.crm-back {
+  display: inline-block; font-size: 12.5px; color: var(--text-dim);
+  text-decoration: none; padding: 4px 0 12px;
+}
+.crm-back:hover { color: var(--accent); }
 
 /* --- показатели най-горе --- */
 .crm-kpis {
@@ -138,7 +152,7 @@
 /* --- показатели --- */
 .crm-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .crm-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
-.crm-panel:first-child { grid-column: 1 / -1; }
+.crm-stats .crm-panel:first-child { grid-column: 1 / -1; }
 .crm-panel__t { font-size: 12px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 10px; }
 .crm-fun__row { display: grid; grid-template-columns: 150px 1fr 160px; gap: 10px; align-items: center; margin-bottom: 7px; }
 .crm-fun__lbl { font-size: 12.5px; color: var(--text-secondary); }
@@ -193,10 +207,19 @@
 .crm-bcline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 0; font-size: 12.5px; color: var(--text-secondary); }
 .crm-bcline a { color: var(--accent); }
 .crm-bcline .crm-note { margin-top: 0; }
-.crm-two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 6px; }
+
+/* Двете колони на страницата на сделката: хронология | данни. */
+.crm-dealgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; align-items: start; }
+.crm-dealgrid .crm-panel--form { position: sticky; top: calc(var(--nav-height) + 12px); }
+/* Формата на „Нова сделка" не е в двуколонната мрежа — не я разпъваме на 2000px. */
+#crmDealPage > .crm-panel--form { max-width: 940px; }
+.crm-pagefoot {
+  display: flex; gap: 8px; align-items: center;
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
+}
 .crm-addev { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .crm-addev .crm-textarea { width: 100%; }
-.crm-timeline { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.crm-timeline { display: flex; flex-direction: column; gap: 10px; }
 .crm-ev { display: flex; gap: 8px; }
 .crm-ev__i { flex: 0 0 18px; font-size: 13px; }
 .crm-ev__b { font-size: 12.5px; color: var(--text); line-height: 1.4; white-space: pre-wrap; }
@@ -215,8 +238,9 @@
 /* --- по-тесни екрани --- */
 @media (max-width: 1200px) {
   .crm-kpis { grid-template-columns: repeat(3, 1fr); }
-  .crm-two, .crm-stats { grid-template-columns: 1fr; }
-  .crm-panel:first-child { grid-column: auto; }
+  .crm-dealgrid, .crm-stats { grid-template-columns: 1fr; }
+  .crm-dealgrid .crm-panel--form { position: static; }
+  .crm-stats .crm-panel:first-child { grid-column: auto; }
 }
 @media (max-width: 700px) {
   .crm-kpis { grid-template-columns: repeat(2, 1fr); }

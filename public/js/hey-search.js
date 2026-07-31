@@ -77,7 +77,7 @@ function _renderHeyItem(n, isInBookmarkSection) {
   var sn = n.sender_name || '';
   var savUrl = _findAvatar(sn);
   var link = n.reference_type === 'card' ? '#/card/' + n.reference_id
-           : n.reference_type === 'crm' ? '#/crm' + (n.reference_id ? '?deal=' + n.reference_id : '')
+           : n.reference_type === 'crm' ? '#/crm' + (n.reference_id ? '/' + n.reference_id : '')
            : '#/notifications';
   var sid = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
   var bmClass = n.is_bookmarked ? ' hey-item--bookmarked' : '';

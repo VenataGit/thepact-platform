@@ -61,7 +61,10 @@ function router() {
     case 'home-tasks': return renderHomeTasks(el);
     case 'dictation': return renderDictation(el);
     case 'create-task': return renderTaskCreator(el);
-    case 'crm': return renderCrm(el);
+    // CRM: всичко около сделка е пълна страница, не прозорче.
+    case 'crm':
+      if (parts[1] === 'new') return renderCrmNew(el);
+      return id ? renderCrmDeal(el, id) : renderCrm(el);
     case 'premiere': return renderPremiere(el);
     case 'time-report': return renderTimeReport(el);
     default: return renderDashboard(el);

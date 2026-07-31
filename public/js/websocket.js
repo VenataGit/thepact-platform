@@ -35,7 +35,10 @@ function handleWSEvent(ev) {
   // CRM: презареждаме дъската само ако човекът гледа точно нея и няма отворен модал
   // (иначе би му се затворило това, което пише в момента).
   if (t === 'crm:changed') {
-    if (location.hash.indexOf('#/crm') === 0 && !document.getElementById('crmModal') && typeof crmLoad === 'function') crmLoad();
+    // Само на списъка с фунията. Страницата на една сделка не се пипа — човекът
+    // може да пише в нея и презареждането би му изтрило написаното.
+    var crmHash = (location.hash || '').split('?')[0];
+    if (crmHash === '#/crm' && !document.getElementById('crmModal') && typeof crmLoad === 'function') crmLoad();
     return;
   }
   if (t === 'sos:alert') { showSosAlert(ev); return; }

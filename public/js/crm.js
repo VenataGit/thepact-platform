@@ -4,31 +4,37 @@
 //
 // Три изгледа: Фуния (kanban с влачене), Списък (сортируема таблица) и Показатели.
 // Навсякъде се набива на очи едно и също: коя сделка чака действие ДНЕС.
+//
+// Всичко около една сделка е ПЪЛНА СТРАНИЦА, не изскачащо прозорче:
+//   #/crm       — фунията / списъкът / показателите
+//   #/crm/new   — нова сделка
+//   #/crm/12    — сделката с хронологията ѝ
+// Диалог остава само за краткото питане (причина за загуба, достъп, етапи,
+// избор на дъска в Basecamp) — там цяла страница само би пречила.
 var _crm = {
   data: null, view: 'funnel', busy: false, dragId: null,
   filterOwner: '', search: '', showArchived: false, sort: 'next',
 };
 
 async function renderCrm(el) {
+  // Стар линк от известие (#/crm?deal=12) → новата страница на сделката.
+  var old = (location.hash || '').match(/[?&]deal=(\d+)/);
+  if (old) { location.hash = '#/crm/' + old[1]; return; }
+
   setBreadcrumb([{ label: 'CRM', href: '#/crm' }]);
-  el.className = 'flush-top';
+  el.className = 'flush-top full-width';
   el.innerHTML =
-    '<div class="home-content-box">' +
-      '<div class="page-header" style="margin-bottom:16px">' +
-        '<h1>🤝 CRM — придобиване на клиенти</h1>' +
-        '<div class="page-subtitle">Фунията ни от първи контакт до подписан клиент. Всяка сделка има отговорник и <strong>насрочена следваща стъпка</strong> — сделка без следваща стъпка е забравена сделка.</div>' +
+    '<div class="crm-wrap">' +
+      '<div class="crm-head">' +
+        '<h1 class="crm-head__t">🤝 CRM — придобиване на клиенти</h1>' +
+        '<div class="crm-head__s">Фунията ни от първи контакт до подписан клиент. Всяка сделка има отговорник и <strong>насрочена следваща стъпка</strong> — сделка без следваща стъпка е забравена сделка.</div>' +
       '</div>' +
-      '<div id="crmBody"><div style="color:var(--text-dim);font-size:13px">Зареждам…</div></div>' +
+      '<div id="crmBody"><div class="crm-dim">Зареждам…</div></div>' +
     '</div>';
   await crmLoad();
-  crmOpenDeepLink();
 }
 
-// #/crm?deal=12 — линкът от известията отваря право сделката.
-function crmOpenDeepLink() {
-  var m = (location.hash || '').match(/[?&]deal=(\d+)/);
-  if (m) crmOpenDeal(parseInt(m[1], 10));
-}
+function crmGoDeal(id) { location.hash = '#/crm/' + id; }
 
 function crmBody(html) { var b = document.getElementById('crmBody'); if (b) b.innerHTML = html; }
 
@@ -127,7 +133,7 @@ function crmRender() {
       '<span class="crm-spacer"></span>' +
       (canGrant ? '<button class="btn btn-ghost btn-sm" onclick="crmOpenAccess()">Достъп</button>' : '') +
       (isAdmin ? '<button class="btn btn-ghost btn-sm" onclick="crmOpenStages()">Етапи</button>' : '') +
-      '<button class="btn btn-primary btn-sm" onclick="crmOpenDeal(null)">+ Нова сделка</button>' +
+      '<a class="btn btn-primary btn-sm" href="#/crm/new">+ Нова сделка</a>' +
     '</div>';
 
   var attention = attTotal
@@ -194,7 +200,7 @@ function crmDealCard(d) {
 
   return '<div class="crm-deal' + (h.overdue ? ' crm-deal--overdue' : h.rotting ? ' crm-deal--rot' : '') + '"' +
       ' draggable="true" ondragstart="crmDragStart(event,' + d.id + ')" ondragend="crmDragEnd(event)"' +
-      ' onclick="crmOpenDeal(' + d.id + ')">' +
+      ' onclick="crmGoDeal(' + d.id + ')">' +
     '<div class="crm-deal__row">' +
       '<span class="crm-deal__co">' + esc(d.company || '—') + '</span>' +
       '<span class="crm-deal__val">' + crmMoney(d.value) + (d.recurring ? '/мес' : '') + '</span>' +
@@ -253,6 +259,7 @@ async function crmConfirmLost(id, stageId) {
   var r = (document.getElementById('crmLostReason') || {}).value || '';
   crmCloseModal();
   await crmMove(id, stageId, r);
+  if (location.hash.indexOf('#/crm/') === 0) crmReloadDeal(id);
 }
 
 // ---------- изглед „Списък" ----------
@@ -271,7 +278,7 @@ function crmListView() {
   var rows = deals.map(function (d) {
     var h = crmHealth(d);
     var st = crmStage(d.stage_id);
-    return '<tr class="crm-tr" onclick="crmOpenDeal(' + d.id + ')">' +
+    return '<tr class="crm-tr" onclick="crmGoDeal(' + d.id + ')">' +
       '<td><div class="crm-td__t">' + esc(d.title) + '</div><div class="crm-td__s">' + esc(d.company || '') + (d.contact_name ? ' · ' + esc(d.contact_name) : '') + '</div></td>' +
       '<td><span class="crm-pill" style="border-color:' + esc((st && st.color) || 'var(--border)') + '">' + esc((st && st.title) || '—') + '</span></td>' +
       '<td class="crm-num">' + crmMoney(d.value) + (d.recurring ? '<span class="crm-td__s">/месец</span>' : '') + '</td>' +
@@ -414,26 +421,57 @@ function crmReadForm() {
   };
 }
 
-async function crmOpenDeal(id) {
-  if (!id) {
-    var stages = (_crm.data && _crm.data.stages) || [];
-    var first = stages.filter(function (s) { return s.kind === 'open'; })[0] || stages[0];
-    crmModal('Нова сделка', crmDealForm({ stage_id: first && first.id, owner_id: currentUser && currentUser.id }),
-      '<button class="btn btn-ghost btn-sm" onclick="crmCloseModal()">Отказ</button>' +
-      '<button class="btn btn-sm crm-save" onclick="crmCreateDeal()">Създай</button>', true);
-    setTimeout(function () { var i = document.getElementById('cf_title'); if (i) i.focus(); }, 50);
-    return;
-  }
-  crmModal('Сделка', '<div class="crm-dim">Зареждам…</div>', '', true);
+// Скелетът, общ за двете страници на сделка — за да не се дублира обвивката.
+function crmPageShell(el) {
+  setBreadcrumb([{ label: 'CRM', href: '#/crm' }]);
+  el.className = 'flush-top full-width';
+  el.innerHTML = '<div class="crm-wrap"><div id="crmDealPage"><div class="crm-dim">Зареждам…</div></div></div>';
+  window.scrollTo(0, 0);
+}
+function crmDealPage(html) { var b = document.getElementById('crmDealPage'); if (b) b.innerHTML = html; }
+
+// #/crm/new — нова сделка на цяла страница.
+async function renderCrmNew(el) {
+  crmPageShell(el);
+  if (!_crm.data) await crmLoad();
+  if (!_crm.data) { crmDealPage('<div class="crm-err">Няма достъп или връзка.</div>'); return; }
+
+  var stages = _crm.data.stages || [];
+  var first = stages.filter(function (s) { return s.kind === 'open'; })[0] || stages[0];
+  crmDealPage(
+    '<a class="crm-back" href="#/crm">← Всички сделки</a>' +
+    '<div class="crm-head"><h1 class="crm-head__t">Нова сделка</h1>' +
+      '<div class="crm-head__s">Задължителни са само името и етапът. Останалото се дописва в движение — колкото по-малко полета, толкова по-вероятно е CRM-ът да се ползва.</div></div>' +
+    '<div class="crm-panel crm-panel--form">' +
+      crmDealForm({ stage_id: first && first.id, owner_id: currentUser && currentUser.id }) +
+      '<div class="crm-pagefoot">' +
+        '<a class="btn btn-ghost btn-sm" href="#/crm">Отказ</a>' +
+        '<button class="btn btn-sm" onclick="crmCreateDeal()">Създай сделката</button>' +
+      '</div>' +
+    '</div>');
+  var i = document.getElementById('cf_title');
+  if (i) i.focus();
+}
+
+// #/crm/12 — сделката на цяла страница (хронология + данни един до друг).
+async function renderCrmDeal(el, id) {
+  crmPageShell(el);
+  if (!_crm.data) await crmLoad();
   try {
     var res = await fetch('/api/crm/deals/' + id);
     var data = await res.json();
-    if (!res.ok || data.error) { crmCloseModal(); showToast(data.error || 'Грешка.', 'error'); return; }
-    crmRenderDeal(data.deal, data.events);
-  } catch (e) { crmCloseModal(); showToast('Няма връзка.', 'error'); }
+    if (!res.ok || data.error) { crmDealPage('<a class="crm-back" href="#/crm">← Всички сделки</a><div class="crm-err">' + esc(data.error || 'Грешка.') + '</div>'); return; }
+    crmRenderDealPage(data.deal, data.events);
+  } catch (e) { crmDealPage('<div class="crm-err">Няма връзка със сървъра.</div>'); }
 }
 
-function crmRenderDeal(d, events) {
+// Презарежда текущата страница на сделка, без да се минава през router-а.
+function crmReloadDeal(id) {
+  var el = document.getElementById('pageContent');
+  if (el) renderCrmDeal(el, id);
+}
+
+function crmRenderDealPage(d, events) {
   var h = crmHealth(d);
   var st = crmStage(d.stage_id);
   var stages = (_crm.data && _crm.data.stages) || [];
@@ -441,7 +479,7 @@ function crmRenderDeal(d, events) {
   var moveBtns = stages.map(function (s) {
     return '<button class="crm-movb' + (Number(s.id) === Number(d.stage_id) ? ' crm-movb--on' : '') + '"' +
       ' style="border-color:' + esc(s.color || 'var(--border)') + '"' +
-      ' onclick="crmMoveFromModal(' + d.id + ',' + s.id + ')">' + esc(s.title) + '</button>';
+      ' onclick="crmMoveOnPage(' + d.id + ',' + s.id + ')">' + esc(s.title) + '</button>';
   }).join('');
 
   var tl = (events || []).map(function (e) {
@@ -458,8 +496,10 @@ function crmRenderDeal(d, events) {
   if (h.overdue) flags += '<span class="crm-b crm-b--red">просрочена стъпка</span>';
   if (h.rotting) flags += '<span class="crm-b crm-b--orange">стои ' + h.daysInStage + ' дни в „' + esc((st && st.title) || '') + '"</span>';
   if (h.noNext) flags += '<span class="crm-b crm-b--dim">без следваща стъпка</span>';
+  if (d.archived) flags += '<span class="crm-b crm-b--dim">архивирана</span>';
 
-  var body =
+  crmDealPage(
+    '<a class="crm-back" href="#/crm">← Всички сделки</a>' +
     '<div class="crm-dealhead">' +
       '<div><div class="crm-dealhead__t">' + esc(d.title) + '</div>' +
       '<div class="crm-dealhead__s">' + esc(d.company || '') + (d.contact_name ? ' · ' + esc(d.contact_name) : '') +
@@ -473,26 +513,27 @@ function crmRenderDeal(d, events) {
       ? '<div class="crm-bcline">📋 Карта в Basecamp: <a href="' + esc(d.bc_card_url) + '" target="_blank" rel="noopener">отвори →</a></div>'
       : '<div class="crm-bcline"><button class="btn btn-ghost btn-sm" onclick="crmOpenBasecamp(' + d.id + ')">📋 Направи карта в Basecamp</button>' +
         '<span class="crm-note">Прехвърля клиента в реалния проект — картата се създава от бот профила ThePactAlerts.</span></div>') +
-    '<div class="crm-two">' +
-      '<div><div class="crm-panel__t">Добави в хронологията</div>' +
+    '<div class="crm-dealgrid">' +
+      '<div class="crm-panel">' +
+        '<div class="crm-panel__t">Добави в хронологията</div>' +
         '<div class="crm-addev">' +
           '<select class="crm-input crm-sel" id="crmEvKind"><option value="note">📝 Бележка</option><option value="call">📞 Обаждане</option><option value="meeting">🤝 Среща</option><option value="email">✉️ Имейл</option></select>' +
-          '<textarea class="crm-input crm-textarea" id="crmEvBody" rows="2" placeholder="Какво се случи и какво следва?"></textarea>' +
+          '<textarea class="crm-input crm-textarea" id="crmEvBody" rows="3" placeholder="Какво се случи и какво следва?"></textarea>' +
           '<button class="btn btn-sm" onclick="crmAddEvent(' + d.id + ')">Запиши</button>' +
         '</div>' +
-        '<div class="crm-panel__t" style="margin-top:14px">Хронология</div>' +
+        '<div class="crm-panel__t" style="margin-top:18px">Хронология</div>' +
         '<div class="crm-timeline">' + tl + '</div>' +
       '</div>' +
-      '<div><div class="crm-panel__t">Данни</div>' + crmDealForm(d) + '</div>' +
-    '</div>';
-
-  var footer =
-    '<button class="btn btn-ghost btn-sm" onclick="crmArchive(' + d.id + ',' + (d.archived ? 'true' : 'false') + ')">' + (d.archived ? 'Върни от архива' : 'Архивирай') + '</button>' +
-    '<span class="crm-spacer"></span>' +
-    '<button class="btn btn-ghost btn-sm" onclick="crmCloseModal()">Затвори</button>' +
-    '<button class="btn btn-sm crm-save" onclick="crmSaveDeal(' + d.id + ')">Запази</button>';
-
-  crmModal('Сделка', body, footer, true);
+      '<div class="crm-panel crm-panel--form">' +
+        '<div class="crm-panel__t">Данни</div>' +
+        crmDealForm(d) +
+        '<div class="crm-pagefoot">' +
+          '<button class="btn btn-ghost btn-sm" onclick="crmArchive(' + d.id + ',' + (d.archived ? 'true' : 'false') + ')">' + (d.archived ? 'Върни от архива' : 'Архивирай') + '</button>' +
+          '<span class="crm-spacer"></span>' +
+          '<button class="btn btn-sm" onclick="crmSaveDeal(' + d.id + ')">Запази</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>');
 }
 
 async function crmCreateDeal() {
@@ -502,9 +543,9 @@ async function crmCreateDeal() {
     var res = await fetch('/api/crm/deals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(crmReadForm()) });
     var data = await res.json();
     if (!res.ok || data.error) { showToast(data.error || 'Не стана.', 'error'); return; }
-    crmCloseModal();
     showToast('Сделката е добавена.', 'success');
-    await crmLoad();
+    _crm.data = null;             // фунията да се презареди с новата сделка
+    location.hash = '#/crm/' + data.id;
   } catch (e) { showToast('Грешка при записа.', 'error'); }
   finally { _crm.busy = false; }
 }
@@ -519,20 +560,20 @@ async function crmSaveDeal(id) {
     var res = await fetch('/api/crm/deals/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
     var data = await res.json();
     if (!res.ok || data.error) { showToast(data.error || 'Не стана.', 'error'); return; }
-    var deal = crmDeal(id);
+    var deal = (data && data.stage_id) ? data : crmDeal(id);
     if (deal && Number(stageId) !== Number(deal.stage_id)) await crmMove(id, parseInt(stageId, 10), '');
-    crmCloseModal();
     showToast('Записано.', 'success');
     await crmLoad();
+    crmReloadDeal(id);
   } catch (e) { showToast('Грешка при записа.', 'error'); }
   finally { _crm.busy = false; }
 }
 
-async function crmMoveFromModal(id, stageId) {
+async function crmMoveOnPage(id, stageId) {
   var st = crmStage(stageId);
   if (st && st.kind === 'lost') { crmAskLostReason(id, stageId); return; }
   await crmMove(id, stageId, '');
-  crmOpenDeal(id);
+  crmReloadDeal(id);
 }
 
 async function crmAddEvent(id) {
@@ -544,7 +585,7 @@ async function crmAddEvent(id) {
     var data = await res.json();
     if (!res.ok || data.error) { showToast(data.error || 'Не стана.', 'error'); return; }
     await crmLoad();
-    crmOpenDeal(id);
+    crmReloadDeal(id);
   } catch (e) { showToast('Грешка.', 'error'); }
 }
 
@@ -553,9 +594,9 @@ async function crmArchive(id, isArchived) {
     var res = await fetch('/api/crm/deals/' + id + (isArchived ? '?restore=1' : ''), { method: 'DELETE' });
     var data = await res.json();
     if (!res.ok || data.error) { showToast(data.error || 'Не стана.', 'error'); return; }
-    crmCloseModal();
-    await crmLoad();
     showToast(isArchived ? 'Върната от архива.' : 'Архивирана.', 'success');
+    await crmLoad();
+    if (isArchived) crmReloadDeal(id); else location.hash = '#/crm';
   } catch (e) { showToast('Грешка.', 'error'); }
 }
 
@@ -576,7 +617,7 @@ async function crmOpenBasecamp(id) {
         '<label class="crm-field"><span class="crm-label">Колона</span><select class="crm-input" id="crmBcCol"></select></label>' +
         '<label class="crm-field"><span class="crm-label">Краен срок (по желание)</span><input type="date" class="crm-input" id="crmBcDue"></label>' +
       '</div><div class="crm-note">Картата носи данните на клиента (контакт, стойност, източник, бележки) и линкът ѝ остава при сделката.</div>',
-      '<button class="btn btn-ghost btn-sm" onclick="crmOpenDeal(' + id + ')">Назад</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="crmCloseModal()">Отказ</button>' +
       '<button class="btn btn-sm" onclick="crmCreateBcCard(' + id + ')">Създай картата</button>');
     crmBcCols();
   } catch (e) { crmCloseModal(); showToast('Няма връзка.', 'error'); }
@@ -604,8 +645,9 @@ async function crmCreateBcCard(id) {
     var data = await res.json();
     if (!res.ok || data.error) { showToast(data.error || 'Картата не се създаде.', 'error'); return; }
     showToast('Картата е в ' + data.board + ' → ' + data.column + '.', 'success');
+    crmCloseModal();
     await crmLoad();
-    crmOpenDeal(id);
+    crmReloadDeal(id);
   } catch (e) { showToast('Грешка при създаването.', 'error'); }
 }
 
