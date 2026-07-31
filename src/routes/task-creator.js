@@ -79,6 +79,8 @@ router.get('/init', requireAuth, async (req, res) => {
       steps: cfg.steps,
       maxVideos: cfg.maxVideos,
       defaultVideos: cfg.defaultVideos,
+      // Описанието на единичната задача тръгва попълнено с този шаблон.
+      singleTemplate: cfg.singleTemplate,
     });
   } catch (err) {
     console.error('[task-creator init]', err.message);
@@ -97,7 +99,7 @@ router.get('/dates', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/task-creator/plan { title, dueOn, videoCount } — задача за измисляне.
+// POST /api/task-creator/plan { title, dueOn, videoCount, extraInfo } — задача за измисляне.
 router.post('/plan', requireAuth, async (req, res) => {
   try {
     const title = clean(req.body?.title, MAX_TITLE);
@@ -115,7 +117,8 @@ router.post('/plan', requireAuth, async (req, res) => {
     const struct = await agg.loadStructure(auth.token, auth.account);
     const dest = resolvePlanDest(struct, cfg);
 
-    const content = kpc.textToBcHtml(tc.buildPlanText(cfg, title, videoCount));
+    const extraInfo = clean(req.body?.extraInfo, MAX_CONTENT);
+    const content = kpc.textToBcHtml(tc.buildPlanText(cfg, title, videoCount, extraInfo));
     const card = await bc.createCard(auth.token, auth.account, dest.projectId, dest.columnId, {
       title, content, due_on: dueOn || undefined,
     });
@@ -228,8 +231,10 @@ router.get('/templates', requireAuth, requireAdmin, async (req, res) => {
     res.json({
       template: cfg.mainTemplate,
       videoSection: cfg.videoTemplate,
+      singleTemplate: cfg.singleTemplate,
       ownTemplate: cfg.ownMainTemplate,
       ownVideoSection: cfg.ownVideoTemplate,
+      ownSingleTemplate: cfg.ownSingleTemplate,
       steps: cfg.steps,
       defaultSteps: tc.DEFAULT_STEPS,
       maxVideos: cfg.maxVideos,
@@ -238,7 +243,7 @@ router.get('/templates', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// PUT /api/task-creator/templates { template, videoSection } — админ.
+// PUT /api/task-creator/templates { template, videoSection, singleTemplate } — админ.
 // Празен низ = изтриване на собствения шаблон → пак се ползва КП шаблонът.
 router.put('/templates', requireAuth, requireAdmin, async (req, res) => {
   try {
@@ -253,17 +258,22 @@ router.put('/templates', requireAuth, requireAdmin, async (req, res) => {
     };
     await save('task_plan_template', req.body?.template);
     await save('task_plan_video_template', req.body?.videoSection);
+    await save('task_single_template', req.body?.singleTemplate);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// PUT /api/task-creator/steps { steps: [{title, offset}] } — админ.
-// Празен списък = връщане към стъпките по подразбиране (11/6/1).
+// PUT /api/task-creator/steps { steps: [{title, label, offset}] } — админ.
+// Празен списък = връщане към стъпките по подразбиране (16/11/6/1).
 router.put('/steps', requireAuth, requireAdmin, async (req, res) => {
   try {
     const arr = Array.isArray(req.body?.steps) ? req.body.steps : [];
     const cleaned = arr
-      .map((s) => ({ title: clean(s?.title, 120), offset: Math.max(0, parseInt(s?.offset, 10) || 0) }))
+      .map((s) => ({
+        title: clean(s?.title, 120),
+        label: clean(s?.label, 60),
+        offset: Math.max(0, parseInt(s?.offset, 10) || 0),
+      }))
       .filter((s) => s.title);
     if (cleaned.length > 12) return res.status(400).json({ error: 'Максимум 12 стъпки.' });
     if (!cleaned.length) {

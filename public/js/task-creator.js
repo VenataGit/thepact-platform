@@ -64,6 +64,9 @@ function tcrPlanForm(d) {
         '<input type="number" id="tcrPlanCount" class="tcr-input" min="1" max="' + max + '" value="' + def + '">' +
         '<span class="tcr-note">Толкова „Видео N" секции влизат в шаблона (макс. ' + max + ').</span></label>' +
     '</div>' +
+    '<label class="tcr-field"><span class="tcr-label">Допълнителна информация</span>' +
+      '<textarea id="tcrPlanExtra" class="tcr-input tcr-textarea" rows="5" placeholder="Всичко нужно допълнително — то влиза в самата задача."></textarea>' +
+      '<span class="tcr-note">Влиза на реда „Допълнителна информация" в шаблона; ако го няма, се добавя най-отдолу.</span></label>' +
     '<button class="btn btn-primary tcr-btn" onclick="tcrCreatePlan()">Създай задачата</button>' +
   '</div>';
 }
@@ -74,7 +77,10 @@ async function tcrCreatePlan() {
   var due = (document.getElementById('tcrPlanDue') || {}).value || '';
   var count = parseInt((document.getElementById('tcrPlanCount') || {}).value, 10);
   if (!title.trim()) { tcrResult('<div class="tcr-err">Напиши име на задачата.</div>'); return; }
-  await tcrPost('/api/task-creator/plan', { title: title, dueOn: due || null, videoCount: count });
+  await tcrPost('/api/task-creator/plan', {
+    title: title, dueOn: due || null, videoCount: count,
+    extraInfo: (document.getElementById('tcrPlanExtra') || {}).value || '',
+  });
 }
 
 // ---------- Единична задача ----------
@@ -85,21 +91,22 @@ function tcrSingleForm(d) {
   var boardOpts = boards.map(function (b, i) {
     return '<option value="' + esc(b.id) + '"' + (i === 0 ? ' selected' : '') + '>' + esc(b.title) + '</option>';
   }).join('');
+  // Датите вървят в реда на процеса: измисляне → заснемане → монтаж → насрочване →
+  // публикуване. Стъпките идват вече подредени от сървъра, а „Дата за публикуване"
+  // (Due date на картата) е последна, защото всичко останало се мери спрямо нея.
   var steps = d.steps || [];
   var dateRows = steps.map(function (s) {
-    return '<label class="tcr-field"><span class="tcr-label">' + esc(s.title) + '</span>' +
-      '<span class="tcr-daterow">' +
-        '<input type="date" class="tcr-input" id="tcrDate_' + esc(s.key) + '" onchange="tcrDateChanged(\'' + esc(s.key) + '\')">' +
-        '<button type="button" class="tcr-recalc" title="Преизчисли останалите дати по тази" onclick="tcrRecalc(\'' + esc(s.key) + '\')">↻</button>' +
-      '</span>' +
-      '<span class="tcr-note">' + (s.offset ? s.offset + ' работни дни преди публикуването' : 'в деня на публикуване') + '</span></label>';
+    return tcrDateField(s.key, s.label || s.title,
+      s.offset ? s.offset + ' работни дни преди публикуването' : 'в деня на публикуване');
   }).join('');
+  dateRows += tcrDateField('publish', 'Дата за публикуване', 'Due date на картата — спрямо нея се смята всичко останало.');
 
   return '<div class="tcr-card">' +
     '<label class="tcr-field"><span class="tcr-label">Име на задачата</span>' +
       '<input type="text" id="tcrTitle" class="tcr-input" maxlength="200" placeholder="напр. Fornetti - Видео 3 - Заглавие"></label>' +
-    '<label class="tcr-field"><span class="tcr-label">Описание (по желание)</span>' +
-      '<textarea id="tcrContent" class="tcr-input tcr-textarea" rows="5" placeholder="Копи, локация, участници…"></textarea></label>' +
+    '<label class="tcr-field"><span class="tcr-label">Описание</span>' +
+      '<textarea id="tcrContent" class="tcr-input tcr-textarea" rows="10">' + esc(d.singleTemplate || '') + '</textarea>' +
+      '<span class="tcr-note">Шаблонът е попълнен предварително — замени ХХХ-тата. Ако не ти трябва, изтрий го.</span></label>' +
     '<div class="tcr-grid">' +
       '<label class="tcr-field"><span class="tcr-label">Дъска</span>' +
         '<select id="tcrBoard" class="tcr-input" onchange="tcrSyncColumns()">' + boardOpts + '</select></label>' +
@@ -108,16 +115,18 @@ function tcrSingleForm(d) {
     '</div>' +
     '<div class="tcr-sub">Срокове</div>' +
     '<div class="tcr-hint">Попълни само една дата — останалите се смятат по системата (работни дни, без празници). После можеш да смениш всяка от тях; ↻ преизчислява останалите по избраната дата.</div>' +
-    '<div class="tcr-grid">' +
-      '<label class="tcr-field"><span class="tcr-label">Дата за публикуване (due date на картата)</span>' +
-        '<span class="tcr-daterow">' +
-          '<input type="date" class="tcr-input" id="tcrDate_publish" onchange="tcrDateChanged(\'publish\')">' +
-          '<button type="button" class="tcr-recalc" title="Преизчисли останалите дати по тази" onclick="tcrRecalc(\'publish\')">↻</button>' +
-        '</span></label>' +
-      dateRows +
-    '</div>' +
+    '<div class="tcr-grid">' + dateRows + '</div>' +
     '<button class="btn btn-primary tcr-btn" onclick="tcrCreateSingle()">Създай задачата</button>' +
   '</div>';
+}
+
+function tcrDateField(key, label, note) {
+  return '<label class="tcr-field"><span class="tcr-label">' + esc(label) + '</span>' +
+    '<span class="tcr-daterow">' +
+      '<input type="date" class="tcr-input" id="tcrDate_' + esc(key) + '" onchange="tcrDateChanged(\'' + esc(key) + '\')">' +
+      '<button type="button" class="tcr-recalc" title="Преизчисли останалите дати по тази" onclick="tcrRecalc(\'' + esc(key) + '\')">↻</button>' +
+    '</span>' +
+    '<span class="tcr-note">' + esc(note) + '</span></label>';
 }
 
 function tcrSyncColumns() {
@@ -215,10 +224,13 @@ async function tcrPost(url, body) {
 }
 
 // Изчистваме само текстовите полета — дъската/колоната и датите остават, за да може
-// човек да пусне няколко задачи една след друга.
+// човек да пусне няколко задачи една след друга. Описанието се връща на шаблона,
+// не на празно, защото следващата задача пак тръгва от него.
 function tcrClearForm() {
-  ['tcrPlanTitle', 'tcrTitle', 'tcrContent'].forEach(function (id) {
+  ['tcrPlanTitle', 'tcrTitle', 'tcrPlanExtra'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
+  var content = document.getElementById('tcrContent');
+  if (content) content.value = (_tcr.init || {}).singleTemplate || '';
 }

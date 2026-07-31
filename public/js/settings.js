@@ -1766,6 +1766,21 @@ function tskAdmRender() {
     '<label class="sg-kp-field" style="margin-top:12px"><span class="sg-kp-label">Секция за всяко видео</span>' +
       '<textarea class="ga-input sg-kp-textarea" id="tskAdmTplVideo" rows="7">' + esc(tpl.videoSection || '') + '</textarea>' +
       '<span class="sg-kp-note">{N} = номер на видеото. Повтаря се за всяко избрано видео.</span></label>' +
+    '<span class="sg-kp-note" style="display:block;margin-top:10px">Полето „Допълнителна информация" от формата влиза на реда „Допълнителна информация" в основния текст ' +
+      '(на мястото на ХХХ). Може и изрично — с плейсхолдъра <code>{доп_информация}</code>. Няма ли нито едното, текстът се добавя най-отдолу.</span>' +
+    '<div class="ga-row ga-row--foot">' +
+      '<button class="btn btn-sm" onclick="tskAdmSaveTemplates(this)">💾 Запази шаблона</button>' +
+    '</div>' +
+  '</div>';
+
+  // --- 2б. Шаблон в описанието на единичната задача ---
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">📝 Описание на единичната задача</div>' +
+    '<div class="sg-section__desc">' + (tpl.ownSingleTemplate
+      ? 'Инструментът има <strong>собствен</strong> текст. Изтрий го и запази, за да се върне автоматичният (секцията за едно видео).'
+      : 'По подразбиране е секцията за едно видео отгоре, без реда със заглавието — той е самото име на задачата. Промениш ли текста, инструментът ще си има собствен.') +
+      ' Формата тръгва с този текст попълнен, а човекът само сменя ХХХ-тата.</div>' +
+    '<textarea class="ga-input sg-kp-textarea" id="tskAdmTplSingle" rows="9">' + esc(tpl.singleTemplate || '') + '</textarea>' +
     '<div class="ga-row ga-row--foot">' +
       '<button class="btn btn-sm" onclick="tskAdmSaveTemplates(this)">💾 Запази шаблона</button>' +
     '</div>' +
@@ -1776,11 +1791,19 @@ function tskAdmRender() {
   html += '<div class="sg-section">' +
     '<div class="sg-section__hdr">🎬 Стъпки на единичната задача</div>' +
     '<div class="sg-section__desc">Всяка нова единична задача получава тези стъпки. Числото е колко <strong>работни дни преди датата за публикуване</strong> ' +
-      'пада стъпката — по него се смятат сами останалите дати във формата. Това са същите отмествания, с които работи и авто-синхронът на датите.</div>' +
+      'пада стъпката — по него се смятат сами останалите дати във формата. Отмесванията 11 / 6 / 1 са същите, с които работи и авто-синхронът на датите; ' +
+      '„Измисляне" е само на този инструмент. Полетата във формата се подреждат по числото — първо най-отдалеченото от публикуването.</div>' +
     '<div class="sg-kp-rows" id="tskAdmSteps">' +
+      '<div class="sg-kp-row" style="border-top:none">' +
+        '<span class="sg-kp-row__hint" style="flex:1;min-width:220px">Заглавие на стъпката в Basecamp</span>' +
+        '<span class="sg-kp-row__hint" style="flex:0 0 150px">Име на полето</span>' +
+        '<span class="sg-kp-row__hint" style="flex:0 0 74px;text-align:center">Дни</span>' +
+        '<span style="width:34px"></span>' +
+      '</div>' +
       steps.map(function (st, i) {
         return '<div class="sg-kp-row">' +
           '<input type="text" class="ga-input" style="flex:1;min-width:220px" value="' + esc(st.title) + '" data-tsk-step-title="' + i + '">' +
+          '<input type="text" class="ga-input" style="flex:0 0 150px" value="' + esc(st.label || '') + '" data-tsk-step-label="' + i + '">' +
           '<input type="number" min="0" max="365" class="ga-input sg-kp-num" value="' + esc(String(st.offset)) + '" data-tsk-step-offset="' + i + '">' +
           '<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="tskAdmRemoveStep(' + i + ')">✕</button>' +
         '</div>';
@@ -1844,14 +1867,27 @@ function tskAdmBoardChange(boardId) {
   if (col) col.innerHTML = tskAdmColOpts(boardId, '');
 }
 
+// Текстовите полета тръгват попълнени с наследения текст. Ако човек не го е пипал,
+// НЕ го записваме като собствен — иначе едно натискане на „Запази" би откачило
+// инструмента от КП шаблона завинаги. Празен низ = изтриване → пак се наследява.
+function _tskAdmTplValue(id, original, isOwn) {
+  var v = (document.getElementById(id) || {}).value;
+  if (v == null) return null; // полето го няма на екрана — не го пипаме
+  return (!isOwn && v === (original || '')) ? '' : v;
+}
+
 async function tskAdmSaveTemplates(btn) {
-  var main = (document.getElementById('tskAdmTplMain') || {}).value || '';
-  var video = (document.getElementById('tskAdmTplVideo') || {}).value || '';
+  var tpl = _tskAdm.tpl || {};
+  var body = {
+    template: _tskAdmTplValue('tskAdmTplMain', tpl.template, tpl.ownTemplate),
+    videoSection: _tskAdmTplValue('tskAdmTplVideo', tpl.videoSection, tpl.ownVideoSection),
+    singleTemplate: _tskAdmTplValue('tskAdmTplSingle', tpl.singleTemplate, tpl.ownSingleTemplate),
+  };
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Запазване…'; }
   try {
     var res = await fetch('/api/task-creator/templates', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ template: main, videoSection: video }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     showToast('Шаблонът е запазен ✓', 'success');
@@ -1869,14 +1905,21 @@ function tskAdmCollectSteps() {
   var out = [];
   Array.prototype.forEach.call(titles, function (t) {
     var i = t.getAttribute('data-tsk-step-title');
+    var l = host.querySelector('[data-tsk-step-label="' + i + '"]');
     var o = host.querySelector('[data-tsk-step-offset="' + i + '"]');
-    if (t.value.trim()) out.push({ title: t.value.trim(), offset: parseInt(o && o.value, 10) || 0 });
+    if (t.value.trim()) {
+      out.push({
+        title: t.value.trim(),
+        label: ((l && l.value) || '').trim(),
+        offset: parseInt(o && o.value, 10) || 0,
+      });
+    }
   });
   return out;
 }
 
 function tskAdmAddStep() {
-  _tskAdm.tpl.steps = tskAdmCollectSteps().concat([{ key: 'new', title: '', offset: 0 }]);
+  _tskAdm.tpl.steps = tskAdmCollectSteps().concat([{ key: 'new', title: '', label: '', offset: 0 }]);
   tskAdmRender();
 }
 

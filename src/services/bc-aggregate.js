@@ -76,6 +76,28 @@ function mapCard(c, stepPrefix) {
   return out;
 }
 
+// Каноничната подредба на дъските — редът, по който задачите реално минават:
+// Pre-Production → Production → Post-Production → Project Management.
+// Венци (31.07.2026): „искам абсолютно навсякъде за в бъдеще да бъдат по този начин
+// подредени, защото това е редът, по който минават задачите". Затова сортирането
+// живее ТУК — в единствения източник на структурата — и важи за всеки изглед
+// (Dashboard, КП настройки, Създаване на задачи, CRM, PM Agent…), вместо да се
+// повтаря във всеки от тях. Дъската „Project Management" се води и по старото си
+// име „Акаунт Мениджмънт". Непознати дъски запазват реда си от Basecamp, най-отзад.
+function boardRank(title) {
+  const t = (title || '').toLowerCase();
+  if (/pre[\s-]*produc|предпрод/.test(t)) return 0;
+  if (/post[\s-]*produc|пост[\s-]*продук/.test(t)) return 2;
+  if (/produc|продук/.test(t)) return 1; // „Production" — pre/post вече са хванати
+  if (/project\s*manage|проект\w*\s*мениджм|акаунт|account/.test(t)) return 3;
+  return 999;
+}
+function sortBoards(boards) {
+  return (boards || []).map((b, i) => ({ b, i }))
+    .sort((x, y) => (boardRank(x.b.title) - boardRank(y.b.title)) || (x.i - y.i))
+    .map((o) => o.b);
+}
+
 // The board is shared across team members, so cache both stages briefly.
 let structCache = { at: 0, data: null };
 const STRUCT_TTL = 60_000;
@@ -96,7 +118,7 @@ async function loadStructure(token, account) {
       columns: (table.lists || []).map((l) => ({ id: l.id, title: l.title, cardsCount: l.cards_count, isDone: /DoneColumn/i.test(l.type || '') })),
     };
   });
-  structCache = { at: Date.now(), data: { projectId, boards } };
+  structCache = { at: Date.now(), data: { projectId, boards: sortBoards(boards) } };
   return structCache.data;
 }
 
@@ -312,5 +334,5 @@ async function aggregateAll(token, account) {
 
 module.exports = {
   mapLimit, mapCard, loadStructure, loadBoardCards, invalidateBoard,
-  parseClientKp, aggregateAll,
+  parseClientKp, aggregateAll, boardRank, sortBoards,
 };

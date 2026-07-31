@@ -194,13 +194,15 @@ function applyOrder(items, order) {
   }).map((x) => x.it);
 }
 
-// Default board order when no admin layout is set: Pre → Production → Post → Account.
+// Резервна подредба, ако админ не е задал своя: Pre → Production → Post → Project
+// Management. Сървърът вече връща дъските в този ред (services/bc-aggregate.js →
+// sortBoards), така че тук е само предпазна мрежа — двете места се държат еднакво.
 function dashBoardRank(title) {
   const t = (title || '').toLowerCase();
   if (t.includes('pre-produc') || t.includes('pre produc') || t.includes('предпрод')) return 0;
   if (t.includes('post-produc') || t.includes('post produc') || t.includes('пост')) return 2;
   if (t.includes('produc')) return 1; // "Production" (pre/post already matched above)
-  if (t.includes('акаунт') || t.includes('account')) return 3;
+  if (t.includes('project manage') || t.includes('акаунт') || t.includes('account')) return 3;
   return 999; // everything else keeps its natural order, after the four core boards
 }
 function applyDefaultBoardOrder(boards) {
