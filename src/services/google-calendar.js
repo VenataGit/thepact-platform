@@ -312,4 +312,6 @@ module.exports = {
   resetCache,
   getCalendarClient,
   getServiceAccountEmail,
+  // Календарът, в който пише Production Calendar sync-ът — и от който се чете обратно.
+  getTargetCalendarId: loadCalendarId,
 };

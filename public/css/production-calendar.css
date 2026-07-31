@@ -98,5 +98,17 @@
 .pc-event--done .pc-event__title { opacity: 0.9; }
 .pc-event__check { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--pc-event-check); font-size: 9px; font-weight: 700; line-height: 1; margin-right: 2px; vertical-align: middle; }
 
+/* Събития, добавени директно в Google Calendar — само за четене („зает час").
+   Стоят в дясната половина на деня, за да не крият насрочената карта отдолу. */
+.pc-event--ext { left: auto; right: 2px; width: 46%; background: var(--pc-ext-bg); border: 1px dashed var(--pc-ext-border); cursor: pointer; z-index: 3; }
+.pc-event--ext:hover { z-index: 6; background: var(--pc-ext-border); }
+.pc-event--ext .pc-event__title { color: var(--pc-ext-text); }
+.pc-event--ext:hover .pc-event__title, .pc-event--ext:hover .pc-event__time { color: #fff; }
+.pc-event--ext .pc-event__time { color: var(--pc-ext-text); opacity: 0.85; }
+
+/* Целодневно Google събитие — чипче в заглавието на деня */
+.pc-allday-chip { margin: 4px 2px 0; padding: 1px 5px; border-radius: 4px; background: var(--pc-ext-bg); border: 1px dashed var(--pc-ext-border); color: var(--pc-ext-text); font-size: 10px; font-weight: 600; line-height: 1.4; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-allday-chip:hover { background: var(--pc-ext-border); color: #fff; }
+
 /* Drag preview ghost */
 .pc-drag-preview { position: absolute; left: 2px; right: 2px; background: var(--drag-over-bg); border: 2px dashed var(--drag-over-border); border-radius: 5px; pointer-events: none; z-index: 0; box-sizing: border-box; }

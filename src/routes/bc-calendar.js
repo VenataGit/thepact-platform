@@ -3,6 +3,8 @@
 // (publish date = card due date; filming = publish − 11 working days). Drag onto the week
 // view to schedule (stored locally in bc_production_calendar, keyed by Basecamp card id),
 // which also syncs to Google Calendar with a link back to the Basecamp card.
+// GET /external е обратната посока: събития, добавени директно в Google Calendar,
+// се показват в седмичния изглед само за четене (за да се вижда, че часът е зает).
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
@@ -10,7 +12,10 @@ const config = require('../config');
 const { query, queryOne, execute } = require('../db/pool');
 const bc = require('../services/basecamp');
 const { getUserAuth } = require('../services/basecamp-token');
-const { createGCalEvent, updateGCalEvent, deleteGCalEvent } = require('../services/google-calendar');
+const {
+  createGCalEvent, updateGCalEvent, deleteGCalEvent,
+  isGCalEnabled, getCalendarClient, getTargetCalendarId, getServiceAccountEmail,
+} = require('../services/google-calendar');
 
 const FILMING_OFFSET = parseInt(process.env.BASECAMP_FILMING_OFFSET) || 11; // working days before publish
 const { ymd, subtractWorkingDays, workingDaysUntil } = require('../services/workdays');
@@ -87,6 +92,129 @@ router.get('/', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[bc-calendar]', err.message);
     res.status(err.code === 'NO_USER_TOKEN' ? 401 : 502).json({ error: err.message });
+  }
+});
+
+// ─── Google Calendar → производствен календар (обратната посока, само за четене) ──
+// Ако някой запази снимки директно в Google Calendar (без да дърпа карта в
+// производствения календар), часът трябва да се вижда като зает и тук. Нищо не се
+// записва в базата — четем календара на живо за видимата седмица.
+
+const TZ = 'Europe/Sofia';
+const _sofiaFmt = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+
+// ISO момент → { date: 'YYYY-MM-DD', minute: минути от полунощ } в софийско време.
+function sofiaParts(iso) {
+  const parts = _sofiaFmt.formatToParts(new Date(iso));
+  const get = (t) => (parts.find((p) => p.type === t) || {}).value || '00';
+  return {
+    date: `${get('year')}-${get('month')}-${get('day')}`,
+    minute: parseInt(get('hour'), 10) * 60 + parseInt(get('minute'), 10),
+  };
+}
+
+// Ден напред/назад по календарна дата (обяд UTC — извън обхвата на всяко лятно време).
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().split('T')[0];
+}
+
+// Едно Google събитие → по един блок на ден (многодневните се разрязват по дни),
+// ограничено до [from, to]. Целодневните излизат с all_day.
+function eventSegments(ev, from, to) {
+  const out = [];
+  const push = (seg) => { if (seg.date >= from && seg.date <= to) out.push(seg); };
+
+  if (ev.start && ev.start.date) {
+    // Целодневно: end.date е ексклузивна.
+    const endExcl = (ev.end && ev.end.date) || addDays(ev.start.date, 1);
+    let d = ev.start.date;
+    for (let guard = 0; d < endExcl && guard < 366; guard++, d = addDays(d, 1)) {
+      push({ date: d, all_day: true, start_minute: 0, duration_minutes: 0 });
+    }
+    return out;
+  }
+
+  if (!ev.start || !ev.start.dateTime) return out;
+  const s = sofiaParts(ev.start.dateTime);
+  const e = ev.end && ev.end.dateTime
+    ? sofiaParts(ev.end.dateTime)
+    : { date: s.date, minute: Math.min(1440, s.minute + 60) };
+
+  if (e.date <= s.date) {
+    push({ date: s.date, all_day: false, start_minute: s.minute, duration_minutes: Math.max(15, e.minute - s.minute) });
+    return out;
+  }
+  let d = s.date;
+  for (let guard = 0; d <= e.date && guard < 366; guard++, d = addDays(d, 1)) {
+    const startMin = d === s.date ? s.minute : 0;
+    const endMin   = d === e.date ? e.minute : 1440;
+    if (endMin <= startMin) continue;
+    push({ date: d, all_day: false, start_minute: startMin, duration_minutes: endMin - startMin });
+  }
+  return out;
+}
+
+// GET /api/bc-calendar/external?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Събития от Google Calendar, които НЕ са създадени от платформата.
+router.get('/external', requireAuth, async (req, res) => {
+  const from = String(req.query.from || '');
+  const to   = String(req.query.to   || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) {
+    return res.status(400).json({ error: 'from and to (YYYY-MM-DD) required' });
+  }
+  try {
+    if (!(await isGCalEnabled())) return res.json({ events: [] });
+    const calendar = getCalendarClient();
+    const calendarId = await getTargetCalendarId();
+    if (!calendar || !calendarId) return res.json({ events: [] });
+
+    // Ден отстъп от двете страни — заявката е в UTC, точното отрязване е по софийска дата.
+    const listed = await calendar.events.list({
+      calendarId,
+      timeMin: new Date(addDays(from, -1) + 'T00:00:00Z').toISOString(),
+      timeMax: new Date(addDays(to, 2) + 'T00:00:00Z').toISOString(),
+      singleEvents: true,   // поредиците се разгъват до отделни инстанции
+      orderBy: 'startTime',
+      maxResults: 250,
+    });
+
+    // Собствените ни събития не се показват втори път: по запомнен event id, а
+    // за по-старите (и за изтритите локално) — по създател = service account-ът.
+    const ourRows = await query(
+      'SELECT google_calendar_event_id AS gid FROM bc_production_calendar WHERE google_calendar_event_id IS NOT NULL'
+    );
+    const ours = new Set(ourRows.map((r) => String(r.gid)));
+    const saEmail = (getServiceAccountEmail() || '').toLowerCase();
+
+    const events = [];
+    for (const ev of listed.data.items || []) {
+      if (!ev || !ev.id || ev.status === 'cancelled') continue;
+      if (ev.eventType && ev.eventType !== 'default') continue; // outOfOffice, workingLocation…
+      if (ours.has(String(ev.id))) continue;
+      if (saEmail && String((ev.creator && ev.creator.email) || '').toLowerCase() === saEmail) continue;
+
+      const creator = (ev.creator && (ev.creator.displayName || ev.creator.email)) || '';
+      for (const seg of eventSegments(ev, from, to)) {
+        events.push({
+          id: `${ev.id}@${seg.date}`,
+          title: ev.summary || 'Без заглавие',
+          url: ev.htmlLink || '',
+          creator,
+          location: ev.location || '',
+          ...seg,
+        });
+      }
+    }
+    res.json({ events });
+  } catch (err) {
+    // Календарът трябва да се отвори и когато Google не отговаря — просто без тези блокове.
+    console.error('[bc-calendar external]', err.message);
+    res.json({ events: [] });
   }
 });
 

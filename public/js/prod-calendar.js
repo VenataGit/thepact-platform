@@ -5,11 +5,14 @@
 // Sidebar = unscheduled Production cards (color by dl_class, click → open in Basecamp).
 // Week view = scheduled entries; drag/drop/resize → POST/PUT/DELETE /api/bc-calendar
 // (camelCase fields), which also syncs to Google Calendar with a link to the card.
+// Обратната посока: GET /api/bc-calendar/external връща събитията, добавени
+// директно в Google Calendar — рисуват се само за четене („зает час"), по седмици.
 
 var _prodCal = {
   weekStart: null, // Monday Date object
   entries:   [],   // scheduled entries (all weeks)
   cards:     [],   // master Production card list (sidebar = these minus scheduled)
+  external:  {},   // '<понеделник YYYY-MM-DD>' → Google събития за тази седмица (кеш)
 };
 
 var _pcDrag = {
@@ -120,6 +123,32 @@ async function pcUpdateDuration(entryId, durMin) {
   } catch (e) { _pcRefreshWeekView(); }
 }
 
+// ─── Google събития за видимата седмица ───────────────────────────────────────
+
+function _pcWeekKey() {
+  return _pcDate(_prodCal.weekStart);
+}
+
+function _pcExternal() {
+  return _prodCal.external[_pcWeekKey()] || [];
+}
+
+// Зарежда Google събитията за видимата седмица (веднъж на седмица — после от кеша).
+async function pcLoadExternal() {
+  var key = _pcWeekKey();
+  if (_prodCal.external[key]) return;
+  var end = new Date(_prodCal.weekStart);
+  end.setDate(end.getDate() + 6);
+  try {
+    var res = await fetch('/api/bc-calendar/external?from=' + key + '&to=' + _pcDate(end));
+    if (!res.ok) return;
+    var data = await res.json();
+    _prodCal.external[key] = data.events || [];
+    // Ако потребителят вече е сменил седмицата, само кешираме — без пререндване.
+    if (_pcWeekKey() === key) _pcRefreshWeekView();
+  } catch (e) {}
+}
+
 async function pcDeleteEntry(entryId) {
   try {
     var entry = _prodCal.entries.find(function(e) { return e.id === entryId; });
@@ -187,6 +216,46 @@ function _pcEventHtml(entry) {
   '</div>';
 }
 
+// Събитие от Google Calendar — само за четене, в дясната половина на деня, за да
+// не крие насрочената карта отдолу. Клик отваря събитието в Google Calendar.
+function _pcExtEventHtml(ev) {
+  var start  = ev.start_minute;
+  var end    = ev.start_minute + ev.duration_minutes;
+  var colH   = (PC_H1 - PC_H0) * 60 * PC_PX_MIN;
+  var top    = (start - PC_H0 * 60) * PC_PX_MIN;
+  var height = ev.duration_minutes * PC_PX_MIN;
+  // Отрязване до видимия прозорец 06:00–22:00. Събитие изцяло извън него остава
+  // като лентичка на съответния ръб — часовете му се четат от етикета/tooltip-а.
+  if (top < 0) { height += top; top = 0; }
+  top    = Math.max(0, Math.min(top, colH - 18));
+  height = Math.max(18, Math.min(height, colH - top));
+
+  var label = _pcMinToTime(start) + ' – ' + _pcMinToTime(end);
+  var tip = ev.title + ' · ' + label +
+    (ev.creator  ? '\nЗапазено от: ' + ev.creator : '') +
+    (ev.location ? '\n📍 ' + ev.location : '') +
+    '\n(добавено директно в Google Calendar)';
+
+  return '<div class="pc-event pc-event--ext"' +
+    ' style="top:' + top + 'px;height:' + height + 'px"' +
+    ' title="' + esc(tip) + '"' +
+    ' data-url="' + esc(ev.url || '') + '"' +
+    ' onclick="pcOpenExternal(event)">' +
+    '<div class="pc-event__title">📅 ' + esc(ev.title) + '</div>' +
+    (height >= 32 ? '<div class="pc-event__time">' + label + (ev.creator ? ' · ' + esc(ev.creator) : '') + '</div>' : '') +
+  '</div>';
+}
+
+// Целодневно Google събитие — чипче под номера на деня (в грида няма къде да стои).
+function _pcExtAllDayHtml(ev) {
+  var tip = ev.title + ' · цял ден' +
+    (ev.creator ? '\nЗапазено от: ' + ev.creator : '') +
+    '\n(добавено директно в Google Calendar)';
+  return '<div class="pc-allday-chip" title="' + esc(tip) + '"' +
+    ' data-url="' + esc(ev.url || '') + '"' +
+    ' onclick="pcOpenExternal(event)">📅 ' + esc(ev.title) + '</div>';
+}
+
 function _pcSidebarHtml(searchQ) {
   var q = (searchQ || '').toLowerCase();
   var scheduledIds = new Set(_prodCal.entries.map(function(e) { return String(e.card_id); }));
@@ -240,16 +309,19 @@ function _pcWeekHtml() {
   }
   var todayStr = _pcDate(new Date());
   var DAY_BG   = ['Нд', 'Пон', 'Вт', 'Ср', 'Чет', 'Пет', 'Съб'];
+  var external = _pcExternal();
 
-  // ── day headers ──
+  // ── day headers (+ целодневните Google събития) ──
   var hdr = '<div class="pc-week-hdr"><div class="pc-time-gutter"></div>';
   days.forEach(function(d) {
     var ds      = _pcDate(d);
     var isToday = ds === todayStr;
+    var allDay  = external.filter(function(e) { return e.all_day && e.date === ds; });
     hdr +=
       '<div class="pc-day-hdr' + (isToday ? ' today' : '') + '">' +
       '<div class="pc-day-hdr__name">' + DAY_BG[d.getDay()] + '</div>' +
       '<div class="pc-day-hdr__num' + (isToday ? ' today-num' : '') + '">' + d.getDate() + '</div>' +
+      allDay.map(_pcExtAllDayHtml).join('') +
       '</div>';
   });
   hdr += '</div>';
@@ -270,6 +342,9 @@ function _pcWeekHtml() {
     var dayEntries = _prodCal.entries
       .filter(function(e) { return e.scheduled_date === ds; })
       .sort(function(a, b) { return a.start_minute - b.start_minute; });
+    var dayExternal = external
+      .filter(function(e) { return !e.all_day && e.date === ds; })
+      .sort(function(a, b) { return a.start_minute - b.start_minute; });
 
     // grid lines
     var lines = '';
@@ -285,6 +360,7 @@ function _pcWeekHtml() {
       ' ondragleave="pcDragLeave(event)">' +
       lines +
       dayEntries.map(function(e) { return _pcEventHtml(e); }).join('') +
+      dayExternal.map(function(e) { return _pcExtEventHtml(e); }).join('') +
       '</div>'
     );
   }).join('');
@@ -312,7 +388,7 @@ function _pcToolbarHtml() {
     '<button class="btn btn-sm btn-ghost" onclick="pcNavWeek(1)">Следваща →</button>' +
     '<span class="pc-toolbar__title">' + title + '</span>' +
     '<span style="flex:1"></span>' +
-    '<span class="pc-toolbar__hint">Влачи карта от панела → пусни в деня · Влачи блок за преместване · Дръж долния ръб за промяна на продължителност</span>' +
+    '<span class="pc-toolbar__hint">Влачи карта от панела → пусни в деня · Влачи блок за преместване · Дръж долния ръб за промяна на продължителност · 📅 = запазено директно в Google Calendar</span>' +
     '</div>'
   );
 }
@@ -387,6 +463,7 @@ async function renderCalendar(el) {
     _prodCal.cards = cards;
 
     _pcFullRender(el);
+    pcLoadExternal(); // Google събитията идват отделно — не бавят календара
   } catch (e) {
     el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">Грешка при зареждане</div>';
   }
@@ -545,6 +622,7 @@ function pcNavWeek(dir) {
   var toolbar = el.querySelector('.pc-toolbar');
   if (toolbar) toolbar.outerHTML = _pcToolbarHtml();
   _pcRefreshWeekView();
+  pcLoadExternal(); // Google събитията за новата седмица (от кеша или наново)
 }
 
 function pcNavToday() {
@@ -569,6 +647,14 @@ function pcFilterCards(q) {
 function pcOpenCard(e) {
   // Suppress open if the user just finished a resize drag
   if (_pcResize.didResize) { _pcResize.didResize = false; return; }
+  var url = (e.currentTarget && e.currentTarget.dataset.url) || '';
+  if (url) window.open(url, '_blank', 'noopener');
+}
+
+// ─── open external event (in Google Calendar) ─────────────────────────────────
+
+function pcOpenExternal(e) {
+  e.stopPropagation();
   var url = (e.currentTarget && e.currentTarget.dataset.url) || '';
   if (url) window.open(url, '_blank', 'noopener');
 }
