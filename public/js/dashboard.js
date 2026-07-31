@@ -169,17 +169,27 @@ function dashFilterOptions() {
   };
 }
 
+// Картите в една колона — точно тези, които стоят под заглавието ѝ (спазва активния
+// филтър). On Hold картите не влизат: те си имат собствен брояч в разделителя
+// „⏸ On Hold (N)" отдолу.
+function dashColCards(boardId, colId) {
+  return ((_dashCards[boardId] || {})[colId] || []).filter(dashCardMatches);
+}
+// Числото до заглавието на колоната. Незаредена дъска пада към структурния брой от
+// Basecamp — оправя се щом картите дойдат.
+function dashColCount(board, col) {
+  return _dashCards[board.id] ? dashColCards(board.id, col.id).length : (col.cardsCount || 0);
+}
+
+// Числото до името на дъската = сборът на броячите на ВИДИМИТЕ колони, за да се връзва
+// с числата отдолу. Скритите колони („Done" и „Not now" са скрити по подразбиране)
+// вече не се броят — преди влизаха и хедърът излизаше по-голям без видима причина.
+// Венци, 31.07.2026: „Нека да са само видимите колони".
 function dashBoardTotal(b) {
-  // При активен филтър броячът в хедъра трябва да отговаря на това, което се вижда.
-  // Незаредена дъска пада към структурния брой — оправя се щом картите дойдат.
-  if (dashFilterActive() && _dashCards[b.id]) {
-    let n = 0;
-    [_dashCards[b.id] || {}, _dashOnHold[b.id] || {}].forEach((src) => {
-      Object.keys(src).forEach((cid) => { n += (src[cid] || []).filter(dashCardMatches).length; });
-    });
-    return n;
-  }
-  return (b.columns || []).reduce((s, c) => s + (c.cardsCount || 0), 0);
+  const hiddenCols = getDashHiddenCols();
+  return (b.columns || [])
+    .filter((c) => !hiddenCols.has(String(c.id)))
+    .reduce((s, c) => s + dashColCount(b, c), 0);
 }
 
 // Order `items` by a saved array of ids; unlisted items keep their original order at the end.
@@ -493,9 +503,9 @@ function dashCardCompare(a, b) {
 }
 
 function dashSubColHtml(board, col, loaded) {
-  const cards = ((_dashCards[board.id] || {})[col.id] || []).filter(dashCardMatches).sort(dashCardCompare);
+  const cards = dashColCards(board.id, col.id).sort(dashCardCompare);
   const onHold = ((_dashOnHold[board.id] || {})[col.id] || []).filter(dashCardMatches).sort((a, b) => (a.position || 0) - (b.position || 0));
-  const count = loaded ? cards.length : (col.cardsCount || 0);
+  const count = dashColCount(board, col);
   const body = loaded
     ? ((cards.map(renderDashCard).join('') || '<div class="dash-subcol-empty"></div>') +
        (onHold.length ? '<div class="dash-onhold-sep">⏸ On Hold (' + onHold.length + ')</div>' + onHold.map(renderDashCard).join('') : ''))
