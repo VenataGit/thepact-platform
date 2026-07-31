@@ -734,15 +734,51 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
 
 /* ---- Mobile: < 768px ---- */
 @media (max-width: 767px) {
-  /* Navigation bar: icon-only mode, compact */
+  /* Навигация на телефон — всичко в един ред, нищо върху нищо.
+     Логото беше position:absolute и с height:22px заема ~163px ширина
+     (SVG-то е 1132×153, т.е. 7.4:1) — рисуваше се ВЪРХУ иконките на менюто
+     и им крадеше кликовете. Тук минава в нормалния поток и е единственият
+     елемент, който има право да се свива, така че бутоните остават цели. */
   .nav__bar {
-    height: 46px;
     padding: 0 8px;
-    gap: 1px;
+    gap: 4px;
+    justify-content: space-between;
+  }
+  .nav__logo {
+    position: static;
+    left: auto;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    gap: 5px;
+  }
+  .nav__logo-img {
+    height: 18px;
+    min-width: 0;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: left center;
+  }
+  .nav__logo span {
+    display: none;
+  }
+  /* Менюто и дясната група не се свиват — те диктуват колко остава за логото */
+  .nav__main {
+    flex: 1 0 auto;
+    justify-content: center;
+    margin: 0; /* маха `margin: 0 auto` от правилото за ≤1780px */
+    gap: 2px;
+  }
+  .nav__me {
+    right: auto;
+    flex: 0 0 auto;
+    gap: 6px;
   }
   .nav__link {
-    padding: 6px 8px;
+    padding: 6px 7px;
     font-size: 12px;
+    flex-shrink: 0;
   }
   .nav__link span:not(.unread-badge) {
     display: none;
@@ -751,30 +787,20 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
     width: 18px;
     height: 18px;
   }
-  .nav__logo {
-    left: 8px;
-    font-size: 13px;
-    gap: 5px;
-  }
-  .nav__logo span {
-    display: none;
-  }
-  .nav__me {
-    right: 8px;
-    gap: 6px;
-  }
   .nav__avatar {
     width: 28px;
     height: 28px;
     font-size: 10px;
+    flex-shrink: 0;
   }
   .nav__ws-status {
     display: none;
   }
 
-  /* Breadcrumb bar: compact */
+  /* Breadcrumb bar: compact.
+     БЕЗ `top` — лентата е в нормалния поток (position:relative), така че
+     `top:46px` я избутваше 46px надолу ВЪРХУ съдържанието под нея. */
   .breadcrumb-bar {
-    top: 46px;
     height: 36px;
     padding: 0 8px;
   }
@@ -791,12 +817,26 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
     padding: 2px 5px;
   }
 
-  /* Main area: adjust for smaller nav + breadcrumb */
+  /* Main area: отстъпът отгоре е точно колкото фиксирания бар (var(--nav-height)),
+     както на десктоп. Breadcrumb лентата е В потока и сама си заема мястото —
+     старите 82px я брояха втори път и оставяха празна ивица. */
   .main-area {
-    padding-top: 46px;
+    overflow-x: clip; /* нищо не изтича настрани; clip не чупи position:sticky */
   }
-  .main-area.with-breadcrumb {
-    padding-top: 82px;
+
+  /* Пълна височина спрямо ВИДИМИЯ екран (dvh), не спрямо 100vh.
+     На телефон 100vh включва скритата зона под адресната лента на браузъра —
+     заради това долният ред (полето за писане и бутонът „изпрати" в чата)
+     оставаше под екрана, а body е с overflow:hidden и не се доскролва. */
+  #pageContent.page-chat {
+    height: calc(100dvh - var(--nav-height));
+  }
+  .with-breadcrumb #pageContent.page-chat {
+    height: calc(100dvh - var(--nav-height) - 40px);
+  }
+  #pageContent.page-board,
+  #pageContent.page-column {
+    min-height: calc(100dvh - var(--nav-height) - 40px);
   }
 
   /* Main content area */
@@ -836,16 +876,20 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
     min-height: 130px;
   }
 
-  /* Dropdown menus: full width on mobile */
+  /* Dropdown menus: full width on mobile.
+     Височината се мери в dvh, за да не изпадат последните редове на „Още"
+     под адресната лента на браузъра (падащото меню е fixed и не се доскролва). */
   .nav-dropdown {
     position: fixed !important;
     left: 8px !important;
     right: 8px !important;
-    top: 52px !important;
+    top: calc(var(--nav-height) + 6px) !important;
     transform: none !important;
     width: auto !important;
     max-width: none !important;
-    max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - var(--nav-height) - 18px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     border-radius: 10px;
   }
   .nav-dropdown--center {
@@ -862,12 +906,12 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
   }
   .nav-dropdown--hey {
     position: fixed !important;
-    top: 52px !important;
+    top: calc(var(--nav-height) + 6px) !important;
     left: 8px !important;
     right: 8px !important;
     transform: none !important;
     width: auto !important;
-    height: calc(100vh - 60px);
+    height: calc(100dvh - var(--nav-height) - 18px);
   }
 
   /* Hey item: slightly tighter */
@@ -904,8 +948,7 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
 /* ---- Small mobile: < 480px ---- */
 @media (max-width: 480px) {
   .nav__bar {
-    height: 44px;
-    gap: 0;
+    gap: 2px;
   }
   .nav__link {
     padding: 6px 6px;
@@ -913,15 +956,12 @@ body:has(#pageContent.page-chat) .main-area { min-height: 0; overflow: hidden; }
   .nav__main {
     gap: 0;
   }
+  /* По-малко лого, за да остане повече място за иконките и аватара */
+  .nav__logo-img {
+    height: 15px;
+  }
   .breadcrumb-bar {
-    top: 44px;
     height: 34px;
-  }
-  .main-area {
-    padding-top: 44px;
-  }
-  .main-area.with-breadcrumb {
-    padding-top: 78px;
   }
   #pageContent {
     padding: 10px 8px;

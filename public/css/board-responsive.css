@@ -442,7 +442,7 @@
   .pc-wrap {
     flex-direction: column;
     height: auto;
-    min-height: calc(100vh - 100px);
+    min-height: calc(100dvh - 100px);
   }
   .pc-sidebar {
     width: 100%;
@@ -516,6 +516,22 @@
   .dash-wrap {
     padding: 0 4px;
   }
+  /* „Филтър" и „⚙ Настройки" живеят в горния бар и заедно с текста си заемаха
+     ~170px — на телефон избутваха аватара и иконките извън екрана. На мобилно
+     остават само иконките (текстът е в span, който крием); заглавието (title)
+     показва името при задържане. */
+  .dash-settings-btn {
+    padding: 5px 8px;
+    font-size: 11px;
+    gap: 0;
+  }
+  .dash-filter-btn > span:not(.dash-filter-badge),
+  .dash-settings-btn .dash-btn-lbl {
+    display: none;
+  }
+  .dash-filter-btn > .dash-filter-badge {
+    margin-left: 4px;
+  }
   .dash-stats-bar {
     flex-wrap: wrap;
     gap: 4px;
@@ -534,7 +550,7 @@
      vertical strips. (Was: flex-direction column = vertical stack.) */
   .dash-board {
     flex-direction: row;
-    min-height: calc(100vh - 140px);
+    min-height: calc(100dvh - 140px);
     gap: 6px;
   }
   .dash-col {
@@ -596,16 +612,19 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* ---- TOAST NOTIFICATIONS ---- */
-  .app-toast {
-    left: 12px;
-    right: 12px;
-    transform: translateY(20px);
-    max-width: none;
-    width: auto;
+  /* ---- TOAST NOTIFICATIONS ----
+     Класът тук беше .app-toast, който никъде не се използва — истинските са
+     .toast-container / .toast. С min-width:280px + right:20px известието
+     излизаше извън екрана на тесни телефони. */
+  .toast-container {
+    top: calc(var(--nav-height) + 8px);
+    left: 10px;
+    right: 10px;
   }
-  .app-toast--visible {
-    transform: translateY(0);
+  .toast {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
   }
 
   /* ---- MODAL OVERLAYS ---- */
