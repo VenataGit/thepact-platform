@@ -525,15 +525,22 @@ function renderDashCard(card) {
   const due = card.dueOn
     ? '<div class="dash-card__date"' + dueTip + '>' + DASH_CAL_SVG + '<span>' + formatDate(card.dueOn) + '</span></div>'
     : (noDate ? '<div class="dash-card__nodate">' + DASH_CAL_SVG + '<span>Няма дата</span></div>' : '');
-  return '<div class="dash-card ' + colorClass + (card.completed ? ' dash-card--done' : '') + (card.onHold ? ' dash-card--onhold' : '') + (noDate ? ' dash-card--nodate' : '') + '" draggable="true" data-card-id="' + card.id + '" data-url="' + esc(card.url || '') + '"' +
-      ' ondragstart="dashBcDragStart(event)" ondragend="dashBcDragEnd(event)" onclick="dashOpenCard(event, this)" title="' + esc(card.title) + ' — отвори в Basecamp">' +
+  // Картата е ИСТИНСКИ <a> към Basecamp, а не <div> — само така средният бутон (скролът)
+  // отваря задачата в нов раздел НА ЗАДЕН ПЛАН и таблицата остава отпред. С JS не става:
+  // `window.open` винаги изважда новия раздел отпред, а средният бутон върху <div> не прави
+  // нищо. Левият бутон минава през dashOpenCard и си остава както беше. (Венци, 31.07.2026)
+  const url = card.url || '';
+  const href = url ? ' href="' + esc(url) + '" target="_blank" rel="noopener"' : '';
+  const tag = url ? 'a' : 'div';
+  return '<' + tag + ' class="dash-card ' + colorClass + (card.completed ? ' dash-card--done' : '') + (card.onHold ? ' dash-card--onhold' : '') + (noDate ? ' dash-card--nodate' : '') + '" draggable="true" data-card-id="' + card.id + '" data-url="' + esc(url) + '"' + href +
+      ' ondragstart="dashBcDragStart(event)" ondragend="dashBcDragEnd(event)" onclick="dashOpenCard(event, this)" title="' + esc(card.title) + ' — отвори в Basecamp' + (url ? ' (среден бутон: нов раздел отзад)' : '') + '">' +
     '<div class="dash-card__title">' + esc(card.title) + '</div>' +
     due +
     '<div class="dash-card__actions">' +
       '<button class="dash-card__timer" onclick="dashCardTimer(event, \'' + card.id + '\')" title="Следене на времето">' + DASH_CLOCK_SVG + '</button>' +
       (assignee ? '<span class="dash-card__assignee">' + assignee + '</span>' : '') +
     '</div>' +
-  '</div>';
+  '</' + tag + '>';
 }
 
 // Time-tracking button: свети червено, докато колега работи по картата (виж
@@ -735,9 +742,16 @@ window.addEventListener('resize', () => {
 });
 
 // Open a card on its own page in Basecamp, in a new tab.
+// Ляв бутон: както досега — нов раздел отпред, направо в задачата.
+// Ctrl/⌘/Shift + клик: не пипаме — браузърът сам отваря раздел/прозорец на заден план.
+// Средният бутон изобщо не стига дотук (той вдига `auxclick`), картата е <a> и браузърът
+// го поема — точно затова се отварят много задачи наведнъж, без връщане назад.
 function dashOpenCard(e, el) {
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;
   const url = el.getAttribute('data-url');
-  if (url) window.open(url, '_blank', 'noopener');
+  if (!url) return;
+  e.preventDefault(); // картата е <a> — иначе разделът ще се отвори два пъти
+  window.open(url, '_blank', 'noopener');
 }
 
 // --- admin-only GLOBAL ordering (saved on the server, applies to everyone) ---
