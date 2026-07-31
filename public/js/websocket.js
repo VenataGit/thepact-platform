@@ -32,6 +32,12 @@ function handleWSEvent(ev) {
     updateCardEditingBanner(ev.cardId);
     return;
   }
+  // CRM: презареждаме дъската само ако човекът гледа точно нея и няма отворен модал
+  // (иначе би му се затворило това, което пише в момента).
+  if (t === 'crm:changed') {
+    if (location.hash.indexOf('#/crm') === 0 && !document.getElementById('crmModal') && typeof crmLoad === 'function') crmLoad();
+    return;
+  }
   if (t === 'sos:alert') { showSosAlert(ev); return; }
   if (t === 'sos:resolved') { document.querySelectorAll('.sos-alert-banner[data-alert-id="' + ev.alertId + '"]').forEach(function(b) { b.remove(); }); return; }
   // Live-update Production Calendar when a card is moved (Post-Production checkmark)

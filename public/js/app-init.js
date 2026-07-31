@@ -40,4 +40,6 @@ function showShortcutsHelp() {
   try { const ids = await (await fetch('/api/users/online')).json(); ids.forEach(id => onlineUsers.add(id)); } catch {}
   // Show any active SOS alerts that fired before user entered the platform
   loadActiveSosAlerts();
+  // Подгряваме проверката за CRM достъп, за да не мига точката в More при първо отваряне
+  if (typeof crmCheckAccess === 'function') crmCheckAccess();
 })();

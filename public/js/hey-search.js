@@ -76,7 +76,9 @@ async function populateHey(el) {
 function _renderHeyItem(n, isInBookmarkSection) {
   var sn = n.sender_name || '';
   var savUrl = _findAvatar(sn);
-  var link = n.reference_type === 'card' ? '#/card/' + n.reference_id : '#/notifications';
+  var link = n.reference_type === 'card' ? '#/card/' + n.reference_id
+           : n.reference_type === 'crm' ? '#/crm' + (n.reference_id ? '?deal=' + n.reference_id : '')
+           : '#/notifications';
   var sid = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
   var bmClass = n.is_bookmarked ? ' hey-item--bookmarked' : '';
   return '<div class="hey-item-wrap' + bmClass + '">' +
@@ -136,6 +138,7 @@ function populateMore(el) {
       <a class="nav-dropdown__item" href="#/create-task" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(234,179,8,.16);color:var(--yellow,#eab308)">🧾</div> Създаване на задачи</a>
       <a class="nav-dropdown__item" href="#/dictation" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--green-dim,rgba(70,163,116,.18));color:#46a374">🎤</div> Диктовка</a>
       <a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(150,80,220,.16);color:#9b59b6">🎬</div> Premiere Downgrade</a>
+      <span id="moreCrmSlot"></span>
     </div>
     <div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
       ${currentUser?.role === 'admin' ? `<a class="nav-dropdown__item" href="#/agent" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(28,176,246,.15);color:var(--accent,#1cb0f6)">🤖</div> PM Agent</a>` : ''}
@@ -144,6 +147,15 @@ function populateMore(el) {
       <a class="nav-dropdown__item" href="#/admin" onclick="return sgOpenSettings(event)"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">⚙️</div> Настройки</a>
     </div>
   `;
+  // CRM се вижда само от хора с поименен достъп (crm_access). Отговорът се пази в
+  // crm.js, така че след първото отваряне точката се появява без изчакване.
+  if (typeof crmCheckAccess === 'function') {
+    crmCheckAccess().then(function(ok) {
+      var slot = el.querySelector('#moreCrmSlot');
+      if (!ok || !slot) return;
+      slot.outerHTML = '<a class="nav-dropdown__item" href="#/crm" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--teal-dim,rgba(20,184,166,.15));color:var(--teal,#14b8a6)">🤝</div> CRM</a>';
+    });
+  }
 }
 
 function populateFind(el) {
