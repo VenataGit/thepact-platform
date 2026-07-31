@@ -59,7 +59,6 @@ function router() {
     case 'trash': return renderTrash(el);
     case 'release-notes': return renderReleaseNotes(el);
     case 'home-tasks': return renderHomeTasks(el);
-    case 'dictation': return renderDictation(el);
     case 'create-task': return renderTaskCreator(el);
     // CRM: всичко около сделка е пълна страница, не прозорче.
     case 'crm':

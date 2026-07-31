@@ -151,7 +151,6 @@ document.addEventListener('keydown', (e) => {
     else if (e.key === 'p') location.hash = '#/chat';
     else if (e.key === 'c') location.hash = '#/campfire/1';
     else if (e.key === 's') location.hash = '#/schedule';
-    else if (e.key === 'r') location.hash = '#/reports';
     return;
   }
   if (e.key === 'g') { pendingShortcut = 'g'; setTimeout(() => { pendingShortcut = null; }, 1000); return; }
