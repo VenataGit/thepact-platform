@@ -133,17 +133,17 @@ async function markAllHeyRead(e) {
 function populateMore(el) {
   el.innerHTML = `
     <div class="nav-dropdown__section">
-      <a class="nav-dropdown__item" href="#/clients" onclick="closeAllDropdowns()"><svg class="nav__icon" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><path d="M2.5 13c0-2 1.6-3.3 3.5-3.3S9.5 11 9.5 13"/><path d="M10.5 4.2a2.2 2.2 0 0 1 0 4.1"/><path d="M11 9.8c1.6.2 2.9 1.4 2.9 3.2"/></svg> Клиенти</a>
-      <a class="nav-dropdown__item" href="#" onclick="event.preventDefault();showKpSplit()"><img src="/img/icon-kp-avto.png" alt="" width="16" height="16" class="nav__icon"> Създай задачи по КП</a>
-      <a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()"><img src="/img/icon-kp-avto.png" alt="" width="16" height="16" class="nav__icon"> КП-Автоматизация</a>
-      <a class="nav-dropdown__item" href="#/create-task" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(234,179,8,.16);color:var(--yellow,#eab308)">🧾</div> Създаване на задачи</a>
-      <a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(150,80,220,.16);color:#9b59b6">🎬</div> Premiere Downgrade</a>
+      <a class="nav-dropdown__item" href="#/clients" onclick="closeAllDropdowns()">Клиенти</a>
+      <a class="nav-dropdown__item" href="#" onclick="event.preventDefault();showKpSplit()">Създай задачи по КП</a>
+      <a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()">КП-Автоматизация</a>
+      <a class="nav-dropdown__item" href="#/create-task" onclick="closeAllDropdowns()">Създаване на задачи</a>
+      <a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()">Premiere Downgrade</a>
       <span id="moreCrmSlot"></span>
     </div>
     <div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
-      ${currentUser?.role === 'admin' ? `<a class="nav-dropdown__item" href="#/time-report" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(229,72,77,.15);color:#e5484d">⏱</div> Време</a>` : ''}
+      ${currentUser?.role === 'admin' ? `<a class="nav-dropdown__item" href="#/time-report" onclick="closeAllDropdowns()">Време</a>` : ''}
       <!-- Настройките се виждат от всички; отварят се само с админ права (sgOpenSettings). -->
-      <a class="nav-dropdown__item" href="#/admin" onclick="return sgOpenSettings(event)"><div class="item-icon" style="background:var(--bg-hover);color:var(--text-dim)">⚙️</div> Настройки</a>
+      <a class="nav-dropdown__item" href="#/admin" onclick="return sgOpenSettings(event)">Настройки</a>
     </div>
   `;
   // CRM се вижда само от хора с поименен достъп (crm_access). Отговорът се пази в
@@ -152,7 +152,7 @@ function populateMore(el) {
     crmCheckAccess().then(function(ok) {
       var slot = el.querySelector('#moreCrmSlot');
       if (!ok || !slot) return;
-      slot.outerHTML = '<a class="nav-dropdown__item" href="#/crm" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--teal-dim,rgba(20,184,166,.15));color:var(--teal,#14b8a6)">🤝</div> CRM</a>';
+      slot.outerHTML = '<a class="nav-dropdown__item" href="#/crm" onclick="closeAllDropdowns()">CRM</a>';
     });
   }
 }
