@@ -4,6 +4,14 @@
 // for future bot-driven tools — not used by the dashboard.
 const { queryOne, execute } = require('../db/pool');
 const bc = require('./basecamp');
+const config = require('../config');
+
+// Every call goes to The Pact's Basecamp account. Rows stored before 31.07.2026 could hold
+// another account the person belongs to (they were logged in with the first account on their
+// token), which made every request 404 — so the configured account always wins.
+function accountFor(stored) {
+  return config.BASECAMP_ACCOUNT_ID || stored;
+}
 
 // Refresh the access token if it is expired / about to expire. Returns a usable token.
 // `table`/`idCol` are fixed literals (never user input), so the interpolation is safe.
@@ -30,7 +38,7 @@ async function getUserAuth(userId) {
     throw e;
   }
   const token = await refreshIfNeeded(row, 'basecamp_tokens', 'user_id', userId);
-  return { token, account: row.basecamp_account_id };
+  return { token, account: accountFor(row.basecamp_account_id) };
 }
 
 // The shared ThePactAlerts service token (reserved for future bot-driven tools).
@@ -38,7 +46,7 @@ async function getServiceAuth() {
   const row = await queryOne('SELECT * FROM basecamp_service_account WHERE id = 1');
   if (!row) throw new Error('ThePactAlerts сервизен акаунт не е свързан.');
   const token = await refreshIfNeeded(row, 'basecamp_service_account', 'id', 1);
-  return { token, account: row.account_id };
+  return { token, account: accountFor(row.account_id) };
 }
 
 module.exports = { getUserAuth, getServiceAuth };

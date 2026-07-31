@@ -28,6 +28,9 @@ module.exports = {
   BASECAMP_USER_AGENT: process.env.BASECAMP_USER_AGENT || 'The Pact Platform (kalchev@thepact.bg)',
   // The ThePactAlerts bot — only this Basecamp identity may be stored as the service token.
   BASECAMP_SERVICE_EMAIL: (process.env.BASECAMP_SERVICE_EMAIL || 'automation@thepact.bg').toLowerCase(),
+  // The Pact's own Basecamp account. A person can belong to several accounts (their own,
+  // a client's) — every API call must go to THIS one, otherwise Basecamp answers 404.
+  BASECAMP_ACCOUNT_ID: String(process.env.BASECAMP_ACCOUNT_ID || '5750544').trim(),
   // Login is granted to any member of this Basecamp project (Video Production) OR any
   // non-client (internal The Pact team) — checked live against Basecamp on each login.
   BASECAMP_TEAM_PROJECT_ID: parseInt(process.env.BASECAMP_TEAM_PROJECT_ID) || 39396506,

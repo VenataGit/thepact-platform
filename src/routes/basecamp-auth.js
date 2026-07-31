@@ -69,7 +69,7 @@ router.get('/basecamp/callback', async (req, res) => {
     '<h2 style="color:' + (ok ? '#46a374' : '#ef4444') + ';font-weight:600">' + msg + '</h2>' +
     '<p style="color:#8fa3b0">Можеш да затвориш този таб.</p></div>'
   );
-  const failMsgs = { denied: 'Отказахте достъпа до Basecamp.', nocode: 'Връзката с Basecamp прекъсна.', state: 'Сесията изтече — опитай пак.', identity: 'Не успяхме да прочетем данните от Basecamp.', error: 'Грешка при свързване с Basecamp.' };
+  const failMsgs = { denied: 'Отказахте достъпа до Basecamp.', nocode: 'Връзката с Basecamp прекъсна.', state: 'Сесията изтече — опитай пак.', identity: 'Не успяхме да прочетем данните от Basecamp.', noaccount: 'Този профил няма достъп до Basecamp акаунта на The Pact.', error: 'Грешка при свързване с Basecamp.' };
   const fail = (reason) => (mode === 'service' ? servicePage(false, failMsgs[reason] || 'Грешка.') : res.redirect(`/login.html?bc=${reason}`));
   try {
     const { code, state, error } = req.query;
@@ -91,11 +91,20 @@ router.get('/basecamp/callback', async (req, res) => {
     const name = [ident.first_name, ident.last_name].filter(Boolean).join(' ').trim() || email;
     const bcUserId = ident.id;
     const accounts = Array.isArray(auth.accounts) ? auth.accounts : [];
-    const account = accounts.find((a) => a.product === 'bc3') || accounts[0] || null;
+    // A person can belong to SEVERAL Basecamp accounts (their own, a client's). Taking the
+    // first one pointed every later API call at the wrong account — a teammate got
+    // "Basecamp GET failed (404): .../4854481/projects/39396506.json" (31.07.2026).
+    // Always pin to The Pact's account; without access to it there is nothing to show.
+    const account = config.BASECAMP_ACCOUNT_ID
+      ? accounts.find((a) => String(a.id) === config.BASECAMP_ACCOUNT_ID) || null
+      : accounts.find((a) => a.product === 'bc3') || accounts[0] || null;
     const accountId = account ? account.id : null;
 
     if (!email || !bcUserId) return fail('identity');
-    if (!accountId) return fail('identity'); // no usable Basecamp account on this token
+    if (!accountId) { // token has no access to The Pact's Basecamp account
+      console.warn(`[basecamp] no access to account ${config.BASECAMP_ACCOUNT_ID} for ${email} (has: ${accounts.map((a) => a.id).join(', ') || 'none'})`);
+      return fail('noaccount');
+    }
 
     // SERVICE MODE: store the ThePactAlerts bot token (no user login).
     if (mode === 'service') {
