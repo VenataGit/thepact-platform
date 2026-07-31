@@ -162,6 +162,7 @@ app.use('/api/bc-board', require('./routes/bc-board'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/bc-calendar', require('./routes/bc-calendar'));
 app.use('/api/kp-split', require('./routes/kp-split'));
+app.use('/api/task-creator', require('./routes/task-creator'));
 app.use('/api/gcal-alerts', require('./routes/gcal-alerts'));
 app.use('/api/kp-results', require('./routes/kp-results'));
 app.use('/api/sheet-alerts', require('./routes/sheet-alerts'));

@@ -3,6 +3,7 @@
 //   🎨 Тема               — шрифт + основни цветове (+ разширена персонализация)
 //   👥 Екип и роли        — хора, позиции, профили и права
 //   📋 КП-Автоматизация   — къде отиват КП картите (Basecamp), текстове, дати, график
+//   🧾 Създаване на задачи — шаблони и стъпки за инструмента в More + кой какво е поръчвал
 //   🗂 Dashboard          — кои Card Tables виждат всички
 //   📅 Календар известия  — Google Calendar → Basecamp
 //   📊 Резултати          — известие, когато всички видеа по един КП са публикувани
@@ -62,6 +63,7 @@ var SG_SECTIONS = [
   { id: 'theme', icon: '🎨', label: 'Тема', hint: 'Шрифт и цветове', adminOnly: false },
   { id: 'team', icon: '👥', label: 'Екип и роли', hint: 'Позиции и профили', adminOnly: true },
   { id: 'kp', icon: '📋', label: 'КП-Автоматизация', hint: 'Basecamp, текстове, график', adminOnly: true },
+  { id: 'tasks', icon: '🧾', label: 'Създаване на задачи', hint: 'Шаблони, стъпки, история', adminOnly: true },
   { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
   { id: 'calendar', icon: '📅', label: 'Календар известия', hint: 'GCal → Basecamp', adminOnly: false },
   { id: 'results', icon: '📊', label: 'Резултати', hint: 'Известие при изпубликуван КП', adminOnly: true },
@@ -122,6 +124,7 @@ async function renderSettings(el, sub) {
   if (active === 'theme') sgSectionTheme(body);
   else if (active === 'team') sgSectionTeam(body);
   else if (active === 'kp') sgSectionKp(body);
+  else if (active === 'tasks') sgSectionTasks(body);
   else if (active === 'dashboard') sgSectionDashboard(body);
   else if (active === 'calendar') sgSectionCalendar(body);
   else if (active === 'results') sgSectionResults(body);
@@ -1668,4 +1671,239 @@ function sysSave(key, value, rerender) {
   if (typeof _platformConfig === 'object') _platformConfig[key] = String(value);
   showToast('Запазено ✓', 'success', 1500);
   if (rerender) sysRender();
+}
+
+// ==================== СЕКЦИЯ: СЪЗДАВАНЕ НА ЗАДАЧИ ====================
+// Настройките на инструмента от More (#/create-task) + историята кой какво е поръчвал.
+// Картите ги създава ботът ThePactAlerts, затова в Basecamp авторът е винаги един —
+// тази таблица е единственото място, където се вижда истинският поръчител.
+var _tskAdm = null; // { s, init, tpl, history }
+
+function sgSectionTasks(host) {
+  host.innerHTML = '<div class="sg-section"><div class="ga-loading">Зареждане…</div></div>';
+  tskAdmLoad();
+}
+
+async function tskAdmLoad() {
+  var host = document.getElementById('sgBody');
+  try {
+    var results = await Promise.all([
+      fetch('/api/settings').then(function (r) { return r.json(); }),
+      fetch('/api/task-creator/init').then(function (r) { return r.json(); }).catch(function (e) { return { error: e.message }; }),
+      fetch('/api/task-creator/templates').then(function (r) { return r.json(); }),
+      fetch('/api/task-creator/history?limit=60').then(function (r) { return r.json(); }).catch(function () { return { items: [] }; }),
+    ]);
+    _tskAdm = {
+      s: results[0].settings || {},
+      init: results[1] || {},
+      tpl: results[2] || {},
+      history: (results[3] && results[3].items) || [],
+    };
+    tskAdmRender();
+  } catch (e) {
+    if (host) host.innerHTML = '<div class="sg-section"><div style="color:var(--red);font-size:13px">Грешка при зареждане: ' + esc(e.message) + '</div></div>';
+  }
+}
+
+function tskAdmBoardOpts(sel) {
+  var opts = '<option value=""' + (!sel ? ' selected' : '') + '>— авто: Pre-Production —</option>';
+  ((_tskAdm.init || {}).boards || []).forEach(function (b) {
+    opts += '<option value="' + esc(b.id) + '"' + (String(sel) === String(b.id) ? ' selected' : '') + '>' + esc(b.title) + '</option>';
+  });
+  return opts;
+}
+
+function tskAdmColOpts(boardId, sel) {
+  var boards = (_tskAdm.init || {}).boards || [];
+  var board = boards.find(function (b) { return String(b.id) === String(boardId); });
+  if (!board) board = boards.find(function (b) { return /pre[\s-]*produc|предпрод/i.test(b.title || '') && !/post|пост/i.test(b.title || ''); });
+  var opts = '<option value=""' + (!sel ? ' selected' : '') + '>— авто: Измисляне —</option>';
+  ((board && board.columns) || []).forEach(function (c) {
+    opts += '<option value="' + esc(c.id) + '"' + (String(sel) === String(c.id) ? ' selected' : '') + '>' + esc(c.title) + (c.isDone ? ' (Done)' : '') + '</option>';
+  });
+  return opts;
+}
+
+function tskAdmRender() {
+  var host = document.getElementById('sgBody');
+  if (!host || !_tskAdm) return;
+  var s = _tskAdm.s, tpl = _tskAdm.tpl, init = _tskAdm.init;
+  var html = '';
+
+  // --- 1. Дестинация за задачите „Измисляне" ---
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">💡 Задача за измисляне — къде отива</div>' +
+    '<div class="sg-section__desc">Инструментът е в <a href="#/create-task">More → Създаване на задачи</a> и е достъпен за всички. ' +
+      'Празно = авто (Pre-Production → Измисляне) или каквото е зададено в <a href="#/admin/kp">КП-Автоматизация</a>.</div>' +
+    (init.error
+      ? '<div class="ga-empty" style="color:var(--yellow)">⚠ Basecamp не отговори (' + esc(init.error) + ') — дъската не може да се избере сега.</div>'
+      : '<div class="sg-kp-grid">' +
+          '<label class="sg-kp-field"><span class="sg-kp-label">Дъска (Card Table)</span>' +
+            '<select class="ga-select sg-kp-select" id="tskAdmBoard" onchange="tskAdmBoardChange(this.value)">' + tskAdmBoardOpts(s.task_plan_board_id) + '</select></label>' +
+          '<label class="sg-kp-field"><span class="sg-kp-label">Колона</span>' +
+            '<select class="ga-select sg-kp-select" id="tskAdmCol" onchange="tskAdmSave(\'task_plan_column_id\', this.value)">' + tskAdmColOpts(s.task_plan_board_id, s.task_plan_column_id) + '</select></label>' +
+        '</div>') +
+    '<div class="sg-kp-rows" style="margin-top:12px">' +
+      '<div class="sg-kp-row"><span class="sg-kp-row__label">Брой видеа по подразбиране</span>' +
+        '<input type="number" min="1" max="60" class="ga-input sg-kp-num" value="' + esc(String(tpl.defaultVideos || 10)) + '" onblur="tskAdmSave(\'task_default_videos\', this.value || \'10\')">' +
+        '<span class="sg-kp-row__hint">колко видео секции стоят във формата при отваряне</span></div>' +
+      '<div class="sg-kp-row"><span class="sg-kp-row__label">Максимум видеа</span>' +
+        '<input type="number" min="1" max="60" class="ga-input sg-kp-num" value="' + esc(String(tpl.maxVideos || 30)) + '" onblur="tskAdmSave(\'task_max_videos\', this.value || \'30\')">' +
+        '<span class="sg-kp-row__hint">таван, за да не се налее борда по грешка (хард лимит 60)</span></div>' +
+    '</div>' +
+  '</div>';
+
+  // --- 2. Шаблон на задачата за измисляне ---
+  var own = tpl.ownTemplate || tpl.ownVideoSection;
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">✏️ Шаблон на задачата за измисляне</div>' +
+    '<div class="sg-section__desc">' + (own
+      ? 'Инструментът има <strong>собствен</strong> шаблон. Изтрий текста и запази, за да се върне към шаблона от <a href="#/admin/kp">КП-Автоматизация</a>.'
+      : 'В момента се ползва шаблонът от <a href="#/admin/kp">КП-Автоматизация</a>. Промениш ли текста тук, инструментът ще си има собствен.') + '</div>' +
+    '<label class="sg-kp-field"><span class="sg-kp-label">Основен текст</span>' +
+      '<textarea class="ga-input sg-kp-textarea" id="tskAdmTplMain" rows="7">' + esc(tpl.template || '') + '</textarea>' +
+      '<span class="sg-kp-note">{клиент} = името на задачата · {video_sections} = секциите за видеата · {брой} = избраният брой видеа</span></label>' +
+    '<label class="sg-kp-field" style="margin-top:12px"><span class="sg-kp-label">Секция за всяко видео</span>' +
+      '<textarea class="ga-input sg-kp-textarea" id="tskAdmTplVideo" rows="7">' + esc(tpl.videoSection || '') + '</textarea>' +
+      '<span class="sg-kp-note">{N} = номер на видеото. Повтаря се за всяко избрано видео.</span></label>' +
+    '<div class="ga-row ga-row--foot">' +
+      '<button class="btn btn-sm" onclick="tskAdmSaveTemplates(this)">💾 Запази шаблона</button>' +
+    '</div>' +
+  '</div>';
+
+  // --- 3. Стъпки на единичната задача ---
+  var steps = tpl.steps || [];
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">🎬 Стъпки на единичната задача</div>' +
+    '<div class="sg-section__desc">Всяка нова единична задача получава тези стъпки. Числото е колко <strong>работни дни преди датата за публикуване</strong> ' +
+      'пада стъпката — по него се смятат сами останалите дати във формата. Това са същите отмествания, с които работи и авто-синхронът на датите.</div>' +
+    '<div class="sg-kp-rows" id="tskAdmSteps">' +
+      steps.map(function (st, i) {
+        return '<div class="sg-kp-row">' +
+          '<input type="text" class="ga-input" style="flex:1;min-width:220px" value="' + esc(st.title) + '" data-tsk-step-title="' + i + '">' +
+          '<input type="number" min="0" max="365" class="ga-input sg-kp-num" value="' + esc(String(st.offset)) + '" data-tsk-step-offset="' + i + '">' +
+          '<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="tskAdmRemoveStep(' + i + ')">✕</button>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
+    '<div class="ga-row ga-row--foot">' +
+      '<button class="btn btn-sm" onclick="tskAdmAddStep()">+ Стъпка</button>' +
+      '<button class="btn btn-sm" onclick="tskAdmSaveSteps(this)">💾 Запази стъпките</button>' +
+      '<button class="btn btn-sm btn-ghost" onclick="tskAdmResetSteps()">↺ По подразбиране</button>' +
+    '</div>' +
+  '</div>';
+
+  // --- 4. История ---
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">📜 История — кой какви задачи е поръчвал</div>' +
+    '<div class="sg-section__desc">Картите в Basecamp се създават от бота ThePactAlerts, затова истинският поръчител се вижда само тук.</div>' +
+    tskAdmHistoryHtml() +
+  '</div>';
+
+  host.innerHTML = html;
+}
+
+function tskAdmHistoryHtml() {
+  var items = _tskAdm.history || [];
+  if (!items.length) return '<div class="ga-empty">Още никой не е създавал задачи през инструмента.</div>';
+  var rows = items.map(function (it) {
+    var who = it.current_name || it.user_name || '—';
+    var kind = it.kind === 'plan' ? 'Измисляне' : 'Единична';
+    var title = it.card_url
+      ? '<a href="' + esc(it.card_url) + '" target="_blank" rel="noopener">' + esc(it.title) + '</a>'
+      : esc(it.title);
+    var where = esc(it.board_title || '') + (it.column_title ? ' → ' + esc(it.column_title) : '');
+    var extra = it.kind === 'plan'
+      ? (it.video_count ? it.video_count + ' видеа' : '')
+      : (it.due_on ? 'публикуване ' + esc(formatDate(String(it.due_on))) : '');
+    return '<tr>' +
+      '<td style="white-space:nowrap;color:var(--text-dim)">' + esc(new Date(it.created_at).toLocaleString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })) + '</td>' +
+      '<td>' + esc(who) + '</td>' +
+      '<td><span class="tcl-kind tcl-kind--' + (it.kind === 'plan' ? 'plan' : 'single') + '">' + kind + '</span></td>' +
+      '<td>' + title + '</td>' +
+      '<td style="color:var(--text-dim)">' + where + '</td>' +
+      '<td style="color:var(--text-dim);white-space:nowrap">' + extra + '</td>' +
+    '</tr>';
+  }).join('');
+  return '<div style="overflow-x:auto"><table class="tcl-table">' +
+    '<thead><tr><th>Кога</th><th>Кой</th><th>Вид</th><th>Задача</th><th>Къде</th><th>Детайли</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table></div>';
+}
+
+function tskAdmSave(key, value, rerender) {
+  saveSetting(key, value);
+  if (_tskAdm) _tskAdm.s[key] = String(value);
+  showToast('Запазено ✓', 'success', 1500);
+  if (rerender) tskAdmRender();
+}
+
+function tskAdmBoardChange(boardId) {
+  tskAdmSave('task_plan_board_id', boardId);
+  tskAdmSave('task_plan_column_id', ''); // колоната от старата дъска вече не важи
+  var col = document.getElementById('tskAdmCol');
+  if (col) col.innerHTML = tskAdmColOpts(boardId, '');
+}
+
+async function tskAdmSaveTemplates(btn) {
+  var main = (document.getElementById('tskAdmTplMain') || {}).value || '';
+  var video = (document.getElementById('tskAdmTplVideo') || {}).value || '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Запазване…'; }
+  try {
+    var res = await fetch('/api/task-creator/templates', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template: main, videoSection: video }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    showToast('Шаблонът е запазен ✓', 'success');
+    await tskAdmLoad();
+  } catch (e) {
+    showToast('Грешка: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Запази шаблона'; }
+  }
+}
+
+function tskAdmCollectSteps() {
+  var host = document.getElementById('tskAdmSteps');
+  if (!host) return [];
+  var titles = host.querySelectorAll('[data-tsk-step-title]');
+  var out = [];
+  Array.prototype.forEach.call(titles, function (t) {
+    var i = t.getAttribute('data-tsk-step-title');
+    var o = host.querySelector('[data-tsk-step-offset="' + i + '"]');
+    if (t.value.trim()) out.push({ title: t.value.trim(), offset: parseInt(o && o.value, 10) || 0 });
+  });
+  return out;
+}
+
+function tskAdmAddStep() {
+  _tskAdm.tpl.steps = tskAdmCollectSteps().concat([{ key: 'new', title: '', offset: 0 }]);
+  tskAdmRender();
+}
+
+function tskAdmRemoveStep(idx) {
+  var steps = tskAdmCollectSteps();
+  steps.splice(idx, 1);
+  _tskAdm.tpl.steps = steps;
+  tskAdmRender();
+}
+
+// Празен списък към сървъра = изтриване на настройката → връщат се 11/6/1.
+function tskAdmResetSteps() { tskAdmSaveSteps(null, []); }
+
+async function tskAdmSaveSteps(btn, override) {
+  var steps = override || tskAdmCollectSteps();
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Запазване…'; }
+  try {
+    var res = await fetch('/api/task-creator/steps', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ steps: steps }),
+    });
+    var data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+    showToast('Стъпките са запазени ✓', 'success');
+    await tskAdmLoad();
+  } catch (e) {
+    showToast('Грешка: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Запази стъпките'; }
+  }
 }

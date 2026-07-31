@@ -133,6 +133,7 @@ function populateMore(el) {
     <div class="nav-dropdown__section">
       <a class="nav-dropdown__item" href="#/reports" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--red-dim);color:var(--red)">📊</div> Отчети</a>
       <a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()"><img src="/img/icon-kp-avto.png" alt="" width="16" height="16" class="nav__icon"> КП-Автоматизация</a>
+      <a class="nav-dropdown__item" href="#/create-task" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(234,179,8,.16);color:var(--yellow,#eab308)">🧾</div> Създаване на задачи</a>
       <a class="nav-dropdown__item" href="#/dictation" onclick="closeAllDropdowns()"><div class="item-icon" style="background:var(--green-dim,rgba(70,163,116,.18));color:#46a374">🎤</div> Диктовка</a>
       <a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()"><div class="item-icon" style="background:rgba(150,80,220,.16);color:#9b59b6">🎬</div> Premiere Downgrade</a>
     </div>

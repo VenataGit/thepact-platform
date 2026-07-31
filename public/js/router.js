@@ -60,6 +60,7 @@ function router() {
     case 'release-notes': return renderReleaseNotes(el);
     case 'home-tasks': return renderHomeTasks(el);
     case 'dictation': return renderDictation(el);
+    case 'create-task': return renderTaskCreator(el);
     case 'premiere': return renderPremiere(el);
     case 'time-report': return renderTimeReport(el);
     default: return renderDashboard(el);
