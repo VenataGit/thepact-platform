@@ -138,6 +138,7 @@ function populateMore(el) {
       <a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()">КП-Автоматизация</a>
       <a class="nav-dropdown__item" href="#/create-task" onclick="closeAllDropdowns()">Създаване на задачи</a>
       <a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()">Premiere Downgrade</a>
+      <a class="nav-dropdown__item" href="#/board-logic" onclick="closeAllDropdowns()">Логика на табло</a>
       <span id="moreCrmSlot"></span>
     </div>
     <div class="nav-dropdown__section" style="border-top:1px solid var(--border)">

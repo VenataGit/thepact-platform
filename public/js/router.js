@@ -65,6 +65,7 @@ function router() {
       if (parts[1] === 'new') return renderCrmNew(el);
       return id ? renderCrmDeal(el, id) : renderCrm(el);
     case 'premiere': return renderPremiere(el);
+    case 'board-logic': return renderBoardLogic(el);
     case 'time-report': return renderTimeReport(el);
     default: return renderDashboard(el);
   }
