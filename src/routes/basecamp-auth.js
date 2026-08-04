@@ -138,7 +138,21 @@ router.get('/basecamp/callback', async (req, res) => {
     let user = await queryOne('SELECT * FROM users WHERE basecamp_user_id = $1', [bcUserId]);
     if (!user) user = await queryOne('SELECT * FROM users WHERE LOWER(email) = $1', [email]);
 
-    const member = await basecamp.isTeamMember(tokens.access_token, accountId, config.BASECAMP_TEAM_PROJECT_ID);
+    // Одобрен от админ имейл (Настройки → Екип и роли) минава без проверката за екип —
+    // за нов човек, който още не е добавен във Video Production или е заведен като клиент.
+    // Never fatal: ако списъкът не може да се прочете, просто се пада обратно към Basecamp,
+    // за да не остане целият екип отвън заради една заявка.
+    let approved = null;
+    try {
+      approved = await queryOne('SELECT id FROM approved_emails WHERE email = $1', [email]);
+    } catch (e) { console.warn('[basecamp] approved-emails check failed:', e.message); }
+    const member = approved
+      ? { allowed: true, reason: 'approved', errored: false }
+      : await basecamp.isTeamMember(tokens.access_token, accountId, config.BASECAMP_TEAM_PROJECT_ID);
+    if (approved) {
+      await execute('UPDATE approved_emails SET last_login_at = NOW() WHERE id = $1', [approved.id])
+        .catch((e) => console.warn('[basecamp] approved last_login update failed:', e.message));
+    }
     if (!member.allowed) {
       // If Basecamp couldn't be reached, don't lock out an already-known user.
       if (member.errored && user) {

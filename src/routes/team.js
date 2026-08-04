@@ -51,9 +51,20 @@ router.get('/overview', requireAuth, requireAdmin, async (req, res) => {
          FROM users u ORDER BY u.is_active DESC, u.name`
     );
 
+    // Одобрените имейли + дали човекът вече си е направил профил с влизане.
+    const approved = await query(
+      `SELECT a.id, a.email, a.note, a.created_at, a.last_login_at,
+              adder.name AS added_by_name,
+              u.id AS platform_user_id, u.name AS platform_name, u.is_active AS platform_active
+         FROM approved_emails a
+         LEFT JOIN users adder ON adder.id = a.added_by
+         LEFT JOIN users u ON LOWER(u.email) = a.email
+        ORDER BY a.created_at DESC`
+    );
+
     const syncedRow = await queryOne('SELECT MAX(synced_at) AS at FROM bc_people');
     res.json({
-      people, positions, users,
+      people, positions, users, approved,
       syncedAt: syncedRow ? syncedRow.at : null,
       syncTime: await team.syncTime(),
       myUserId: req.user.userId,
@@ -90,6 +101,43 @@ router.put('/people/:personId', requireAuth, requireAdmin, async (req, res) => {
     );
     if (!updated) return res.status(404).json({ error: 'Човекът не е в кеша на екипа — обнови екипа.' });
     res.json({ ok: true, person: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/team/approved { email, note } — одобрява имейл за вход в платформата.
+// Само пълен админ. Имейлът е този, с който човекът е регистриран в Basecamp.
+router.post('/approved', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const email = String((req.body && req.body.email) || '').toLowerCase().trim();
+    const note = String((req.body && req.body.note) || '').trim().slice(0, 200);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Въведи валиден имейл.' });
+    }
+    const row = await queryOne(
+      `INSERT INTO approved_emails (email, note, added_by) VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO UPDATE SET note = EXCLUDED.note
+       RETURNING id, email`,
+      [email, note, req.user.userId]
+    );
+    res.json({ ok: true, approved: row });
+  } catch (err) {
+    console.error('[team] approve email error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/team/approved/:id — маха имейл от одобрените.
+// Само отнема правото за НАСЛЕДВАЩИ влизания — вече създаденият профил остава
+// (той се деактивира или трие от „Профили в платформата").
+router.delete('/approved/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'Невалиден запис.' });
+    const gone = await queryOne('DELETE FROM approved_emails WHERE id = $1 RETURNING email', [id]);
+    if (!gone) return res.status(404).json({ error: 'Записът вече не съществува.' });
+    res.json({ ok: true, email: gone.email });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

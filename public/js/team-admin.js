@@ -1,12 +1,14 @@
 // ==================== НАСТРОЙКИ → ЕКИП И РОЛИ ====================
-// Само за пълен админ. Три блока:
+// Само за пълен админ. Четири блока:
 //   1. Екипът от Basecamp (Video Production) — обновява се сам всеки ден; тук се
 //      задава позицията на всеки човек.
 //   2. Позиции — коя позиция отговаря за контент плановете (тези хора се тагват
 //      автоматично в коментара под всяка нова КП карта).
-//   3. Профили в платформата — кой може да влиза; оттук се трият тестови акаунти.
+//   3. Одобрени имейли — whitelist: човек с такъв имейл влиза, без да е в екипа
+//      в Basecamp.
+//   4. Профили в платформата — кой може да влиза; оттук се трият тестови акаунти.
 
-var _tm = null; // { people, positions, users, syncedAt, syncTime, myUserId }
+var _tm = null; // { people, positions, users, approved, syncedAt, syncTime, myUserId }
 
 function sgSectionTeam(host) {
   host.innerHTML = '<div class="sg-section"><div class="ga-loading">Зареждане…</div></div>';
@@ -119,7 +121,42 @@ function tmRender() {
     '</div>' +
   '</div>';
 
-  // ---------- 3. Профили в платформата ----------
+  // ---------- 3. Одобрени имейли ----------
+  // Whitelist: човек с този имейл влиза, без да е нужно първо да го добавят
+  // във Video Production в Basecamp.
+  var approved = _tm.approved || [];
+  html += '<div class="sg-section">' +
+    '<div class="sg-section__hdr">✅ Одобрени имейли</div>' +
+    '<div class="sg-section__desc">Нов човек, който още не е в проекта <strong>Video Production</strong> (или е заведен като клиент/гост в Basecamp), иначе получава „Нямаш достъп". ' +
+      'Добави тук имейла, <strong>с който е регистриран Basecamp акаунтът му</strong> — оттам нататък влиза нормално през „Влез с Basecamp" и профилът му се създава сам при първото влизане. ' +
+      'Само пълен админ вижда и променя този списък.</div>';
+  if (!approved.length) {
+    html += '<div class="ga-empty">Няма одобрени имейли — достъпът се решава само от Basecamp.</div>';
+  } else {
+    html += '<div class="tm-table-wrap"><table class="tm-table">' +
+      '<thead><tr><th>Имейл</th><th>Бележка</th><th>Добавен от</th><th>Влизал ли е</th><th></th></tr></thead><tbody>';
+    approved.forEach(function (a) {
+      var used = a.platform_user_id
+        ? '<span style="color:var(--green)">✓</span> <span class="ga-dim">' + esc(a.platform_name || '') + '</span>'
+        : (a.last_login_at ? '<span class="ga-dim">' + esc(tmDateTime(a.last_login_at)) + '</span>' : '<span class="ga-dim">още не</span>');
+      html += '<tr>' +
+        '<td class="tm-mail">' + esc(a.email) + '</td>' +
+        '<td class="tm-mail">' + esc(a.note || '—') + '</td>' +
+        '<td class="tm-mail">' + esc(a.added_by_name || '—') + ' <span class="ga-dim">· ' + esc(tmDateTime(a.created_at)) + '</span></td>' +
+        '<td>' + used + '</td>' +
+        '<td><button class="ga-btn ga-btn--del" onclick="tmDeleteApproved(' + a.id + ', \'' + esc(a.email).replace(/'/g, "\\'") + '\')">✕</button></td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '<div class="ga-row">' +
+      '<input type="email" class="ga-input" id="tmNewApprovedEmail" placeholder="имейл от Basecamp…" style="max-width:260px">' +
+      '<input type="text" class="ga-input" id="tmNewApprovedNote" placeholder="Кой е човекът (по избор)…">' +
+      '<button class="btn btn-sm" onclick="tmAddApproved()">Одобри</button>' +
+    '</div>' +
+  '</div>';
+
+  // ---------- 4. Профили в платформата ----------
   // Ролята и активността се сменят тук (преди бяха само в стария „Разширени" панел).
   var users = _tm.users || [];
   html += '<div class="sg-section">' +
@@ -224,6 +261,27 @@ function tmDeletePosition(posId, name) {
   showConfirmModal('Да изтрия ли позицията „' + name + '"? Хората с нея остават без позиция.', function () {
     _gaCall('/api/positions/' + posId, 'DELETE')
       .then(function () { showToast('Позицията е изтрита.', 'success'); tmLoad(); })
+      .catch(function (e) { showToast(e.message, 'error'); });
+  }, true);
+}
+
+function tmAddApproved() {
+  var mailEl = document.getElementById('tmNewApprovedEmail');
+  var noteEl = document.getElementById('tmNewApprovedNote');
+  var email = mailEl ? mailEl.value.trim() : '';
+  if (!email) { if (mailEl) mailEl.focus(); return; }
+  _gaCall('/api/team/approved', 'POST', { email: email, note: noteEl ? noteEl.value.trim() : '' })
+    .then(function () {
+      showToast('Готово — ' + email + ' вече може да влезе с „Влез с Basecamp".', 'success', 5000);
+      tmLoad();
+    })
+    .catch(function (e) { showToast(e.message, 'error', 6000); });
+}
+
+function tmDeleteApproved(id, email) {
+  showConfirmModal('Да махна ли „' + email + '" от одобрените? Ако човекът не е в екипа в Basecamp, следващия път няма да може да влезе. Създаденият профил остава.', function () {
+    _gaCall('/api/team/approved/' + id, 'DELETE')
+      .then(function () { showToast('Имейлът е махнат от одобрените.', 'success'); tmLoad(); })
       .catch(function (e) { showToast(e.message, 'error'); });
   }, true);
 }
