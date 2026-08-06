@@ -280,8 +280,31 @@ async function bucketStalled(me) {
 
 // ---------- курсор „вече съм го чул" ----------
 
+// Deploy-ът е само `git pull` + `npm install` + рестарт — миграциите НЕ се пускат
+// автоматично (а `npm run migrate` изпълнява само schema.sql и seed.sql, без
+// db/migrations/). Затова таблицата се създава при първа нужда: идемпотентно
+// DDL, нищо не се трие. 056_agent_briefing.sql остава за чисти инсталации.
+let tableReady = null;
+
+function ensureSeenTable() {
+  if (!tableReady) {
+    tableReady = execute(`
+      CREATE TABLE IF NOT EXISTS agent_briefing_seen (
+        ref_key    TEXT PRIMARY KEY,
+        bucket     TEXT NOT NULL DEFAULT '',
+        told_state TEXT NOT NULL DEFAULT '',
+        told_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`).catch((err) => {
+      tableReady = null; // да опита пак при следващата заявка
+      throw err;
+    });
+  }
+  return tableReady;
+}
+
 async function filterUnheard(items) {
   if (!items.length) return items;
+  await ensureSeenTable();
   const refs = items.map((i) => i.ref);
   const rows = await query(
     'SELECT ref_key, told_state FROM agent_briefing_seen WHERE ref_key = ANY($1::text[])',
@@ -295,6 +318,8 @@ async function filterUnheard(items) {
 // Отбелязва като „казано". Викаме го чак СЛЕД като брифингът е стигнал до Венци,
 // за да не изгубим нещо при грешка по пътя.
 async function markTold(items) {
+  if (!items.length) return 0;
+  await ensureSeenTable();
   for (const i of items) {
     await execute(
       `INSERT INTO agent_briefing_seen (ref_key, bucket, told_state, told_at)
