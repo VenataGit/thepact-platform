@@ -68,10 +68,12 @@ function wsSend(userId, event) {
 }
 
 // Главният вход: обработва едно съобщение от Венци (async, WS известява).
+// Връща финалния текст — гласовият вход го чака синхронно, вместо да слуша WS.
 async function handleChatMessage(userId, text) {
   if (chatBusy) {
-    wsSend(userId, { type: 'agent:chat:done', text: '⏳ Още обработвам предишното съобщение — изчакай го.', busy: true });
-    return;
+    const busyText = '⏳ Още обработвам предишното съобщение — изчакай го.';
+    wsSend(userId, { type: 'agent:chat:done', text: busyText, busy: true });
+    return busyText;
   }
   chatBusy = true;
   try {
@@ -124,9 +126,12 @@ async function handleChatMessage(userId, text) {
     }
     if (!finalText) finalText = '⚠ Стигнах лимита от стъпки, без да завърша — пробвай да разбиеш въпроса.';
     wsSend(userId, { type: 'agent:chat:done', text: finalText });
+    return finalText;
   } catch (err) {
     console.error('[pm-agent] chat error:', err.message);
-    wsSend(userId, { type: 'agent:chat:done', text: `⚠ Грешка: ${err.message}`, error: true });
+    const errText = `⚠ Грешка: ${err.message}`;
+    wsSend(userId, { type: 'agent:chat:done', text: errText, error: true });
+    return errText;
   } finally {
     chatBusy = false;
   }

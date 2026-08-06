@@ -3,7 +3,8 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { query, queryOne } = require('../db/pool');
-const { runSync, snapshotCounts } = require('../services/pm-agent/snapshot');
+const { runSync, snapshotCounts, syncInProgress } = require('../services/pm-agent/snapshot');
+const { collect, narrate, markTold } = require('../services/pm-agent/briefing');
 const { runAudit } = require('../services/pm-agent/audit');
 const { handleChatMessage, chatHistoryForUi, resetChat, isChatBusy } = require('../services/pm-agent/chat');
 const { approveProposal, rejectProposal } = require('../services/pm-agent/actions');
@@ -103,6 +104,81 @@ router.post('/proposals/:id/reject', async (req, res) => {
     const p = await rejectProposal(id);
     res.json({ proposal: p });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---------- Гласов брифинг (Фаза 2) ----------
+
+// Ако снапшотът е застоял, го опресняваме ФОНОВО и пак отговаряме веднага —
+// гласът не бива да чака Basecamp. Cron-ът и без това върти на 15 минути.
+const FRESH_MINUTES = 10;
+
+async function freshenIfStale() {
+  try {
+    const { lastSyncAt } = await snapshotCounts();
+    const ageMin = lastSyncAt ? (Date.now() - new Date(lastSyncAt).getTime()) / 60000 : Infinity;
+    if (ageMin > FRESH_MINUTES && !syncInProgress()) {
+      runSync({ trigger: 'briefing' }).catch((err) => console.error('[pm-agent] briefing sync error:', err.message));
+    }
+    return Number.isFinite(ageMin) ? Math.round(ageMin) : null;
+  } catch { return null; }
+}
+
+// GET /api/agent/briefing?new=0&narrate=0&sync=off
+//   new=0     → всичко отворено, не само неказаното
+//   narrate=0 → само структурата, без текста за говорене (спестява Claude вик)
+//   sync=off  → не пипай синхронизацията изобщо
+router.get('/briefing', async (req, res) => {
+  try {
+    const onlyNew = String(req.query.new || '1') !== '0';
+    const wantSpeech = String(req.query.narrate || '1') !== '0';
+    const ageMin = String(req.query.sync || 'auto') === 'off' ? null : await freshenIfStale();
+
+    const data = await collect({ onlyNew });
+    const items = [...data.mine, ...data.mentioned, ...data.stalled];
+    const out = {
+      ...data,
+      snapshot_age_minutes: ageMin,
+      syncing: syncInProgress(),
+      // Клиентът връща тези ключове на /briefing/ack, СЛЕД като ги е изговорил.
+      refs: items.map((i) => ({ ref: i.ref, bucket: i.bucket, state: String(i.state || '') })),
+    };
+    if (wantSpeech) out.speech = await narrate(data);
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/agent/briefing/ack  { refs: [{ref, bucket, state}] }
+// Движи курсора чак СЛЕД като брифингът е стигнал до Венци — ако говоренето
+// се провали по пътя, нищо не се губи и следващия път пак ще го чуе.
+router.post('/briefing/ack', express.json({ limit: '256kb' }), async (req, res) => {
+  try {
+    const refs = Array.isArray(req.body && req.body.refs) ? req.body.refs : [];
+    const clean = refs
+      .filter((r) => r && typeof r.ref === 'string' && r.ref.length <= 100)
+      .slice(0, 500)
+      .map((r) => ({ ref: r.ref, bucket: String(r.bucket || '').slice(0, 30), state: String(r.state || '').slice(0, 100) }));
+    const n = await markTold(clean);
+    res.json({ acked: n });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/agent/voice/ask  { text } → { text }
+// Синхронен вариант на чата: гласовият клиент праща въпрос и чака отговора в
+// същата заявка (без WebSocket). Историята и инструментите са същите като в чата.
+router.post('/voice/ask', express.json({ limit: '64kb' }), async (req, res) => {
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text) return res.status(400).json({ error: 'Празен въпрос.' });
+  if (text.length > 4000) return res.status(400).json({ error: 'Твърде дълъг въпрос.' });
+  try {
+    const answer = await handleChatMessage(req.user.userId, text);
+    res.json({ text: answer || '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ---------- Дайджест / watchdog (Фаза 4) ----------

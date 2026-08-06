@@ -73,6 +73,17 @@ const TOOL_DEFS = [
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
+    name: 'whats_new_for_me',
+    description: 'Какво чака лично Венци: назначено на него и незавършено, коментари където е тагнат и още не е отговорил, плюс какво се бави (клиент без отговор, просрочено, застояло). Ползвай при въпроси от рода „какво имам за днес", „какво ме чака", „какво е новото". По подразбиране връща само нещата, които още НЕ са му казвани.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        only_new: { type: 'boolean', description: 'true (по подразбиране) = само неказаното досега; false = всичко отворено.' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'propose_action',
     description: 'Предложи действие в Basecamp (ще се изпълни ЧАК след одобрение от Венци в чата). Разрешени kind: create_card (payload: column_id, title, content?, due_on?, board_id?), create_step (payload: card_id, title, due_on?), add_comment (payload: recording_id, content), post_message (payload: subject, content), move_card (payload: card_id, board_id, column_id). Всичко е само във Video Production проекта. След като предложиш, кажи на Венци какво чака одобрение.',
     input_schema: {
@@ -225,6 +236,12 @@ async function executeTool(name, input, ctx) {
     case 'snapshot_status': {
       const { snapshotCounts } = require('./snapshot');
       return await snapshotCounts();
+    }
+    case 'whats_new_for_me': {
+      const { collect } = require('./briefing');
+      // Само четене — нищо не се отбелязва като казано оттук. Курсорът се движи
+      // единствено когато брифингът наистина е стигнал до Венци (routes/agent.js).
+      return await collect({ onlyNew: input.only_new !== false });
     }
     case 'propose_action': {
       const kinds = ['create_card', 'create_step', 'add_comment', 'post_message', 'move_card'];
