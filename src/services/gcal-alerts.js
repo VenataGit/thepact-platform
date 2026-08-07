@@ -42,23 +42,58 @@ function initGcalAlerts() {
 // Първият sync е само baseline (запазва syncToken, нищо не обявява), затова
 // съществуващите събития в календара не заливат борда.
 async function ensureProductionFeed() {
-  const flag = await queryOne("SELECT value FROM settings WHERE key = 'gcal_alerts_prod_feed_seeded'");
-  if (flag && flag.value === 'true') return;
-
   const calId = await getTargetCalendarId();
   if (!calId) return; // още няма конфигуриран производствен календар — пробваме пак при следващия старт
 
-  const access = await checkCalendarAccess(calId);
-  await execute(
-    `INSERT INTO gcal_feeds (google_calendar_id, name, last_error) VALUES ($1, $2, $3)
-     ON CONFLICT (google_calendar_id) DO NOTHING`,
-    [calId, access.name || 'Производствен календар', access.ok ? null : access.error]
+  const flag = await queryOne("SELECT value FROM settings WHERE key = 'gcal_alerts_prod_feed_seeded'");
+  if (!flag || flag.value !== 'true') {
+    const access = await checkCalendarAccess(calId);
+    await execute(
+      `INSERT INTO gcal_feeds (google_calendar_id, name, last_error) VALUES ($1, $2, $3)
+       ON CONFLICT (google_calendar_id) DO NOTHING`,
+      [calId, access.name || 'Производствен календар', access.ok ? null : access.error]
+    );
+    await execute(
+      `INSERT INTO settings (key, value, updated_at) VALUES ('gcal_alerts_prod_feed_seeded', 'true', NOW())
+       ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = NOW()`
+    );
+    console.log(`[gcal-alerts] производственият календар е включен в известията: ${calId}`);
+  }
+
+  const feed = await queryOne('SELECT id FROM gcal_feeds WHERE google_calendar_id = $1', [calId]);
+  if (feed) await ensureProductionResponsibles(feed.id);
+}
+
+// Календар без отговорници тагва само създателя на събитието — тогава останалите
+// от екипа не научават нищо. Точно това стана при първото включване на
+// производствения календар: известието излезе, но видя го само Венци.
+//
+// Затова новият календар наследява хората, зададени на вече следените календари
+// („схемата с видеографите"). Веднъж — оттам нататък се управлява от
+// Настройки → Календар известия и махнат човек не се връща при рестарт.
+// Флагът се вдига само при реално копиране: няма ли още отговорници никъде,
+// пробваме пак при следващия старт, вместо да заключим празен списък.
+async function ensureProductionResponsibles(feedId) {
+  const flag = await queryOne("SELECT value FROM settings WHERE key = 'gcal_alerts_prod_resp_seeded'");
+  if (flag && flag.value === 'true') return;
+
+  const inherited = await query(
+    'SELECT DISTINCT bc_person_id FROM gcal_feed_responsibles WHERE feed_id <> $1',
+    [feedId]
   );
+  if (!inherited.length) return;
+
+  for (const row of inherited) {
+    await execute(
+      'INSERT INTO gcal_feed_responsibles (feed_id, bc_person_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [feedId, row.bc_person_id]
+    );
+  }
   await execute(
-    `INSERT INTO settings (key, value, updated_at) VALUES ('gcal_alerts_prod_feed_seeded', 'true', NOW())
+    `INSERT INTO settings (key, value, updated_at) VALUES ('gcal_alerts_prod_resp_seeded', 'true', NOW())
      ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = NOW()`
   );
-  console.log(`[gcal-alerts] производственият календар е включен в известията: ${calId}`);
+  console.log(`[gcal-alerts] производственият календар наследи ${inherited.length} отговорника`);
 }
 
 // ---------- настройки + контекст ----------
