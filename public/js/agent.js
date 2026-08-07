@@ -16,8 +16,12 @@ function renderAgentChat(el) {
     '<div style="max-width:860px;margin:0 auto;display:flex;flex-direction:column;height:calc(100vh - 120px)">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 14px">' +
         '<h1 style="font-size:20px;margin:0">🤖 PM Agent</h1>' +
-        '<button class="btn btn-sm" onclick="agcReset()">✚ Нов разговор</button>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button class="btn btn-sm" onclick="agcToggleVoice()">🎙 Гласов агент</button>' +
+          '<button class="btn btn-sm" onclick="agcReset()">✚ Нов разговор</button>' +
+        '</div>' +
       '</div>' +
+      '<div id="agcVoice" style="display:none;margin-bottom:12px"></div>' +
       '<div id="agcMsgs" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px"></div>' +
       '<div id="agcStatus" style="min-height:20px;font-size:12px;opacity:.7;padding:6px 2px"></div>' +
       '<div style="display:flex;gap:8px;align-items:flex-end">' +
@@ -158,6 +162,78 @@ async function agcSend() {
   } catch (e) {
     agcSetBusy(false, '');
     agcAppend('assistant', '⚠ ' + e.message);
+  }
+}
+
+// ---------- Гласов агент: издаване на токен ----------
+// Гласовият клиент на машината (D:\Jarvis\voice_agent) се логва с дълготраен
+// токен `pt_`, защото няма браузър и няма как да мине през Basecamp OAuth.
+// Токенът се вижда ЕДИН ПЪТ — пази се само хеширан в базата.
+
+var AGC_TOKEN_PATH = 'D:\\Jarvis\\config\\platform_token.txt';
+
+function agcToggleVoice() {
+  var box = document.getElementById('agcVoice');
+  if (!box) return;
+  var showing = box.style.display !== 'none';
+  box.style.display = showing ? 'none' : 'block';
+  if (!showing && !box.innerHTML) agcVoicePanel();
+}
+
+function agcVoicePanel(body) {
+  var box = document.getElementById('agcVoice');
+  if (!box) return;
+  box.innerHTML =
+    '<div style="background:rgba(28,176,246,.07);border:1px solid rgba(28,176,246,.35);border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.6">' +
+      '<div style="font-weight:600;margin-bottom:6px">🎙 Гласов агент на компютъра</div>' +
+      (body || (
+        '<div style="opacity:.85;margin-bottom:10px">Издай токен и го сложи във файла ' +
+          '<code>' + esc(AGC_TOKEN_PATH) + '</code>, после пусни <code>start_voice_agent.bat</code>. ' +
+          'Токенът се показва само веднъж.</div>' +
+        '<button class="btn btn-sm btn-primary" onclick="agcIssueToken()">Издай токен</button>'
+      )) +
+    '</div>';
+}
+
+async function agcIssueToken() {
+  agcVoicePanel('<div style="opacity:.7">Издавам…</div>');
+  try {
+    var res = await fetch('/api/extension/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: 'Гласов агент' }),
+    });
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok || !data.token) throw new Error(data.error || ('HTTP ' + res.status));
+    agcVoicePanel(
+      '<div style="margin-bottom:6px">Готово. Копирай реда долу и го сложи във файла ' +
+        '<code>' + esc(AGC_TOKEN_PATH) + '</code> (само токена, нищо друго):</div>' +
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">' +
+        '<input id="agcTokenVal" readonly value="' + esc(data.token) + '" ' +
+          'style="flex:1;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.25);color:var(--text,#e8ecee);' +
+          'border:1px solid rgba(255,255,255,.15);font-family:monospace;font-size:12px" onclick="this.select()">' +
+        '<button class="btn btn-sm" onclick="agcCopyToken()">Копирай</button>' +
+      '</div>' +
+      '<div style="opacity:.75">Показва се само сега — ако го изгубиш, издай нов. ' +
+        'Старите се отзовават от разширението, не оттук.</div>'
+    );
+    var inp = document.getElementById('agcTokenVal');
+    if (inp) inp.select();
+  } catch (e) {
+    agcVoicePanel('<div style="color:var(--red)">Грешка: ' + esc(e.message) + '</div>' +
+      '<div style="margin-top:8px"><button class="btn btn-sm" onclick="agcIssueToken()">Пробвай пак</button></div>');
+  }
+}
+
+function agcCopyToken() {
+  var inp = document.getElementById('agcTokenVal');
+  if (!inp) return;
+  inp.select();
+  var done = function () { inp.blur(); alert('Копирано. Сложи го в ' + AGC_TOKEN_PATH); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(inp.value).then(done, function () { document.execCommand('copy'); done(); });
+  } else {
+    document.execCommand('copy');
+    done();
   }
 }
 
