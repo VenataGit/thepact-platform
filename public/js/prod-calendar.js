@@ -133,20 +133,58 @@ function _pcExternal() {
   return _prodCal.external[_pcWeekKey()] || [];
 }
 
-// Зарежда Google събитията за видимата седмица (веднъж на седмица — после от кеша).
-async function pcLoadExternal() {
+// Зарежда Google събитията за видимата седмица. Без force — само ако още ги няма
+// в кеша. С force (периодичната проверка) дърпа наново и прерисува само при
+// разлика, за да не мига екранът на всеки цикъл.
+async function pcLoadExternal(force) {
   var key = _pcWeekKey();
-  if (_prodCal.external[key]) return;
+  if (!force && _prodCal.external[key]) return;
   var end = new Date(_prodCal.weekStart);
   end.setDate(end.getDate() + 6);
   try {
     var res = await fetch('/api/bc-calendar/external?from=' + key + '&to=' + _pcDate(end));
     if (!res.ok) return;
     var data = await res.json();
-    _prodCal.external[key] = data.events || [];
+    var events = data.events || [];
+    var changed = JSON.stringify(_prodCal.external[key] || null) !== JSON.stringify(events);
+    _prodCal.external[key] = events;
     // Ако потребителят вече е сменил седмицата, само кешираме — без пререндване.
-    if (_pcWeekKey() === key) _pcRefreshWeekView();
+    if (changed && _pcWeekKey() === key) _pcRefreshWeekView();
   } catch (e) {}
+}
+
+// ─── лайв обновяване ──────────────────────────────────────────────────────────
+// Календарът се обновява сам, без ръчно презареждане: проверка на всеки 30 сек,
+// плюс веднага щом табът се върне на фокус (най-честият случай — човек добавя
+// събитието в Google и се връща в платформата).
+
+var PC_POLL_MS = 30000;
+var _pcPollTimer = null;
+
+function pcStartPolling() {
+  pcStopPolling();
+  _pcPollTimer = setInterval(pcPollExternal, PC_POLL_MS);
+  document.addEventListener('visibilitychange', pcOnVisible);
+  window.addEventListener('focus', pcOnVisible);
+}
+
+function pcStopPolling() {
+  if (_pcPollTimer) { clearInterval(_pcPollTimer); _pcPollTimer = null; }
+  document.removeEventListener('visibilitychange', pcOnVisible);
+  window.removeEventListener('focus', pcOnVisible);
+}
+
+function pcOnVisible() {
+  if (!document.hidden) pcPollExternal();
+}
+
+function pcPollExternal() {
+  // Излязъл от календара → таймерът се самоспира (няма кой друг да го спре).
+  if (!document.querySelector('.pc-week-view')) { pcStopPolling(); return; }
+  if (document.hidden) return;
+  // По време на влачене/преоразмеряване не пипаме DOM-а под ръцете на човека.
+  if (_pcDrag.type || _pcResize.entryId) return;
+  pcLoadExternal(true);
 }
 
 async function pcDeleteEntry(entryId) {
@@ -195,6 +233,43 @@ function _pcRefreshWeekView() {
 
 var _PC_DL_COLORS = { 'dl-green': '#2a9d5c', 'dl-yellow': '#c4930a', 'dl-red': '#c0392b', 'dl-black': '#555', 'dl-none': '#8899a6' };
 
+// ─── подредба при застъпване ──────────────────────────────────────────────────
+// Блоковете, които се застъпват по час в един ден, се разделят на равни писти,
+// за да се вижда, че са няколко. Сам блок си остава на цялата ширина.
+// Очаква обекти с _s / _e (минути от полунощ); записва _lane и _lanes.
+
+function _pcAssignLanes(items) {
+  var sorted = items.slice().sort(function(a, b) { return (a._s - b._s) || (b._e - a._e); });
+  var cluster = [], laneEnds = [], clusterEnd = -1;
+
+  function flush() {
+    var lanes = laneEnds.length || 1;
+    cluster.forEach(function(it) { it._lanes = lanes; });
+    cluster = []; laneEnds = []; clusterEnd = -1;
+  }
+
+  sorted.forEach(function(it) {
+    // Нов блок, който не застъпва нищо от текущата група → групата приключва.
+    if (cluster.length && it._s >= clusterEnd) flush();
+    var lane = 0;
+    while (lane < laneEnds.length && laneEnds[lane] > it._s) lane++;
+    it._lane = lane;
+    laneEnds[lane] = it._e;
+    cluster.push(it);
+    if (it._e > clusterEnd) clusterEnd = it._e;
+  });
+  flush();
+  return items;
+}
+
+// Празен стринг при една писта → блокът пада на стиловете по подразбиране (цяла ширина).
+function _pcLaneStyle(it) {
+  var lanes = it._lanes || 1;
+  if (lanes < 2) return '';
+  var w = 100 / lanes;
+  return 'left:calc(' + (it._lane * w) + '% + 2px);width:calc(' + w + '% - 4px);right:auto;';
+}
+
 function _pcEventHtml(entry) {
   var dlClass = entry.dl_class || 'dl-none';
   var color   = _PC_DL_COLORS[dlClass] || _PC_DL_COLORS['dl-none'];
@@ -205,7 +280,7 @@ function _pcEventHtml(entry) {
   var short  = entry.duration_minutes < 30;
   return '<div class="pc-event" data-entry-id="' + entry.id + '" data-card-id="' + entry.card_id + '"' +
     ' data-url="' + esc(entry.card_url || '') + '"' +
-    ' style="top:' + top + 'px;height:' + height + 'px;background:' + color + '"' +
+    ' style="' + _pcLaneStyle(entry) + 'top:' + top + 'px;height:' + height + 'px;background:' + color + '"' +
     ' draggable="true"' +
     ' ondblclick="pcOpenCard(event)"' +
     ' ondragstart="pcEventDragStart(event,' + entry.id + ',' + entry.start_minute + ')">' +
@@ -216,8 +291,9 @@ function _pcEventHtml(entry) {
   '</div>';
 }
 
-// Събитие от Google Calendar — само за четене, в дясната половина на деня, за да
-// не крие насрочената карта отдолу. Клик отваря събитието в Google Calendar.
+// Събитие от Google Calendar — изглежда като останалите блокове (Венци: „същият
+// като тези досега като визия"); отличава се само по 📅 пред заглавието. Само за
+// четене: не се влачи и не се преоразмерява, клик отваря събитието в Google.
 function _pcExtEventHtml(ev) {
   var start  = ev.start_minute;
   var end    = ev.start_minute + ev.duration_minutes;
@@ -227,8 +303,8 @@ function _pcExtEventHtml(ev) {
   // Отрязване до видимия прозорец 06:00–22:00. Събитие изцяло извън него остава
   // като лентичка на съответния ръб — часовете му се четат от етикета/tooltip-а.
   if (top < 0) { height += top; top = 0; }
-  top    = Math.max(0, Math.min(top, colH - 18));
-  height = Math.max(18, Math.min(height, colH - top));
+  top    = Math.max(0, Math.min(top, colH - 20));
+  height = Math.max(20, Math.min(height, colH - top));
 
   var label = _pcMinToTime(start) + ' – ' + _pcMinToTime(end);
   var tip = ev.title + ' · ' + label +
@@ -237,12 +313,12 @@ function _pcExtEventHtml(ev) {
     '\n(добавено директно в Google Calendar)';
 
   return '<div class="pc-event pc-event--ext"' +
-    ' style="top:' + top + 'px;height:' + height + 'px"' +
+    ' style="' + _pcLaneStyle(ev) + 'top:' + top + 'px;height:' + height + 'px;background:' + _PC_DL_COLORS['dl-none'] + '"' +
     ' title="' + esc(tip) + '"' +
     ' data-url="' + esc(ev.url || '') + '"' +
     ' onclick="pcOpenExternal(event)">' +
     '<div class="pc-event__title">📅 ' + esc(ev.title) + '</div>' +
-    (height >= 32 ? '<div class="pc-event__time">' + label + (ev.creator ? ' · ' + esc(ev.creator) : '') + '</div>' : '') +
+    (height >= 30 ? '<div class="pc-event__time">' + label + '</div>' : '') +
   '</div>';
 }
 
@@ -339,12 +415,21 @@ function _pcWeekHtml() {
   // ── day columns ──
   var cols = days.map(function(d) {
     var ds         = _pcDate(d);
-    var dayEntries = _prodCal.entries
-      .filter(function(e) { return e.scheduled_date === ds; })
-      .sort(function(a, b) { return a.start_minute - b.start_minute; });
-    var dayExternal = external
-      .filter(function(e) { return !e.all_day && e.date === ds; })
-      .sort(function(a, b) { return a.start_minute - b.start_minute; });
+    // Насрочените карти и Google събитията се подреждат заедно — застъпят ли се
+    // по час, всички участници в застъпването се свиват на равни писти.
+    var dayItems = [];
+    _prodCal.entries.forEach(function(e) {
+      if (e.scheduled_date !== ds) return;
+      e._ext = false; e._s = e.start_minute; e._e = e.start_minute + e.duration_minutes;
+      dayItems.push(e);
+    });
+    external.forEach(function(e) {
+      if (e.all_day || e.date !== ds) return;
+      e._ext = true; e._s = e.start_minute; e._e = e.start_minute + e.duration_minutes;
+      dayItems.push(e);
+    });
+    _pcAssignLanes(dayItems);
+    dayItems.sort(function(a, b) { return a._s - b._s; });
 
     // grid lines
     var lines = '';
@@ -359,8 +444,7 @@ function _pcWeekHtml() {
       ' ondrop="pcDrop(event)"' +
       ' ondragleave="pcDragLeave(event)">' +
       lines +
-      dayEntries.map(function(e) { return _pcEventHtml(e); }).join('') +
-      dayExternal.map(function(e) { return _pcExtEventHtml(e); }).join('') +
+      dayItems.map(function(e) { return e._ext ? _pcExtEventHtml(e) : _pcEventHtml(e); }).join('') +
       '</div>'
     );
   }).join('');
@@ -463,7 +547,8 @@ async function renderCalendar(el) {
     _prodCal.cards = cards;
 
     _pcFullRender(el);
-    pcLoadExternal(); // Google събитията идват отделно — не бавят календара
+    pcLoadExternal();  // Google събитията идват отделно — не бавят календара
+    pcStartPolling();  // и оттам нататък се обновяват сами
   } catch (e) {
     el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">Грешка при зареждане</div>';
   }

@@ -12,7 +12,7 @@
 // самия service account (Production Calendar sync-а), се пропускат — анти-шум.
 const cron = require('node-cron');
 const { query, queryOne, execute } = require('../db/pool');
-const { getCalendarClient, getServiceAccountEmail } = require('./google-calendar');
+const { getCalendarClient, getServiceAccountEmail, getTargetCalendarId } = require('./google-calendar');
 const bc = require('./basecamp');
 const agg = require('./bc-aggregate');
 const team = require('./bc-team');
@@ -23,6 +23,7 @@ let running = false;
 
 function initGcalAlerts() {
   try {
+    ensureProductionFeed().catch((err) => console.warn('[gcal-alerts] prod feed:', err.message));
     cron.schedule('* * * * *', () => {
       syncAllFeeds().catch((err) => console.error('[gcal-alerts] sync error:', err.message));
     });
@@ -30,6 +31,34 @@ function initGcalAlerts() {
   } catch (err) {
     console.log('  GCal alerts: skipped —', err.message);
   }
+}
+
+// Производственият календар минава през същите известия като останалите: запази ли
+// някой снимки направо в Google, екипът научава в Basecamp. Собствените ни събития
+// (писани от service account-а) се пропускат в processEvent, така че влаченето на
+// карта в календара не вдига шум.
+//
+// Засява се веднъж — изтрие ли се feed-ът от админ панела, не се връща при рестарт.
+// Първият sync е само baseline (запазва syncToken, нищо не обявява), затова
+// съществуващите събития в календара не заливат борда.
+async function ensureProductionFeed() {
+  const flag = await queryOne("SELECT value FROM settings WHERE key = 'gcal_alerts_prod_feed_seeded'");
+  if (flag && flag.value === 'true') return;
+
+  const calId = await getTargetCalendarId();
+  if (!calId) return; // още няма конфигуриран производствен календар — пробваме пак при следващия старт
+
+  const access = await checkCalendarAccess(calId);
+  await execute(
+    `INSERT INTO gcal_feeds (google_calendar_id, name, last_error) VALUES ($1, $2, $3)
+     ON CONFLICT (google_calendar_id) DO NOTHING`,
+    [calId, access.name || 'Производствен календар', access.ok ? null : access.error]
+  );
+  await execute(
+    `INSERT INTO settings (key, value, updated_at) VALUES ('gcal_alerts_prod_feed_seeded', 'true', NOW())
+     ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = NOW()`
+  );
+  console.log(`[gcal-alerts] производственият календар е включен в известията: ${calId}`);
 }
 
 // ---------- настройки + контекст ----------
