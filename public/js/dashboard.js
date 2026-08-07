@@ -150,6 +150,29 @@ function dashVisibleActiveCards() {
   return out;
 }
 
+// Клиентите в филтъра вървят винаги по едно и също правило: първо българските
+// (кирилица), после английските (латиница), всяка група по азбучен ред. Новодобавен
+// клиент се подрежда по това правило, а не се лепи където му падне.
+//
+// Нарочно НЕ разчитаме само на localeCompare(.., 'bg') за разделянето на двете групи:
+// то дава кирилица-първо само ако браузърът има българските collation данни. Липсват
+// ли, пада към root подредбата — а тя слага латиницата ПЪРВА, тоест точно обратното.
+// Затова групата се смята изрично по първата буква, а localeCompare се ползва само
+// вътре в групата.
+function _dashScriptRank(s) {
+  const m = String(s || '').match(/\p{L}/u);   // първата буква, без водещи кавички/цифри
+  return m && /[Ѐ-ӿ]/.test(m[0]) ? 0 : 1;
+}
+
+function dashClientCompare(a, b) {
+  a = String(a); b = String(b);
+  const ra = _dashScriptRank(a), rb = _dashScriptRank(b);
+  if (ra !== rb) return ra - rb;                                   // кирилица преди латиница
+  const cmp = a.localeCompare(b, ra === 0 ? 'bg' : 'en', { sensitivity: 'base', numeric: true });
+  if (cmp) return cmp;
+  return a < b ? -1 : a > b ? 1 : 0;   // тотална подредба — за да не „трепти" при равни имена
+}
+
 // Опциите се градят от видимите активни карти. КП списъкът се стеснява до избрания
 // клиент, за да не предлагаме комбинации, които не съществуват.
 function dashFilterOptions() {
@@ -163,7 +186,7 @@ function dashFilterOptions() {
     (c.assignees || []).forEach((a) => assignees.set(String(a.id), a.name));
   });
   return {
-    clients: [...clients.values()].sort((a, b) => a.localeCompare(b, 'bg')),
+    clients: [...clients.values()].sort(dashClientCompare),
     kps: [...kps].sort((a, b) => b - a),
     assignees: [...assignees.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'bg')),
   };
