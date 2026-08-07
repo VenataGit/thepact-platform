@@ -305,6 +305,98 @@ const NO_CLIENT = 'Без клиент';
 // по конкретна карта) — сменя се кой е водещият ключ, id-то не се маха.
 const TITLE_KEY = "lower(btrim(regexp_replace(e.title, '\\s+', ' ', 'g')))";
 
+// Една и съща задача може да смени и двете си опорни точки, но НИКОГА едновременно:
+//   • местене между дъски → НОВО id, СЪЩОТО заглавие  → свързва ги заглавието
+//   • преименуване        → СЪЩОТО id, НОВО заглавие  → свързва ги id-то
+// Затова двата признака се обединяват транзитивно: всеки ред (заглавие, карта) е
+// ребро в граф, а една задача = една свързана компонента. Така „преместена, после
+// преименувана, после пак преместена" пак излиза като една задача с едно общо време.
+//
+// Показваното заглавие е НАЙ-СКОРОШНОТО в периода — човек търси задачата по това,
+// както се казва сега, а не по това, както се е казвала преди три преименувания.
+function mergeTasks(rows) {
+  const parent = new Map();
+  const find = (x) => {
+    if (!parent.has(x)) parent.set(x, x);
+    let root = x;
+    while (parent.get(root) !== root) root = parent.get(root);
+    let cur = x; // скъсяване на пътя
+    while (parent.get(cur) !== root) { const next = parent.get(cur); parent.set(cur, root); cur = next; }
+    return root;
+  };
+  const union = (a, b) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+
+  // NULL карта не свързва нищо — иначе всички записи без id биха станали една задача.
+  for (const r of rows) {
+    const titleNode = 't:' + r.title_key;
+    find(titleNode);
+    if (r.bc_recording_id !== null && r.bc_recording_id !== undefined) {
+      union(titleNode, 'c:' + r.bc_recording_id);
+    }
+  }
+
+  const groups = new Map();
+  for (const r of rows) {
+    const root = find('t:' + r.title_key);
+    if (!groups.has(root)) {
+      groups.set(root, {
+        title: '', title_key: r.title_key, titleKeys: [], cardIds: [],
+        bc_recording_id: null, project_name: '',
+        seconds: 0, entries: 0, users: 0, cards: 0, titles: 0,
+        _users: new Set(), _last: null
+      });
+    }
+    const g = groups.get(root);
+    g.seconds += Number(r.seconds) || 0;
+    g.entries += Number(r.entries) || 0;
+    if (!g.titleKeys.includes(r.title_key)) g.titleKeys.push(r.title_key);
+    if (r.bc_recording_id !== null && r.bc_recording_id !== undefined) {
+      const cid = String(r.bc_recording_id);
+      if (!g.cardIds.includes(cid)) g.cardIds.push(cid);
+    }
+    for (const u of (r.user_ids || [])) g._users.add(u);
+    if (!g.project_name && r.project_name) g.project_name = r.project_name;
+    if (!g._last || new Date(r.last_started) > new Date(g._last)) {
+      g._last = r.last_started;
+      g.title = r.title;
+      g.title_key = r.title_key;
+      g.bc_recording_id = r.bc_recording_id !== null && r.bc_recording_id !== undefined
+        ? String(r.bc_recording_id) : null;
+    }
+  }
+
+  return [...groups.values()].map((g) => {
+    g.users = g._users.size;
+    g.cards = g.cardIds.length;
+    g.titles = g.titleKeys.length;
+    delete g._users;
+    delete g._last;
+    return g;
+  }).sort((a, b) => b.seconds - a.seconds);
+}
+
+// Суровите двойки (заглавие, карта) за периода — храната на mergeTasks.
+const TASK_PAIRS_SQL = `
+  SELECT ${TITLE_KEY} AS title_key,
+         e.bc_recording_id,
+         (ARRAY_AGG(e.title ORDER BY e.started_at DESC))[1] AS title,
+         MAX(e.started_at) AS last_started,
+         COALESCE(SUM(${DUR}),0)::int AS seconds,
+         COUNT(*)::int AS entries,
+         ARRAY_AGG(DISTINCT e.user_id) AS user_ids,
+         MAX(COALESCE(p.name, '')) AS project_name
+    FROM time_entries e LEFT JOIN bc_projects p ON p.project_id = e.bc_project_id
+   ${RANGE}
+   GROUP BY ${TITLE_KEY}, e.bc_recording_id`;
+
+async function taskGroups(from, to) {
+  return mergeTasks(await query(TASK_PAIRS_SQL, [from, to]));
+}
+
 // Клиент и КП идват от самото заглавие (конвенция „Cineland КП-18 - Видео 3 - …"),
 // защото всички карти на екипа живеят в един Basecamp проект и bc_project_id НЕ
 // различава клиентите. Затова се групира тук, върху вече сумираните по заглавие
@@ -343,11 +435,10 @@ function rollUp(byTitle) {
 router.get('/report', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const params = [dateParam(req.query.from), dateParam(req.query.to)];
-    const [totals, byUser, byProject, byTitle, byDay] = await Promise.all([
+    const [totals, byUser, byProject, tasks, byDay] = await Promise.all([
       queryOne(
         `SELECT COALESCE(SUM(${DUR}),0)::int AS seconds, COUNT(*)::int AS entries,
                 COUNT(DISTINCT e.user_id)::int AS users,
-                COUNT(DISTINCT ${TITLE_KEY})::int AS tasks,
                 COALESCE(SUM(CASE WHEN e.is_manual THEN ${DUR} ELSE 0 END),0)::int AS manual_seconds
            FROM time_entries e ${RANGE}`, params),
       query(
@@ -361,52 +452,41 @@ router.get('/report', requireAuth, requireAdmin, async (req, res, next) => {
                 COUNT(DISTINCT e.user_id)::int AS users, COUNT(*)::int AS entries
            FROM time_entries e LEFT JOIN bc_projects p ON p.project_id = e.bc_project_id ${RANGE}
           GROUP BY e.bc_project_id, p.name ORDER BY seconds DESC`, params),
-      // Задачите се групират по нормализирано заглавие, не по карта — така времето
-      // по една и съща задача остава събрано, дори картата да е минала през портал
-      // и да е излязла с ново id. cards показва през колко различни карти е минала
-      // задачата, bc_recording_id е само за линка/филтъра.
-      query(
-        `SELECT ${TITLE_KEY} AS title_key, MAX(e.title) AS title,
-                COALESCE(SUM(${DUR}),0)::int AS seconds,
-                COUNT(DISTINCT e.user_id)::int AS users, COUNT(*)::int AS entries,
-                COUNT(DISTINCT e.bc_recording_id)::int AS cards,
-                MAX(e.bc_recording_id) AS bc_recording_id,
-                MAX(COALESCE(p.name, '')) AS project_name
-           FROM time_entries e LEFT JOIN bc_projects p ON p.project_id = e.bc_project_id ${RANGE}
-          GROUP BY ${TITLE_KEY} ORDER BY seconds DESC`, params),
+      // Задачите се сглобяват от двойките (заглавие, карта) — виж mergeTasks:
+      // местенето сменя id-то, преименуването сменя заглавието, а двете заедно
+      // пак дават една задача.
+      taskGroups(params[0], params[1]),
       query(
         `SELECT ((e.started_at AT TIME ZONE '${TZ}')::date)::text AS day, COALESCE(SUM(${DUR}),0)::int AS seconds
            FROM time_entries e ${RANGE} GROUP BY day ORDER BY day`, params)
     ]);
-    const { byClient, byKp } = rollUp(byTitle);
+    const { byClient, byKp } = rollUp(tasks);
+    // „Задачи" в плочките = броят сглобени задачи, а не броят различни заглавия.
     res.json({
-      totals, byUser, byClient, byKp, byProject, byDay,
-      byTask: byTitle.slice(0, 200),
-      tasksTotal: byTitle.length
+      totals: Object.assign({}, totals, { tasks: tasks.length }),
+      byUser, byClient, byKp, byProject, byDay,
+      byTask: tasks.slice(0, 200),
+      tasksTotal: tasks.length
     });
   } catch (err) { next(err); }
 });
 
-// Кои title_key-ове в периода принадлежат на даден клиент / КП. Ползва същия
-// parseClientKp като отчета, за да няма два различни начина за разчитане на
-// заглавието (иначе филтърът и сумите биха се разминали).
+// Кои заглавия в периода принадлежат на даден клиент / КП. Работи върху вече
+// сглобените задачи и разчита НАЙ-СКОРОШНОТО заглавие със същия parseClientKp
+// като отчета — иначе филтърът и сумите биха се разминали. Връща всички заглавия
+// на задачата, за да влязат и записите отпреди преименуването.
 async function titleKeysFor(from, to, client, kp) {
-  const rows = await query(
-    `SELECT ${TITLE_KEY} AS title_key, MAX(e.title) AS title
-       FROM time_entries e ${RANGE} GROUP BY ${TITLE_KEY}`,
-    [from, to]
-  );
   const keys = [];
-  for (const r of rows) {
-    const parsed = parseClientKp(r.title);
+  for (const g of await taskGroups(from, to)) {
+    const parsed = parseClientKp(g.title);
     if (client === NO_CLIENT) {
-      if (!parsed) keys.push(r.title_key);
+      if (!parsed) keys.push(...g.titleKeys);
       continue;
     }
     if (!parsed) continue;
     if (client && parsed.client.toLowerCase() !== client.toLowerCase()) continue;
     if (kp !== null && parsed.kp !== kp) continue;
-    keys.push(r.title_key);
+    keys.push(...g.titleKeys);
   }
   return keys;
 }
@@ -420,14 +500,19 @@ router.get('/report/entries', requireAuth, requireAdmin, async (req, res, next) 
     const projectId = String(req.query.project_id || '').replace(/\D/g, '') || null;
     const recordingId = String(req.query.recording_id || '').replace(/\D/g, '') || null;
 
-    // Задачата се филтрира по нормализирано заглавие, не по карта — виж TITLE_KEY.
+    // Задачата се филтрира по заглавията си, не по карта — виж TITLE_KEY/mergeTasks.
+    // Преименувана задача има няколко заглавия, затова title_key идва като списък
+    // (?title_key=a&title_key=b) — иначе записите отпреди преименуването биха паднали.
     // Ключовете идват от самия SQL (от /report), затова двете страни винаги съвпадат.
     let titleKeys = null;
-    const oneKey = String(req.query.title_key || '').trim();
+    const rawKeys = req.query.title_key;
+    const keyList = (Array.isArray(rawKeys) ? rawKeys : [rawKeys])
+      .map((k) => String(k === undefined || k === null ? '' : k).trim())
+      .filter(Boolean);
     const client = String(req.query.client || '').trim();
     const kpRaw = String(req.query.kp || '').trim();
-    if (oneKey) {
-      titleKeys = [oneKey];
+    if (keyList.length) {
+      titleKeys = keyList;
     } else if (client) {
       titleKeys = await titleKeysFor(from, to, client, kpRaw ? parseInt(kpRaw, 10) : null);
       if (!titleKeys.length) return res.json([]);

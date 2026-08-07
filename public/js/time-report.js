@@ -196,9 +196,9 @@ async function trLoadReport() {
       '</div>').join('')
     : '<div class="tr-empty">Няма данни за периода.</div>';
 
-  // Задачите са групирани по заглавие, затова една и съща задача остава един ред,
-  // дори картата да е минала през портал и да е сменила id. „Карти: 2" значи точно
-  // това — времето от двете карти е събрано обратно заедно.
+  // Една задача = един ред, дори да е сменила карта (местене) и/или заглавие
+  // (преименуване). Колоната „Карти" показва през колко карти е минала, а ✎ —
+  // че е била преименувана и старите ѝ заглавия са събрани тук.
   const tasks = data.byTask || [];
   const tasksTitle = document.getElementById('trTasksTitle');
   if (tasksTitle) {
@@ -207,17 +207,27 @@ async function trLoadReport() {
   }
   document.getElementById('trByTask').innerHTML = tasks.length
     ? '<table class="admin-table tr-table"><thead><tr><th>Задача</th><th>Проект</th><th>Карти</th><th>Души</th><th style="text-align:right">Време</th></tr></thead><tbody>' +
-      tasks.map((x, i) => '<tr class="tr-task" data-i="' + i + '"><td>' + esc(x.title || '(без заглавие)') + '</td><td>' +
-        esc(x.project_name || '') + '</td><td>' +
-        (Number(x.cards) > 1
-          ? '<span class="tr-dim" title="Задачата е минала през ' + x.cards + ' различни карти — времето е събрано по заглавие">' + x.cards + ' ⧉</span>'
-          : '1') +
-        '</td><td>' + x.users + '</td><td style="text-align:right"><b>' + trFmtDur(x.seconds) + '</b></td></tr>').join('') +
+      tasks.map((x, i) => {
+        const renamed = Number(x.titles) > 1
+          ? ' <span class="tr-dim" title="Задачата е била преименувана (' + x.titles +
+            ' заглавия) — времето отпреди преименуването е събрано тук">✎</span>'
+          : '';
+        const cards = Number(x.cards) > 1
+          ? '<span class="tr-dim" title="Задачата е минала през ' + x.cards +
+            ' различни карти — времето от всичките е събрано тук">' + x.cards + ' ⧉</span>'
+          : String(x.cards || 1);
+        return '<tr class="tr-task" data-i="' + i + '"><td>' + esc(x.title || '(без заглавие)') + renamed +
+          '</td><td>' + esc(x.project_name || '') + '</td><td>' + cards +
+          '</td><td>' + x.users + '</td><td style="text-align:right"><b>' + trFmtDur(x.seconds) + '</b></td></tr>';
+      }).join('') +
       '</tbody></table>'
     : '<div class="tr-empty">Няма данни за периода.</div>';
   document.querySelectorAll('.tr-task').forEach((row) => row.addEventListener('click', () => {
     const x = tasks[Number(row.dataset.i)];
-    _trState.filter = { title_key: x.title_key, label: 'задача: ' + (x.title || x.title_key) };
+    _trState.filter = {
+      title_keys: x.titleKeys && x.titleKeys.length ? x.titleKeys : [x.title_key],
+      label: 'задача: ' + (x.title || x.title_key)
+    };
     trLoadEntries();
   }));
 }
@@ -228,7 +238,8 @@ function trEntriesQuery() {
   if (f.user_id) q += '&user_id=' + f.user_id;
   if (f.project_id) q += '&project_id=' + f.project_id;
   if (f.recording_id) q += '&recording_id=' + f.recording_id;
-  if (f.title_key) q += '&title_key=' + encodeURIComponent(f.title_key);
+  // преименувана задача има няколко заглавия — пращат се всичките
+  (f.title_keys || []).forEach((k) => { q += '&title_key=' + encodeURIComponent(k); });
   if (f.client) q += '&client=' + encodeURIComponent(f.client);
   if (f.kp) q += '&kp=' + f.kp;
   return q;
