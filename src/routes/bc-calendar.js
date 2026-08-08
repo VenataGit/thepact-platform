@@ -5,6 +5,8 @@
 // which also syncs to Google Calendar with a link back to the Basecamp card.
 // GET /external е обратната посока: събития, добавени директно в Google Calendar,
 // се показват в седмичния изглед само за четене (за да се вижда, че часът е зает).
+// Календарите са няколко: гледат се всички следени, а се пише в избрания (само
+// там, където service account-ът има права) — виж listCalendars/resolveWriteCalendar.
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
@@ -65,8 +67,9 @@ router.get('/', requireAuth, async (req, res) => {
     const cards = await getProductionCards(token, account);
     const byId = {}; cards.forEach((c) => { byId[String(c.id)] = c; });
 
+    await ensureSchema();
     const rows = await query(
-      "SELECT id, basecamp_card_id, card_title, card_url, to_char(scheduled_date,'YYYY-MM-DD') AS scheduled_date, start_minute, duration_minutes FROM bc_production_calendar ORDER BY scheduled_date, start_minute"
+      "SELECT id, basecamp_card_id, card_title, card_url, to_char(scheduled_date,'YYYY-MM-DD') AS scheduled_date, start_minute, duration_minutes, google_calendar_id FROM bc_production_calendar ORDER BY scheduled_date, start_minute"
     );
     const scheduledIds = new Set(rows.map((r) => String(r.basecamp_card_id)));
 
@@ -84,16 +87,113 @@ router.get('/', requireAuth, async (req, res) => {
         scheduled_date: r.scheduled_date,
         start_minute: r.start_minute,
         duration_minutes: r.duration_minutes,
+        calendar_id: r.google_calendar_id || null,
         dl_class: card ? card.dl_class : 'dl-none',
       };
     });
 
-    res.json({ cards: unscheduled, entries });
+    res.json({ cards: unscheduled, entries, calendars: await listCalendars() });
   } catch (err) {
     console.error('[bc-calendar]', err.message);
     res.status(err.code === 'NO_USER_TOKEN' ? 401 : 502).json({ error: err.message });
   }
 });
+
+// ─── няколко календара ────────────────────────────────────────────────────────
+// Календарите идват от следените в „Календар известия" (gcal_feeds) плюс
+// производственият по подразбиране. Гледането и писането са различни списъци:
+// service account-ът може да чете всичко споделено с него, но да пише само там,
+// където има „Make changes to events" (напр. „Общ календар" връща 403).
+//
+// Deploy-ът не пуска миграции (виж коментара в pm-agent/briefing.js), затова
+// двете нови колони се добавят при първа нужда — идемпотентно DDL, нищо не се трие.
+let schemaReady = null;
+function ensureSchema() {
+  if (!schemaReady) {
+    schemaReady = Promise.all([
+      execute('ALTER TABLE bc_production_calendar ADD COLUMN IF NOT EXISTS google_calendar_id TEXT'),
+      execute('ALTER TABLE gcal_feeds ADD COLUMN IF NOT EXISTS can_write BOOLEAN'),
+    ]).catch((err) => {
+      schemaReady = null; // да опита пак при следващата заявка
+      throw err;
+    });
+  }
+  return schemaReady;
+}
+
+// Може ли service account-ът да пише в този календар? Единственият надежден
+// начин е да се пробва: Google не дава accessRole за споделен календар, а
+// calendarList на service account-а е празен (споделянето не го попълва).
+// Пробното събитие е далеч в бъдещето и се трие веднага; gcal-alerts пропуска
+// писаното от service account-а, така че нищо не се обявява в Basecamp.
+async function probeWriteAccess(calendarId) {
+  const calendar = getCalendarClient();
+  if (!calendar) return null;
+  let createdId = null;
+  try {
+    const r = await calendar.events.insert({
+      calendarId,
+      requestBody: {
+        summary: 'ThePact — проверка на достъпа',
+        start: { dateTime: '2030-01-01T03:00:00', timeZone: TZ },
+        end:   { dateTime: '2030-01-01T03:15:00', timeZone: TZ },
+      },
+      sendUpdates: 'none',
+    });
+    createdId = r.data.id;
+    return true;
+  } catch (err) {
+    if (err && (err.code === 403 || err.status === 403)) return false;
+    return null; // мрежа/друга грешка — не заключваме отговор
+  } finally {
+    if (createdId) {
+      try { await calendar.events.delete({ calendarId, eventId: createdId, sendUpdates: 'none' }); }
+      catch (e) { console.warn('[bc-calendar] пробното събитие не се изтри:', createdId, e.message); }
+    }
+  }
+}
+
+// Списъкът за фронтенда. can_write се научава веднъж на календар и се пази.
+async function listCalendars() {
+  await ensureSchema();
+  const defaultId = await getTargetCalendarId();
+  const feeds = await query(
+    'SELECT google_calendar_id AS id, name, can_write FROM gcal_feeds WHERE enabled = true ORDER BY id'
+  );
+
+  const out = feeds.map((f) => ({
+    id: f.id,
+    name: f.name || f.id,
+    is_default: f.id === defaultId,
+    can_write: f.can_write,
+  }));
+  // Производственият календар присъства винаги, дори да не е добавен като feed.
+  if (defaultId && !out.some((c) => c.id === defaultId)) {
+    out.unshift({ id: defaultId, name: 'Производствен календар', is_default: true, can_write: true });
+  }
+
+  // Неизвестен достъп → проверява се веднъж и се запомня.
+  for (const c of out) {
+    if (c.can_write !== null && c.can_write !== undefined) continue;
+    if (c.is_default) { c.can_write = true; continue; } // в него пишем открай време
+    const canWrite = await probeWriteAccess(c.id);
+    c.can_write = canWrite;
+    if (canWrite !== null) {
+      await execute('UPDATE gcal_feeds SET can_write = $2 WHERE google_calendar_id = $1', [c.id, canWrite]);
+      console.log(`[bc-calendar] достъп за писане в „${c.name}": ${canWrite ? 'да' : 'не'}`);
+    }
+  }
+  out.sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0));
+  return out;
+}
+
+// Календарът, в който да се пише: подаденият (ако е разрешен за писане) или default.
+async function resolveWriteCalendar(requested) {
+  const cals = await listCalendars();
+  const hit = cals.find((c) => c.id === requested && c.can_write === true);
+  if (hit) return hit.id;
+  return (await getTargetCalendarId()) || null;
+}
 
 // ─── Google Calendar → производствен календар (обратната посока, само за четене) ──
 // Ако някой запази снимки директно в Google Calendar (без да дърпа карта в
@@ -159,8 +259,9 @@ function eventSegments(ev, from, to) {
   return out;
 }
 
-// GET /api/bc-calendar/external?from=YYYY-MM-DD&to=YYYY-MM-DD
+// GET /api/bc-calendar/external?from=YYYY-MM-DD&to=YYYY-MM-DD&calendars=id1,id2
 // Събития от Google Calendar, които НЕ са създадени от платформата.
+// Без calendars= се чете само производственият календар (както преди).
 router.get('/external', requireAuth, async (req, res) => {
   const from = String(req.query.from || '');
   const to   = String(req.query.to   || '');
@@ -170,18 +271,15 @@ router.get('/external', requireAuth, async (req, res) => {
   try {
     if (!(await isGCalEnabled())) return res.json({ events: [] });
     const calendar = getCalendarClient();
-    const calendarId = await getTargetCalendarId();
-    if (!calendar || !calendarId) return res.json({ events: [] });
+    if (!calendar) return res.json({ events: [] });
 
-    // Ден отстъп от двете страни — заявката е в UTC, точното отрязване е по софийска дата.
-    const listed = await calendar.events.list({
-      calendarId,
-      timeMin: new Date(addDays(from, -1) + 'T00:00:00Z').toISOString(),
-      timeMax: new Date(addDays(to, 2) + 'T00:00:00Z').toISOString(),
-      singleEvents: true,   // поредиците се разгъват до отделни инстанции
-      orderBy: 'startTime',
-      maxResults: 250,
-    });
+    // Само познати календари — параметърът от браузъра не се ползва суров.
+    const known = await listCalendars();
+    const asked = String(req.query.calendars || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const wanted = asked.length
+      ? known.filter((c) => asked.includes(c.id))
+      : known.filter((c) => c.is_default);
+    if (!wanted.length) return res.json({ events: [] });
 
     // Собствените ни събития не се показват втори път: по запомнен event id, а
     // за по-старите (и за изтритите локално) — по създател = service account-ът.
@@ -192,22 +290,43 @@ router.get('/external', requireAuth, async (req, res) => {
     const saEmail = (getServiceAccountEmail() || '').toLowerCase();
 
     const events = [];
-    for (const ev of listed.data.items || []) {
-      if (!ev || !ev.id || ev.status === 'cancelled') continue;
-      if (ev.eventType && ev.eventType !== 'default') continue; // outOfOffice, workingLocation…
-      if (ours.has(String(ev.id))) continue;
-      if (saEmail && String((ev.creator && ev.creator.email) || '').toLowerCase() === saEmail) continue;
-
-      const creator = (ev.creator && (ev.creator.displayName || ev.creator.email)) || '';
-      for (const seg of eventSegments(ev, from, to)) {
-        events.push({
-          id: `${ev.id}@${seg.date}`,
-          title: ev.summary || 'Без заглавие',
-          url: ev.htmlLink || '',
-          creator,
-          location: ev.location || '',
-          ...seg,
+    for (const cal of wanted) {
+      let listed;
+      try {
+        // Ден отстъп от двете страни — заявката е в UTC, точното отрязване е по софийска дата.
+        listed = await calendar.events.list({
+          calendarId: cal.id,
+          timeMin: new Date(addDays(from, -1) + 'T00:00:00Z').toISOString(),
+          timeMax: new Date(addDays(to, 2) + 'T00:00:00Z').toISOString(),
+          singleEvents: true,   // поредиците се разгъват до отделни инстанции
+          orderBy: 'startTime',
+          maxResults: 250,
         });
+      } catch (err) {
+        // Един недостъпен календар не бива да събаря останалите.
+        console.warn(`[bc-calendar external] ${cal.name}: ${err.message}`);
+        continue;
+      }
+
+      for (const ev of listed.data.items || []) {
+        if (!ev || !ev.id || ev.status === 'cancelled') continue;
+        if (ev.eventType && ev.eventType !== 'default') continue; // outOfOffice, workingLocation…
+        if (ours.has(String(ev.id))) continue;
+        if (saEmail && String((ev.creator && ev.creator.email) || '').toLowerCase() === saEmail) continue;
+
+        const creator = (ev.creator && (ev.creator.displayName || ev.creator.email)) || '';
+        for (const seg of eventSegments(ev, from, to)) {
+          events.push({
+            id: `${ev.id}@${seg.date}`,
+            title: ev.summary || 'Без заглавие',
+            url: ev.htmlLink || '',
+            creator,
+            location: ev.location || '',
+            calendar_id: cal.id,
+            calendar_name: cal.name,
+            ...seg,
+          });
+        }
       }
     }
     res.json({ events });
@@ -221,22 +340,42 @@ router.get('/external', requireAuth, async (req, res) => {
 // POST /api/bc-calendar — schedule a card (one entry per card; re-scheduling updates it)
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { cardId, title, url, scheduledDate, startMinute, durationMinutes } = req.body || {};
+    const { cardId, title, url, scheduledDate, startMinute, durationMinutes, calendarId } = req.body || {};
     if (!cardId || !scheduledDate) return res.status(400).json({ error: 'cardId and scheduledDate required' });
+    await ensureSchema();
+    // Непознат или незаписваем календар → тихо пада на производствения.
+    const targetCal = await resolveWriteCalendar(calendarId);
+    const prev = await queryOne(
+      'SELECT google_calendar_event_id, google_calendar_id FROM bc_production_calendar WHERE basecamp_card_id = $1',
+      [cardId]
+    );
+
     const entry = await queryOne(
-      `INSERT INTO bc_production_calendar (basecamp_card_id, card_title, card_url, scheduled_date, start_minute, duration_minutes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO bc_production_calendar (basecamp_card_id, card_title, card_url, scheduled_date, start_minute, duration_minutes, google_calendar_id, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT (basecamp_card_id) DO UPDATE SET
          card_title = EXCLUDED.card_title, card_url = EXCLUDED.card_url,
          scheduled_date = EXCLUDED.scheduled_date, start_minute = EXCLUDED.start_minute,
-         duration_minutes = EXCLUDED.duration_minutes, updated_at = NOW()
+         duration_minutes = EXCLUDED.duration_minutes, google_calendar_id = EXCLUDED.google_calendar_id,
+         updated_at = NOW()
        RETURNING *`,
-      [cardId, title || null, url || null, scheduledDate, startMinute != null ? startMinute : 540, durationMinutes != null ? durationMinutes : 60, req.user.userId]
+      [cardId, title || null, url || null, scheduledDate, startMinute != null ? startMinute : 540, durationMinutes != null ? durationMinutes : 60, targetCal, req.user.userId]
     );
+
+    // Пренасрочване в ДРУГ календар: старото събитие се маха от стария и се създава наново.
+    // Празен google_calendar_id по стари редове значи производственият календар.
+    const prevCal = (prev && prev.google_calendar_id) || (await getTargetCalendarId());
+    if (prev && prev.google_calendar_event_id && prevCal !== targetCal) {
+      deleteGCalEvent(prev.google_calendar_event_id, prevCal).catch((e) => console.error('[GCal bc]', e.message));
+      await execute('UPDATE bc_production_calendar SET google_calendar_event_id = NULL WHERE id = $1', [entry.id]);
+      entry.google_calendar_event_id = null;
+    }
+
     syncCalToGCal(entry.google_calendar_event_id ? 'update' : 'create', entry).catch((e) => console.error('[GCal bc]', e.message));
     res.status(201).json({
       id: entry.id, card_id: entry.basecamp_card_id, card_title: entry.card_title, card_url: entry.card_url,
       scheduled_date: scheduledDate, start_minute: entry.start_minute, duration_minutes: entry.duration_minutes,
+      calendar_id: targetCal,
     });
   } catch (err) {
     console.error('[bc-calendar post]', err.message);
@@ -270,7 +409,10 @@ router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const entry = await queryOne('DELETE FROM bc_production_calendar WHERE id = $1 RETURNING *', [req.params.id]);
     if (!entry) return res.status(404).json({ error: 'Not found' });
-    if (entry.google_calendar_event_id) deleteGCalEvent(entry.google_calendar_event_id).catch(() => {});
+    if (entry.google_calendar_event_id) {
+      // Празен google_calendar_id по стари редове значи производственият календар.
+      deleteGCalEvent(entry.google_calendar_event_id, entry.google_calendar_id || undefined).catch(() => {});
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -300,11 +442,13 @@ async function syncCalToGCal(action, entry) {
       ends_at: dateStr + 'T' + pad(eH) + ':' + pad(eM) + ':00',
       all_day: false,
     };
+    // Празен google_calendar_id (стари редове) значи производственият календар.
+    const targetCal = entry.google_calendar_id || undefined;
     if (action === 'create' || (action === 'update' && !entry.google_calendar_event_id)) {
-      const gid = await createGCalEvent(event);
+      const gid = await createGCalEvent(event, [], targetCal);
       if (gid) await execute('UPDATE bc_production_calendar SET google_calendar_event_id = $1 WHERE id = $2', [gid, entry.id]);
     } else if (action === 'update' && entry.google_calendar_event_id) {
-      await updateGCalEvent(entry.google_calendar_event_id, event);
+      await updateGCalEvent(entry.google_calendar_event_id, event, [], targetCal);
     }
   } catch (e) {
     console.error('[GCal bc] sync', e.message);

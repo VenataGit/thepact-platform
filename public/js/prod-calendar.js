@@ -13,7 +13,71 @@ var _prodCal = {
   entries:   [],   // scheduled entries (all weeks)
   cards:     [],   // master Production card list (sidebar = these minus scheduled)
   external:  {},   // '<понеделник YYYY-MM-DD>' → Google събития за тази седмица (кеш)
+  calendars: [],   // [{ id, name, is_default, can_write }] — от /api/bc-calendar
 };
+
+// ─── избор на календари ───────────────────────────────────────────────────────
+// Кои календари гледам и в кой пиша е личен избор — стои в localStorage, не в
+// базата. Гледането и писането са различни списъци: service account-ът чете
+// всичко споделено с него, но пише само там, където има права.
+
+var PC_LS_VISIBLE = 'thepact-pc-cals';
+var PC_LS_TARGET  = 'thepact-pc-target-cal';
+var _PC_CAL_COLORS = ['#8899a6', '#7e6bbf', '#3f8f8a', '#a9683f', '#8a6d9e', '#4f7ba8'];
+
+function _pcDefaultCalId() {
+  var d = _prodCal.calendars.find(function(c) { return c.is_default; });
+  return d ? d.id : (_prodCal.calendars[0] ? _prodCal.calendars[0].id : null);
+}
+
+// Видимите календари; непознат/изтрит id се отсява, празен избор → всички.
+function _pcVisibleCals() {
+  var known = _prodCal.calendars.map(function(c) { return c.id; });
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(PC_LS_VISIBLE) || 'null'); } catch (e) {}
+  if (!Array.isArray(saved)) return known;
+  var kept = saved.filter(function(id) { return known.indexOf(id) >= 0; });
+  return kept.length ? kept : known;
+}
+
+function _pcTargetCal() {
+  var id = null;
+  try { id = localStorage.getItem(PC_LS_TARGET); } catch (e) {}
+  var hit = _prodCal.calendars.find(function(c) { return c.id === id && c.can_write; });
+  return hit ? hit.id : _pcDefaultCalId();
+}
+
+function _pcCalColor(calId) {
+  var i = _prodCal.calendars.findIndex(function(c) { return c.id === calId; });
+  return _PC_CAL_COLORS[(i < 0 ? 0 : i) % _PC_CAL_COLORS.length];
+}
+
+function _pcCalName(calId) {
+  var c = _prodCal.calendars.find(function(x) { return x.id === calId; });
+  return c ? c.name : '';
+}
+
+// Смяна на видимите календари → кешът вече не е валиден (той е за друг набор).
+// Менюто нарочно НЕ се пререндва, за да не се затваря след всяко чекче.
+function pcToggleCalendar(calId, on, el) {
+  var vis = _pcVisibleCals().slice();
+  var i = vis.indexOf(calId);
+  if (on && i < 0) vis.push(calId);
+  if (!on && i >= 0) {
+    if (vis.length === 1) { if (el) el.checked = true; return; } // последният остава
+    vis.splice(i, 1);
+  }
+  try { localStorage.setItem(PC_LS_VISIBLE, JSON.stringify(vis)); } catch (e) {}
+  _prodCal.external = {};
+  _pcRefreshWeekView();
+  var sum = document.querySelector('.pc-cal-picker > summary');
+  if (sum) sum.textContent = '📆 Календари (' + vis.length + '/' + _prodCal.calendars.length + ')';
+  pcLoadExternal();
+}
+
+function pcSetTargetCalendar(calId) {
+  try { localStorage.setItem(PC_LS_TARGET, calId); } catch (e) {}
+}
 
 var _pcDrag = {
   type:       null,   // 'sidebar' | 'event'
@@ -74,6 +138,7 @@ async function pcCreateEntry(cardId, date, startMin, durMin) {
         scheduledDate: date,
         startMinute: startMin,
         durationMinutes: durMin || 60,
+        calendarId: _pcTargetCal(),
       }),
     });
     if (!res.ok) return;
@@ -142,7 +207,8 @@ async function pcLoadExternal(force) {
   var end = new Date(_prodCal.weekStart);
   end.setDate(end.getDate() + 6);
   try {
-    var res = await fetch('/api/bc-calendar/external?from=' + key + '&to=' + _pcDate(end));
+    var res = await fetch('/api/bc-calendar/external?from=' + key + '&to=' + _pcDate(end) +
+      '&calendars=' + encodeURIComponent(_pcVisibleCals().join(',')));
     if (!res.ok) return;
     var data = await res.json();
     var events = data.events || [];
@@ -307,13 +373,15 @@ function _pcExtEventHtml(ev) {
   height = Math.max(20, Math.min(height, colH - top));
 
   var label = _pcMinToTime(start) + ' – ' + _pcMinToTime(end);
+  var calName = ev.calendar_name || _pcCalName(ev.calendar_id);
   var tip = ev.title + ' · ' + label +
+    (calName ? '\n📆 ' + calName : '') +
     (ev.creator  ? '\nЗапазено от: ' + ev.creator : '') +
     (ev.location ? '\n📍 ' + ev.location : '') +
     '\n(добавено директно в Google Calendar)';
 
   return '<div class="pc-event pc-event--ext"' +
-    ' style="' + _pcLaneStyle(ev) + 'top:' + top + 'px;height:' + height + 'px;background:' + _PC_DL_COLORS['dl-none'] + '"' +
+    ' style="' + _pcLaneStyle(ev) + 'top:' + top + 'px;height:' + height + 'px;background:' + _pcCalColor(ev.calendar_id) + '"' +
     ' title="' + esc(tip) + '"' +
     ' data-url="' + esc(ev.url || '') + '"' +
     ' onclick="pcOpenExternal(event)">' +
@@ -324,10 +392,12 @@ function _pcExtEventHtml(ev) {
 
 // Целодневно Google събитие — чипче под номера на деня (в грида няма къде да стои).
 function _pcExtAllDayHtml(ev) {
+  var calName = ev.calendar_name || _pcCalName(ev.calendar_id);
   var tip = ev.title + ' · цял ден' +
+    (calName ? '\n📆 ' + calName : '') +
     (ev.creator ? '\nЗапазено от: ' + ev.creator : '') +
     '\n(добавено директно в Google Calendar)';
-  return '<div class="pc-allday-chip" title="' + esc(tip) + '"' +
+  return '<div class="pc-allday-chip" style="background:' + _pcCalColor(ev.calendar_id) + '" title="' + esc(tip) + '"' +
     ' data-url="' + esc(ev.url || '') + '"' +
     ' onclick="pcOpenExternal(event)">📅 ' + esc(ev.title) + '</div>';
 }
@@ -471,10 +541,45 @@ function _pcToolbarHtml() {
     '<button class="btn btn-sm btn-ghost" onclick="pcNavToday()">Днес</button>' +
     '<button class="btn btn-sm btn-ghost" onclick="pcNavWeek(1)">Следваща →</button>' +
     '<span class="pc-toolbar__title">' + title + '</span>' +
+    _pcCalendarPickerHtml() +
     '<span style="flex:1"></span>' +
-    '<span class="pc-toolbar__hint">Влачи карта от панела → пусни в деня · Влачи блок за преместване · Дръж долния ръб за промяна на продължителност · 📅 = запазено директно в Google Calendar</span>' +
+    '<span class="pc-toolbar__hint">Влачи карта от панела → пусни в деня · Дръж долния ръб за продължителност · 📅 = запазено директно в Google Calendar</span>' +
     '</div>'
   );
+}
+
+// „Календари" (кои виждам) + „Добавяй в" (къде отива новата карта).
+// При един-единствен календар няма какво да се избира — контролите се крият.
+function _pcCalendarPickerHtml() {
+  var cals = _prodCal.calendars;
+  if (cals.length < 2) return '';
+  var vis = _pcVisibleCals();
+  var target = _pcTargetCal();
+
+  var boxes = cals.map(function(c) {
+    var on = vis.indexOf(c.id) >= 0;
+    return '<label class="pc-cal-opt">' +
+      '<input type="checkbox"' + (on ? ' checked' : '') +
+      ' onchange="pcToggleCalendar(' + JSON.stringify(c.id).replace(/"/g, '&quot;') + ', this.checked, this)">' +
+      '<span class="pc-cal-dot" style="background:' + _pcCalColor(c.id) + '"></span>' +
+      '<span class="pc-cal-name">' + esc(c.name) + '</span>' +
+      (c.can_write ? '' : '<span class="pc-cal-ro" title="Service account-ът няма права за писане в този календар">само четене</span>') +
+      '</label>';
+  }).join('');
+
+  var writable = cals.filter(function(c) { return c.can_write; });
+  var targetSel = writable.length < 2 ? '' :
+    '<label class="pc-cal-target">Добавяй в:' +
+    '<select onchange="pcSetTargetCalendar(this.value)">' +
+    writable.map(function(c) {
+      return '<option value="' + esc(c.id) + '"' + (c.id === target ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+    }).join('') +
+    '</select></label>';
+
+  return '<details class="pc-cal-picker">' +
+    '<summary>📆 Календари (' + vis.length + '/' + cals.length + ')</summary>' +
+    '<div class="pc-cal-menu">' + boxes + '</div>' +
+    '</details>' + targetSel;
 }
 
 function _pcFullRender(el) {
@@ -526,6 +631,7 @@ async function renderCalendar(el) {
       return;
     }
     var data = await res.json();
+    _prodCal.calendars = data.calendars || [];
 
     var entries = (data.entries || []).map(function(e) {
       e.scheduled_date = (e.scheduled_date || '').toString().split('T')[0];

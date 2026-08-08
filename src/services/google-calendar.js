@@ -184,7 +184,7 @@ function toGCalEvent(event, attendeeEmails = []) {
  * Create event in Google Calendar
  * @returns {string|null} Google Calendar event ID
  */
-async function createGCalEvent(event, attendeeEmails = []) {
+async function createGCalEvent(event, attendeeEmails = [], targetCalendarId = null) {
   try {
     const enabled = await isGCalEnabled();
     if (!enabled) return null;
@@ -193,7 +193,8 @@ async function createGCalEvent(event, attendeeEmails = []) {
     if (!calendar) return null;
 
     await loadCalendarId();
-    if (!calendarId) {
+    const useCalendarId = targetCalendarId || calendarId;
+    if (!useCalendarId) {
       console.warn('[GCal] No calendar ID configured');
       return null;
     }
@@ -201,7 +202,7 @@ async function createGCalEvent(event, attendeeEmails = []) {
     const gcalEvent = toGCalEvent(event, attendeeEmails);
 
     const response = await calendar.events.insert({
-      calendarId: calendarId,
+      calendarId: useCalendarId,
       requestBody: gcalEvent,
       sendUpdates: 'none', // Don't spam attendees with emails
     });
@@ -217,7 +218,7 @@ async function createGCalEvent(event, attendeeEmails = []) {
 /**
  * Update event in Google Calendar
  */
-async function updateGCalEvent(googleEventId, event, attendeeEmails = []) {
+async function updateGCalEvent(googleEventId, event, attendeeEmails = [], targetCalendarId = null) {
   try {
     if (!googleEventId) return false;
 
@@ -228,12 +229,13 @@ async function updateGCalEvent(googleEventId, event, attendeeEmails = []) {
     if (!calendar) return false;
 
     await loadCalendarId();
-    if (!calendarId) return false;
+    const useCalendarId = targetCalendarId || calendarId;
+    if (!useCalendarId) return false;
 
     const gcalEvent = toGCalEvent(event, attendeeEmails);
 
     await calendar.events.update({
-      calendarId: calendarId,
+      calendarId: useCalendarId,
       eventId: googleEventId,
       requestBody: gcalEvent,
       sendUpdates: 'none',
@@ -250,7 +252,7 @@ async function updateGCalEvent(googleEventId, event, attendeeEmails = []) {
 /**
  * Delete event from Google Calendar
  */
-async function deleteGCalEvent(googleEventId) {
+async function deleteGCalEvent(googleEventId, targetCalendarId = null) {
   try {
     if (!googleEventId) return false;
 
@@ -261,10 +263,11 @@ async function deleteGCalEvent(googleEventId) {
     if (!calendar) return false;
 
     await loadCalendarId();
-    if (!calendarId) return false;
+    const useCalendarId = targetCalendarId || calendarId;
+    if (!useCalendarId) return false;
 
     await calendar.events.delete({
-      calendarId: calendarId,
+      calendarId: useCalendarId,
       eventId: googleEventId,
       sendUpdates: 'none',
     });
