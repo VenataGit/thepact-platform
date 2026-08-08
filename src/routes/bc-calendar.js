@@ -20,7 +20,7 @@ const {
 } = require('../services/google-calendar');
 
 const FILMING_OFFSET = parseInt(process.env.BASECAMP_FILMING_OFFSET) || 11; // working days before publish
-const { ymd, subtractWorkingDays, workingDaysUntil } = require('../services/workdays');
+const { subtractWorkingDays, workingDaysUntil } = require('../services/workdays');
 
 // Filming deadline (срок за снимки) = publish date − FILMING_OFFSET working days (skips weekends + BG holidays).
 function filmingDeadline(dueOn) { return dueOn ? subtractWorkingDays(dueOn, FILMING_OFFSET) : null; }
@@ -113,6 +113,18 @@ function ensureSchema() {
     schemaReady = Promise.all([
       execute('ALTER TABLE bc_production_calendar ADD COLUMN IF NOT EXISTS google_calendar_id TEXT'),
       execute('ALTER TABLE gcal_feeds ADD COLUMN IF NOT EXISTS can_write BOOLEAN'),
+      // Дневник: кой какво е направил в производствения календар.
+      execute(`
+        CREATE TABLE IF NOT EXISTS bc_production_calendar_log (
+          id               BIGSERIAL PRIMARY KEY,
+          basecamp_card_id BIGINT,
+          card_title       TEXT,
+          action           TEXT NOT NULL,
+          details          TEXT,
+          user_id          INTEGER,
+          user_name        TEXT,
+          created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`),
     ]).catch((err) => {
       schemaReady = null; // да опита пак при следващата заявка
       throw err;
@@ -120,6 +132,51 @@ function ensureSchema() {
   }
   return schemaReady;
 }
+
+// Записът в дневника никога не бива да проваля самото действие — оттам catch-ът.
+// Човекът идва от сесията (влиза се с Basecamp профил), затова е винаги наличен.
+function logAction(req, action, entry, details) {
+  execute(
+    `INSERT INTO bc_production_calendar_log (basecamp_card_id, card_title, action, details, user_id, user_name)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [entry.basecamp_card_id || null, entry.card_title || null, action, details || null,
+     req.user.userId, req.user.name || null]
+  ).catch((err) => console.error('[bc-calendar log]', err.message));
+}
+
+// scheduled_date идва или като низ, или като Date (pg връща DATE като Date на
+// ЛОКАЛНА полунощ). Затова компонентите се четат локално — `ymd` минава през UTC
+// и на сървър извън UTC би върнал предния ден.
+function dateOnly(value) {
+  if (typeof value === 'string') return value.split('T')[0];
+  const d = new Date(value);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// „14.07, 10:00" — кратко и четимо в списъка.
+function humanWhen(dateValue, startMinute) {
+  const [, m, day] = dateOnly(dateValue).split('-');
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${Number(day)}.${m}, ${pad(Math.floor(startMinute / 60))}:${pad(startMinute % 60)}`;
+}
+
+// GET /api/bc-calendar/log?limit=60 — последните действия, най-новото отгоре.
+router.get('/log', requireAuth, async (req, res) => {
+  try {
+    await ensureSchema();
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 60));
+    const rows = await query(
+      `SELECT id, basecamp_card_id, card_title, action, details, user_name, created_at
+       FROM bc_production_calendar_log ORDER BY id DESC LIMIT $1`,
+      [limit]
+    );
+    res.json({ entries: rows });
+  } catch (err) {
+    console.error('[bc-calendar log]', err.message);
+    res.json({ entries: [] });
+  }
+});
 
 // Може ли service account-ът да пише в този календар? Единственият надежден
 // начин е да се пробва: Google не дава accessRole за споделен календар, а
@@ -185,6 +242,12 @@ async function listCalendars() {
   }
   out.sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0));
   return out;
+}
+
+async function calendarNameOf(calId) {
+  if (!calId) return '';
+  const c = (await listCalendars()).find((x) => x.id === calId);
+  return c ? c.name : '';
 }
 
 // Календарът, в който да се пише: подаденият (ако е разрешен за писане) или default.
@@ -372,6 +435,12 @@ router.post('/', requireAuth, async (req, res) => {
     }
 
     syncCalToGCal(entry.google_calendar_event_id ? 'update' : 'create', entry).catch((e) => console.error('[GCal bc]', e.message));
+
+    const when = humanWhen(scheduledDate, entry.start_minute);
+    const calName = await calendarNameOf(targetCal);
+    logAction(req, prev ? 'reschedule' : 'add', entry,
+      (prev ? 'пренасрочи за ' : 'добави за ') + when + (calName ? ' · ' + calName : ''));
+
     res.status(201).json({
       id: entry.id, card_id: entry.basecamp_card_id, card_title: entry.card_title, card_url: entry.card_url,
       scheduled_date: scheduledDate, start_minute: entry.start_minute, duration_minutes: entry.duration_minutes,
@@ -387,6 +456,7 @@ router.post('/', requireAuth, async (req, res) => {
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { scheduledDate, startMinute, durationMinutes } = req.body || {};
+    await ensureSchema();
     const entry = await queryOne(
       `UPDATE bc_production_calendar SET
          scheduled_date = COALESCE($1, scheduled_date),
@@ -398,6 +468,13 @@ router.put('/:id', requireAuth, async (req, res) => {
     );
     if (!entry) return res.status(404).json({ error: 'Not found' });
     syncCalToGCal('update', entry).catch((e) => console.error('[GCal bc]', e.message));
+
+    // Влаченето праща дата/начало, дърпането на ръба — само продължителност.
+    if (scheduledDate || startMinute != null) {
+      logAction(req, 'move', entry, 'премести за ' + humanWhen(entry.scheduled_date, entry.start_minute));
+    } else if (durationMinutes != null) {
+      logAction(req, 'resize', entry, 'смени продължителността на ' + entry.duration_minutes + ' мин');
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -407,12 +484,14 @@ router.put('/:id', requireAuth, async (req, res) => {
 // DELETE /api/bc-calendar/:id — unschedule (card returns to the sidebar)
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
+    await ensureSchema();
     const entry = await queryOne('DELETE FROM bc_production_calendar WHERE id = $1 RETURNING *', [req.params.id]);
     if (!entry) return res.status(404).json({ error: 'Not found' });
     if (entry.google_calendar_event_id) {
       // Празен google_calendar_id по стари редове значи производственият календар.
       deleteGCalEvent(entry.google_calendar_event_id, entry.google_calendar_id || undefined).catch(() => {});
     }
+    logAction(req, 'remove', entry, 'върна в списъка (беше за ' + humanWhen(entry.scheduled_date, entry.start_minute) + ')');
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -430,7 +509,7 @@ function goLink(bcUrl) {
 
 async function syncCalToGCal(action, entry) {
   try {
-    const dateStr = typeof entry.scheduled_date === 'string' ? entry.scheduled_date.split('T')[0] : ymd(new Date(entry.scheduled_date));
+    const dateStr = dateOnly(entry.scheduled_date);
     const pad = (n) => String(n).padStart(2, '0');
     const sH = Math.floor(entry.start_minute / 60), sM = entry.start_minute % 60;
     const endMin = entry.start_minute + (entry.duration_minutes || 60);

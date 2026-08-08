@@ -5,7 +5,7 @@
 //   📋 КП-Автоматизация   — къде отиват КП картите (Basecamp), текстове, дати, график
 //   🧾 Създаване на задачи — шаблони и стъпки за инструмента в More + кой какво е поръчвал
 //   🗂 Dashboard          — кои Card Tables виждат всички
-//   📅 Календар известия  — Google Calendar → Basecamp
+//   📅 Производствен календар — календарите за снимки + известията GCal → Basecamp
 //   📊 Резултати          — известие, когато всички видеа по един КП са публикувани
 //   📄 Таблица известия   — Google Sheets (Apps Script) → Basecamp
 //   🤖 PM Agent           — одит и синхрон
@@ -65,7 +65,7 @@ var SG_SECTIONS = [
   { id: 'kp', icon: '📋', label: 'КП-Автоматизация', hint: 'Basecamp, текстове, график', adminOnly: true },
   { id: 'tasks', icon: '🧾', label: 'Създаване на задачи', hint: 'Шаблони, стъпки, история', adminOnly: true },
   { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
-  { id: 'calendar', icon: '📅', label: 'Календар известия', hint: 'GCal → Basecamp', adminOnly: false },
+  { id: 'calendar', icon: '📅', label: 'Производствен календар', hint: 'Календари за снимки + известия', adminOnly: false },
   { id: 'results', icon: '📊', label: 'Резултати', hint: 'Известие при изпубликуван КП', adminOnly: true },
   { id: 'sheets', icon: '📄', label: 'Таблица известия', hint: 'Google Sheets → Basecamp', adminOnly: true },
   { id: 'agent', icon: '🤖', label: 'PM Agent', hint: 'Одит и синхрон', adminOnly: true },
@@ -188,8 +188,8 @@ function sgSectionDashboard(host) {
 function sgSectionCalendar(host) {
   host.innerHTML =
     '<div class="sg-section">' +
-      '<div class="sg-section__hdr">📅 Календар известия</div>' +
-      '<div class="sg-section__desc">Ново събитие в Google Calendar → съобщение в Basecamp с тагнати създател и отговорници. Промяна или отмяна → коментар под същото съобщение. Никой друг не получава известие.</div>' +
+      '<div class="sg-section__hdr">📅 Производствен календар</div>' +
+      '<div class="sg-section__desc">Календарите тук се показват в <a href="#/calendar">Производствения календар</a> и в тях се насрочват снимачните дни. Същите календари пораждат и известия: ново събитие в Google Calendar → съобщение в Basecamp с тагнати създател и отговорници; промяна или отмяна → коментар под същото съобщение. Никой друг не получава известие.</div>' +
       '<div id="gaBody"><div class="ga-loading">Зареждане…</div></div>' +
     '</div>';
   gaLoad();
@@ -1089,10 +1089,17 @@ function gaRender() {
         '<input type="text" class="ga-input" id="gaNewCal" placeholder="Постави Calendar ID (…@group.calendar.google.com) или embed линк (…?src=…)">' +
         '<button class="btn btn-sm" onclick="gaAddFeed()">Добави</button>' +
       '</div>' +
-      '<div class="ga-share">Стъпка 1: сподели календара (Настройки → Споделяне с конкретни хора → „Вижда всички подробности") с:' +
+      '<div class="ga-share">Стъпка 1: сподели календара с този имейл ' +
+        '(в Google Calendar: <b>Настройки на календара → Споделяне с конкретни хора → Добави хора</b>):' +
         '<code class="ga-sa" id="gaSaEmail">' + esc(d.saEmail || 'няма credentials') + '</code>' +
         '<button class="ga-copy" title="Копирай" onclick="gaCopySa()">⧉</button>' +
-        '<span class="ga-dim">Стъпка 2: постави линка/ID-то горе.</span>' +
+      '</div>' +
+      '<div class="ga-share"><b>Кои права да избереш — това решава какво може календарът:</b>' +
+        '<br>· <b>„Вижда всички подробности"</b> → календарът се <b>вижда</b> в производствения календар и поражда известия, но <b>не можеш да насрочваш карти в него</b>.' +
+        '<br>· <b>„Прави промени по събития"</b> → освен това можеш и да <b>добавяш карти</b> в него (появява се в „Добавяй в"). За календар на видеограф избери <b>това</b>.' +
+      '</div>' +
+      '<div class="ga-share">Стъпка 2: постави горе Calendar ID-то или embed линка. Намираш ги в <b>Настройки на календара → Интегриране на календара</b>. ' +
+        'Правата се проверяват сами при следващото отваряне на производствения календар — ако там пише „само четене", значи споделянето е с „Вижда всички подробности".' +
       '</div>' +
     '</div>';
 
@@ -1619,7 +1626,7 @@ function sysRender() {
   html += '<div class="sg-section">' +
     '<div class="sg-section__hdr">📅 Google Calendar — синхрон</div>' +
     '<div class="sg-section__desc">Изнася събитията от „Календар" в платформата към този Google календар. ' +
-      'Различно от <a href="#/admin/calendar">Календар известия</a>, което чете Google календари и пише в Basecamp.</div>' +
+      'Различно от <a href="#/admin/calendar">Производствен календар</a>, където се управляват календарите за снимки и известията.</div>' +
     '<div class="ga-row ga-row--config">' +
       '<label class="ga-toggle"><input type="checkbox" ' + (gcalOn ? 'checked' : '') +
         ' onchange="sysSave(\'google_calendar_enabled\', this.checked ? \'true\' : \'false\', true)"> Включено</label>' +

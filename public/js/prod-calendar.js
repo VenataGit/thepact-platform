@@ -542,8 +542,9 @@ function _pcToolbarHtml() {
     '<button class="btn btn-sm btn-ghost" onclick="pcNavWeek(1)">Следваща →</button>' +
     '<span class="pc-toolbar__title">' + title + '</span>' +
     _pcCalendarPickerHtml() +
+    _pcHistoryHtml() +
     '<span style="flex:1"></span>' +
-    '<span class="pc-toolbar__hint">Влачи карта от панела → пусни в деня · Дръж долния ръб за продължителност · 📅 = запазено директно в Google Calendar</span>' +
+    '<span class="pc-toolbar__hint">Влачи карта от панела → пусни в деня · Дръж долния ръб за продължителност · 📅 = от Google Calendar</span>' +
     '</div>'
   );
 }
@@ -567,12 +568,16 @@ function _pcCalendarPickerHtml() {
       '</label>';
   }).join('');
 
-  var writable = cals.filter(function(c) { return c.can_write; });
-  var targetSel = writable.length < 2 ? '' :
-    '<label class="pc-cal-target">Добавяй в:' +
+  // „Добавяй в" се показва винаги при повече от един календар — иначе не се вижда
+  // изобщо къде отива картата. Календарите без права за писане стоят в списъка,
+  // но заключени, за да е ясно защо не стават за цел.
+  var targetSel =
+    '<label class="pc-cal-target" title="Тук отива картата, която пуснеш в календара">Добавяй в:' +
     '<select onchange="pcSetTargetCalendar(this.value)">' +
-    writable.map(function(c) {
-      return '<option value="' + esc(c.id) + '"' + (c.id === target ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+    cals.map(function(c) {
+      return '<option value="' + esc(c.id) + '"' + (c.id === target ? ' selected' : '') +
+        (c.can_write ? '' : ' disabled') + '>' +
+        esc(c.name) + (c.can_write ? '' : ' — няма права за писане') + '</option>';
     }).join('') +
     '</select></label>';
 
@@ -580,6 +585,54 @@ function _pcCalendarPickerHtml() {
     '<summary>📆 Календари (' + vis.length + '/' + cals.length + ')</summary>' +
     '<div class="pc-cal-menu">' + boxes + '</div>' +
     '</details>' + targetSel;
+}
+
+// ─── история ──────────────────────────────────────────────────────────────────
+// Кой какво е пипал в календара. Зарежда се чак при отваряне на панела, за да
+// не тежи на самия изглед.
+
+var _PC_ACTION_ICONS = { add: '➕', reschedule: '🔀', move: '↔️', resize: '↕️', remove: '↩️' };
+
+function _pcHistoryHtml() {
+  return '<details class="pc-cal-picker pc-history" ontoggle="if(this.open)pcLoadHistory()">' +
+    '<summary>🕘 История</summary>' +
+    '<div class="pc-cal-menu pc-history__menu" id="pcHistoryList">' +
+      '<div class="pc-history__empty">Зареждане…</div>' +
+    '</div></details>';
+}
+
+function _pcAgo(iso) {
+  var diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return 'сега';
+  if (diff < 3600) return 'преди ' + Math.floor(diff / 60) + ' мин';
+  if (diff < 86400) return 'преди ' + Math.floor(diff / 3600) + ' ч';
+  var d = new Date(iso);
+  return d.getDate() + '.' + String(d.getMonth() + 1).padStart(2, '0') + ', ' +
+         String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+async function pcLoadHistory() {
+  var host = document.getElementById('pcHistoryList');
+  if (!host) return;
+  try {
+    var res = await fetch('/api/bc-calendar/log?limit=60');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    var rows = data.entries || [];
+    if (!rows.length) { host.innerHTML = '<div class="pc-history__empty">Още няма записани промени.</div>'; return; }
+    host.innerHTML = rows.map(function(r) {
+      return '<div class="pc-history__row">' +
+        '<span class="pc-history__icon">' + (_PC_ACTION_ICONS[r.action] || '•') + '</span>' +
+        '<span class="pc-history__text">' +
+          '<strong>' + esc(r.user_name || 'някой') + '</strong> ' + esc(r.details || r.action) +
+          '<span class="pc-history__card"> · ' + esc(r.card_title || ('Карта ' + r.basecamp_card_id)) + '</span>' +
+        '</span>' +
+        '<span class="pc-history__ago">' + esc(_pcAgo(r.created_at)) + '</span>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    host.innerHTML = '<div class="pc-history__empty">Грешка при зареждане.</div>';
+  }
 }
 
 function _pcFullRender(el) {

@@ -116,6 +116,18 @@
 .pc-cal-ro { font-size: 10px; color: var(--text-dim); white-space: nowrap; }
 .pc-cal-target { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
 .pc-cal-target select { background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; font-size: 12px; max-width: 200px; }
+.pc-cal-target select option:disabled { color: var(--text-dim); }
+
+/* История: кой какво е пипал в календара */
+.pc-history__menu { right: auto; min-width: 420px; max-height: 380px; overflow-y: auto; }
+.pc-history__row { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 12px; color: var(--text-secondary); }
+.pc-history__row:hover { background: var(--overlay-white-faint, rgba(255,255,255,0.06)); }
+.pc-history__icon { flex-shrink: 0; }
+.pc-history__text { flex: 1; line-height: 1.45; }
+.pc-history__text strong { color: var(--text); font-weight: 600; }
+.pc-history__card { color: var(--text-dim); }
+.pc-history__ago { flex-shrink: 0; color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+.pc-history__empty { padding: 10px; font-size: 12px; color: var(--text-dim); }
 
 /* Целодневно Google събитие — чипче в заглавието на деня (в грида няма къде да стои) */
 .pc-allday-chip { margin: 4px 2px 0; padding: 1px 5px; border-radius: 4px; background: var(--pc-ext-bg); color: #fff; font-size: 10px; font-weight: 600; line-height: 1.4; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
