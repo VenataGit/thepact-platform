@@ -244,7 +244,7 @@ router.get('/folder', (req, res) => {
   document.getElementById('otherLabel').textContent = isMac ? 'За Windows:' : 'За macOS:';
   document.getElementById('otherPath').textContent = otherPath;
   document.getElementById('note').textContent = isMac
-    ? 'Ако Finder поиска, потвърди отварянето. Дискът Production трябва да е закачен (Go → Connect to Server → smb://${SHARE_HOST}/${SHARE_NAME}).'
+    ? 'Браузърът ще попита дали да отвори Finder — потвърди. Дискът не е нужно да е закачен предварително; ако не е, Finder сам предлага да го закачи.'
     : 'Първия път браузърът пита „Да отвори ли The Pact folder?" — потвърди и сложи отметка да помни.';
 
   document.getElementById('openBtn').setAttribute('href', openUrl);
@@ -253,8 +253,12 @@ router.get('/folder', (req, res) => {
   // това е тихо, затова линкът към инсталатора стои постоянно, а не се познава.
   var install = document.getElementById('installLine');
   if (isMac) {
-    install.innerHTML = 'Бутонът не прави нищо? Закачи диска: Finder → Go → Connect to Server → '
-      + '<code>smb://${SHARE_HOST}/${SHARE_NAME}</code>, после пробвай пак.';
+    // На Mac няма какво да се инсталира — smb:// е вградено в Finder. Единственият
+    // капан е изписването: Finder кръщава закачения диск точно както е в адреса, а
+    // /Volumes/… по-долу е с главно П, както е и на самия сървър.
+    install.innerHTML = 'На Mac няма какво да се инсталира — <code>smb://</code> е вградено в Finder. '
+      + 'Ако Chrome не реагира, пробвай същия линк в Safari. Закачай диска с '
+      + '<code>smb://${SHARE_HOST}/${SHARE_NAME}</code> (с главно П), за да съвпада пътят по-горе.';
   } else {
     install.innerHTML = 'Бутонът не прави нищо? Отварянето на папки още не е включено на този компютър — '
       + '<a href="/go/folder/install" style="color:#46a374">свали и пусни този файл</a> веднъж и готово.';
