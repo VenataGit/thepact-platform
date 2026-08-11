@@ -21,6 +21,8 @@
 // ИСТИНСКИ линк за тапване (universal link сработва само при потребителски тап) + резервен
 // бутон към браузъра за случаите, в които приложението не разпознае пътя.
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 
 // Класическият хост пази тъмната тема на акаунта; на уеб препраща напред при нужда.
@@ -198,9 +200,10 @@ router.get('/folder', (req, res) => {
   .path { display: block; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
           border-radius: 10px; padding: 12px 14px; font-family: ui-monospace, Consolas, monospace;
           font-size: 13px; line-height: 1.5; word-break: break-all; text-align: left; margin: 0 0 14px; }
-  button.btn { display: block; width: 100%; padding: 14px 18px; border: 0; border-radius: 20px; cursor: pointer;
-               font-size: 16px; font-weight: 700; background: #46a374; color: #fff; margin: 0 0 10px; }
-  button.ghost { background: rgba(255,255,255,0.08); }
+  .btn { display: block; width: 100%; padding: 14px 18px; border: 0; border-radius: 20px; cursor: pointer;
+         font-size: 16px; font-weight: 700; background: #46a374; color: #fff; margin: 0 0 10px;
+         text-decoration: none; text-align: center; font-family: inherit; }
+  .ghost { background: rgba(255,255,255,0.08); }
   .other { margin-top: 26px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.08);
            font-size: 13px; color: #a9b3b6; text-align: left; }
   .other .path { font-size: 12px; margin-top: 8px; }
@@ -212,8 +215,11 @@ router.get('/folder', (req, res) => {
     <h1 id="title">Отваряне на папката</h1>
     <p class="sub" id="sub">…</p>
     <code class="path" id="mainPath"></code>
-    <button class="btn" id="openBtn">Отвори папката</button>
+    <!-- истински <a href>, а не window.location от JS: Chrome отказва да вдигне външна
+         схема при JS-навигация, но я пуска при истински клик върху линк. -->
+    <a class="btn" id="openBtn" href="#">Отвори папката</a>
     <button class="btn ghost" id="copyBtn">Копирай пътя</button>
+    <p class="note" id="installLine"></p>
     <div class="other">
       <span id="otherLabel"></span>
       <code class="path" id="otherPath"></code>
@@ -239,9 +245,20 @@ router.get('/folder', (req, res) => {
   document.getElementById('otherPath').textContent = otherPath;
   document.getElementById('note').textContent = isMac
     ? 'Ако Finder поиска, потвърди отварянето. Дискът Production трябва да е закачен (Go → Connect to Server → smb://${SHARE_HOST}/${SHARE_NAME}).'
-    : 'Първия път браузърът пита „Да отвори ли The Pact folder?" — потвърди и сложи отметка да помни. Ако нищо не се случи, схемата още не е регистрирана на този компютър — тогава ползвай „Копирай пътя".';
+    : 'Първия път браузърът пита „Да отвори ли The Pact folder?" — потвърди и сложи отметка да помни.';
 
-  document.getElementById('openBtn').onclick = function () { window.location.href = openUrl; };
+  document.getElementById('openBtn').setAttribute('href', openUrl);
+
+  // Ако нищо не се случва при клик, схемата не е регистрирана на този компютър —
+  // това е тихо, затова линкът към инсталатора стои постоянно, а не се познава.
+  var install = document.getElementById('installLine');
+  if (isMac) {
+    install.innerHTML = 'Бутонът не прави нищо? Закачи диска: Finder → Go → Connect to Server → '
+      + '<code>smb://${SHARE_HOST}/${SHARE_NAME}</code>, после пробвай пак.';
+  } else {
+    install.innerHTML = 'Бутонът не прави нищо? Отварянето на папки още не е включено на този компютър — '
+      + '<a href="/go/folder/install" style="color:#46a374">свали и пусни този файл</a> веднъж и готово.';
+  }
 
   function copier(btnId, text, label) {
     document.getElementById(btnId).onclick = function () {
@@ -260,6 +277,57 @@ router.get('/folder', (req, res) => {
 </script>
 </body>
 </html>`);
+});
+
+// ---------- GET /go/folder/install — еднократният инсталатор за Windows ----------
+//
+// Един файл за сваляне и двоен клик. Вътре е самият handler, кодиран в base64 (чист
+// латински текст → нищо не трябва да се екранира за cmd), който certutil разкодира на
+// място. Пише се само в %LOCALAPPDATA% и в HKCU — без админ права, без инсталатор.
+//
+// Съобщенията са нарочно на латиница: .cmd конзолата върви на OEM кодова страница и
+// кирилицата излиза като квадратчета, а инсталатор с нечетим текст изглежда съмнителен.
+const HANDLER_SRC = fs.readFileSync(path.join(__dirname, '..', 'services', 'folder-open-handler.jscript'));
+
+router.get('/folder/install', (req, res) => {
+  const b64 = (HANDLER_SRC.toString('base64').match(/.{1,76}/g) || []);
+  const cmd = [
+    '@echo off',
+    'title The Pact - otvarjane na papki',
+    'set "DIR=%LOCALAPPDATA%\\ThePact"',
+    'if not exist "%DIR%" mkdir "%DIR%" >nul 2>&1',
+    'echo Instalirane...',
+    '> "%DIR%\\open-folder.b64" (',
+    'echo -----BEGIN CERTIFICATE-----',
+    ...b64.map((l) => 'echo ' + l),
+    'echo -----END CERTIFICATE-----',
+    ')',
+    'certutil -f -decode "%DIR%\\open-folder.b64" "%DIR%\\open-folder.js" >nul',
+    'if errorlevel 1 goto fail',
+    'del "%DIR%\\open-folder.b64" >nul 2>&1',
+    'reg add "HKCU\\Software\\Classes\\thepact" /ve /d "URL:The Pact folder" /f >nul',
+    'reg add "HKCU\\Software\\Classes\\thepact" /v "URL Protocol" /d "" /f >nul',
+    'reg add "HKCU\\Software\\Classes\\thepact\\shell\\open\\command" /ve /d '
+      + '"\\"%SystemRoot%\\System32\\wscript.exe\\" //E:JScript \\"%DIR%\\open-folder.js\\" \\"%%1\\"" /f >nul',
+    'if errorlevel 1 goto fail',
+    'echo.',
+    'echo Gotovo! Vurni se v Basecamp, natisni OTVORI PAPKA i potvurdi v brauzura.',
+    'echo (Za premahvane: reg delete "HKCU\\Software\\Classes\\thepact" /f)',
+    'echo.',
+    'pause',
+    'exit /b 0',
+    ':fail',
+    'echo.',
+    'echo Neuspeshno. Prati screenshot na Vensi.',
+    'echo.',
+    'pause',
+    'exit /b 1',
+    '',
+  ].join('\r\n');
+
+  res.set('Cache-Control', 'no-store');
+  res.set('Content-Disposition', 'attachment; filename="thepact-otvori-papka.cmd"');
+  res.type('application/octet-stream').send(Buffer.from(cmd, 'latin1'));
 });
 
 module.exports = router;

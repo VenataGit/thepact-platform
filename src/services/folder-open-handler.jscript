@@ -1,0 +1,64 @@
+// Windows handler за схемата thepact:// — отваря папка от вътрешния сървър в Explorer.
+// Пуска се от wscript.exe //E:JScript (WSH, без конзолен прозорец).
+//
+// Този файл е ЕДИНСТВЕНИЯТ източник на истината. Инсталаторът /go/folder/install го
+// сваля оттук (base64 вътре в .cmd) и го записва в %LOCALAPPDATA%\ThePact\.
+//
+// Защо изобщо съществува: браузърът НЕ позволява file:// линк да се отвори от https
+// страница (Basecamp е https). Собствената схема е единственият начин един клик в
+// задачата да отвори реална папка.
+//
+// БЕЗОПАСНОСТ — схемата може да бъде извикана от коя да е страница, затова:
+//   1. пътят трябва да е в Z: или в \\192.168.31.147\Production;
+//   2. без .. в пътя;
+//   3. отваря се САМО ако е реално съществуваща ПАПКА (не файл) —
+//      така линк към .exe няма как да бъде подаден на explorer за изпълнение.
+
+var SHARE_HOST = '192.168.31.147';
+var SHARE_NAME = 'Production';
+
+function fail(msg) {
+  // Тих отказ; при ръчна диагностика се вижда с cscript.
+  WScript.Echo('thepact:// — отказано: ' + msg);
+  WScript.Quit(1);
+}
+
+// Изчиства схемата и вади самия път. Толерантно към трите форми, които браузърите
+// произвеждат: thepact://open/<път>, thepact://open?p=<път>, thepact:<път>.
+function extractPath(raw) {
+  var u = String(raw || '');
+  u = u.replace(/^thepact:/i, '').replace(/^\/\//, '');
+  var q = u.match(/[?&]p=([^&]*)/);
+  if (q) return q[1];
+  return u.replace(/^open[/?]?/i, '');
+}
+
+var args = WScript.Arguments;
+if (args.length === 0) fail('няма аргумент');
+
+var p = extractPath(args(0));
+if (!p) fail('празен път');
+
+try { p = decodeURIComponent(p); } catch (e) { fail('невалидно кодиране'); }
+p = p.replace(/\//g, '\\').replace(/\\+$/, '');
+
+// UNC формата идва без водещите наклонени черти, когато хостът е бил част от URL-а.
+if (p.toLowerCase().indexOf(SHARE_HOST.toLowerCase() + '\\') === 0) p = '\\\\' + p;
+
+if (p.indexOf('..') !== -1) fail('пътят съдържа ..');
+
+var lower = p.toLowerCase();
+var okDrive = /^z:\\/.test(lower);
+var okUnc = lower.indexOf('\\\\' + SHARE_HOST.toLowerCase() + '\\' + SHARE_NAME.toLowerCase() + '\\') === 0;
+if (!okDrive && !okUnc) fail('пътят е извън вътрешния сървър: ' + p);
+
+var fso = WScript.CreateObject('Scripting.FileSystemObject');
+if (!fso.FolderExists(p)) fail('папката не съществува: ' + p);
+
+// --dry: само проверява и отпечатва пътя (за тест, без да отваря прозорец).
+if (args.length > 1 && String(args(1)) === '--dry') {
+  WScript.Echo('OK: ' + p);
+  WScript.Quit(0);
+}
+
+WScript.CreateObject('WScript.Shell').Run('explorer.exe "' + p + '"', 1, false);
