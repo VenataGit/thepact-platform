@@ -12,6 +12,7 @@ const agg = require('../services/bc-aggregate');
 const kpc = require('../services/kp-create');
 const { getServiceAuth } = require('../services/basecamp-token');
 const tc = require('../services/task-creator');
+const fp = require('../services/folder-paths');
 
 const MAX_TITLE = 200;
 const MAX_CONTENT = 20000;
@@ -118,7 +119,8 @@ router.post('/plan', requireAuth, async (req, res) => {
     const dest = resolvePlanDest(struct, cfg);
 
     const extraInfo = clean(req.body?.extraInfo, MAX_CONTENT);
-    const content = kpc.textToBcHtml(tc.buildPlanText(cfg, title, videoCount, extraInfo));
+    // Локациите на сървъра идват от заглавието („Клиент КП-12") — виж services/folder-paths.js.
+    const content = kpc.textToBcHtml(tc.buildPlanText(cfg, title, videoCount, extraInfo)) + fp.locationHtml(title);
     const card = await bc.createCard(auth.token, auth.account, dest.projectId, dest.columnId, {
       title, content, due_on: dueOn || undefined,
     });
@@ -171,9 +173,11 @@ router.post('/single', requireAuth, async (req, res) => {
     }
 
     const contentText = clean(req.body?.content, MAX_CONTENT);
+    // Локациите на сървъра идват от заглавието — виж services/folder-paths.js.
+    const content = (contentText ? kpc.textToBcHtml(contentText) : '') + fp.locationHtml(title);
     const card = await bc.createCard(auth.token, auth.account, struct.projectId, column.id, {
       title,
-      content: contentText ? kpc.textToBcHtml(contentText) : undefined,
+      content: content || undefined,
       due_on: dueOn || undefined,
     });
 

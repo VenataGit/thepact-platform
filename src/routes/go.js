@@ -294,7 +294,11 @@ router.get('/folder', (req, res) => {
 const HANDLER_SRC = fs.readFileSync(path.join(__dirname, '..', 'services', 'folder-open-handler.jscript'));
 
 router.get('/folder/install', (req, res) => {
-  const b64 = (HANDLER_SRC.toString('base64').match(/.{1,76}/g) || []);
+  // Записва се като UTF-16LE с BOM: WSH чете .js файл без BOM като ANSI и кирилицата в
+  // съобщенията („папката не съществува") излиза като каша в прозорчето. Проверено —
+  // при UTF-8 без BOM „папката".length дава 14, при UTF-16LE дава 7.
+  const utf16 = Buffer.concat([Buffer.from([0xFF, 0xFE]), Buffer.from(HANDLER_SRC.toString('utf8'), 'utf16le')]);
+  const b64 = (utf16.toString('base64').match(/.{1,76}/g) || []);
   const cmd = [
     '@echo off',
     'title The Pact - otvarjane na papki',

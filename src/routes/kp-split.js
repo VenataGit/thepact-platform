@@ -13,6 +13,7 @@ const bc = require('../services/basecamp');
 const { getUserAuth } = require('../services/basecamp-token');
 const { subtractWorkingDays } = require('../services/workdays');
 const { parsePlan, parsePublishDate, planHtml } = require('../services/kp-plan');
+const fp = require('../services/folder-paths');
 
 const MAX_VIDEOS = 30; // hard safety cap so a malformed plan can't flood the board
 const MAX_ATTACH_BYTES = 200 * 1024 * 1024; // skip media larger than this
@@ -194,7 +195,8 @@ router.post('/create', requireAuth, async (req, res) => {
       try {
         const attachMap = {};
         for (const idx of idxs) attachMap[idx] = await attachTagFor(idx);
-        const content = buildContent(s.sectionText, attachMap);
+        // Локациите на сървъра идват от самото заглавие на картата (services/folder-paths.js).
+        const content = buildContent(s.sectionText, attachMap) + fp.locationHtml(title);
         const newCard = await bc.createCard(token, account, projectId, target.id, { title, content, due_on: publishDate || undefined });
         for (const stepTitle of VIDEO_STEPS) {
           const stepDate = publishDate ? subtractWorkingDays(publishDate, STEP_OFFSETS[stepTitle]) : undefined;
