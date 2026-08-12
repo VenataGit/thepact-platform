@@ -168,6 +168,7 @@ app.use('/api/kp-results', require('./routes/kp-results'));
 app.use('/api/sheet-alerts', require('./routes/sheet-alerts'));
 app.use('/webhooks', require('./routes/webhooks'));
 app.use('/go', require('./routes/go'));
+app.use('/api/folder-queue', require('./routes/folder-queue'));
 app.use('/api/trash', require('./routes/trash'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/positions', require('./routes/positions'));

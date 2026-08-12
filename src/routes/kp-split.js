@@ -14,6 +14,7 @@ const { getUserAuth } = require('../services/basecamp-token');
 const { subtractWorkingDays } = require('../services/workdays');
 const { parsePlan, parsePublishDate, planHtml } = require('../services/kp-plan');
 const fp = require('../services/folder-paths');
+const fq = require('../services/folder-queue');
 
 const MAX_VIDEOS = 30; // hard safety cap so a malformed plan can't flood the board
 const MAX_ATTACH_BYTES = 200 * 1024 * 1024; // skip media larger than this
@@ -45,6 +46,7 @@ function attachmentIdxs(sectionText) {
 // Build a card's content HTML, swapping each placeholder line for its re-uploaded
 // <bc-attachment> tag (attachMap: idx -> tag HTML, '' when the media couldn't be carried).
 function buildContent(sectionText, attachMap) {
+  if (!sectionText) return '';
   return sectionText.split('\n').map((line) => {
     const t = line.trim();
     const pm = t.match(/^A(\d+)$/);
@@ -195,9 +197,15 @@ router.post('/create', requireAuth, async (req, res) => {
       try {
         const attachMap = {};
         for (const idx of idxs) attachMap[idx] = await attachTagFor(idx);
-        // Локациите на сървъра идват от самото заглавие на картата (services/folder-paths.js).
-        const content = buildContent(s.sectionText, attachMap) + fp.locationHtml(title);
+        // Локациите идват от заглавието на картата и стоят ГОРЕ — след водещите /…/
+        // редове, преди „Описание:" (services/folder-paths.js).
+        const split = fp.splitForLocation(s.sectionText);
+        const content = buildContent(split.before, attachMap)
+          + fp.locationHtml(title)
+          + buildContent(split.after, attachMap);
         const newCard = await bc.createCard(token, account, projectId, target.id, { title, content, due_on: publishDate || undefined });
+        // Папките ги прави агентът в офиса — тук само записваме заявката (никога не хвърля).
+        await fq.enqueue({ cardId: newCard.id, title });
         for (const stepTitle of VIDEO_STEPS) {
           const stepDate = publishDate ? subtractWorkingDays(publishDate, STEP_OFFSETS[stepTitle]) : undefined;
           try { await bc.createStep(token, account, projectId, newCard.id, { title: stepTitle, due_on: stepDate }); }

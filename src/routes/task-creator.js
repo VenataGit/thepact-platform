@@ -13,6 +13,7 @@ const kpc = require('../services/kp-create');
 const { getServiceAuth } = require('../services/basecamp-token');
 const tc = require('../services/task-creator');
 const fp = require('../services/folder-paths');
+const fq = require('../services/folder-queue');
 
 const MAX_TITLE = 200;
 const MAX_CONTENT = 20000;
@@ -119,12 +120,17 @@ router.post('/plan', requireAuth, async (req, res) => {
     const dest = resolvePlanDest(struct, cfg);
 
     const extraInfo = clean(req.body?.extraInfo, MAX_CONTENT);
-    // Локациите на сървъра идват от заглавието („Клиент КП-12") — виж services/folder-paths.js.
-    const content = kpc.textToBcHtml(tc.buildPlanText(cfg, title, videoCount, extraInfo)) + fp.locationHtml(title);
+    // Локациите идват от заглавието („Клиент КП-12") — виж services/folder-paths.js.
+    // Тук блокът е най-отгоре: текстът на плана съдържа N видео секции, всяка със свое
+    // „Описание:", тоест вмъкването по средата би паднало вътре в първото видео.
+    const content = fp.locationHtml(title, { lead: false })
+      + kpc.textToBcHtml(tc.buildPlanText(cfg, title, videoCount, extraInfo));
     const card = await bc.createCard(auth.token, auth.account, dest.projectId, dest.columnId, {
       title, content, due_on: dueOn || undefined,
     });
     agg.invalidateBoard(dest.boardId);
+    // Папката на самия контент план — видео папките идват при разбиването.
+    await fq.enqueue({ cardId: card.id, title });
 
     const out = {
       kind: 'plan', title: card.title || title, cardId: card.id,
@@ -173,13 +179,18 @@ router.post('/single', requireAuth, async (req, res) => {
     }
 
     const contentText = clean(req.body?.content, MAX_CONTENT);
-    // Локациите на сървъра идват от заглавието — виж services/folder-paths.js.
-    const content = (contentText ? kpc.textToBcHtml(contentText) : '') + fp.locationHtml(title);
+    // Локациите идват от заглавието и стоят ГОРЕ — след водещите /…/ редове, преди
+    // „Описание:" (services/folder-paths.js).
+    const split = fp.splitForLocation(contentText);
+    const content = kpc.textToBcHtml(split.before) + fp.locationHtml(title) + kpc.textToBcHtml(split.after);
     const card = await bc.createCard(auth.token, auth.account, struct.projectId, column.id, {
       title,
       content: content || undefined,
       due_on: dueOn || undefined,
     });
+
+    // Папките ги прави агентът в офиса — тук само записваме заявката (никога не хвърля).
+    await fq.enqueue({ cardId: card.id, title });
 
     const stepErrors = [];
     const stepsByTitle = {};

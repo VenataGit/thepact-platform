@@ -84,6 +84,56 @@ describe('вратичката — задача извън КП/РЕК/КМП', 
   });
 });
 
+describe('splitForLocation — блокът стои горе', () => {
+  const SECTION = [
+    'Видео 4 - Как се прави',
+    '/Участници - ХХХ/',
+    '/Локация - ХХХ/',
+    '/Необходими ресурси - ХХХ/',
+    '',
+    'Описание:',
+    'ХХХ',
+    '',
+    'Копи: ХХХ',
+  ].join('\n');
+
+  test('реже точно преди „Описание:"', () => {
+    const s = fp.splitForLocation(SECTION);
+    expect(s.before.split('\n').pop()).toBe('/Необходими ресурси - ХХХ/');
+    expect(s.after.split('\n')[0]).toBe('Описание:');
+  });
+
+  test('без „Описание:" реже след водещите /…/ редове', () => {
+    const s = fp.splitForLocation('Видео 1 - Тест\n/Участници - ХХХ/\n\nКопи: ХХХ');
+    expect(s.before).toBe('Видео 1 - Тест\n/Участници - ХХХ/');
+    expect(s.after).toBe('Копи: ХХХ');
+  });
+
+  test('без нищо разпознаваемо блокът пада най-отдолу', () => {
+    const s = fp.splitForLocation('Просто текст\nвтори ред');
+    expect(s.after).toBe('');
+    expect(s.before).toBe('Просто текст\nвтори ред');
+  });
+
+  test('празен текст не гърми', () => {
+    expect(fp.splitForLocation('')).toEqual({ before: '', after: '' });
+  });
+});
+
+describe('locationHtml — подредба', () => {
+  test('двата блока са слепени, както ги иска Венци', () => {
+    const html = fp.locationHtml('Credissimo - Тестова задача');
+    expect(html.indexOf('Локация на файлове:')).toBeLessThan(html.indexOf('Локация на експортираното видео:'));
+    expect(html).toContain('Windows: Z:\\Credissimo\\Тестова задача');
+    expect(html).toContain('Windows: Z:\\Exported Videos\\Credissimo\\Тестова задача');
+  });
+
+  test('lead:false маха водещия празен ред', () => {
+    expect(fp.locationHtml('Credissimo КП-1', { lead: false }).startsWith('<div><br></div>')).toBe(false);
+    expect(fp.locationHtml('Credissimo КП-1').startsWith('<div><br></div>')).toBe(true);
+  });
+});
+
 describe('safeName', () => {
   test('маха забранените за Windows знаци и опашката от точки', () => {
     expect(fp.safeName('Как се прави: част 1/2?')).toBe('Как се прави част 1 2');

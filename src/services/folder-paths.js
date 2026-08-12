@@ -125,17 +125,50 @@ function blockHtml(heading, f) {
   ].join('');
 }
 
-// Готовият блок за долния край на описанието. Празен низ, ако заглавието не се разпознава.
-function locationHtml(title) {
+// Готовият блок. Празен низ, ако заглавието не се разпознава.
+// opts.lead = false маха водещия празен ред (когато блокът е най-отгоре в описанието).
+function locationHtml(title, opts) {
   const p = pathsForTitle(title);
   if (!p) return '';
-  return '<div><br></div>'
-    + blockHtml('Локация на файлове', p.files)
-    + '<div><br></div>'
-    + blockHtml('Локация на експортираното видео', p.exported);
+  const lead = !opts || opts.lead !== false;
+  return (lead ? '<div><br></div>' : '')
+    + blockHtml('Локация на файлове:', p.files)
+    + blockHtml('Локация на експортираното видео:', p.exported)
+    + '<div><br></div>';
+}
+
+// Блокът стои ГОРЕ (решение на Венци, 12.08.2026): веднага след водещите редове от вида
+// „/Участници - ХХХ/" и преди „Описание:". Тук връщаме текста, разцепен на мястото на
+// вмъкване, за да може всеки от двата пътя за създаване на карти да си сглоби HTML-а сам.
+//
+// Ако няма нито „Описание:", нито водещи /…/ редове — блокът пада най-отдолу, както беше.
+function splitForLocation(text) {
+  const lines = String(text == null ? '' : text).split('\n');
+
+  let idx = lines.findIndex((l) => /^\s*Описание\s*:/i.test(l));
+  if (idx === -1) {
+    let last = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const t = lines[i].trim();
+      if (i === 0 && /^Видео\s+\d+\s*[-–—]/i.test(t)) continue; // заглавният ред на секцията
+      if (/^\/.*\/$/.test(t)) { last = i; continue; }
+      if (t === '' && last === -1) continue;
+      break;
+    }
+    idx = last === -1 ? lines.length : last + 1;
+  }
+
+  // Празните редове от двете страни на мястото ги изяждаме — блокът си носи свой отстъп,
+  // иначе се получава двойна дупка над и под него.
+  let end = idx;
+  while (end > 0 && lines[end - 1].trim() === '') end--;
+  let start = idx;
+  while (start < lines.length && lines[start].trim() === '') start++;
+
+  return { before: lines.slice(0, end).join('\n'), after: lines.slice(start).join('\n') };
 }
 
 module.exports = {
-  parseTaskTitle, parseFreeTitle, pathsForTitle, locationHtml, safeName,
+  parseTaskTitle, parseFreeTitle, pathsForTitle, locationHtml, splitForLocation, safeName,
   SHARE_HOST, SHARE_NAME, EXPORT_DIR,
 };
