@@ -237,6 +237,19 @@ function textToHtml(text) {
   }).join('');
 }
 
+// Първият (най-вляво) highlight цвят на Basecamp, изписан ТОЧНО както го записва
+// самият Basecamp в rich text-а: <mark> с inline background-color.
+//
+// Защо литералът rgb(250, 247, 133), а не голо <mark>: голият таг минава през
+// API-то, но Trix не го припознава като highlight — цветът не се вижда и изчезва
+// при първия запис от edit режим. С inline стила Trix вижда своя highlight атрибут
+// и го връща обратно при запис, тоест оцветяването преживява редакцията.
+//
+// (Същият цвят в тъмната тема на Basecamp се смята като #51452C — това е една и
+// съща боя, само променливата на темата е различна. Пишем литерала, защото той е
+// формата, която Basecamp пази и рендерира навсякъде — включително в имейлите.)
+const BC_HIGHLIGHT_STYLE = 'background-color: rgb(250, 247, 133);';
+
 // Plain text -> Basecamp rich HTML in Trix's OWN canonical format.
 //
 // Trix (Basecamp's editor) stores plain paragraphs as ONE block with <br> between
@@ -247,16 +260,17 @@ function textToHtml(text) {
 // (verified as a stable round-trip fixed point), which keeps the blank separator
 // lines intact through the edit round-trip.
 //
-// "Видео N - …" headings are wrapped in <mark> (Basecamp's highlight → yellow, the
-// first colour) AND <strong>: the <mark> gives the colour, and <strong> keeps the
-// heading emphasised even if an older Trix drops the highlight attribute.
+// "Видео N - …" headings are wrapped in <mark> (Basecamp's highlight → the FIRST,
+// най-вляво стоящия цвят в редактора) AND <strong>: the <mark> gives the colour,
+// and <strong> keeps the heading emphasised even if an older Trix drops the
+// highlight attribute.
 function textToBcHtml(text) {
   if (!text) return '';
   const lines = text.split('\n').map((line) => {
     const t = line.trim();
     if (t === '') return ''; // празен ред → допълнителен <br> при join-а
     const e = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    if (/^Видео\s+\d+\s*[-–—]/.test(t)) return `<strong><mark>${e}</mark></strong>`;
+    if (/^Видео\s+\d+\s*[-–—]/.test(t)) return `<strong><mark style="${BC_HIGHLIGHT_STYLE}">${e}</mark></strong>`;
     return e;
   });
   return `<div>${lines.join('<br>')}</div>`;
