@@ -9,6 +9,7 @@
 //   📊 Резултати          — известие, когато всички видеа по един КП са публикувани
 //   📄 Таблица известия   — Google Sheets (Apps Script) → Basecamp
 //   🤖 PM Agent           — одит и синхрон
+//   📜 История            — кой какво и кога е правил, с таб за всяка дейност
 //   🛠 Система            — дневен отчет, коментари, Google Calendar синхрон, логика
 // Менюто „Настройки" (More) се вижда от всички, но самият панел е само за админи —
 // на останалите излиза съобщението SG_NO_ACCESS_MSG. Старият панел (#/admin-legacy)
@@ -69,6 +70,7 @@ var SG_SECTIONS = [
   { id: 'results', icon: '📊', label: 'Резултати', hint: 'Известие при изпубликуван КП', adminOnly: true },
   { id: 'sheets', icon: '📄', label: 'Таблица известия', hint: 'Google Sheets → Basecamp', adminOnly: true },
   { id: 'agent', icon: '🤖', label: 'PM Agent', hint: 'Одит и синхрон', adminOnly: true },
+  { id: 'history', icon: '📜', label: 'История', hint: 'Кой какво и кога е правил', adminOnly: true },
   { id: 'system', icon: '🛠', label: 'Система', hint: 'Отчет, коментари, логика', adminOnly: true },
 ];
 
@@ -84,7 +86,7 @@ function _sgEnsureFontsLoaded() {
   document.head.appendChild(l);
 }
 
-async function renderSettings(el, sub) {
+async function renderSettings(el, sub, sub2) {
   if (currentUser && !sgHasSettingsAccess()) {
     el.innerHTML =
       '<div class="sg-wrap">' +
@@ -130,6 +132,7 @@ async function renderSettings(el, sub) {
   else if (active === 'results') sgSectionResults(body);
   else if (active === 'sheets') sgSectionSheets(body);
   else if (active === 'agent') sgSectionAgent(body);
+  else if (active === 'history') sgSectionHistory(body, sub2);
   else if (active === 'system') sgSectionSystem(body);
 }
 
@@ -1956,4 +1959,135 @@ async function tskAdmSaveSteps(btn, override) {
     showToast('Грешка: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '💾 Запази стъпките'; }
   }
+}
+
+// ==================== СЕКЦИЯ: ИСТОРИЯ ====================
+// Само четене. Платформата води няколко отделни дневника (задачи, КП, календар,
+// карти, срокове, CRM) — тук те стоят на едно място, с таб за всяка дейност и
+// таб „Всичко", който ги слива в една лента по време.
+//
+// Поводът: картите в Basecamp се създават от бота ThePactAlerts, затова там
+// авторът е винаги един и същ — кой ги е поръчал се вижда само от платформата.
+
+var SG_HIST_TABS = [
+  { id: 'all', icon: '📜', label: 'Всичко',
+    desc: 'Всички дейности от всички табове, най-новото отгоре.' },
+  { id: 'tasks', icon: '🧾', label: 'Задачи',
+    desc: 'Кой какво е поръчал през <a href="#/create-task">Създаване на задачи</a>. Картата в Basecamp се създава от бота ThePactAlerts, затова истинският поръчител се вижда само тук.' },
+  { id: 'kp', icon: '📋', label: 'КП',
+    desc: 'Контент планове: клиенти, създадени КП карти, коментари под тях. „Система" означава графика, а не човек.' },
+  { id: 'calendar', icon: '📅', label: 'Календар',
+    desc: 'Производственият календар: насрочване, местене и връщане на снимачните дни.' },
+  { id: 'cards', icon: '🗂', label: 'Карти',
+    desc: 'Картите в платформата: създаване, местене, промени по полета, отговорници и коментари.' },
+  { id: 'dates', icon: '📆', label: 'Срокове',
+    desc: 'Местените дати по картите — със старата и новата стойност.' },
+  { id: 'crm', icon: '💼', label: 'CRM',
+    desc: 'Сделките в <a href="#/crm">CRM</a>: бележки, обаждания, срещи и смяна на етап.' },
+];
+
+var _sgHist = { tab: 'all', limit: 60, q: '', items: [], hasMore: false };
+
+function sgSectionHistory(host, tab) {
+  var t = SG_HIST_TABS.some(function (x) { return x.id === tab; }) ? tab : 'all';
+  _sgHist = { tab: t, limit: 60, q: '', items: [], hasMore: false };
+  var cur = SG_HIST_TABS.filter(function (x) { return x.id === t; })[0];
+
+  host.innerHTML =
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">📜 История — кой какво и кога е правил</div>' +
+      '<div class="sg-section__desc">Дневникът само показва вече записаното — тук нищо не се променя и не се трие.</div>' +
+      '<div class="sg-hist__tabs">' +
+        SG_HIST_TABS.map(function (x) {
+          return '<a class="sg-hist__tab' + (x.id === t ? ' sg-hist__tab--on' : '') + '" ' +
+            'href="#/admin/history' + (x.id === 'all' ? '' : '/' + x.id) + '">' +
+            '<span class="sg-hist__tabicon">' + x.icon + '</span>' + esc(x.label) + '</a>';
+        }).join('') +
+      '</div>' +
+      '<div class="sg-hist__about">' + cur.desc + '</div>' +
+      '<div class="sg-hist__bar">' +
+        '<input class="ga-input sg-hist__search" id="sgHistSearch" ' +
+          'placeholder="Търси по човек, действие или заглавие…" oninput="sgHistFilter(this.value)">' +
+        '<button class="ga-btn" onclick="sgHistLoad()">↻ Опресни</button>' +
+      '</div>' +
+      '<div id="sgHistBody"><div class="ga-loading">Зареждане…</div></div>' +
+    '</div>';
+
+  sgHistLoad();
+}
+
+async function sgHistLoad() {
+  var host = document.getElementById('sgHistBody');
+  if (!host) return;
+  try {
+    var res = await fetch('/api/history?tab=' + encodeURIComponent(_sgHist.tab) + '&limit=' + _sgHist.limit);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    _sgHist.items = data.items || [];
+    _sgHist.hasMore = !!data.hasMore;
+    sgHistRender();
+  } catch (e) {
+    host.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка при зареждане: ' + esc(e.message) + '</div>';
+  }
+}
+
+// Търсенето филтрира само вече свалените редове — полето е извън #sgHistBody,
+// затова пречертаването на таблицата не изяжда фокуса при писане.
+function sgHistFilter(v) { _sgHist.q = v || ''; sgHistRender(); }
+
+function sgHistMore() {
+  _sgHist.limit = Math.min(500, _sgHist.limit + 100);
+  sgHistLoad();
+}
+
+function _sgHistWhen(ts) {
+  var d = new Date(ts);
+  var diff = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diff < 60) return 'сега';
+  if (diff < 3600) return 'преди ' + Math.floor(diff / 60) + ' мин';
+  var p = function (n) { return String(n).padStart(2, '0'); };
+  var hm = p(d.getHours()) + ':' + p(d.getMinutes());
+  if (d.toDateString() === new Date().toDateString()) return 'днес, ' + hm;
+  return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ', ' + hm;
+}
+
+function sgHistRender() {
+  var host = document.getElementById('sgHistBody');
+  if (!host) return;
+  var q = _sgHist.q.trim().toLowerCase();
+  var items = _sgHist.items.filter(function (it) {
+    if (!q) return true;
+    return ((it.who || '') + ' ' + (it.action || '') + ' ' + (it.title || '') + ' ' + (it.details || ''))
+      .toLowerCase().indexOf(q) >= 0;
+  });
+
+  if (!items.length) {
+    host.innerHTML = '<div class="ga-empty">' +
+      (q ? 'Нищо не отговаря на търсенето.' : 'Още няма записана дейност тук.') + '</div>';
+    return;
+  }
+
+  var rows = items.map(function (it) {
+    var what = esc(it.title || '');
+    if (it.title && it.url) {
+      what = '<a href="' + esc(it.url) + '"' +
+        (/^https?:/.test(it.url) ? ' target="_blank" rel="noopener"' : '') + '>' + esc(it.title) + '</a>';
+    }
+    return '<tr>' +
+      '<td class="sg-hist__when" title="' + esc(new Date(it.ts).toLocaleString('bg-BG')) + '">' + esc(_sgHistWhen(it.ts)) + '</td>' +
+      '<td class="sg-hist__who">' + esc(it.who || '—') + '</td>' +
+      '<td><span class="sg-hist__icon">' + (it.icon || '•') + '</span>' + esc(it.action || '') + '</td>' +
+      '<td>' + (what || '<span class="ga-dim">—</span>') +
+        (it.details ? '<span class="sg-hist__det">' + esc(it.details) + '</span>' : '') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  host.innerHTML =
+    '<div class="sg-hist__wrap"><table class="tcl-table">' +
+      '<thead><tr><th>Кога</th><th>Кой</th><th>Какво</th><th>Къде</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div>' +
+    '<div class="sg-hist__foot">' +
+      '<span class="ga-dim">' + items.length + (q ? ' от ' + _sgHist.items.length : '') + ' записа</span>' +
+      (_sgHist.hasMore ? '<button class="btn btn-sm btn-ghost" onclick="sgHistMore()">Покажи още</button>' : '') +
+    '</div>';
 }

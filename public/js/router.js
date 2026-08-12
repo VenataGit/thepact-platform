@@ -48,7 +48,7 @@ function router() {
     case 'schedule': return renderSchedule(el);
     case 'checkins': return renderCheckins(el);
     case 'agent': return renderAgentChat(el);
-    case 'admin': return renderSettings(el, parts[1] || null);
+    case 'admin': return renderSettings(el, parts[1] || null, parts[2] || null);
     // Старият („Разширени") панел е слят в #/admin — старите линкове водят натам.
     case 'admin-legacy': location.hash = '#/admin'; return;
     case 'reports': return renderReports(el);

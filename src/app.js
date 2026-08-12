@@ -142,6 +142,7 @@ app.use('/api/cards', require('./routes/comments'));
 app.use('/api/cards', require('./routes/attachments'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/activity', require('./routes/activity'));
+app.use('/api/history', require('./routes/history'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/messageboard', require('./routes/messageboard'));

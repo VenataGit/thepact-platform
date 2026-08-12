@@ -229,3 +229,27 @@
   color: var(--accent); border: 1px solid var(--accent); border-radius: 4px;
   padding: 0 4px; margin-left: 5px; vertical-align: 1px;
 }
+
+/* ===== История (Настройки → 📜) ===== */
+.sg-hist__tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 10px; }
+.sg-hist__tab {
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 11px; white-space: nowrap;
+}
+.sg-hist__tab:hover { color: var(--text); border-color: var(--border-hover); }
+.sg-hist__tab--on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.sg-hist__tabicon { font-size: 13px; }
+.sg-hist__about { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 12px; }
+.sg-hist__bar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.sg-hist__search { flex: 1; min-width: 0; }
+.sg-hist__wrap { overflow-x: auto; }
+.sg-hist__when { white-space: nowrap; color: var(--text-dim); }
+.sg-hist__who { font-weight: 600; color: #fff; white-space: nowrap; }
+.sg-hist__icon { margin-right: 6px; }
+.sg-hist__det { display: block; font-size: 11px; color: var(--text-dim); margin-top: 2px; word-break: break-word; }
+.sg-hist__foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-top: 12px;
+}
