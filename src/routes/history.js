@@ -10,6 +10,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const cardTextLog = require('../services/card-text-log');
 
 const MAX_LIMIT = 500;
 
@@ -146,6 +147,25 @@ const LOADERS = {
         r.due_on ? `публикуване ${dmy(r.due_on)}` : '',
       ].filter(Boolean).join(' · '),
     }));
+  }),
+
+  // Текстът на Basecamp картите: какъв е бил и с какво е заменен. Пълните текстове
+  // се пращат само на собствения таб — обединеният не бива да мъкне мегабайти.
+  text: (limit, withText) => safe('text', async () => {
+    const rows = await cardTextLog.recentTextChanges(limit, !!withText);
+    return rows.map((r) => {
+      const isTitle = r.field === 'title';
+      const item = {
+        source: 'text', key: `text-${r.id}`, icon: '✏️', ts: r.created_at,
+        who: r.who_name || 'не се знае', avatar: '',
+        action: isTitle ? 'Преименува задача' : 'Промени текста на задача',
+        title: r.card_title || `Карта ${r.card_id}`,
+        url: r.app_url || '',
+        details: [r.board_title, `беше ${r.old_len} знака, стана ${r.new_len}`].filter(Boolean).join(' · '),
+      };
+      if (withText) item.diff = { field: r.field, old: r.old_text || '', new: r.new_text || '' };
+      return item;
+    });
   }),
 
   // КП-автоматизацията: клиенти, карти, коментари. „Система" = графикът, не човек.
@@ -313,9 +333,11 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
 
     // +1 ред, за да се разбере има ли още, без втора заявка.
     const wanted = limit + 1;
+    // Вторият аргумент значи „това е собственият таб на източника" — само тогава
+    // се пращат тежките полета (целите стар и нов текст).
     const lists = tab === 'all'
-      ? await Promise.all(TABS.map((t) => LOADERS[t](wanted)))
-      : [await LOADERS[tab](wanted)];
+      ? await Promise.all(TABS.map((t) => LOADERS[t](wanted, false)))
+      : [await LOADERS[tab](wanted, true)];
 
     const merged = [].concat(...lists).sort((a, b) => new Date(b.ts) - new Date(a.ts));
     res.json({

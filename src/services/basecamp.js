@@ -245,6 +245,16 @@ async function getCard(token, account, projectId, cardId) {
   return (await authedGet(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${cardId}.json`, token)).json;
 }
 
+// Всяко Basecamp recording (карта, съобщение, задача) си води списък със събития:
+// кой и кога го е пипал. Картата сама по себе си казва само `updated_at`, но не и
+// КОЙ я е променил — това се разбира само оттук. Няма стар текст в събитието,
+// затова старата версия я пазим ние (виж pm-agent/snapshot.js).
+async function getRecordingEvents(token, account, projectId, recordingId) {
+  const { json } = await authedGet(
+    `${API_BASE}/${account}/buckets/${projectId}/recordings/${recordingId}/events.json`, token);
+  return Array.isArray(json) ? json : [];
+}
+
 // Create a card in a column/list. POST .../card_tables/lists/{listId}/cards.json
 // body { title (required), content (rich HTML), due_on, notify }. Returns the created card JSON.
 async function createCard(token, account, projectId, listId, { title, content, due_on, notify } = {}) {
@@ -466,6 +476,7 @@ module.exports = {
   deleteWormhole,
   moveCardToColumn,
   getCard,
+  getRecordingEvents,
   createCard,
   createStep,
   getProjectPeople,

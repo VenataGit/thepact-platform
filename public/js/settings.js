@@ -1974,6 +1974,8 @@ var SG_HIST_TABS = [
     desc: 'Всички дейности от всички табове, най-новото отгоре.' },
   { id: 'tasks', icon: '🧾', label: 'Задачи',
     desc: 'Кой какво е поръчал през <a href="#/create-task">Създаване на задачи</a>. Картата в Basecamp се създава от бота ThePactAlerts, затова истинският поръчител се вижда само тук.' },
+  { id: 'text', icon: '✏️', label: 'Текст',
+    desc: 'Смяната на текста на задачите в Basecamp — какъв е бил и с какво е заменен. Промяната се засича при синхрона (на 15 минути), затова се появява тук с малко закъснение. Снимките и видеата не се пазят — от тях остава само бележка, че ги е имало.' },
   { id: 'kp', icon: '📋', label: 'КП',
     desc: 'Контент планове: клиенти, създадени КП карти, коментари под тях. „Система" означава графика, а не човек.' },
   { id: 'calendar', icon: '📅', label: 'Календар',
@@ -1991,6 +1993,7 @@ var _sgHist = { tab: 'all', limit: 60, q: '', items: [], hasMore: false };
 function sgSectionHistory(host, tab) {
   var t = SG_HIST_TABS.some(function (x) { return x.id === tab; }) ? tab : 'all';
   _sgHist = { tab: t, limit: 60, q: '', items: [], hasMore: false };
+  _sgTxtOpen = {};
   var cur = SG_HIST_TABS.filter(function (x) { return x.id === t; })[0];
 
   host.innerHTML =
@@ -2067,6 +2070,9 @@ function sgHistRender() {
     return;
   }
 
+  // Таб „Текст" не е таблица — там всеки запис е сравнение стар/нов текст.
+  if (_sgHist.tab === 'text') { sgHistRenderText(host, items, q); return; }
+
   var rows = items.map(function (it) {
     var what = esc(it.title || '');
     if (it.title && it.url) {
@@ -2090,4 +2096,127 @@ function sgHistRender() {
       '<span class="ga-dim">' + items.length + (q ? ' от ' + _sgHist.items.length : '') + ' записа</span>' +
       (_sgHist.hasMore ? '<button class="btn btn-sm btn-ghost" onclick="sgHistMore()">Покажи още</button>' : '') +
     '</div>';
+}
+
+// ---------- таб „Текст": какъв е бил текстът и с какво е заменен ----------
+// Записът идва от дневника bc_card_text_log (пълни се при снапшота на 15 мин).
+// Показва се разликата по редове; целите текстове се разгъват по желание.
+
+// Ключ на записа (не индекс — при търсене индексите се разместват) → разгънат ли е.
+var _sgTxtOpen = {};
+
+function sgHistRenderText(host, items, q) {
+  host.innerHTML =
+    items.map(function (it) { return _sgTxtCardHtml(it, it.key || String(it.ts)); }).join('') +
+    '<div class="sg-hist__foot">' +
+      '<span class="ga-dim">' + items.length + (q ? ' от ' + _sgHist.items.length : '') + ' промени</span>' +
+      (_sgHist.hasMore ? '<button class="btn btn-sm btn-ghost" onclick="sgHistMore()">Покажи още</button>' : '') +
+    '</div>';
+}
+
+function _sgTxtCardHtml(it, key) {
+  var d = it.diff || { old: '', new: '' };
+  var isTitle = d.field === 'title';
+  var link = it.title;
+  if (it.url) {
+    link = '<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.title) + '</a>';
+  } else {
+    link = esc(it.title);
+  }
+
+  var bodyHtml;
+  if (isTitle) {
+    bodyHtml = '<div class="sg-txt__ln sg-txt__ln--del">' + (esc(d.old) || '&nbsp;') + '</div>' +
+               '<div class="sg-txt__ln sg-txt__ln--add">' + (esc(d.new) || '&nbsp;') + '</div>';
+  } else if (_sgTxtOpen[key]) {
+    bodyHtml =
+      '<div class="sg-txt__side"><div class="sg-txt__sidehdr">Беше</div>' +
+        '<pre class="sg-txt__full">' + (esc(d.old) || '(празно)') + '</pre></div>' +
+      '<div class="sg-txt__side"><div class="sg-txt__sidehdr">Стана</div>' +
+        '<pre class="sg-txt__full">' + (esc(d.new) || '(празно)') + '</pre></div>';
+  } else {
+    bodyHtml = _sgTxtDiffHtml(d.old, d.new);
+  }
+
+  return '<div class="sg-txt">' +
+    '<div class="sg-txt__hdr">' +
+      '<span class="sg-txt__who">' + esc(it.who || '—') + '</span>' +
+      '<span class="sg-txt__act">' + esc(it.action || '') + '</span>' +
+      '<span class="sg-txt__card">' + link + '</span>' +
+      '<span class="sg-txt__when">' + esc(_sgHistWhen(it.ts)) + '</span>' +
+    '</div>' +
+    '<div class="sg-txt__meta">' + esc(it.details || '') + '</div>' +
+    '<div class="sg-txt__body' + (_sgTxtOpen[key] && !isTitle ? ' sg-txt__body--split' : '') + '">' + bodyHtml + '</div>' +
+    (isTitle ? '' :
+      '<div class="sg-txt__foot">' +
+        '<button class="ga-btn" onclick="sgTxtToggle(&quot;' + esc(key) + '&quot;)">' +
+          (_sgTxtOpen[key] ? '↩ Само разликата' : '⤢ Целия текст') + '</button>' +
+      '</div>') +
+  '</div>';
+}
+
+function sgTxtToggle(key) {
+  _sgTxtOpen[key] = !_sgTxtOpen[key];
+  sgHistRender();
+}
+
+// Разликата по редове (LCS). Текстовете са карти, не книги — при много дълъг
+// текст сметката се пропуска и се показват направо двете версии.
+function _sgTxtDiff(oldText, newText) {
+  var a = String(oldText || '').split('\n');
+  var b = String(newText || '').split('\n');
+  if (a.length > 400 || b.length > 400) return null;
+
+  var m = a.length, n = b.length, i, j;
+  var lcs = [];
+  for (i = 0; i <= m; i++) lcs.push(new Array(n + 1).fill(0));
+  for (i = m - 1; i >= 0; i--) {
+    for (j = n - 1; j >= 0; j--) {
+      lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
+  }
+  var out = [];
+  i = 0; j = 0;
+  while (i < m && j < n) {
+    if (a[i] === b[j]) { out.push({ t: ' ', s: a[i] }); i++; j++; }
+    else if (lcs[i + 1][j] >= lcs[i][j + 1]) { out.push({ t: '-', s: a[i] }); i++; }
+    else { out.push({ t: '+', s: b[j] }); j++; }
+  }
+  while (i < m) out.push({ t: '-', s: a[i++] });
+  while (j < n) out.push({ t: '+', s: b[j++] });
+  return out;
+}
+
+// Непроменените редове далеч от промяна се свиват — иначе една дребна поправка
+// в дълъг КП текст се губи между стотина еднакви реда.
+function _sgTxtCollapse(rows, ctx) {
+  var keep = rows.map(function () { return false; });
+  rows.forEach(function (r, i) {
+    if (r.t === ' ') return;
+    for (var k = Math.max(0, i - ctx); k <= Math.min(rows.length - 1, i + ctx); k++) keep[k] = true;
+  });
+  var out = [], skipped = 0;
+  rows.forEach(function (r, i) {
+    if (keep[i]) {
+      if (skipped) { out.push({ t: '…', s: skipped + ' непроменени реда' }); skipped = 0; }
+      out.push(r);
+    } else skipped++;
+  });
+  if (skipped) out.push({ t: '…', s: skipped + ' непроменени реда' });
+  return out;
+}
+
+function _sgTxtDiffHtml(oldText, newText) {
+  var rows = _sgTxtDiff(oldText, newText);
+  if (!rows) {
+    return '<div class="sg-txt__note">Текстът е твърде дълъг за сравнение ред по ред — виж целите версии.</div>';
+  }
+  var changed = rows.filter(function (r) { return r.t !== ' '; }).length;
+  if (!changed) return '<div class="sg-txt__note">Няма разлика по редове (променено е само форматирането).</div>';
+
+  return _sgTxtCollapse(rows, 2).map(function (r) {
+    if (r.t === '…') return '<div class="sg-txt__ln sg-txt__ln--skip">⋯ ' + esc(r.s) + '</div>';
+    var cls = r.t === '+' ? ' sg-txt__ln--add' : r.t === '-' ? ' sg-txt__ln--del' : '';
+    return '<div class="sg-txt__ln' + cls + '">' + (esc(r.s) || '&nbsp;') + '</div>';
+  }).join('');
 }

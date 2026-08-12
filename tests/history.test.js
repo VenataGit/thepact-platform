@@ -42,6 +42,7 @@ function sourceOf(sql) {
   if (sql.includes('card_events')) return 'cardEvents';
   if (sql.includes('activity_log')) return 'comments';
   if (sql.includes('crm_events')) return 'crm';
+  if (sql.includes('bc_card_text_log')) return 'text';
   return 'other';
 }
 
@@ -201,6 +202,46 @@ describe('таб „CRM"', () => {
     expect(res.body.items[0].title).toBe('Ресторант · ООД');
     expect(res.body.items[0].details).toBe('Нов контакт → Изпратено КП');
     expect(res.body.items[0].url).toBe('#/crm/12');
+  });
+});
+
+describe('таб „Текст"', () => {
+  const row = {
+    id: 4, created_at: '2026-08-13T08:00:00.000Z', card_id: 99,
+    card_title: 'Fornetti КП-5', board_title: 'Pre-Production',
+    app_url: 'https://3.basecamp.com/c/99', field: 'content',
+    who_name: 'Мария', old_text: 'Първа версия', new_text: 'Втора версия',
+    old_len: 13, new_len: 13,
+  };
+
+  test('на собствения си таб носи целите текстове', async () => {
+    serve({ text: [row] });
+    const res = await request(app).get('/api/history?tab=text').set('Cookie', adminCookie).expect(200);
+    const it = res.body.items[0];
+    expect(it.action).toBe('Промени текста на задача');
+    expect(it.who).toBe('Мария');
+    expect(it.diff).toEqual({ field: 'content', old: 'Първа версия', new: 'Втора версия' });
+    expect(it.details).toContain('беше 13 знака, стана 13');
+  });
+
+  test('в обединения таб текстовете не се пращат', async () => {
+    serve({ text: [row] });
+    const res = await request(app).get('/api/history').set('Cookie', adminCookie).expect(200);
+    const it = res.body.items.find((x) => x.source === 'text');
+    expect(it).toBeTruthy();
+    expect(it.diff).toBeUndefined();
+  });
+
+  test('преименуването си има свой етикет', async () => {
+    serve({ text: [{ ...row, field: 'title', old_text: 'Старо име', new_text: 'Ново име' }] });
+    const res = await request(app).get('/api/history?tab=text').set('Cookie', adminCookie).expect(200);
+    expect(res.body.items[0].action).toBe('Преименува задача');
+  });
+
+  test('без открит автор пише „не се знае", вместо да мълчи', async () => {
+    serve({ text: [{ ...row, who_name: '' }] });
+    const res = await request(app).get('/api/history?tab=text').set('Cookie', adminCookie).expect(200);
+    expect(res.body.items[0].who).toBe('не се знае');
   });
 });
 

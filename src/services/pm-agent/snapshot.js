@@ -12,9 +12,11 @@ const cron = require('node-cron');
 const config = require('../../config');
 const { query, queryOne, execute } = require('../../db/pool');
 const bc = require('../basecamp');
+const cardTextLog = require('../card-text-log');
 const { getServiceAuth, getUserAuth } = require('../basecamp-token');
 
 const COMMENT_HORIZON_DAYS = 90; // първоначален прозорец за коментари/съобщения назад
+const TEXT_LOG_MAX_PER_SYNC = 200; // таван на записите в дневника на текста за един цикъл
 let running = false;
 let runCounter = 0; // campfire sync — само на всеки 4-ти цикъл (час)
 
@@ -190,6 +192,7 @@ async function syncTeamCards(auth, { deep = false } = {}) {
   const tools = (project.dock || []).filter((t) => t.enabled && /kanban|card/i.test(t.name));
   const seen = [];
   let commentsFetched = 0;
+  let textChanges = 0;
 
   for (const t of tools) {
     const table = (await bc.authedGet(t.url, auth.token)).json;
@@ -208,16 +211,30 @@ async function syncTeamCards(auth, { deep = false } = {}) {
           // Списъчният payload НЕ гарантира content/comments_count → при нова или
           // променена карта (updated_at) теглим пълната карта с getCard.
           const prev = await queryOne(
-            'SELECT bc_updated_at, comments_count FROM bc_cards_snap WHERE card_id = $1', [c.id]);
+            'SELECT bc_updated_at, comments_count, title, content FROM bc_cards_snap WHERE card_id = $1', [c.id]);
           const listUpdated = c.updated_at ? new Date(c.updated_at).toISOString() : '';
           const prevUpdated = prev && prev.bc_updated_at ? new Date(prev.bc_updated_at).toISOString() : '';
           const changed = !prev || listUpdated !== prevUpdated;
           if (!changed && !deep) continue; // нищо ново по картата
           let full = c;
+          let fullFetched = false;
           try {
             full = await bc.getCard(auth.token, auth.account, projectId, c.id);
+            fullFetched = true;
           } catch (err) {
             console.warn('[pm-agent] getCard failed:', c.id, err.message);
+          }
+          // Дневникът на текста — ПРЕДИ upsert-а, докато старата версия още стои в
+          // снапшота. Само при успешен getCard: списъчният payload няма content и
+          // празното поле би минало за „изтрит текст".
+          // Таванът е предпазител: всяка засечена промяна пита Basecamp кой я е
+          // направил, а един цикъл не бива да се превърне в стотици заявки.
+          if (fullFetched && textChanges < TEXT_LOG_MAX_PER_SYNC) {
+            try {
+              textChanges += await cardTextLog.logCardTextChange(auth, full, prev, { projectId, boardTitle });
+            } catch (err) {
+              console.warn('[pm-agent] text log failed:', c.id, err.message);
+            }
           }
           await upsertCard(full, {
             projectId, boardId: table.id, boardTitle, columnTitle: list.title || '', onHold: g.onHold,
@@ -247,7 +264,7 @@ async function syncTeamCards(auth, { deep = false } = {}) {
       [projectId, seen]
     );
   }
-  return { cards: seen.length, comments: commentsFetched };
+  return { cards: seen.length, comments: commentsFetched, textChanges };
 }
 
 // Клиентските проекти: съобщения + отворени задачи (+ campfire периодично).
