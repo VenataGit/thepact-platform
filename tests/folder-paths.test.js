@@ -44,6 +44,46 @@ describe('parseTaskTitle', () => {
   });
 });
 
+describe('вратичката — задача извън КП/РЕК/КМП', () => {
+  test('„Клиент - Име" дава папка в главната папка на клиента', () => {
+    expect(fp.parseFreeTitle('Credissimo - Кастинг')).toMatchObject({
+      kind: 'free', client: 'Credissimo', name: 'Кастинг',
+    });
+  });
+
+  test('останалата част остава цяла, дори с още тирета', () => {
+    expect(fp.parseFreeTitle('Fornetti - Видео 3 - Заглавие').name).toBe('Видео 3 - Заглавие');
+  });
+
+  test('пътищата минават покрай блока — папката е направо при клиента', () => {
+    const p = fp.pathsForTitle('Credissimo - Коледно парти 2025');
+    expect(p.files.win).toBe('Z:\\Credissimo\\Коледно парти 2025');
+    expect(p.exported.win).toBe('Z:\\Exported Videos\\Credissimo\\Коледно парти 2025');
+    expect(p.parsed.kind).toBe('free');
+  });
+
+  test('префиксът винаги печели пред вратичката', () => {
+    expect(fp.pathsForTitle('Credissimo КП-12 - Видео 4 - Как се прави').parsed.kind).toBe('kp');
+  });
+
+  test('без тире с интервали не гадаем кой е клиентът', () => {
+    expect(fp.parseFreeTitle('Кастинг')).toBeNull();
+    expect(fp.parseFreeTitle('Credissimo-Кастинг')).toBeNull();
+  });
+
+  test('почти-правилно заглавие не се разцепва на глупости', () => {
+    // „Credissimo ADS-8" — тирето е без интервали, значи не е разделител.
+    expect(fp.pathsForTitle('Credissimo ADS-8 - Видео 2')).toBeNull();
+  });
+
+  test('вратичката дава същия блок с двата пътя и линка', () => {
+    const html = fp.locationHtml('Credissimo - Кастинг');
+    expect(html).toContain('Windows: Z:\\Credissimo\\Кастинг');
+    expect(html).toContain('Mac: /Volumes/Production/Credissimo/Кастинг');
+    expect((html.match(/ОТВОРИ ПАПКА/g) || []).length).toBe(2);
+  });
+});
+
 describe('safeName', () => {
   test('маха забранените за Windows знаци и опашката от точки', () => {
     expect(fp.safeName('Как се прави: част 1/2?')).toBe('Как се прави част 1 2');

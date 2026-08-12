@@ -8,9 +8,10 @@
 //   - експортнатото е под ЕДНА папка за целия блок, без папка на видео;
 //   - правилото важи за новите задачи, а източник на истината е името в Basecamp.
 //
-// Затова тук няма база и няма мрежа — само заглавие → пътища. Ако заглавието не следва
-// конвенцията, връщаме null и задачата просто остава без блок с локации (по-добре нищо,
-// отколкото път, който сочи на грешно място).
+// Затова тук няма база и няма мрежа — само заглавие → пътища. Два пътя за разпознаване:
+// по префикс (КП/РЕК/КМП) и вратичката „Клиент - Име на задачата" за всичко останало.
+// Ако и двете се провалят, връщаме null и задачата остава без блок с локации (по-добре
+// нищо, отколкото път, който сочи на грешно място).
 //
 // Кръстосаните имена (Z:\Pulse Fitness срещу Exported Videos\Pulse) още не са решени —
 // засега папката се казва точно както клиентът е изписан в заглавието на задачата.
@@ -61,6 +62,22 @@ function parseTaskTitle(title) {
   return out;
 }
 
+// Вратичката (решение на Венци, 12.08.2026): задача извън КП/РЕК/КМП също получава
+// папка — кръстена на самата задача, направо в главната папка на клиента. Точно както
+// на сървъра вече стоят „Credissimo\Кастинг" и „Credissimo\Коледно Парти 2025".
+//
+// Конвенция: „Клиент - Име на задачата". Разделителят трябва да е тире С ИНТЕРВАЛИ от
+// двете страни — иначе почти-правилно заглавие като „Credissimo ADS-8 - Видео 2" би се
+// разцепило на глупости. Без такъв разделител не гадаем кой е клиентът и не даваме нищо.
+function parseFreeTitle(title) {
+  const m = String(title == null ? '' : title).trim().match(/^([^-–—]{1,60}?)\s+[-–—]\s+(.+)$/);
+  if (!m) return null;
+  const client = safeName(m[1]);
+  const name = safeName(m[2]);
+  if (!client || !name) return null;
+  return { kind: 'free', client, block: null, number: null, videoNumber: null, videoTitle: '', name };
+}
+
 // Windows път → останалите две форми (Mac + линкът, който отваря папката и на двете).
 function formsFor(winPath) {
   const rel = winPath.replace(/^Z:\\/, '').replace(/\\/g, '/');
@@ -72,19 +89,27 @@ function formsFor(winPath) {
   };
 }
 
-// Двете локации за една задача. Без разпознат префикс → null.
+// Двете локации за една задача. Първо по префикс (КП/РЕК/КМП), после през вратичката.
+// Нищо разпознато → null и задачата остава без блок.
 function pathsForTitle(title) {
   const p = parseTaskTitle(title);
-  if (!p) return null;
+  if (p) {
+    const videoFolder = p.videoNumber
+      ? `Видео ${p.videoNumber}${p.videoTitle ? ' - ' + p.videoTitle : ''}`
+      : null;
 
-  const videoFolder = p.videoNumber
-    ? `Видео ${p.videoNumber}${p.videoTitle ? ' - ' + p.videoTitle : ''}`
-    : null;
+    const filesWin = ['Z:', p.client, p.block].concat(videoFolder ? [videoFolder] : []).join('\\');
+    const exportWin = ['Z:', EXPORT_DIR, p.client, p.block].join('\\');
+    return { parsed: p, files: formsFor(filesWin), exported: formsFor(exportWin) };
+  }
 
-  const filesWin = ['Z:', p.client, p.block].concat(videoFolder ? [videoFolder] : []).join('\\');
-  const exportWin = ['Z:', EXPORT_DIR, p.client, p.block].join('\\');
-
-  return { parsed: p, files: formsFor(filesWin), exported: formsFor(exportWin) };
+  const f = parseFreeTitle(title);
+  if (!f) return null;
+  return {
+    parsed: f,
+    files: formsFor(['Z:', f.client, f.name].join('\\')),
+    exported: formsFor(['Z:', EXPORT_DIR, f.client, f.name].join('\\')),
+  };
 }
 
 const esc = (s) => String(s == null ? '' : s)
@@ -110,4 +135,7 @@ function locationHtml(title) {
     + blockHtml('Локация на експортираното видео', p.exported);
 }
 
-module.exports = { parseTaskTitle, pathsForTitle, locationHtml, safeName, SHARE_HOST, SHARE_NAME, EXPORT_DIR };
+module.exports = {
+  parseTaskTitle, parseFreeTitle, pathsForTitle, locationHtml, safeName,
+  SHARE_HOST, SHARE_NAME, EXPORT_DIR,
+};
