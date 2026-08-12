@@ -28,10 +28,7 @@ router.use((req, res, next) => {
 router.get('/next', async (req, res) => {
   try {
     await fq.requeueStale();
-    if (req.query.peek) {
-      const items = await fq.recent(1);
-      return res.json({ job: items.find((j) => j.status === 'pending') || null, peek: true });
-    }
+    if (req.query.peek) return res.json({ job: (await fq.peekNext()) || null, peek: true });
     res.json({ job: (await fq.claimNext()) || null });
   } catch (e) {
     res.status(500).json({ error: e.message });

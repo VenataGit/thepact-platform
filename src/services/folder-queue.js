@@ -68,6 +68,12 @@ async function enqueue({ cardId, title }) {
   }
 }
 
+// Следващата чакаща заявка — само поглед, без заключване.
+async function peekNext() {
+  await ensureTable();
+  return queryOne("SELECT * FROM folder_jobs WHERE status = 'pending' ORDER BY id LIMIT 1");
+}
+
 // Следващата чакаща заявка, заключена за агента.
 async function claimNext() {
   await ensureTable();
@@ -104,4 +110,4 @@ async function recent(limit = 40) {
   return query('SELECT * FROM folder_jobs ORDER BY id DESC LIMIT $1', [Math.min(200, Math.max(1, limit))]);
 }
 
-module.exports = { ensureTable, enqueue, claimNext, complete, requeueStale, recent };
+module.exports = { ensureTable, enqueue, peekNext, claimNext, complete, requeueStale, recent };
