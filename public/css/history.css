@@ -1,0 +1,106 @@
+/* ===== История (#/history) =====
+   Страницата заема цялата ширина (#pageContent.full-width), защото таблицата има
+   четири колони, а табът „Текст" показва два текста един до друг. */
+
+.hst-wrap { padding: 24px 28px 40px; }
+.hst-head { margin-bottom: 18px; }
+.hst-head__t { margin: 0; font-size: 24px; font-weight: 700; color: #fff; }
+.hst-head__s { margin-top: 6px; font-size: 13px; color: var(--text-dim); max-width: 820px; line-height: 1.5; }
+
+.hst-dim { font-size: 13px; color: var(--text-dim); }
+.hst-err { font-size: 13px; color: var(--red); }
+.hst-empty {
+  font-size: 13px; color: var(--text-dim); padding: 28px 16px; text-align: center;
+  border: 1px dashed var(--border); border-radius: 10px;
+}
+
+/* ---- табове ---- */
+.hst-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.hst-tab {
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 11px; white-space: nowrap;
+}
+.hst-tab:hover { color: var(--text); border-color: var(--border-hover); }
+.hst-tab--on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.hst-tab__i { font-size: 13px; }
+.hst-about { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 14px; max-width: 900px; }
+
+/* ---- лентата с филтри ---- */
+.hst-filters {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+  padding: 12px 14px; margin-bottom: 14px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px;
+}
+.hst-f { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+.hst-f--grow { flex: 1; min-width: 220px; }
+.hst-f--btn { flex-direction: row; gap: 6px; align-items: center; }
+.hst-f__l {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.hst-f__c {
+  background: var(--bg-card, rgba(0, 0, 0, 0.25)); color: var(--text);
+  border: 1px solid var(--border); border-radius: 7px;
+  padding: 6px 9px; font-size: 13px; font-family: inherit; width: 100%;
+}
+.hst-f__c:focus { outline: none; border-color: var(--accent); }
+
+/* ---- таблицата ---- */
+.hst-tablewrap { overflow-x: auto; }
+.hst-when { white-space: nowrap; color: var(--text-dim); }
+.hst-who { font-weight: 600; color: #fff; white-space: nowrap; }
+.hst-icon { margin-right: 6px; }
+.hst-det { display: block; font-size: 11px; color: var(--text-dim); margin-top: 2px; word-break: break-word; }
+.hst-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-top: 12px;
+}
+
+/* ---- таб „Текст": сравнение стар/нов ---- */
+.hst-txt {
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg-elevated); padding: 12px 14px; margin-bottom: 10px;
+}
+.hst-txt__hdr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: 13px; }
+.hst-txt__who { font-weight: 700; color: #fff; }
+.hst-txt__act { color: var(--text); }
+.hst-txt__card { color: var(--text); font-weight: 600; }
+.hst-txt__when { margin-left: auto; color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+.hst-txt__meta { font-size: 11px; color: var(--text-dim); margin: 2px 0 10px; }
+.hst-txt__body {
+  border: 1px solid var(--border); border-radius: 8px; overflow: auto;
+  background: rgba(0, 0, 0, 0.22); max-height: 420px;
+}
+.hst-txt__body--split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.hst-side { min-width: 0; border-right: 1px solid var(--border); }
+.hst-side:last-child { border-right: 0; }
+.hst-side__h {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-dim); padding: 6px 10px; border-bottom: 1px solid var(--border);
+}
+.hst-full {
+  margin: 0; padding: 8px 10px; font-size: 12px; line-height: 1.5;
+  font-family: inherit; white-space: pre-wrap; word-break: break-word; color: var(--text);
+}
+.hst-ln {
+  font-size: 12px; line-height: 1.5; padding: 1px 10px;
+  white-space: pre-wrap; word-break: break-word; color: var(--text-dim);
+  border-left: 3px solid transparent;
+}
+.hst-ln--add { background: rgba(34, 197, 94, 0.12); border-left-color: var(--green, #22c55e); color: var(--text); }
+.hst-ln--del {
+  background: rgba(239, 68, 68, 0.12); border-left-color: var(--red, #ef4444); color: var(--text);
+  text-decoration: line-through; text-decoration-color: rgba(239, 68, 68, 0.5);
+}
+.hst-ln--skip { color: var(--text-dim); font-size: 11px; font-style: italic; opacity: 0.75; }
+.hst-note { padding: 10px; font-size: 12px; color: var(--text-dim); }
+.hst-txt__foot { margin-top: 8px; }
+
+@media (max-width: 760px) {
+  .hst-wrap { padding: 16px 14px 32px; }
+  .hst-f, .hst-f--grow { min-width: 100%; }
+  .hst-txt__body--split { grid-template-columns: 1fr; }
+  .hst-side { border-right: 0; border-bottom: 1px solid var(--border); }
+}

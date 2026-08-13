@@ -48,9 +48,13 @@ function router() {
     case 'schedule': return renderSchedule(el);
     case 'checkins': return renderCheckins(el);
     case 'agent': return renderAgentChat(el);
-    case 'admin': return renderSettings(el, parts[1] || null, parts[2] || null);
+    case 'admin':
+      // Историята вече е самостоятелна страница за целия екип, не секция в панела.
+      if (parts[1] === 'history') { location.hash = '#/history' + (parts[2] ? '/' + parts[2] : ''); return; }
+      return renderSettings(el, parts[1] || null);
     // Старият („Разширени") панел е слят в #/admin — старите линкове водят натам.
     case 'admin-legacy': location.hash = '#/admin'; return;
+    case 'history': return renderHistory(el, parts[1] || null);
     case 'reports': return renderReports(el);
     case 'bookmarks': return renderBookmarks(el);
     case 'kp-auto': return renderKpAuto(el);
