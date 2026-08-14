@@ -261,16 +261,15 @@ const BC_HIGHLIGHT_STYLE = 'background-color: rgb(250, 247, 133);';
 // lines intact through the edit round-trip.
 //
 // "Видео N - …" headings are wrapped in <mark> (Basecamp's highlight → the FIRST,
-// най-вляво стоящия цвят в редактора) AND <strong>: the <mark> gives the colour,
-// and <strong> keeps the heading emphasised even if an older Trix drops the
-// highlight attribute.
+// най-вляво стоящия цвят в редактора) and NOTHING else — само цвят, без удебеляване
+// (изрично поискано от Венци, 12.08.2026), точно както изглежда в самия Basecamp.
 function textToBcHtml(text) {
   if (!text) return '';
   const lines = text.split('\n').map((line) => {
     const t = line.trim();
     if (t === '') return ''; // празен ред → допълнителен <br> при join-а
     const e = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    if (/^Видео\s+\d+\s*[-–—]/.test(t)) return `<strong><mark style="${BC_HIGHLIGHT_STYLE}">${e}</mark></strong>`;
+    if (/^Видео\s+\d+\s*[-–—]/.test(t)) return `<mark style="${BC_HIGHLIGHT_STYLE}">${e}</mark>`;
     return e;
   });
   return `<div>${lines.join('<br>')}</div>`;

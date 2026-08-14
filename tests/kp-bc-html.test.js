@@ -1,11 +1,12 @@
 // HTML-ът на КП картата в Basecamp (services/kp-create.js → textToBcHtml).
 //
-// Пази две неща, поискани от Венци (12.08.2026):
+// Пази три неща, поискани от Венци (12.08.2026):
 //   1. всяко „Видео N - …" заглавие излиза оцветено с ПЪРВИЯ highlight цвят на
 //      Basecamp — <mark> с inline background-color, точно както го записва самият
 //      Basecamp. Голото <mark> минава през API-то, но Trix не го припознава като
 //      highlight → цветът не се вижда и изчезва при първия запис от edit режим;
-//   2. останалият текст си остава чист (един <div> с <br> между редовете), за да
+//   2. САМО цвят — никакво удебеляване на хайлайтнатия текст;
+//   3. останалият текст си остава чист (един <div> с <br> между редовете), за да
 //      не се губи спейсингът при отваряне за редакция.
 const mockDb = {
   pool: { query: jest.fn(), end: jest.fn().mockResolvedValue(undefined) },
@@ -23,7 +24,13 @@ const HIGHLIGHT = 'background-color: rgb(250, 247, 133);';
 describe('textToBcHtml — оцветяване на заглавията на видеата', () => {
   test('заглавието „Видео N - …" носи inline highlight цвета', () => {
     const html = kpc.textToBcHtml('Видео 1 - Лятна кампания скеч');
-    expect(html).toBe(`<div><strong><mark style="${HIGHLIGHT}">Видео 1 - Лятна кампания скеч</mark></strong></div>`);
+    expect(html).toBe(`<div><mark style="${HIGHLIGHT}">Видео 1 - Лятна кампания скеч</mark></div>`);
+  });
+
+  test('хайлайтнатият текст НЕ се удебелява', () => {
+    const html = kpc.textToBcHtml('Видео 1 - Лятна кампания скеч\nобикновен ред');
+    expect(html).not.toContain('<strong>');
+    expect(html).not.toContain('<b>');
   });
 
   test('всяко заглавие в целия план се оцветява, не само първото', () => {
@@ -50,6 +57,6 @@ describe('textToBcHtml — оцветяване на заглавията на �
 
   test('спецсимволите в заглавието се escape-ват вътре в <mark>', () => {
     const html = kpc.textToBcHtml('Видео 1 - Пепси & <Cineland>');
-    expect(html).toBe(`<div><strong><mark style="${HIGHLIGHT}">Видео 1 - Пепси &amp; &lt;Cineland&gt;</mark></strong></div>`);
+    expect(html).toBe(`<div><mark style="${HIGHLIGHT}">Видео 1 - Пепси &amp; &lt;Cineland&gt;</mark></div>`);
   });
 });
