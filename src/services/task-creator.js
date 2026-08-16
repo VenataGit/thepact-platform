@@ -15,16 +15,14 @@
 const { query } = require('../db/pool');
 const kpc = require('./kp-create');
 const workdays = require('./workdays');
+const prodSteps = require('./steps');
 
 // Редът е този, по който задачата реално минава: измисляне → заснемане → монтаж →
 // насрочване, а датата за публикуване (Due date на картата) идва най-накрая.
 // `label` е краткото име във формата, `title` е заглавието на стъпката в Basecamp.
-const DEFAULT_STEPS = [
-  { key: 'idea', title: 'Измисляне на идея', label: 'Дата за измисляне', offset: 16 },
-  { key: 'shoot', title: 'Видеограф - Насрочване на снимачен ден', label: 'Дата за заснемане', offset: 11 },
-  { key: 'edit', title: 'Монтажист - Приключен монтаж', label: 'Дата за монтаж', offset: 6 },
-  { key: 'upload', title: 'PM - Насрочване/Качване в социални мрежи', label: 'Дата за насрочване', offset: 1 },
-];
+const DEFAULT_STEPS = prodSteps.STEPS.map(
+  (s) => ({ key: s.key, title: s.title, label: s.label, offset: s.offset })
+);
 
 const MAX_VIDEOS_HARD = 60; // таван, който настройка не може да прескочи
 const MAX_STEPS = 12;
@@ -43,8 +41,12 @@ function parseSteps(raw) {
   if (!Array.isArray(arr) || !arr.length) return DEFAULT_STEPS;
   const out = [];
   arr.slice(0, MAX_STEPS).forEach((s, i) => {
-    const title = String((s && s.title) || '').trim();
-    if (!title) return;
+    const raw = String((s && s.title) || '').trim();
+    if (!raw) return;
+    // Запазена по-стара конфигурация носи старите имена — вдигаме ги до новите, за да
+    // не създава инструментът стъпки, които дъските вече не следят като основни.
+    // Собствените отмествания и етикети се пазят непроменени.
+    const title = prodSteps.canonicalTitle(raw);
     const offset = Math.max(0, parseInt(s.offset, 10) || 0);
     out.push({ key: String(s.key || 's' + (i + 1)), title, label: String(s.label || '').trim() || title, offset });
   });

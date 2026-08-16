@@ -11,6 +11,7 @@
 const config = require('../config');
 const bc = require('./basecamp');
 const { query } = require('../db/pool');
+const prodSteps = require('./steps'); // не `steps` — isPriority() вече ползва това име за параметър
 
 // Run async fn over items with limited concurrency (gentle on Basecamp rate limits).
 async function mapLimit(items, limit, fn) {
@@ -27,15 +28,28 @@ async function mapLimit(items, limit, fn) {
 // a prefix (settings key bc_step_date_rules, board title → prefix). Only one such
 // step carries a due date (team convention). A completed dated step no longer counts
 // as the pending deadline → fall back to the card's own due_on.
+// Правилата идват от services/steps.js (новите имена по колона + старите за
+// преходния период), а настройката bc_step_date_rules само ДОПЪЛВА този списък.
+// Нарочно е така: миграциите не се прилагат при deploy, а в базата стои старата
+// стойност ("Production" → "Видеограф"). Ако тя надделяваше, Pre-Production
+// нямаше да получи правило и щеше да си остане на Due On.
 let rulesCache = { at: 0, rules: null };
 async function loadStepRules() {
   if (rulesCache.rules && Date.now() - rulesCache.at < 60_000) return rulesCache.rules;
-  let rules = {};
+  const rules = {};
+  for (const board of Object.keys(prodSteps.BOARD_PREFIXES)) {
+    rules[board] = prodSteps.prefixesForBoard(board);
+  }
   try {
     const rows = await query("SELECT value FROM settings WHERE key = 'bc_step_date_rules'");
     const raw = rows && rows[0] ? JSON.parse(rows[0].value) : {};
     for (const [board, prefix] of Object.entries(raw)) {
-      if (prefix) rules[String(board).trim().toLowerCase()] = String(prefix).trim().toLowerCase();
+      const key = String(board).trim().toLowerCase();
+      const extra = (Array.isArray(prefix) ? prefix : [prefix])
+        .map((p) => String(p || '').trim().toLowerCase())
+        .filter(Boolean);
+      if (!extra.length) continue;
+      rules[key] = [...new Set([...(rules[key] || []), ...extra])];
     }
   } catch (e) {
     console.warn('[bc-aggregate] bc_step_date_rules unavailable:', e.message);
@@ -44,12 +58,19 @@ async function loadStepRules() {
   return rules;
 }
 
-function stepDueOf(steps, prefix) {
-  if (!prefix) return null;
-  const s = (steps || []).find(
-    (x) => !x.completed && x.due_on && String(x.title || '').trim().toLowerCase().startsWith(prefix)
+// Първата НЕзавършена стъпка с дата, чието заглавие започва с някой от префиксите.
+// Редът на префиксите е важен: новото име се пробва първо, старите са резервни.
+function stepDueOf(stepList, prefixes) {
+  const pfx = (prefixes || []).filter(Boolean);
+  if (!pfx.length) return null;
+  const pending = (stepList || []).filter(
+    (x) => !x.completed && x.due_on && String(x.title || '').trim()
   );
-  return s ? { due: s.due_on, title: s.title } : null;
+  for (const p of pfx) {
+    const s = pending.find((x) => String(x.title).trim().toLowerCase().startsWith(p));
+    if (s) return { due: s.due_on, title: s.title };
+  }
+  return null;
 }
 
 // Чекната стъпка „Приоритет" = картата е приоритетна (лилава, най-отгоре в дашборда).
@@ -129,7 +150,7 @@ async function loadBoardCards(token, account, cardTableId) {
   const projectId = config.BASECAMP_TEAM_PROJECT_ID;
   const table = await bc.getCardTable(token, account, projectId, cardTableId);
   const rules = await loadStepRules();
-  const stepPrefix = rules[String(table.title || '').trim().toLowerCase()] || null;
+  const stepPrefix = rules[String(table.title || '').trim().toLowerCase()] || [];
   const lists = table.lists || [];
   const columns = await mapLimit(lists, 5, async (list) => {
     const cards = list.cards_count > 0 ? await bc.getColumnCards(token, account, projectId, list.id) : [];

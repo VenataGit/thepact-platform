@@ -14,6 +14,7 @@ const { getServiceAuth } = require('../services/basecamp-token');
 const tc = require('../services/task-creator');
 const fp = require('../services/folder-paths');
 const fq = require('../services/folder-queue');
+const prodSteps = require('../services/steps');
 
 const MAX_TITLE = 200;
 const MAX_CONTENT = 20000;
@@ -125,9 +126,20 @@ router.post('/plan', requireAuth, async (req, res) => {
     // „Описание:", тоест вмъкването по средата би паднало вътре в първото видео.
     const content = fp.locationHtml(title, { lead: false })
       + kpc.textToBcHtml(tc.buildPlanText(cfg, title, videoCount, extraInfo));
+    // Планът носи срока си в стъпката „Pre-Production - Готов сценарий", а не в Due On
+    // (Due On вече значи само „дата за публикуване"). Само тази стъпка — заснемане,
+    // монтаж и качване нямат смисъл на ниво контент план.
     const card = await bc.createCard(auth.token, auth.account, dest.projectId, dest.columnId, {
-      title, content, due_on: dueOn || undefined,
+      title, content,
     });
+    if (dueOn) {
+      const planStep = prodSteps.byKey(prodSteps.PLAN_STEP_KEY);
+      try {
+        await bc.createStep(auth.token, auth.account, dest.projectId, card.id, { title: planStep.title, due_on: dueOn });
+      } catch (e) {
+        console.warn('[task-creator plan] step failed:', e.message);
+      }
+    }
     agg.invalidateBoard(dest.boardId);
     // Папката на самия контент план — видео папките идват при разбиването.
     await fq.enqueue({ cardId: card.id, title });

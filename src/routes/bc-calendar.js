@@ -21,12 +21,14 @@ const {
 
 const FILMING_OFFSET = parseInt(process.env.BASECAMP_FILMING_OFFSET) || 11; // working days before publish
 const { subtractWorkingDays, workingDaysUntil } = require('../services/workdays');
+const prodSteps = require('../services/steps');
 
 // Filming deadline (срок за снимки) = publish date − FILMING_OFFSET working days (skips weekends + BG holidays).
 function filmingDeadline(dueOn) { return dueOn ? subtractWorkingDays(dueOn, FILMING_OFFSET) : null; }
-// Preferred source: the "Видеограф - Насрочване на снимачен ден" step carries the filming date.
+// Preferred source: the "Production - Заснет материал" step carries the filming date
+// (старото име „Видеограф - Насрочване на снимачен ден" също се разпознава).
 function filmingFromSteps(steps) {
-  const s = (steps || []).find((x) => /насрочване на снимач/i.test(x.title || '') || (/видеограф/i.test(x.title || '') && /снима/i.test(x.title || '')));
+  const s = (steps || []).find((x) => prodSteps.titleMatchesKey(x.title, 'shoot'));
   return s && s.due_on ? s.due_on : null;
 }
 function dlClassFor(deadlineStr) {

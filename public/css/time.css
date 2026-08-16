@@ -1,13 +1,37 @@
 /* ==================== ВРЕМЕ: индикатор + админ отчет ==================== */
 
-/* часовничето на dash картите свети, докато някой работи по картата */
+/* часовничето на dash картите свети, докато някой работи по картата.
+   Премигването е нарочно БАВНО (Венци, 16.08.2026) — сигнал, който се забелязва
+   с периферно зрение, но не дърпа окото и не дразни при цял ден отворено табло. */
 .dash-card__timer--working {
   color: #e5484d !important;
-  animation: tw-pulse 1.6s ease-in-out infinite;
+  animation: tw-pulse 3.2s ease-in-out infinite;
 }
 @keyframes tw-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+  50% { opacity: 0.55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-card__timer--working { animation: none; }
+}
+
+/* Работят ли двама+ по една задача, часовничето носи брояч. */
+.dash-card__timer--working[data-tw-count] { position: relative; }
+.dash-card__timer--working[data-tw-count]::after {
+  content: attr(data-tw-count);
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 13px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: #e5484d;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+  animation: none; /* само часовничето мига, не и цифрата */
 }
 
 /* ---------- отчетна страница ---------- */

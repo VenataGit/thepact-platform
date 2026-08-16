@@ -86,7 +86,7 @@ describe('parseSteps', () => {
     expect(tc.parseSteps('[]')).toBe(tc.DEFAULT_STEPS);
     expect(tc.DEFAULT_STEPS.map((s) => s.offset)).toEqual([16, 11, 6, 1]);
     expect(tc.DEFAULT_STEPS.map((s) => s.label)).toEqual([
-      'Дата за измисляне', 'Дата за заснемане', 'Дата за монтаж', 'Дата за насрочване',
+      'Дата за сценарий', 'Дата за заснемане', 'Дата за монтаж', 'Дата за качване',
     ]);
   });
 

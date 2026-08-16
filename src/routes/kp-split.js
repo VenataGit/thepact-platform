@@ -19,14 +19,12 @@ const fq = require('../services/folder-queue');
 const MAX_VIDEOS = 30; // hard safety cap so a malformed plan can't flood the board
 const MAX_ATTACH_BYTES = 200 * 1024 * 1024; // skip media larger than this
 
-// The 3 milestone steps + working days BEFORE the publish date (same offsets as
-// bc-date-sync.js, so dates stay consistent and the webhook re-sync is idempotent).
-const STEP_OFFSETS = {
-  'Видеограф - Насрочване на снимачен ден': 11,
-  'Монтажист - Приключен монтаж': 6,
-  'PM - Насрочване/Качване в социални мрежи': 1,
-};
-const VIDEO_STEPS = Object.keys(STEP_OFFSETS);
+// Стъпките и отмесванията идват от services/steps.js — същият списък, който ползват
+// инструментът за задачи и авто-синхронът, за да не се разминават датите. От 16.08.2026
+// всяка разбита задача получава и стъпката за сценарий (16 работни дни), която досега
+// я имаше само инструментът „Създаване на задачи".
+const prodSteps = require('../services/steps');
+const VIDEO_STEPS = prodSteps.STEPS;
 
 const escAttr = (s) => (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -206,10 +204,10 @@ router.post('/create', requireAuth, async (req, res) => {
         const newCard = await bc.createCard(token, account, projectId, target.id, { title, content, due_on: publishDate || undefined });
         // Папките ги прави агентът в офиса — тук само записваме заявката (никога не хвърля).
         await fq.enqueue({ cardId: newCard.id, title });
-        for (const stepTitle of VIDEO_STEPS) {
-          const stepDate = publishDate ? subtractWorkingDays(publishDate, STEP_OFFSETS[stepTitle]) : undefined;
-          try { await bc.createStep(token, account, projectId, newCard.id, { title: stepTitle, due_on: stepDate }); }
-          catch (e) { console.warn('[kp-split] step failed', stepTitle, e.message); }
+        for (const step of VIDEO_STEPS) {
+          const stepDate = publishDate ? subtractWorkingDays(publishDate, step.offset) : undefined;
+          try { await bc.createStep(token, account, projectId, newCard.id, { title: step.title, due_on: stepDate }); }
+          catch (e) { console.warn('[kp-split] step failed', step.title, e.message); }
         }
         created.push({ id: newCard.id, title: newCard.title, url: bc.normalizeAppUrl(newCard.app_url), publishDate: publishDate || null, media: idxs.length });
       } catch (e) {

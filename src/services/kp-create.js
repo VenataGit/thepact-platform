@@ -13,6 +13,7 @@ const { query, queryOne, execute } = require('../db/pool');
 const bc = require('./basecamp');
 const agg = require('./bc-aggregate');
 const workdays = require('./workdays');
+const prodSteps = require('./steps');
 
 // ---------- default templates (same text as before the settings existed) ----------
 
@@ -404,14 +405,26 @@ async function createKpForClient({ client, firstPublishDate, cfg, auth, dest, cr
   if (cfg.bcEnabled) {
     if (!auth) throw new Error('Няма Basecamp достъп за създаване на КП картата.');
     const d = dest || await resolveKpDestination(auth, cfg);
-    // Due date = срокът планът да е готов (X работни дни преди първото видео, с БГ празници).
+    // Срокът планът да е готов (X работни дни преди първото видео, с БГ празници).
+    // От 16.08.2026 тази дата НЕ отива в Due On, а в стъпката „Pre-Production - Готов
+    // сценарий": Due On вече значи само „дата за публикуване", а планът няма такава.
+    // Така върнат в Pre-Production план не показва чужда дата като свой срок.
     const dueOn = cfg.dueDays == null ? undefined : workdays.subtractWorkingDays(firstPublishDate, cfg.dueDays);
     const card = await bc.createCard(auth.token, auth.account, d.projectId, d.columnId, {
       title,
       content: textToBcHtml(contentText),
-      due_on: dueOn,
       notify: cfg.notify,
     });
+    // Контент планът получава САМО стъпката за сценарий — заснемане/монтаж/качване
+    // нямат смисъл на ниво план (решение на Венци). Никога не бламира създаването.
+    if (dueOn) {
+      const planStep = prodSteps.byKey(prodSteps.PLAN_STEP_KEY);
+      try {
+        await bc.createStep(auth.token, auth.account, d.projectId, card.id, { title: planStep.title, due_on: dueOn });
+      } catch (e) {
+        console.warn('[kp-create] plan step failed:', e.message);
+      }
+    }
     agg.invalidateBoard(d.boardId); // дашбордът/КП списъкът да видят новата карта веднага
     // Коментар с таговете на отговорниците + какво трябва да се направи по този план
     // (чете се от проекта на клиента). Фоново — картата не чака AI заявката и не

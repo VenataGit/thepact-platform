@@ -5,13 +5,11 @@ const config = require('../config');
 const bc = require('./basecamp');
 const { getServiceAuth } = require('./basecamp-token');
 const { subtractWorkingDays } = require('./workdays');
+const prodSteps = require('./steps');
 
-// Stage step title patterns + working-day offset before the publish date (Венци: 11/6/1).
-const STAGES = [
-  { re: /насрочване на снимач/i, offset: 11 }, // Видеограф - Насрочване на снимачен ден
-  { re: /приключен монтаж/i, offset: 6 },      // Монтажист - Приключен монтаж
-  { re: /качване в социал/i, offset: 1 },      // PM - Насрочване/Качване в социални мрежи
-];
+// Стъпките идват от services/steps.js — разпознават се и по новото, и по старото име,
+// така че живите карти да продължат да се синхронизират, докато траят преименуванията.
+const STAGES = prodSteps.STEPS;
 
 // Recompute the stage step dates from the card's Due date and write any that differ.
 async function syncCardDates(cardId) {
@@ -29,7 +27,7 @@ async function syncCardDates(cardId) {
   const steps = card.steps || [];
   const changes = [];
   for (const stage of STAGES) {
-    const step = steps.find((s) => stage.re.test(s.title || ''));
+    const step = steps.find((s) => prodSteps.titleMatchesKey(s.title, stage.key));
     if (!step) continue;
     const want = subtractWorkingDays(card.due_on, stage.offset);
     if ((step.due_on || null) !== want) {
