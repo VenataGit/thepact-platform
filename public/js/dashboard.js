@@ -527,7 +527,10 @@ function dashCardCompare(a, b) {
 
 function dashSubColHtml(board, col, loaded) {
   const cards = dashColCards(board.id, col.id).sort(dashCardCompare);
-  const onHold = ((_dashOnHold[board.id] || {})[col.id] || []).filter(dashCardMatches).sort((a, b) => (a.position || 0) - (b.position || 0));
+  // On Hold картите се подреждат по същото правило като горните — по датата, която
+  // следим за тази колона (dueOn идва от стъпката на колоната, виж services/steps.js).
+  // Преди тук стоеше само ръчният ред от Basecamp и датите не се гледаха. (17.08.2026)
+  const onHold = ((_dashOnHold[board.id] || {})[col.id] || []).filter(dashCardMatches).sort(dashCardCompare);
   const count = dashColCount(board, col);
   const body = loaded
     ? ((cards.map(renderDashCard).join('') || '<div class="dash-subcol-empty"></div>') +
