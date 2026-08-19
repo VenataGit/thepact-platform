@@ -43,6 +43,45 @@ function tcrRender() {
     '</div>';
   tcrBody(tabs + '<div id="tcrForm">' + (_tcr.tab === 'plan' ? tcrPlanForm(d) : tcrSingleForm(d)) + '</div><div id="tcrResult"></div>');
   if (_tcr.tab === 'single') tcrSyncColumns();
+  ensureClientNames().then(tcrFillClients);
+}
+
+// ---------- клиентът в заглавието ----------
+// Клиентът и КП-то живеят само в заглавието на картата — оттам ги четат Клиенти,
+// Табло и отчетите. Затова името се избира от списък, а не се пише на ръка: едно
+// разминаване („Св. Влас" вместо „Свети Влас") изважда картата от групата на клиента.
+
+function tcrFillClients() {
+  ['tcrPlanClient', 'tcrClient'].forEach(function (id) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— избери клиент —</option>' +
+      (_clientNames || []).map(function (n) {
+        return '<option value="' + esc(n.name) + '">' + esc(n.name) + '</option>';
+      }).join('');
+  });
+}
+
+// Маха вече сложено в началото име на познат клиент, за да не се трупат имена
+// при повторен избор. Дългите имена първи — „Fornetti BG" преди „Fornetti".
+function tcrStripClient(title) {
+  var s = String(title || '').trim();
+  var names = (_clientNames || []).map(function (n) { return n.name; })
+    .sort(function (a, b) { return b.length - a.length; });
+  for (var i = 0; i < names.length; i++) {
+    if (s.toLowerCase().indexOf(names[i].toLowerCase()) === 0) return s.slice(names[i].length).trim();
+  }
+  return s;
+}
+
+function tcrPickClient(selId, titleId, isPlan) {
+  var sel = document.getElementById(selId), title = document.getElementById(titleId);
+  if (!sel || !title) return;
+  var rest = tcrStripClient(title.value);
+  if (!sel.value) { title.value = rest; return; }
+  if (!rest && isPlan) rest = 'КП-';
+  title.value = (sel.value + ' ' + rest).trimEnd();
+  title.focus();
 }
 
 // ---------- Измисляне ----------
@@ -55,6 +94,9 @@ function tcrPlanForm(d) {
   var def = d.defaultVideos || 10;
   return '<div class="tcr-card">' +
     '<div class="tcr-dest">Задачата отива в <strong>' + esc(d.plan.boardTitle) + '</strong> → <strong>' + esc(d.plan.columnTitle) + '</strong></div>' +
+    '<label class="tcr-field"><span class="tcr-label">Клиент</span>' +
+      '<select id="tcrPlanClient" class="tcr-input" onchange="tcrPickClient(\'tcrPlanClient\',\'tcrPlanTitle\',true)"><option value="">— зареждам —</option></select>' +
+      '<span class="tcr-note">Изборът слага името в началото на заглавието — точно както е записано другаде. Клиентът и КП-то се четат оттам.</span></label>' +
     '<label class="tcr-field"><span class="tcr-label">Име на задачата</span>' +
       '<input type="text" id="tcrPlanTitle" class="tcr-input" maxlength="200" placeholder="напр. Fornetti КП-4"></label>' +
     '<div class="tcr-grid">' +
@@ -102,8 +144,11 @@ function tcrSingleForm(d) {
   dateRows += tcrDateField('publish', 'Дата за публикуване', 'Due date на картата — спрямо нея се смята всичко останало.');
 
   return '<div class="tcr-card">' +
+    '<label class="tcr-field"><span class="tcr-label">Клиент</span>' +
+      '<select id="tcrClient" class="tcr-input" onchange="tcrPickClient(\'tcrClient\',\'tcrTitle\',false)"><option value="">— зареждам —</option></select>' +
+      '<span class="tcr-note">Изборът слага името в началото на заглавието — точно както е записано другаде. Клиентът и КП-то се четат оттам.</span></label>' +
     '<label class="tcr-field"><span class="tcr-label">Име на задачата</span>' +
-      '<input type="text" id="tcrTitle" class="tcr-input" maxlength="200" placeholder="напр. Fornetti - Видео 3 - Заглавие"></label>' +
+      '<input type="text" id="tcrTitle" class="tcr-input" maxlength="200" placeholder="напр. Fornetti КП-4 - Видео 3 - Заглавие"></label>' +
     '<label class="tcr-field"><span class="tcr-label">Описание</span>' +
       '<textarea id="tcrContent" class="tcr-input tcr-textarea" rows="10">' + esc(d.singleTemplate || '') + '</textarea>' +
       '<span class="tcr-note">Шаблонът е попълнен предварително — замени ХХХ-тата. Ако не ти трябва, изтрий го.</span></label>' +
@@ -227,7 +272,7 @@ async function tcrPost(url, body) {
 // човек да пусне няколко задачи една след друга. Описанието се връща на шаблона,
 // не на празно, защото следващата задача пак тръгва от него.
 function tcrClearForm() {
-  ['tcrPlanTitle', 'tcrTitle', 'tcrPlanExtra'].forEach(function (id) {
+  ['tcrPlanTitle', 'tcrTitle', 'tcrPlanExtra', 'tcrPlanClient', 'tcrClient'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });

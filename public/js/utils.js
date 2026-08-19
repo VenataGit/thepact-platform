@@ -8,6 +8,90 @@ function _avInner(name, url) { return url ? '<img src="'+url+'" style="width:100
 function _findAvatar(name) { var u = (allUsers||[]).find(function(x){return x.name===name}); return u ? u.avatar_url : null; }
 
 function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ==================== ПОЗНАТИ ИМЕНА НА КЛИЕНТИ ====================
+// Един общ списък за всички полета „Клиент": добавените в КП-Автоматизация плюс
+// наличните в заглавията на картите в Basecamp. Полето слага list="clientNamesList"
+// и вика ensureClientNames() — така един клиент не се появява под две изписвания
+// („Св. Влас" срещу „Свети Влас"), от което после КП картите му не се намират.
+var _clientNames = null;        // [{ name, inRegistry, active, inBasecamp, cards }]
+var _clientNamesPromise = null;
+
+function ensureClientNames() {
+  if (_clientNames) { renderClientNamesList(); return Promise.resolve(_clientNames); }
+  if (!_clientNamesPromise) {
+    _clientNamesPromise = fetch('/api/kp/client-names')
+      .then(function (r) { return r.json(); })
+      .then(function (d) { _clientNames = (d && d.names) || []; return _clientNames; })
+      .catch(function () { _clientNames = []; return _clientNames; });
+  }
+  return _clientNamesPromise.then(function (names) { renderClientNamesList(); return names; });
+}
+
+// Един-единствен <datalist> на края на body — всички полета сочат към него по id.
+function renderClientNamesList() {
+  var list = document.getElementById('clientNamesList');
+  if (!list) {
+    list = document.createElement('datalist');
+    list.id = 'clientNamesList';
+    document.body.appendChild(list);
+  }
+  list.innerHTML = (_clientNames || []).map(function (n) {
+    return '<option value="' + esc(n.name) + '"></option>';
+  }).join('');
+  return list;
+}
+
+// Сравняваме имената „опростени" — без точки, тирета и главни букви.
+function normClientName(s) {
+  return String(s || '').toLowerCase().replace(/[^0-9a-zа-я]+/g, ' ').trim();
+}
+
+function clientNameDistance(a, b) {
+  var m = a.length, n = b.length, i, j;
+  if (!m) return n;
+  if (!n) return m;
+  var prev = [], cur = [];
+  for (j = 0; j <= n; j++) prev[j] = j;
+  for (i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+    }
+    for (j = 0; j <= n; j++) prev[j] = cur[j];
+  }
+  return prev[n];
+}
+
+// „Св. Влас" и „Свети Влас" са едно и също име, написано по два начина. Хващаме
+// съкратени думи (същият брой думи, всяка е начало на другата) и дребен правопис.
+function clientNamesLookAlike(a, b) {
+  var na = normClientName(a), nb = normClientName(b);
+  if (!na || !nb || na === nb) return false;
+  var wa = na.split(' '), wb = nb.split(' ');
+  if (wa.length === wb.length && wa.every(function (w, i) {
+    return w === wb[i] || (w.length >= 2 && wb[i].indexOf(w) === 0) || (wb[i].length >= 2 && w.indexOf(wb[i]) === 0);
+  })) return true;
+  var ja = na.replace(/ /g, ''), jb = nb.replace(/ /g, '');
+  if (Math.max(ja.length, jb.length) >= 5 && Math.abs(ja.length - jb.length) <= 2) {
+    return clientNameDistance(ja, jb) <= 2;
+  }
+  return false;
+}
+
+// Точно съвпадение (без значение главни/малки букви) с вече познато име.
+function findClientName(name) {
+  var n = String(name || '').trim().toLowerCase();
+  if (!n) return null;
+  return (_clientNames || []).find(function (x) { return x.name.toLowerCase() === n; }) || null;
+}
+
+// Същото име, но с друга пунктуация/разредка („Свети  Влас", „Свети-Влас").
+function findClientNameLoose(name) {
+  var n = normClientName(name);
+  if (!n) return null;
+  return (_clientNames || []).find(function (x) { return normClientName(x.name) === n; }) || null;
+}
 function formatDate(d) { if(!d)return''; const s=d.split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}.${m}.${y}`; }
 function getCardColorClass(c) { if(c.is_on_hold)return'on-hold'; if(c.priority==='urgent')return'priority'; var ed=getCardEarliestDeadline(c); if(!ed)return''; var n=new Date();n.setHours(0,0,0,0); var diff=Math.ceil((ed-n)/86400000); if(diff<0)return'overdue'; if(diff===0)return'deadline-today'; if(diff<=4)return'deadline-soon'; return'deadline-ok'; }
 // Safe date parser — handles both "2026-04-01" and "2026-04-01T00:00:00.000Z"

@@ -116,6 +116,44 @@ function calcProductionDates(publishDate, offsets) {
   };
 }
 
+// GET /api/kp/client-names — всички познати изписвания на клиентски имена, слети от
+// двата източника: регистъра (kp_clients, „добавените") и живите заглавия на картите
+// в Basecamp („наличните"). Ползва се за падащото меню при създаване на клиент и на
+// задача, за да не се появява един клиент под две имена.
+// Basecamp е best-effort: ако не отговори, регистърът пак се връща.
+router.get('/client-names', requireAuth, async (req, res) => {
+  try {
+    const rows = await query('SELECT name, active FROM kp_clients ORDER BY name');
+    const byKey = new Map(); // lowercase name -> entry
+    for (const r of rows) {
+      const name = String(r.name || '').trim();
+      if (!name) continue;
+      byKey.set(name.toLowerCase(), {
+        name, inRegistry: true, active: r.active !== false, inBasecamp: false, cards: 0,
+      });
+    }
+
+    let basecampError = null;
+    try {
+      const auth = await kpAuth(req.user.userId);
+      for (const c of await agg.listClientNames(auth.token, auth.account)) {
+        const key = c.name.toLowerCase();
+        const hit = byKey.get(key);
+        if (hit) { hit.inBasecamp = true; hit.cards = c.cards; }
+        else byKey.set(key, { name: c.name, inRegistry: false, active: true, inBasecamp: true, cards: c.cards });
+      }
+    } catch (err) {
+      console.error('[kp client-names] Basecamp check failed:', err.message);
+      basecampError = err.message;
+    }
+
+    const names = [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, 'bg'));
+    res.json({ names, basecampError });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/kp/clients — clients + does each have an active КП card.
 // With kp_bc_enabled the check runs against the Basecamp destination column
 // (ONE cached board fetch for all clients); otherwise against the local kanban.

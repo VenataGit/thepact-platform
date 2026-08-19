@@ -365,7 +365,7 @@ async function renderCardCreate(el) {
         <div class="edit-row"><label>Колона</label><select id="createColumn">${(board?.columns||[]).filter(c=>!c.is_done_column).map(c=>`<option value="${c.id}" ${c.id===columnId?'selected':''}>${esc(c.title)}</option>`).join('')}</select></div>
         <div class="edit-row"><label>Бележки</label><input id="createContent" type="hidden"><trix-editor input="createContent" class="trix-dark" placeholder="Добави бележки..."></trix-editor></div>
         <div class="edit-row"><label>Краен срок</label><button class="bc-date-btn bc-date-btn--placeholder" id="createDueBtn" data-value="" onclick="event.stopPropagation();showDatePickerPopup(this,this.dataset.value,function(d){var b=document.getElementById('createDueBtn');b.dataset.value=d||'';b.textContent=d?formatDate(d):'\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';b.className=d?'bc-date-btn':'bc-date-btn bc-date-btn--placeholder';})">Избери дата\u2026</button></div>
-        <div class="edit-row"><label>Клиент</label><input id="createClient" placeholder="Име на клиент"></div>
+        <div class="edit-row"><label>Клиент</label><input id="createClient" list="clientNamesList" autocomplete="off" placeholder="Избери от списъка или напиши"></div>
         <div class="edit-row"><label>Възложи на</label><select id="createAssignees" multiple style="min-height:80px">${allUsers.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></div>
         <div class="edit-row"><label>Приоритет</label><select id="createPriority"><option value="normal">Нормален</option><option value="high">Висок</option><option value="urgent">Спешен</option></select></div>
         <div class="edit-actions">
@@ -374,6 +374,7 @@ async function renderCardCreate(el) {
         </div>
       </div>
     </div>`;
+  ensureClientNames(); // пълни падащото меню на полето „Клиент"
 }
 function updateCreateColumns() {
   const b = allBoards.find(b => b.id === parseInt(document.getElementById('createBoard').value));

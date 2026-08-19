@@ -1,6 +1,12 @@
 // ==================== КП АВТОМАТИЗАЦИЯ ====================
 var _kpBc = null; // { enabled, boardTitle?, columnTitle?, error? } — дестинацията на КП картите
 
+// Падащото меню при „Нов клиент" се пълни от общия списък с познати имена
+// (_clientNames в utils.js): регистърът + живите заглавия в Basecamp. Целта е да не
+// се роди втори вариант на едно и също име („Св. Влас" срещу „Свети Влас"), защото
+// после КП картите на клиента не се намират.
+var _kpEditName = '';     // името, което се редактира — то не се брои за дубликат
+
 async function renderKpAuto(el) {
   setBreadcrumb(null);
   el.className = 'full-width';
@@ -128,7 +134,9 @@ function showKpClientForm(editData) {
   wrap.innerHTML = '<div class="kp-form-box">' +
     '<h4 style="margin:0 0 16px">' + (isEdit ? '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0430\u043d\u0435' : '\u041d\u043e\u0432 \u043a\u043b\u0438\u0435\u043d\u0442') + '</h4>' +
     '<div class="kp-form-grid">' +
-      '<div><label class="kp-label">\u041a\u043b\u0438\u0435\u043d\u0442</label><input class="input" type="text" id="kpName" value="' + (isEdit ? esc(editData.name) : '') + '" placeholder="\u0418\u043c\u0435 \u043d\u0430 \u043a\u043b\u0438\u0435\u043d\u0442"></div>' +
+      '<div><label class="kp-label">\u041a\u043b\u0438\u0435\u043d\u0442</label>' +
+        '<input class="input" type="text" id="kpName" list="clientNamesList" autocomplete="off" oninput="kpNameCheck()" value="' + (isEdit ? esc(editData.name) : '') + '" placeholder="\u0418\u043c\u0435 \u043d\u0430 \u043a\u043b\u0438\u0435\u043d\u0442">' +
+        '<div id="kpNameHint" style="margin-top:4px;font-size:11px;line-height:1.4;color:var(--text-dim)">\u0417\u0430\u0440\u0435\u0436\u0434\u0430\u043c \u0441\u044a\u0449\u0435\u0441\u0442\u0432\u0443\u0432\u0430\u0449\u0438\u0442\u0435 \u043a\u043b\u0438\u0435\u043d\u0442\u0438\u2026</div></div>' +
       '<div><label class="kp-label">\u0412\u0438\u0434\u0435\u0430 \u0432 \u041a\u041f</label><input class="input" type="number" id="kpVideos" value="' + (isEdit ? (editData.videos_per_month || defVids) : defVids) + '" min="1" max="50" onchange="kpAutoInterval()"></div>' +
       '<div><label class="kp-label">\u0418\u043d\u0442\u0435\u0440\u0432\u0430\u043b (\u0434\u043d\u0438) <span style="opacity:.5;font-weight:400">\u0430\u0432\u0442\u043e</span></label><span class="input" id="kpInterval" data-value="' + (isEdit ? (editData.publish_interval_days || '') : '') + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (isEdit ? (editData.publish_interval_days || '—') : '—') + '</span></div>' +
       '<div><label class="kp-label">\u0422\u0435\u043a\u0443\u0449 \u041a\u041f \u2116</label><input class="input" type="number" id="kpKpNum" value="' + (isEdit ? (editData.current_kp_number || 1) : 1) + '" min="1"></div>' +
@@ -142,6 +150,59 @@ function showKpClientForm(editData) {
       '<button class="btn" onclick="document.getElementById(\'kpClientFormWrap\').style.display=\'none\'">Отказ</button>' +
     '</div>' +
   '</div>';
+  _kpEditName = isEdit ? (editData.name || '') : '';
+  ensureClientNames().then(kpNameCheck);
+}
+
+// ---------- познатите имена на клиенти ----------
+
+// Точно съвпадение, но без името, което точно сега се редактира.
+function kpExactMatch(name) {
+  var n = String(name || '').trim().toLowerCase();
+  if (!n || n === String(_kpEditName || '').trim().toLowerCase()) return null;
+  return findClientName(n);
+}
+
+function kpNameCheck() {
+  var hint = document.getElementById('kpNameHint');
+  var input = document.getElementById('kpName');
+  if (!hint || !input) return;
+  if (!_clientNames) { hint.textContent = 'Зареждам съществуващите клиенти…'; return; }
+
+  var val = input.value.trim();
+  var exact = kpExactMatch(val);
+  if (exact) {
+    hint.style.color = exact.inRegistry ? '#d05a5a' : '#46a374';
+    hint.innerHTML = exact.inRegistry
+      ? '⛔ Вече има клиент <strong>' + esc(exact.name) + '</strong> — редактирай него, вместо да добавяш втори.'
+      : '✓ Точно това име стои в заглавията в Basecamp (' + exact.cards + ' карти) — добави го така.';
+    return;
+  }
+
+  // Различие само в пунктуация/разредка = същото име, написано небрежно.
+  var loose = val ? findClientNameLoose(val) : null;
+  if (loose && loose.name.toLowerCase() !== String(_kpEditName || '').trim().toLowerCase()) {
+    hint.style.color = '#d05a5a';
+    hint.innerHTML = '⛔ Това е същото име като <strong>' + esc(loose.name) + '</strong>, само изписано различно. Използвай точно него.';
+    return;
+  }
+
+  var similar = val ? (_clientNames || []).filter(function (x) { return clientNamesLookAlike(val, x.name); }) : [];
+  if (similar.length) {
+    hint.style.color = '#e8a030';
+    hint.innerHTML = '⚠️ Има вече подобно име: ' +
+      similar.slice(0, 3).map(function (x) { return '<strong>' + esc(x.name) + '</strong>'; }).join(', ') +
+      '. Ако е същият клиент, използвай съществуващото изписване — иначе КП картите му не се намират.';
+    return;
+  }
+
+  var known = (_clientNames || []).length;
+  var missing = (_clientNames || []).filter(function (x) { return !x.inRegistry; });
+  hint.style.color = 'var(--text-dim)';
+  hint.innerHTML = known
+    ? 'Пиши или отвори падащото меню — ' + known + ' познати клиента (от списъка и от заглавията в Basecamp).' +
+      (missing.length ? ' Още не са в списъка: <strong>' + missing.slice(0, 5).map(function (x) { return esc(x.name); }).join(', ') + '</strong>' + (missing.length > 5 ? ' и др.' : '') + '.' : '')
+    : 'Още няма познати клиенти.';
 }
 
 async function kpRecalcDates() {
@@ -177,6 +238,12 @@ async function editKpClientForm(id) {
 async function saveKpClient(id) {
   var name = document.getElementById('kpName').value.trim();
   if (!name) return showToast('Въведи име на клиент', 'warn');
+  // Един клиент — едно име. Точен дубликат в списъка спираме; за подобно име само
+  // предупреждаваме в самата форма (kpNameCheck), защото може да е различен клиент.
+  var dup = kpExactMatch(name) || findClientNameLoose(name);
+  if (dup && dup.inRegistry && dup.name.toLowerCase() !== String(_kpEditName || '').trim().toLowerCase()) {
+    return showToast('Вече има клиент „' + dup.name + '" — редактирай него.', 'warn');
+  }
   var data = {
     name: name,
     videos_per_month: parseInt(document.getElementById('kpVideos').value) || parseInt(_platformConfig.kp_default_videos) || 10,
@@ -190,6 +257,7 @@ async function saveKpClient(id) {
     var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
     var json = await res.json();
     if (!res.ok) return showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + (json.error || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430'), 'error');
+    _clientNames = null; _clientNamesPromise = null; // \u0441\u043f\u0438\u0441\u044a\u043a\u044a\u0442 \u0441 \u0438\u043c\u0435\u043d\u0430 \u0432\u0435\u0447\u0435 \u0435 \u0441\u0442\u0430\u0440
     document.getElementById('kpClientFormWrap').style.display = 'none';
     // Auto-create KP card for new client with date set (only once, before reload)
     if (!id && data.first_publish_date && json.id) {

@@ -92,7 +92,8 @@ async function renderCardPage(el, cardId) {
     // ===== CLIENT NAME =====
     var clientHtml = '';
     if (editing) {
-      clientHtml = '<input class="bc-inline-input" id="clientNameInput_' + cardId + '" type="text" value="' + esc(card.client_name || '') + '" placeholder="\u0418\u043c\u0435 \u043d\u0430 \u043a\u043b\u0438\u0435\u043d\u0442\u2026" onblur="saveClientNameField(' + cardId + ',this.value)">';
+      clientHtml = '<input class="bc-inline-input" id="clientNameInput_' + cardId + '" type="text" list="clientNamesList" autocomplete="off" value="' + esc(card.client_name || '') + '" placeholder="\u0418\u043c\u0435 \u043d\u0430 \u043a\u043b\u0438\u0435\u043d\u0442\u2026" onblur="saveClientNameField(' + cardId + ',this.value)">';
+      ensureClientNames(); // \u043f\u043e\u0437\u043d\u0430\u0442\u0438\u0442\u0435 \u0438\u043c\u0435\u043d\u0430 \u0432 \u043f\u0430\u0434\u0430\u0449\u043e\u0442\u043e \u043c\u0435\u043d\u044e
     } else {
       clientHtml = card.client_name
         ? '<span class="bc-client-badge">' + esc(card.client_name) + (card.kp_number ? ' \u00b7 \u041a\u041f-' + card.kp_number : '') + '</span>'

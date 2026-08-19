@@ -353,7 +353,35 @@ async function aggregateAll(token, account) {
   return { generatedAt: new Date().toISOString(), clients: out };
 }
 
+// Само имената на клиентите, както реално стоят в заглавията на картите. По-евтино
+// от aggregateAll (без планове/стъпки), но ползва същите кеширани дъски. Служи за
+// падащото меню при създаване на клиент/задача — да не се раждат втори изписвания
+// на един и същи клиент („Св. Влас" срещу „Свети Влас").
+async function listClientNames(token, account) {
+  const struct = await loadStructure(token, account);
+  const boards = struct.boards || [];
+  const perBoard = await mapLimit(boards, 4, async (b) => {
+    try { return await loadBoardCards(token, account, b.id); }
+    catch (e) { console.warn('[bc-aggregate] board failed', b.title, e.message); return { columns: [] }; }
+  });
+
+  const seen = new Map(); // key -> { name, cards }
+  for (const data of perBoard) {
+    for (const col of (data.columns || [])) {
+      for (const card of [...(col.cards || []), ...(col.onHoldCards || [])]) {
+        const parsed = parseClientKp(card.title);
+        if (!parsed) continue;
+        const key = parsed.client.toLowerCase();
+        const hit = seen.get(key);
+        if (hit) hit.cards += 1;
+        else seen.set(key, { name: parsed.client, cards: 1 });
+      }
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, 'bg'));
+}
+
 module.exports = {
   mapLimit, mapCard, loadStructure, loadBoardCards, invalidateBoard,
-  parseClientKp, aggregateAll, boardRank, sortBoards,
+  parseClientKp, aggregateAll, listClientNames, boardRank, sortBoards,
 };
