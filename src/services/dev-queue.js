@@ -1,8 +1,9 @@
 // Dev Queue — „Basecamp задача → Claude Code" мост.
 //
 // Личният проект на Венци има отделен to-dos панел (settings: dev_queue_bc_project /
-// dev_queue_bc_todoset). Всяка отворена задача там, без значение в кой лист, влиза в
-// опашката dev_tasks. Watcher скрипт на компютъра на Венци тегли задачите през
+// dev_queue_bc_todoset). Всяка отворена задача там влиза в опашката dev_tasks —
+// с изключение на листите от dev_queue_skip_lists (чисти записки, които Венци пълни
+// за себе си и после сам превръща в задача). Watcher скрипт на компютъра му тегли задачите през
 // /api/dev-queue (secret header) и пуска headless Claude Code сесия с абонамента му.
 // Всички Basecamp write-ове (коментари) минават оттук, през бота ThePactAlerts —
 // watcher-ът никога не говори директно с Basecamp.
@@ -31,17 +32,25 @@ function initDevQueue() {
   }
 }
 
+// Листи в панела, които НЕ са опашка (Венци си трупа сурови записки там и после
+// сам ги превръща в задача). Настройка dev_queue_skip_lists = ID-та, разделени със запетая.
+const DEFAULT_SKIP_LISTS = [10216966758]; // „Записки - Венцислав Калчев - бизнес"
+
 async function loadCfg() {
   const rows = await query(
-    "SELECT key, value FROM settings WHERE key IN ('dev_queue_enabled','dev_queue_bc_project','dev_queue_bc_todoset','dev_queue_stale_minutes')"
+    "SELECT key, value FROM settings WHERE key IN ('dev_queue_enabled','dev_queue_bc_project','dev_queue_bc_todoset','dev_queue_stale_minutes','dev_queue_skip_lists')"
   );
   const s = {};
   for (const r of rows) s[r.key] = r.value;
+  const skip = s.dev_queue_skip_lists === undefined
+    ? DEFAULT_SKIP_LISTS
+    : String(s.dev_queue_skip_lists).split(',').map((x) => parseInt(x.trim())).filter(Boolean);
   return {
     enabled: s.dev_queue_enabled !== 'false', // default включено
     project: parseInt(s.dev_queue_bc_project) || 47742842,       // личният проект на Венци
     todoset: parseInt(s.dev_queue_bc_todoset) || 10095785275,    // to-dos панелът-опашка
     staleMinutes: parseInt(s.dev_queue_stale_minutes) || 240,    // заседнал running → ретрай
+    skipLists: new Set(skip),                                    // листи само за четене от човек
   };
 }
 
@@ -56,6 +65,7 @@ async function fetchOpenTodos(auth, cfg) {
   const lists = await bc.getTodoLists(auth.token, auth.account, cfg.project, cfg.todoset);
   const out = [];
   for (const list of lists) {
+    if (cfg.skipLists.has(Number(list.id))) continue; // лист само за записки — не е опашка
     const listName = list.title || list.name || '';
     const containers = [list];
     try {
@@ -117,6 +127,17 @@ async function pollOnce() {
       }
     }
 
+    // 1б) Записки, влезли в опашката преди листът да бъде изключен — изваждат се тихо.
+    //     'ignored' не влиза в claimNext, в auto-close проверката, нито в диалога.
+    if (cfg.skipLists.size) {
+      const ignored = await query(
+        `UPDATE dev_tasks SET status = 'ignored', result = 'лист само за записки', updated_at = NOW()
+         WHERE status IN ('pending', 'waiting_reply') AND bc_list_id = ANY($1::bigint[]) RETURNING id`,
+        [[...cfg.skipLists]]
+      );
+      if (ignored.length) console.log(`[dev-queue] ${ignored.length} записки извън опашката`);
+    }
+
     const auth = await getServiceAuth();
 
     // 2) Нови/променени отворени задачи → pending (заглавие и notes се опресняват,
@@ -169,6 +190,7 @@ async function pollOnce() {
     );
     for (const task of watchable) {
       try {
+        if (cfg.skipLists.has(Number(task.bc_list_id))) continue; // записка — коментар под нея не я събужда
         if (task.status !== 'waiting_reply' && !openIds.has(Number(task.bc_todo_id))) continue; // отметната/изтрита — не пипаме
         const comments = await bc.getComments(auth.token, auth.account, task.bc_project_id, task.bc_todo_id);
         const fresh = comments.filter((c) => Number(c.id) > Number(task.last_comment_id || 0) && !isBot(c));
