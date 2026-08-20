@@ -77,7 +77,7 @@ describe('вратичката — задача извън КП/РЕК/КМП', 
   });
 
   test('вратичката дава същия блок с двата пътя и линка', () => {
-    const html = fp.locationHtml('Credissimo - Кастинг');
+    const html = fp.locationLines('Credissimo - Кастинг').join('\n');
     expect(html).toContain('Windows: Z:\\Credissimo\\Кастинг');
     expect(html).toContain('Mac: /Volumes/Production/Credissimo/Кастинг');
     expect((html.match(/ОТВОРИ ПАПКА/g) || []).length).toBe(2);
@@ -120,17 +120,18 @@ describe('splitForLocation — блокът стои горе', () => {
   });
 });
 
-describe('locationHtml — подредба', () => {
+describe('locationLines — подредба', () => {
   test('двата блока са слепени, както ги иска Венци', () => {
-    const html = fp.locationHtml('Credissimo - Тестова задача');
+    const html = fp.locationLines('Credissimo - Тестова задача').join('\n');
     expect(html.indexOf('Локация на файлове:')).toBeLessThan(html.indexOf('Локация на експортираното видео:'));
     expect(html).toContain('Windows: Z:\\Credissimo\\Тестова задача');
     expect(html).toContain('Windows: Z:\\Exported Videos\\Credissimo\\Тестова задача');
   });
 
-  test('lead:false маха водещия празен ред', () => {
-    expect(fp.locationHtml('Credissimo КП-1', { lead: false }).startsWith('<div><br></div>')).toBe(false);
-    expect(fp.locationHtml('Credissimo КП-1').startsWith('<div><br></div>')).toBe(true);
+  test('връща редове, не блокове — вграждат се в общия Trix блок', () => {
+    const lines = fp.locationLines('Credissimo КП-1');
+    expect(lines).toHaveLength(8);
+    expect(lines.join('')).not.toContain('<div>');
   });
 });
 
@@ -168,8 +169,8 @@ describe('pathsForTitle', () => {
   });
 });
 
-describe('locationHtml', () => {
-  const html = fp.locationHtml('Credissimo РЕК-8 - Видео 2 - Промоция');
+describe('locationLines', () => {
+  const html = fp.locationLines('Credissimo РЕК-8 - Видео 2 - Промоция').join('\n');
 
   test('носи двата пътя и работещия линк', () => {
     expect(html).toContain('Локация на файлове');
@@ -179,11 +180,17 @@ describe('locationHtml', () => {
     expect((html.match(/ОТВОРИ ПАПКА/g) || []).length).toBe(2);
   });
 
+  test('двете заглавия са ОЦВЕТЕНИ, а не удебелени', () => {
+    expect(html).toContain('<mark style="background-color: rgb(250, 247, 133);">Локация на файлове:</mark>');
+    expect(html).toContain('<mark style="background-color: rgb(250, 247, 133);">Локация на експортираното видео:</mark>');
+    expect(html).not.toContain('<strong>');
+  });
+
   test('неразпознато заглавие не добавя нищо', () => {
-    expect(fp.locationHtml('Просто задача')).toBe('');
+    expect(fp.locationLines('Просто задача')).toEqual([]);
   });
 
   test('няма как да вкара сурови кавички в href', () => {
-    expect(fp.locationHtml('Test" onmouseover="x КП-1')).not.toContain('onmouseover="x');
+    expect(fp.locationLines('Test" onmouseover="x КП-1').join('')).not.toContain('onmouseover="x');
   });
 });

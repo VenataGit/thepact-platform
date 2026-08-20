@@ -9,7 +9,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { query, execute } = require('../db/pool');
 const bc = require('../services/basecamp');
 const agg = require('../services/bc-aggregate');
-const kpc = require('../services/kp-create');
+const bch = require('../services/bc-html');
 const { getServiceAuth } = require('../services/basecamp-token');
 const tc = require('../services/task-creator');
 const fp = require('../services/folder-paths');
@@ -124,8 +124,11 @@ router.post('/plan', requireAuth, async (req, res) => {
     // Локациите идват от заглавието („Клиент КП-12") — виж services/folder-paths.js.
     // Тук блокът е най-отгоре: текстът на плана съдържа N видео секции, всяка със свое
     // „Описание:", тоест вмъкването по средата би паднало вътре в първото видео.
-    const content = fp.locationHtml(title, { lead: false })
-      + kpc.textToBcHtml(tc.buildPlanText(cfg, title, videoCount, extraInfo));
+    // Всичко е в ЕДИН Trix блок, за да не изчезнат празните редове при редакция.
+    const content = bch.block(bch.join([
+      fp.locationLines(title),
+      bch.lines(tc.buildPlanText(cfg, title, videoCount, extraInfo)),
+    ]));
     // Планът носи срока си в стъпката „Pre-Production - Готов сценарий", а не в Due On
     // (Due On вече значи само „дата за публикуване"). Само тази стъпка — заснемане,
     // монтаж и качване нямат смисъл на ниво контент план.
@@ -194,7 +197,11 @@ router.post('/single', requireAuth, async (req, res) => {
     // Локациите идват от заглавието и стоят ГОРЕ — след водещите /…/ редове, преди
     // „Описание:" (services/folder-paths.js).
     const split = fp.splitForLocation(contentText);
-    const content = kpc.textToBcHtml(split.before) + fp.locationHtml(title) + kpc.textToBcHtml(split.after);
+    const content = bch.block(bch.join([
+      bch.lines(split.before),
+      fp.locationLines(title),
+      bch.lines(split.after),
+    ]));
     const card = await bc.createCard(auth.token, auth.account, struct.projectId, column.id, {
       title,
       content: content || undefined,

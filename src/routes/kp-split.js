@@ -15,6 +15,7 @@ const { subtractWorkingDays } = require('../services/workdays');
 const { parsePlan, parsePublishDate, planHtml } = require('../services/kp-plan');
 const fp = require('../services/folder-paths');
 const fq = require('../services/folder-queue');
+const bch = require('../services/bc-html');
 
 const MAX_VIDEOS = 30; // hard safety cap so a malformed plan can't flood the board
 const MAX_ATTACH_BYTES = 200 * 1024 * 1024; // skip media larger than this
@@ -41,19 +42,39 @@ function attachmentIdxs(sectionText) {
   return out;
 }
 
-// Build a card's content HTML, swapping each placeholder line for its re-uploaded
-// <bc-attachment> tag (attachMap: idx -> tag HTML, '' when the media couldn't be carried).
-function buildContent(sectionText, attachMap) {
-  if (!sectionText) return '';
-  return sectionText.split('\n').map((line) => {
-    const t = line.trim();
+// Редовете на една секция → елементи за описанието: обикновените редове стават inline
+// части (services/bc-html.js — escape + оцветените заглавия), а placeholder-ите за медия
+// стават самостоятелни <bc-attachment> елементи (attachMap: idx -> tag HTML, '' когато
+// медията не е могла да се пренесе — тогава редът просто отпада).
+function sectionItems(sectionText, attachMap) {
+  if (!sectionText) return [];
+  const out = [];
+  for (const raw of sectionText.split('\n')) {
+    const t = raw.trim();
     const pm = t.match(/^A(\d+)$/);
-    if (pm) return attachMap[pm[1]] || '';
-    if (t === '') return '<div><br></div>';
-    const e = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    if (/^Видео\s+\d+\s*[-–—]/.test(t)) return '<div><strong>' + e + '</strong></div>';
-    return '<div>' + e + '</div>';
-  }).join('');
+    if (pm) {
+      const tag = attachMap[pm[1]];
+      if (tag) out.push({ attachment: tag });
+      continue;
+    }
+    out.push(bch.line(t));
+  }
+  return out;
+}
+
+// Елементите → готовия HTML: последователните редове влизат в ЕДИН Trix блок (иначе
+// празните редове изчезват при първата редакция), а всяко прикачено файлче остава
+// самостоятелен елемент между блоковете — точно както Trix ги пази.
+function itemsToHtml(items) {
+  const out = [];
+  let run = [];
+  const flush = () => { const b = bch.block(run); if (b) out.push(b); run = []; };
+  for (const it of items) {
+    if (it && it.attachment) { flush(); out.push(it.attachment); }
+    else run.push(it);
+  }
+  flush();
+  return out.join('');
 }
 
 function snippetOf(sectionText) {
@@ -198,9 +219,11 @@ router.post('/create', requireAuth, async (req, res) => {
         // Локациите идват от заглавието на картата и стоят ГОРЕ — след водещите /…/
         // редове, преди „Описание:" (services/folder-paths.js).
         const split = fp.splitForLocation(s.sectionText);
-        const content = buildContent(split.before, attachMap)
-          + fp.locationHtml(title)
-          + buildContent(split.after, attachMap);
+        const content = itemsToHtml(bch.join([
+          sectionItems(split.before, attachMap),
+          fp.locationLines(title),
+          sectionItems(split.after, attachMap),
+        ]));
         const newCard = await bc.createCard(token, account, projectId, target.id, { title, content, due_on: publishDate || undefined });
         // Папките ги прави агентът в офиса — тук само записваме заявката (никога не хвърля).
         await fq.enqueue({ cardId: newCard.id, title });

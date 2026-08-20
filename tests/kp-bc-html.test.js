@@ -41,9 +41,14 @@ describe('textToBcHtml — оцветяване на заглавията на �
   });
 
   test('обикновените редове остават без оцветяване', () => {
-    const html = kpc.textToBcHtml('Копи: Лятната кампания е тук\n/Участници - 2/');
+    const html = kpc.textToBcHtml('Дата за публикуване: 26.08.2026\n/Участници - 2/');
     expect(html).not.toContain('<mark');
-    expect(html).toBe('<div>Копи: Лятната кампания е тук<br>/Участници - 2/</div>');
+    expect(html).toBe('<div>Дата за публикуване: 26.08.2026<br>/Участници - 2/</div>');
+  });
+
+  test('при „Копи:" се оцветява само етикетът, не и текстът', () => {
+    const html = kpc.textToBcHtml('Копи: Лятната кампания е тук');
+    expect(html).toBe(`<div><mark style="${HIGHLIGHT}">Копи:</mark> Лятната кампания е тук</div>`);
   });
 
   test('празният ред остава като допълнителен <br> (спейсингът преживява edit)', () => {

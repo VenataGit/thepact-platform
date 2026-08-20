@@ -11,6 +11,7 @@
 const config = require('../config');
 const { query, queryOne, execute } = require('../db/pool');
 const bc = require('./basecamp');
+const bch = require('./bc-html');
 const agg = require('./bc-aggregate');
 const workdays = require('./workdays');
 const prodSteps = require('./steps');
@@ -238,43 +239,10 @@ function textToHtml(text) {
   }).join('');
 }
 
-// Първият (най-вляво) highlight цвят на Basecamp, изписан ТОЧНО както го записва
-// самият Basecamp в rich text-а: <mark> с inline background-color.
-//
-// Защо литералът rgb(250, 247, 133), а не голо <mark>: голият таг минава през
-// API-то, но Trix не го припознава като highlight — цветът не се вижда и изчезва
-// при първия запис от edit режим. С inline стила Trix вижда своя highlight атрибут
-// и го връща обратно при запис, тоест оцветяването преживява редакцията.
-//
-// (Същият цвят в тъмната тема на Basecamp се смята като #51452C — това е една и
-// съща боя, само променливата на темата е различна. Пишем литерала, защото той е
-// формата, която Basecamp пази и рендерира навсякъде — включително в имейлите.)
-const BC_HIGHLIGHT_STYLE = 'background-color: rgb(250, 247, 133);';
-
-// Plain text -> Basecamp rich HTML in Trix's OWN canonical format.
-//
-// Trix (Basecamp's editor) stores plain paragraphs as ONE block with <br> between
-// lines; a blank line is simply an extra <br>. Emitting a separate <div> per line
-// (with <div><br></div> for blanks) looks right in read mode, but the moment you
-// open the card for edit, Basecamp's Trix re-parses it and collapses the empty
-// blocks → the spacing is lost. So we emit exactly what Trix itself produces
-// (verified as a stable round-trip fixed point), which keeps the blank separator
-// lines intact through the edit round-trip.
-//
-// "Видео N - …" headings are wrapped in <mark> (Basecamp's highlight → the FIRST,
-// най-вляво стоящия цвят в редактора) and NOTHING else — само цвят, без удебеляване
-// (изрично поискано от Венци, 12.08.2026), точно както изглежда в самия Basecamp.
-function textToBcHtml(text) {
-  if (!text) return '';
-  const lines = text.split('\n').map((line) => {
-    const t = line.trim();
-    if (t === '') return ''; // празен ред → допълнителен <br> при join-а
-    const e = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    if (/^Видео\s+\d+\s*[-–—]/.test(t)) return `<mark style="${BC_HIGHLIGHT_STYLE}">${e}</mark>`;
-    return e;
-  });
-  return `<div>${lines.join('<br>')}</div>`;
-}
+// Plain text -> Basecamp rich HTML в каноничния формат на Trix, с оцветените
+// заглавия. Форматът и правилата за оцветяване живеят в services/bc-html.js —
+// там е и обяснението защо е точно така.
+const textToBcHtml = bch.textToHtml;
 
 // ---------- Basecamp destination ----------
 

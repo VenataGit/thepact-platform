@@ -16,6 +16,8 @@
 // Кръстосаните имена (Z:\Pulse Fitness срещу Exported Videos\Pulse) още не са решени —
 // засега папката се казва точно както клиентът е изписан в заглавието на задачата.
 
+const bch = require('./bc-html');
+
 const SHARE_HOST = '192.168.31.147';
 const SHARE_NAME = 'Production';
 const EXPORT_DIR = 'Exported Videos';
@@ -112,29 +114,25 @@ function pathsForTitle(title) {
   };
 }
 
-const esc = (s) => String(s == null ? '' : s)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-// Един блок („Локация на файлове" + трите реда) като Basecamp HTML.
-function blockHtml(heading, f) {
+// Един блок („Локация на файлове" + трите реда) като редове inline HTML.
+// Заглавието е оцветено, не удебелено — виж services/bc-html.js.
+function blockLines(heading, f) {
   return [
-    `<div><strong>${esc(heading)}</strong></div>`,
-    `<div>Windows: ${esc(f.win)}</div>`,
-    `<div>Mac: ${esc(f.mac)}</div>`,
-    `<div><a href="${esc(f.url)}">ОТВОРИ ПАПКА</a></div>`,
-  ].join('');
+    bch.mark(heading),
+    `Windows: ${bch.esc(f.win)}`,
+    `Mac: ${bch.esc(f.mac)}`,
+    `<a href="${bch.escAttr(f.url)}">ОТВОРИ ПАПКА</a>`,
+  ];
 }
 
-// Готовият блок. Празен низ, ако заглавието не се разпознава.
-// opts.lead = false маха водещия празен ред (когато блокът е най-отгоре в описанието).
-function locationHtml(title, opts) {
+// Двата блока с локации като редове (готов inline HTML), за вграждане в ОБЩИЯ Trix
+// блок на описанието — отделни <div>-ове тук биха се сплескали при първото отваряне
+// на картата за редакция. Празен масив, ако заглавието не се разпознава.
+function locationLines(title) {
   const p = pathsForTitle(title);
-  if (!p) return '';
-  const lead = !opts || opts.lead !== false;
-  return (lead ? '<div><br></div>' : '')
-    + blockHtml('Локация на файлове:', p.files)
-    + blockHtml('Локация на експортираното видео:', p.exported)
-    + '<div><br></div>';
+  if (!p) return [];
+  return blockLines('Локация на файлове:', p.files)
+    .concat(blockLines('Локация на експортираното видео:', p.exported));
 }
 
 // Блокът стои ГОРЕ (решение на Венци, 12.08.2026): веднага след водещите редове от вида
@@ -169,6 +167,6 @@ function splitForLocation(text) {
 }
 
 module.exports = {
-  parseTaskTitle, parseFreeTitle, pathsForTitle, locationHtml, splitForLocation, safeName,
+  parseTaskTitle, parseFreeTitle, pathsForTitle, locationLines, splitForLocation, safeName,
   SHARE_HOST, SHARE_NAME, EXPORT_DIR,
 };
