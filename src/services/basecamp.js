@@ -271,6 +271,27 @@ async function createCard(token, account, projectId, listId, { title, content, d
   return r.json();
 }
 
+// Update a card. PUT .../card_tables/cards/{cardId}.json
+// ВНИМАНИЕ: Basecamp прави ПЪЛНА замяна — каквото не пратиш, се изтрива (същото
+// важи и за стъпките, виж services/bc-date-sync.js). Затова подавай `card`-а,
+// който току-що си прочел, а в `fields` само това, което сменяш.
+async function updateCard(token, account, projectId, card, fields = {}) {
+  const body = {
+    title: fields.title != null ? fields.title : card.title,
+    content: fields.content != null ? fields.content : (card.content || ''),
+    assignee_ids: fields.assignee_ids || (card.assignees || []).map((a) => a.id),
+  };
+  const due = fields.due_on !== undefined ? fields.due_on : card.due_on;
+  if (due) body.due_on = due;
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${card.id}.json`, {
+    method: 'PUT',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp update card failed (${r.status}): ${b.slice(0, 200)}`); }
+  return r.json();
+}
+
 // Create a step (to-do) on a card. POST .../card_tables/cards/{cardId}/steps.json
 async function createStep(token, account, projectId, cardId, { title, due_on, assignee_ids } = {}) {
   const body = { title };
@@ -478,6 +499,7 @@ module.exports = {
   getCard,
   getRecordingEvents,
   createCard,
+  updateCard,
   createStep,
   getProjectPeople,
   getProjects,

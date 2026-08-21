@@ -12,7 +12,8 @@ const config = require('../config');
 const bc = require('../services/basecamp');
 const { getUserAuth } = require('../services/basecamp-token');
 const { subtractWorkingDays } = require('../services/workdays');
-const { parsePlan, parsePublishDate, planHtml } = require('../services/kp-plan');
+const kpPlan = require('../services/kp-plan');
+const { parsePlan, parsePublishDate, planHtml } = kpPlan;
 const fp = require('../services/folder-paths');
 const fq = require('../services/folder-queue');
 const bch = require('../services/bc-html');
@@ -79,6 +80,60 @@ function itemsToHtml(items) {
 
 function snippetOf(sectionText) {
   return sectionText.split('\n').filter((l) => !/^A\d+$/.test(l.trim())).slice(1).join(' ').trim().slice(0, 180);
+}
+
+// Целият текст, който ще влезе в описанието на новата карта — точно както го
+// сглобява /create, само че в четим вид: placeholder-ите за медия стават
+// „📎 име-на-файла", а блокът с локациите се показва на мястото си.
+// Ползва се от бутона „Преглед" в модала (Венци, 21.08.2026).
+function previewBody(sectionText, attachments, title) {
+  const named = (text) => String(text || '').split('\n').map((l) => {
+    const m = l.trim().match(/^A(\d+)$/);
+    if (!m) return l;
+    const a = attachments[parseInt(m[1], 10)];
+    return '📎 ' + ((a && a.filename) || 'файл');
+  });
+  const split = fp.splitForLocation(sectionText);
+  const paths = fp.pathsForTitle(title);
+  const loc = paths ? [
+    'Локация на файлове:',
+    'Windows: ' + paths.files.win,
+    'Mac: ' + paths.files.mac,
+    'Локация на експортираното видео:',
+    'Windows: ' + paths.exported.win,
+    'Mac: ' + paths.exported.mac,
+  ] : [];
+  const groups = [named(split.before), loc, split.after ? named(split.after) : []];
+  return groups.filter((g) => g.some((l) => String(l).trim() !== '')).map((g) => g.join('\n')).join('\n\n');
+}
+
+// Стъпките, които картата ще получи, с изчислените дати (работни дни + БГ празници).
+function stepsFor(publishDate) {
+  return VIDEO_STEPS.map((s) => ({
+    title: s.title,
+    due_on: publishDate ? subtractWorkingDays(publishDate, s.offset) : null,
+  }));
+}
+
+const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// { "3": "2026-09-08" } → чист обект само с валидните двойки.
+function cleanDateOverrides(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw)) {
+    const n = parseInt(k, 10);
+    if (!Number.isFinite(n)) continue;
+    if (typeof v !== 'string' || !ISO_RE.test(v)) continue;
+    out[n] = v;
+  }
+  return out;
+}
+
+// Кои от подготвените дати в главата на плана остават без видео.
+function unusedPlanDates(planDates, videoDates) {
+  const used = new Set(videoDates.filter(Boolean));
+  return (planDates || []).filter((d) => !used.has(d));
 }
 
 // Card-title prefix from the plan card's title (strip "контент план" tails).
@@ -148,27 +203,41 @@ router.post('/preview', requireAuth, async (req, res) => {
     const projectId = config.BASECAMP_TEAM_PROJECT_ID;
     const card = await bc.getCard(token, account, projectId, cardId);
     const prefix = planPrefix(card.title);
-    let { sections } = parsePlan(planHtml(card));
+    let { sections, attachments, header } = parsePlan(planHtml(card));
     const truncated = sections.length > MAX_VIDEOS;
     if (truncated) sections = sections.slice(0, MAX_VIDEOS);
-    const videos = sections.map((s) => ({
-      videoNumber: s.videoNumber,
-      cardTitle: prefix + ' - Видео ' + s.videoNumber + ' - ' + s.title,
-      publishDate: parsePublishDate(s.sectionText),
-      mediaCount: attachmentIdxs(s.sectionText).length,
-      snippet: snippetOf(s.sectionText),
-    }));
-    res.json({ planTitle: card.title, count: videos.length, truncated, videos });
+    const videos = sections.map((s) => {
+      const cardTitle = prefix + ' - Видео ' + s.videoNumber + ' - ' + s.title;
+      const publishDate = parsePublishDate(s.sectionText);
+      return {
+        videoNumber: s.videoNumber,
+        cardTitle,
+        publishDate,
+        mediaCount: attachmentIdxs(s.sectionText).length,
+        snippet: snippetOf(s.sectionText),
+        body: previewBody(s.sectionText, attachments, cardTitle),
+        steps: stepsFor(publishDate),
+      };
+    });
+    const planDates = kpPlan.parsePlanDates(header);
+    res.json({
+      planTitle: card.title, count: videos.length, truncated, videos, planDates,
+      unusedDates: unusedPlanDates(planDates, videos.map((v) => v.publishDate)),
+    });
   } catch (err) {
     console.error('[kp-split preview]', err.message);
     res.status(502).json({ error: err.message });
   }
 });
 
-// POST /api/kp-split/create { cardId, destBoardId } — create the cards + steps + media.
+// POST /api/kp-split/create { cardId, destBoardId, dates? } — create the cards + steps + media.
+// `dates` = { videoNumber: 'YYYY-MM-DD' } — датите, редактирани в прегледа. Всяка
+// променена дата се записва И в самия контент план (Венци, 21.08.2026), за да не
+// се разминават планът и разбитите задачи.
 router.post('/create', requireAuth, async (req, res) => {
   try {
     const { cardId, destBoardId } = req.body || {};
+    const overrides = cleanDateOverrides((req.body || {}).dates);
     if (!cardId || !destBoardId) return res.status(400).json({ error: 'cardId and destBoardId required' });
     const { token, account } = await getUserAuth(req.user.userId);
     const { projectId, tools } = await dock(token, account);
@@ -181,16 +250,51 @@ router.post('/create', requireAuth, async (req, res) => {
 
     const card = await bc.getCard(token, account, projectId, cardId);
     const prefix = planPrefix(card.title);
-    let { sections, attachments } = parsePlan(planHtml(card));
+    let { sections, attachments, header } = parsePlan(planHtml(card));
     if (!sections.length) return res.status(400).json({ error: 'Няма разпознати „Видео N - …" секции в плана.' });
     const truncated = sections.length > MAX_VIDEOS;
     if (truncated) sections = sections.slice(0, MAX_VIDEOS);
 
     // Find the "Разпределение" (Triage) column in the destination board.
+    // ВАЖНО: намираме я ПРЕДИ да пипнем датите в плана — иначе при липсваща колона
+    // планът щеше да остане пренаписан, без да е създадена нито една задача.
     const destTable = await bc.getCardTable(token, account, projectId, destBoardId);
     const target = (destTable.lists || []).find((l) => /разпределение/i.test(l.title || ''))
       || (destTable.lists || []).find((l) => /Triage/i.test(l.type || ''));
     if (!target) return res.status(400).json({ error: 'Не намерих колона „Разпределение" в избраната дъска.' });
+
+    // --- сменените дати: първо в плана, после в новите карти ---
+    // Датата на всяко видео СЛЕД редакциите (тя отива и в Due On, и в стъпките).
+    const dateOf = {};
+    const changed = [];
+    for (const s of sections) {
+      const was = parsePublishDate(s.sectionText);
+      const now = overrides[s.videoNumber] || was;
+      dateOf[s.videoNumber] = now || null;
+      if (now && now !== was) changed.push({ videoNumber: s.videoNumber, from: was, to: now });
+    }
+
+    const planUpdate = { changed: changed.length, ok: false, failed: [] };
+    if (changed.length) {
+      let html = planHtml(card);
+      for (const ch of changed) {
+        const r = kpPlan.setPublishDateInHtml(html, ch.videoNumber, ch.to);
+        if (r.ok) html = r.html;
+        else planUpdate.failed.push({ videoNumber: ch.videoNumber, reason: r.reason });
+        // Описанието на новата карта също трябва да носи новата дата.
+        const sec = sections.find((s) => s.videoNumber === ch.videoNumber);
+        if (sec) sec.sectionText = kpPlan.setPublishDateInText(sec.sectionText, ch.to);
+      }
+      if (planUpdate.failed.length < changed.length) {
+        try {
+          await bc.updateCard(token, account, projectId, card, { content: html });
+          planUpdate.ok = true;
+        } catch (e) {
+          console.error('[kp-split] plan card update failed:', e.message);
+          planUpdate.error = e.message;
+        }
+      }
+    }
 
     // Idempotency: skip any card whose title already exists in the target column.
     const existing = await bc.getColumnCards(token, account, projectId, target.id);
@@ -211,7 +315,7 @@ router.post('/create', requireAuth, async (req, res) => {
       const title = (prefix + ' - Видео ' + s.videoNumber + ' - ' + s.title).trim();
       if (seen.has(title)) { skipped.push(title); continue; }
       seen.add(title);
-      const publishDate = parsePublishDate(s.sectionText);
+      const publishDate = dateOf[s.videoNumber];
       const idxs = attachmentIdxs(s.sectionText);
       try {
         const attachMap = {};
@@ -237,11 +341,27 @@ router.post('/create', requireAuth, async (req, res) => {
         errors.push({ title, error: e.message });
       }
     }
-    res.json({ created, errors, skipped, truncated, mediaErrors, board: destTable.title, column: target.title });
+    const planDates = kpPlan.parsePlanDates(header);
+    res.json({
+      created, errors, skipped, truncated, mediaErrors,
+      board: destTable.title, column: target.title,
+      planUpdate,
+      planDates,
+      unusedDates: unusedPlanDates(planDates, sections.map((s) => dateOf[s.videoNumber])),
+    });
   } catch (err) {
     console.error('[kp-split create]', err.message);
     res.status(502).json({ error: err.message });
   }
+});
+
+// GET /api/kp-split/step-dates?date=YYYY-MM-DD — стъпките с преизчислени дати за
+// новоизбрана дата на публикуване. Само сметка, без Basecamp — ползва се от
+// прегледа, когато датата се смени преди създаването.
+router.get('/step-dates', requireAuth, (req, res) => {
+  const date = String(req.query.date || '');
+  if (date && !ISO_RE.test(date)) return res.status(400).json({ error: 'bad date' });
+  res.json({ steps: stepsFor(date || null) });
 });
 
 // GET /api/kp-split/test-download?card=<id> — admin diagnostic: try downloading the

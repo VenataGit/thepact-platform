@@ -86,6 +86,29 @@
 .kps-vdate--none { color: var(--orange, #f97316); }
 .kps-vmedia { font-size: 11px; font-weight: 600; color: var(--accent); margin-left: 4px; }
 
+/* Разгънат преглед на едно видео + редактиране на датата (21.08.2026) */
+.kps-modal--wide { width: min(940px, 96vw); }
+.kps-vhead { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.kps-vctl { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.kps-vdate-inp { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--green); font-family: inherit; font-size: 12px; font-weight: 600; padding: 4px 6px; outline: none; color-scheme: dark; }
+.kps-vdate-inp--none { color: var(--orange, #f97316); border-color: var(--orange, #f97316); }
+.kps-vdate-inp--changed { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.kps-vtoggle { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; cursor: pointer; }
+.kps-vtoggle:hover { color: #fff; border-color: var(--accent); }
+.kps-vfull { margin-top: 8px; }
+.kps-full { background: rgba(0,0,0,.2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.kps-full__lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); margin: 10px 0 4px; }
+.kps-full__lbl:first-child { margin-top: 0; }
+.kps-full__val { font-size: 13px; color: #fff; }
+.kps-full__pre { margin: 0; font-family: inherit; font-size: 12.5px; line-height: 1.5; color: var(--text); white-space: pre-wrap; word-break: break-word; max-height: 340px; overflow-y: auto; }
+.kps-steplist { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.kps-steplist li { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+.kps-stitle { color: var(--text); }
+.kps-sdate { color: var(--green); font-weight: 600; white-space: nowrap; }
+.kps-sdate--none { color: var(--orange, #f97316); }
+.kps-warn { color: var(--orange, #f97316); font-size: 13px; padding: 6px 0; }
+.kps-okline { color: var(--green); font-size: 13px; padding: 6px 0; }
+
 /* Инструмент „Създаване на задачи" (#/create-task) */
 .tcr-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .tcr-tab { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; color: var(--text-dim); font-family: inherit; font-size: 14px; font-weight: 600; padding: 10px 16px; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }

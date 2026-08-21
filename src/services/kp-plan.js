@@ -35,7 +35,9 @@ function htmlToText(html) {
     .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 }
 
-// Returns { sections:[{videoNumber,title,sectionText}], attachments:[{href,...}] }.
+// Returns { sections:[{videoNumber,title,sectionText}], attachments:[{href,...}], header }.
+// `header` = редовете ПРЕДИ първата „Видео N" секция (там стои списъкът с датите
+// за публикуване, който parsePlanDates чете).
 function parsePlan(html) {
   const attachments = [];
   const withPlaceholders = (html || '').replace(ATTACH_RE, (m) => {
@@ -44,6 +46,7 @@ function parsePlan(html) {
     return '\nA' + i + '\n';
   });
   const sections = [];
+  const headerLines = [];
   let cur = null, curLines = [];
   for (const raw of htmlToText(withPlaceholders).split('\n')) {
     const line = raw.trim();
@@ -53,9 +56,10 @@ function parsePlan(html) {
       cur = { videoNumber: parseInt(m[1], 10), title: m[2].trim() };
       curLines = [line];
     } else if (cur) { curLines.push(raw); }
+    else { headerLines.push(raw); }
   }
   if (cur) sections.push({ ...cur, sectionText: curLines.join('\n') });
-  return { sections, attachments };
+  return { sections, attachments, header: headerLines.join('\n') };
 }
 
 // "Дата на/за публикуване - DD.MM.YYYY" → YYYY-MM-DD.
@@ -71,4 +75,135 @@ function parsePublishDate(text) {
 // Планът идва в `description` (card table карта) или `content` — според endpoint-а.
 function planHtml(card) { return (card && (card.description || card.content)) || ''; }
 
-module.exports = { parsePlan, parsePublishDate, planHtml, htmlToText };
+// ---------------------------------------------------------------------------
+// Датите: четене на подготвения списък ГОРЕ в плана + редактиране на датата на
+// едно видео (поискано от Венци, 21.08.2026 — „Създай задачи по КП").
+// ---------------------------------------------------------------------------
+
+function isoOf(d, mo, y) {
+  if (d < 1 || d > 31 || mo < 1 || mo > 12) return null;
+  return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+
+// 'YYYY-MM-DD' → 'DD.MM.YYYY' (както се пише в текста на плана).
+function isoToBg(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? m[3] + '.' + m[2] + '.' + m[1] : '';
+}
+
+const isIso = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+
+// Всички DD.MM.YYYY в даден текст, в реда на появяване.
+function allDates(str) {
+  const out = [];
+  const re = /(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/g;
+  let m;
+  while ((m = re.exec(String(str || '')))) {
+    const iso = isoOf(parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10));
+    if (iso) out.push(iso);
+  }
+  return out;
+}
+
+// Подготвените дати за публикуване от главата на плана. Първо търсим блока
+// „Дати за публикуване на видеа:" и вземаме редовете под него; ако такъв блок
+// няма (стари/ръчни планове), падаме на всички дати в главата. Без дубликати.
+function parsePlanDates(headerText) {
+  const lines = String(headerText || '').split('\n');
+  const start = lines.findIndex((l) => /^\s*Дати\s+за\s+публикуване/i.test(l));
+  const out = [];
+  const add = (iso) => { if (iso && !out.includes(iso)) out.push(iso); };
+  if (start >= 0) {
+    for (let i = start + 1; i < lines.length; i++) {
+      const t = lines[i].trim();
+      if (t === '') { if (out.length) break; continue; }
+      const found = allDates(t);
+      if (!found.length) break;
+      found.forEach(add);
+    }
+    if (out.length) return out;
+  }
+  allDates(headerText).forEach(add);
+  return out;
+}
+
+// Етикетът на реда с датата в една видео-секция. Отрицателният lookahead пази
+// заглавния ред от главата на плана („Дата за публикуване на първо видео: …").
+const PUBLISH_LABEL_RE = /Дата\s+(?:на|за)\s+публикуване(?!\s+на\s+пър)\s*[-–—:]?/i;
+const DATE_ONE_RE = /(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/;
+const PLACEHOLDER_RE = /[ХXхx]{2,}/;
+// Краят на реда в Trix HTML — текстът върви в един блок, разделен с <br>.
+const LINE_END_RE = /<br\s*\/?>|<\/div>|<\/p>/i;
+
+// Границите на секцията на едно видео в СУРОВИЯ HTML (заглавието е контекстен
+// текст, така че се намира и когато е обвито в <mark>/<strong>).
+function sectionBoundsInHtml(html, videoNumber) {
+  const re = /Видео\s+(\d+)\s*[-–—]/g;
+  let m, start = -1, end = html.length;
+  while ((m = re.exec(html))) {
+    if (start >= 0) { end = m.index; break; }
+    if (parseInt(m[1], 10) === videoNumber) start = m.index;
+  }
+  return start < 0 ? null : [start, end];
+}
+
+/**
+ * Сменя датата за публикуване на едно видео направо в HTML-а на КП картата.
+ * Пипа САМО стойността след етикета — целият останал текст, оцветяванията и
+ * прикачените файлове остават непокътнати.
+ * @returns {{ html: string, ok: boolean, inserted?: boolean, reason?: string }}
+ */
+function setPublishDateInHtml(html, videoNumber, iso) {
+  const src = String(html || '');
+  if (!isIso(iso)) return { html: src, ok: false, reason: 'bad-date' };
+  const bounds = sectionBoundsInHtml(src, videoNumber);
+  if (!bounds) return { html: src, ok: false, reason: 'no-section' };
+  const [start, end] = bounds;
+  const bg = isoToBg(iso);
+  const seg = src.slice(start, end);
+
+  const lm = seg.match(PUBLISH_LABEL_RE);
+  if (!lm) {
+    // Няма ред за дата — слагаме го веднага под заглавието на видеото (в същия
+    // Trix блок, за да не се сплеска при първата редакция).
+    const le = seg.search(LINE_END_RE);
+    const at = le === -1 ? seg.length : le;
+    const ins = '<br>Дата за публикуване: ' + bg;
+    return { html: src.slice(0, start + at) + ins + src.slice(start + at), ok: true, inserted: true };
+  }
+
+  const vStart = lm.index + lm[0].length;
+  const rest = seg.slice(vStart);
+  const le = rest.search(LINE_END_RE);
+  const cut = le === -1 ? rest.length : le;
+  let chunk = rest.slice(0, cut);
+  if (DATE_ONE_RE.test(chunk)) chunk = chunk.replace(DATE_ONE_RE, bg);
+  else if (PLACEHOLDER_RE.test(chunk)) chunk = chunk.replace(PLACEHOLDER_RE, bg);
+  else chunk = chunk.replace(/\s+$/, '') + ' ' + bg;
+  if (!/^[\s<]/.test(chunk)) chunk = ' ' + chunk;
+
+  const newSeg = seg.slice(0, vStart) + chunk + rest.slice(cut);
+  return { html: src.slice(0, start) + newSeg + src.slice(end), ok: true };
+}
+
+// Същото, но върху обикновения текст на секцията — това е текстът, който отива
+// в описанието на новата карта, така че двете места да казват едно и също.
+function setPublishDateInText(text, iso) {
+  if (!isIso(iso)) return String(text || '');
+  const bg = isoToBg(iso);
+  const lines = String(text || '').split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(PUBLISH_LABEL_RE);
+    if (!m) continue;
+    lines[i] = lines[i].slice(0, m.index + m[0].length) + ' ' + bg;
+    return lines.join('\n');
+  }
+  lines.push('Дата за публикуване: ' + bg);
+  return lines.join('\n');
+}
+
+module.exports = {
+  parsePlan, parsePublishDate, planHtml, htmlToText,
+  parsePlanDates, isoToBg, allDates,
+  setPublishDateInHtml, setPublishDateInText,
+};
