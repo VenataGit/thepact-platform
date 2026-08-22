@@ -16,15 +16,21 @@ async function showKpSplit() {
   document.querySelectorAll('.kps-overlay').forEach(function (o) { o.remove(); });
   var ov = document.createElement('div');
   ov.className = 'modal-overlay kps-overlay';
+  // tabindex="-1" прави прозореца фокусируем — иначе фокусът остава на страницата
+  // отдолу и колелцето/стрелките скролват нея, а не съдържанието на прозореца
+  // (Венци, 21.08.2026).
   ov.innerHTML =
-    '<div class="kps-modal">' +
+    '<div class="kps-modal" tabindex="-1">' +
       '<div class="kps-modal__hdr"><strong>Създай задачи по КП</strong>' +
         '<button class="kps-close" aria-label="Затвори">✕</button></div>' +
       '<div class="kps-modal__body" id="kpsBody"><div class="kps-muted">Зареждам контент плановете…</div></div>' +
     '</div>';
   document.body.appendChild(ov);
+  kpsLockPage(true);
+  var modal = ov.querySelector('.kps-modal');
+  modal.focus({ preventScroll: true });
   function onKey(e) { if (e.key === 'Escape') close(); }
-  function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
+  function close() { ov.remove(); document.removeEventListener('keydown', onKey); kpsLockPage(false); }
   ov.querySelector('.kps-close').addEventListener('click', close);
   ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
   document.addEventListener('keydown', onKey);
@@ -35,6 +41,17 @@ async function showKpSplit() {
     _kps.init = data;
     kpsRenderForm();
   } catch (e) { kpsBody('<div class="kps-err">Няма връзка със сървъра.</div>'); }
+}
+
+// Заключва страницата отдолу, докато прозорецът е отворен. Само `overscroll-behavior`
+// на самия прозорец не стига — колелцето над тъмния кант около него (или след като
+// прозорецът стигне края си) продължаваше да скролва платформата.
+// Отключваме чак когато НЯМА останал такъв прозорец, за да не се отключи наполовина.
+function kpsLockPage(on) {
+  if (!on && document.querySelector('.kps-overlay')) return;
+  var v = on ? 'hidden' : '';
+  document.documentElement.style.overflow = v;
+  document.body.style.overflow = v;
 }
 
 function kpsBody(html) { var b = document.getElementById('kpsBody'); if (b) b.innerHTML = html; }

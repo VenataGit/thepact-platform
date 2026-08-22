@@ -63,7 +63,9 @@
 .dash-advanced-empty { color: var(--text-dim); font-size: 14px; line-height: 1.6; text-align: center; padding: 28px 10px; }
 
 /* "Създай задачи по КП" modal */
-.kps-modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; width: min(640px, 94vw); max-height: 86vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+/* overscroll-behavior: contain — колелцето не „прескача" на страницата отдолу, щом
+   прозорецът стигне края си; outline: none — фокусът е за скролване, не за показване. */
+.kps-modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; width: min(640px, 94vw); max-height: 86vh; overflow-y: auto; overscroll-behavior: contain; outline: none; box-shadow: var(--shadow-lg); }
 .kps-modal__hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 16px; color: #fff; }
 .kps-close { background: none; border: 0; color: var(--text-dim); font-size: 18px; line-height: 1; cursor: pointer; }
 .kps-close:hover { color: #fff; }
@@ -100,7 +102,7 @@
 .kps-full__lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); margin: 10px 0 4px; }
 .kps-full__lbl:first-child { margin-top: 0; }
 .kps-full__val { font-size: 13px; color: #fff; }
-.kps-full__pre { margin: 0; font-family: inherit; font-size: 12.5px; line-height: 1.5; color: var(--text); white-space: pre-wrap; word-break: break-word; max-height: 340px; overflow-y: auto; }
+.kps-full__pre { margin: 0; font-family: inherit; font-size: 12.5px; line-height: 1.5; color: var(--text); white-space: pre-wrap; word-break: break-word; max-height: 340px; overflow-y: auto; overscroll-behavior: contain; }
 .kps-steplist { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .kps-steplist li { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; }
 .kps-stitle { color: var(--text); }
