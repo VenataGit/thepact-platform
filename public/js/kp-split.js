@@ -218,8 +218,9 @@ function kpsArchiveHtml(data) {
         (b.master ? ' + дописано в „' + esc(b.master) + '"' : '') + '.</div>';
     }
     if (a.basecampError) out += '<div class="kps-err">Архивът в Basecamp не стана: ' + esc(a.basecampError) + '</div>';
-    else if (a.masterError) out += '<div class="kps-err">Общият документ не се допълни: ' + esc(a.masterError) + '</div>';
-    if (a.server) out += '<div class="kps-muted">За вътрешния сървър е пусната заявка: <code>' + esc(a.server.file) + '</code> (агентът я изпълнява до 2 мин).</div>';
+    else if (a.masterError) out += '<div class="kps-err">Общият документ на клиента не се допълни: ' + esc(a.masterError) + '</div>';
+    if (a.server) out += '<div class="kps-muted">За вътрешния сървър са пуснати заявки: <code>' + esc(a.server.file) + '</code>' +
+      (a.server.masterFile ? ' и <code>' + esc(a.server.masterFile) + '</code>' : '') + ' (агентът ги изпълнява до 2 мин).</div>';
     if (a.serverError) out += '<div class="kps-err">Архивът на сървъра не се пусна: ' + esc(a.serverError) + '</div>';
   }
   if (m && m.ok) out += '<div class="kps-muted">Контент планът е преместен в „' + esc(m.column) + '".</div>';

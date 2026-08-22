@@ -5,30 +5,35 @@
 //
 //   1. Basecamp → Docs & Files → „Контент планове - Архив" → папка на клиента.
 //      Пази се като ДОКУМЕНТ, не като качен .txt файл. Причината е практическа:
-//      качен файл не може да се дописва, а общият файл („всички планове на едно
-//      място") живее точно от дописването. Документът е и търсим от самия Basecamp,
-//      освен с Ctrl+F в браузъра.
+//      качен файл не може да се дописва, а общият файл на клиента живее точно от
+//      дописването. Документът е и търсим от самия Basecamp, освен с Ctrl+F.
+//      Съдържанието влиза ТАКОВА, КАКВОТО Е В КАРТАТА — същият rich HTML, тоест
+//      същият спейсинг, същите оцветени заглавия, същите прикачени файлове
+//      (Венци, 22.08.2026). Никакво сплескване до гол текст.
 //   2. Вътрешният сървър → Z:\Контент планове - Архив\<Клиент>\<име на плана>.txt.
 //      Платформата няма достъп до Z: — пише заявка в опашката, а агентът в офиса
-//      прави файла (services/folder-queue.js → folder-agent/worker.js).
+//      прави файла (services/folder-queue.js → folder-agent/worker.js). Тук няма
+//      как да има оцветяване и медия — само текст, но спейсингът се пази.
 //
-// И на двете места има и ЕДИН общ файл с всичко, за да се търси идея през всички
-// планове наведнъж.
+// На всяко от двете места КЛИЕНТЪТ си има и ЕДИН общ файл с всичките си планове,
+// към който всеки нов се дописва (Венци, 22.08.2026). Общ файл за всички клиенти
+// НЯМА — търсенето на идея почти винаги е „какво сме правили за този клиент".
 //
 // Оригиналната карта НЕ се изпразва — архивът е копие. Картата само отива в Done.
 const config = require('../config');
 const bc = require('./basecamp');
+const bch = require('./bc-html');
 const fp = require('./folder-paths');
 const fq = require('./folder-queue');
 const kpPlan = require('./kp-plan');
 
 const ARCHIVE_ROOT = 'Z:\\Контент планове - Архив';
-const MASTER_TITLE = 'Всички контент планове';
-const MASTER_FILE = ARCHIVE_ROOT + '\\' + MASTER_TITLE + '.txt';
+const MASTER_PREFIX = 'Всички контент планове - ';
 const OTHER_FOLDER = 'Други'; // клиент, който не се разпознава от заглавието
 
-const esc = (s) => String(s == null ? '' : s)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// Общият файл/документ на един клиент. Името носи и клиента, за да е недвусмислено
+// и когато изскочи в търсене на Basecamp или бъде извадено от папката си.
+const masterTitleFor = (client) => MASTER_PREFIX + client;
 
 const norm = (s) => String(s || '').trim().toLowerCase();
 
@@ -62,18 +67,18 @@ function entryHeader(planTitle, archivedOn) {
   return '=========== ' + planTitle + ' — архивиран на ' + kpPlan.isoToBg(archivedOn) + ' ===========';
 }
 
-// Текстът на един архивен запис (същият и за Basecamp, и за сървъра).
+// Един архивен запис като ТЕКСТ — това отива на вътрешния сървър.
 function entryText(planTitle, planText, archivedOn) {
   return entryHeader(planTitle, archivedOn) + '\n\n' + planText + '\n';
 }
 
-// Обикновен текст → HTML за документ в Basecamp: по един <div> на абзац, с <br>
-// между редовете. Документите не минават през Trix-капана на описанията на картите
-// (там празните редове изчезваха), затова тук форматът е простият.
-function textToDocHtml(text) {
-  return String(text || '').split(/\n{2,}/)
-    .map((block) => '<div>' + block.split('\n').map(esc).join('<br>') + '</div>')
-    .join('');
+// Един архивен запис като HTML — това отива в Basecamp. Описанието на картата се
+// подава НЕПРОМЕНЕНО: точно същият спейсинг, същите оцветявания и същите прикачени
+// файлове (sgid-овете важат в целия проект, затова медията се пренася).
+// Отгоре сяда само един оцветен ред кой план е и кога е архивиран — по него се
+// разделят записите в общия документ на клиента.
+function entryHtml(planTitle, planCardHtml, archivedOn) {
+  return '<div>' + bch.mark(entryHeader(planTitle, archivedOn)) + '</div>' + String(planCardHtml || '');
 }
 
 // Папката на клиента в архива — намира съществуващата или прави нова.
@@ -86,17 +91,16 @@ async function ensureClientFolder(auth, projectId, vaultId, clientName) {
 }
 
 // Документ по заглавие в дадена папка: презаписва съществуващия или прави нов.
-// `append` = дописва отдолу, вместо да замени (общият файл).
-async function upsertDocument(auth, projectId, vaultId, title, text, { append = false } = {}) {
+// `html` е ГОТОВОТО съдържание — нищо не се преформатира тук.
+// `append` = дописва отдолу, вместо да замени (общият документ на клиента).
+async function upsertDocument(auth, projectId, vaultId, title, html, { append = false } = {}) {
   const docs = await bc.getVaultDocuments(auth.token, auth.account, projectId, vaultId);
   const hit = (docs || []).find((d) => norm(d.title) === norm(title));
   if (!hit) {
-    const made = await bc.createDocument(auth.token, auth.account, projectId, vaultId, {
-      title, content: textToDocHtml(text),
-    });
+    const made = await bc.createDocument(auth.token, auth.account, projectId, vaultId, { title, content: html });
     return { id: made.id, url: bc.normalizeAppUrl(made.app_url), created: true };
   }
-  let content = textToDocHtml(text);
+  let content = html;
   if (append) {
     // Дописваме към ТЕКУЩОТО съдържание — затова се чете пълният документ (списъкът
     // не носи `content`).
@@ -119,19 +123,23 @@ async function upsertDocument(auth, projectId, vaultId, title, text, { append = 
  * @param {string} p.archivedOn  'YYYY-MM-DD'
  */
 async function archivePlan({ auth, projectId, planTitle, planHtml, archivedOn }) {
-  const out = { client: clientOf(planTitle), basecamp: null, server: null };
-  const text = planToText(planHtml);
-  const entry = entryText(planTitle, text, archivedOn);
+  const client = clientOf(planTitle);
+  const masterTitle = masterTitleFor(client);
+  const out = { client, basecamp: null, server: null };
+  // Две форми на един и същ запис: богатата отива в Basecamp, текстовата — на сървъра.
+  const entryRich = entryHtml(planTitle, planHtml, archivedOn);
+  const entryPlain = entryText(planTitle, planToText(planHtml), archivedOn);
 
   // --- Basecamp: Docs & Files ---
   try {
     const vaultId = config.BASECAMP_KP_ARCHIVE_VAULT_ID;
     if (!vaultId) throw new Error('няма настроена папка за архива');
-    const folder = await ensureClientFolder(auth, projectId, vaultId, out.client);
-    const doc = await upsertDocument(auth, projectId, folder.id, planTitle, entry);
+    const folder = await ensureClientFolder(auth, projectId, vaultId, client);
+    const doc = await upsertDocument(auth, projectId, folder.id, planTitle, entryRich);
+    // Общият документ на КЛИЕНТА — в неговата папка, до отделните планове.
     let master = null;
     try {
-      master = await upsertDocument(auth, projectId, vaultId, MASTER_TITLE, '\n' + entry, { append: true });
+      master = await upsertDocument(auth, projectId, folder.id, masterTitle, entryRich, { append: true });
     } catch (e) {
       console.error('[kp-archive] master doc:', e.message);
       out.masterError = e.message;
@@ -139,7 +147,7 @@ async function archivePlan({ auth, projectId, planTitle, planHtml, archivedOn })
     out.basecamp = {
       folder: folder.title, folderCreated: folder.created,
       doc: planTitle, docUrl: doc.url, docCreated: doc.created,
-      master: master ? MASTER_TITLE : null, masterUrl: master ? master.url : null,
+      master: master ? masterTitle : null, masterUrl: master ? master.url : null,
     };
   } catch (e) {
     console.error('[kp-archive] basecamp:', e.message);
@@ -148,10 +156,12 @@ async function archivePlan({ auth, projectId, planTitle, planHtml, archivedOn })
 
   // --- Вътрешният сървър (през опашката към агента в офиса) ---
   try {
-    const file = ARCHIVE_ROOT + '\\' + fp.safeName(out.client) + '\\' + fp.safeName(planTitle) + '.txt';
-    const one = await fq.enqueueText({ title: planTitle, filePath: file, content: entry, append: false });
-    const all = await fq.enqueueText({ title: MASTER_TITLE, filePath: MASTER_FILE, content: '\n' + entry, append: true });
-    out.server = { file, queued: [one, all].filter(Boolean).length };
+    const dir = ARCHIVE_ROOT + '\\' + fp.safeName(client);
+    const file = dir + '\\' + fp.safeName(planTitle) + '.txt';
+    const masterFile = dir + '\\' + fp.safeName(masterTitle) + '.txt';
+    const one = await fq.enqueueText({ title: planTitle, filePath: file, content: entryPlain, append: false });
+    const all = await fq.enqueueText({ title: masterTitle, filePath: masterFile, content: '\n' + entryPlain, append: true });
+    out.server = { file, masterFile, queued: [one, all].filter(Boolean).length };
   } catch (e) {
     console.error('[kp-archive] server queue:', e.message);
     out.serverError = e.message;
@@ -161,7 +171,7 @@ async function archivePlan({ auth, projectId, planTitle, planHtml, archivedOn })
 }
 
 module.exports = {
-  ARCHIVE_ROOT, MASTER_TITLE, MASTER_FILE, OTHER_FOLDER,
-  clientOf, planToText, entryText, textToDocHtml,
+  ARCHIVE_ROOT, MASTER_PREFIX, OTHER_FOLDER, masterTitleFor,
+  clientOf, planToText, entryText, entryHtml,
   ensureClientFolder, upsertDocument, archivePlan,
 };

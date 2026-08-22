@@ -65,21 +65,44 @@ describe('entryText — един запис в архива', () => {
   });
 });
 
-describe('textToDocHtml — текстът като документ в Basecamp', () => {
-  test('абзаците стават <div>, редовете в тях — <br>', () => {
-    expect(arch.textToDocHtml('ред 1\nред 2\n\nвтори абзац'))
-      .toBe('<div>ред 1<br>ред 2</div><div>втори абзац</div>');
+describe('entryHtml — записът за Basecamp', () => {
+  // Описанието на картата влиза НЕПРОМЕНЕНО (Венци, 22.08.2026): същият спейсинг,
+  // същите оцветявания, същите прикачени файлове.
+  const CARD = '<div><mark style="background-color: rgb(250, 247, 133);">Видео 1 - Тест</mark>'
+    + '<br><br>Описание:<br>Нещо</div>'
+    + '<bc-attachment sgid="abc" filename="brief.png"></bc-attachment>';
+  const html = arch.entryHtml('Credissimo КП-12', CARD, '2026-08-22');
+
+  test('съдържа описанието на картата дума по дума', () => {
+    expect(html).toContain(CARD);
   });
 
-  test('escape-ва HTML, за да не се чупи документът от текста на плана', () => {
-    expect(arch.textToDocHtml('<script>x</script>'))
-      .toBe('<div>&lt;script&gt;x&lt;/script&gt;</div>');
+  test('не сплесква оцветяванията, празните редове и медията', () => {
+    expect(html).toContain('<mark style="background-color: rgb(250, 247, 133);">Видео 1 - Тест</mark>');
+    expect(html).toContain('<br><br>');
+    expect(html).toContain('<bc-attachment sgid="abc"');
+  });
+
+  test('отгоре сяда един оцветен ред кой план е и кога е архивиран', () => {
+    expect(html.indexOf('Credissimo КП-12')).toBeLessThan(html.indexOf(CARD));
+    expect(html).toContain('22.08.2026');
+    expect(html.startsWith('<div><mark ')).toBe(true);
+  });
+});
+
+describe('общият файл е НА КЛИЕНТ, не един за всички', () => {
+  test('заглавието носи името на клиента', () => {
+    expect(arch.masterTitleFor('Credissimo')).toBe('Всички контент планове - Credissimo');
+    expect(arch.masterTitleFor('Pulse Fitness')).toBe('Всички контент планове - Pulse Fitness');
+  });
+
+  test('двама клиенти получават два различни общи файла', () => {
+    expect(arch.masterTitleFor('Credissimo')).not.toBe(arch.masterTitleFor('GStroy'));
   });
 });
 
 describe('пътищата на сървърния архив', () => {
   test('всичко живее под Z:\\Контент планове - Архив', () => {
     expect(arch.ARCHIVE_ROOT).toBe('Z:\\Контент планове - Архив');
-    expect(arch.MASTER_FILE).toBe('Z:\\Контент планове - Архив\\Всички контент планове.txt');
   });
 });
