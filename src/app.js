@@ -182,6 +182,7 @@ app.use('/api/time', require('./routes/time'));
 app.use('/api/crm', require('./routes/crm'));
 app.use('/api/dev-queue', require('./routes/dev-queue'));
 app.use('/api/dev-chat', require('./routes/dev-chat'));
+app.use('/api/backup', require('./routes/backup'));
 // Online users endpoint
 app.get('/api/users/online', require('./middleware/auth').requireAuth, (req, res) => {
   const { getOnlineUserIds } = require('./ws/broadcast');
