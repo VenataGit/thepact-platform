@@ -22,12 +22,16 @@ function keyOrAdmin(req, res, next) {
   return requireAdmin(req, res, next);
 }
 
-// GET /api/backup/basecamp[?format=json][&comments=0]
-// Пълното изтегляне отнема ~1 минута — по-дълго от подразбиращия се timeout на
-// повечето клиенти, затото отговорът се пише чак когато всичко е събрано.
+// GET /api/backup/basecamp[?format=json][&comments=0][&fresh=1]
+// Пълното изтегляне отнема 2-3 минути (заявките към Basecamp са нарочно бавни,
+// за да не ударим лимита му) — отговорът се пише чак когато всичко е събрано.
+// Снимката се пази 15 минути, за да са HTML-ът и JSON-ът един и същи момент.
 router.get('/basecamp', keyOrAdmin, async (req, res) => {
   try {
-    const snap = await backup.collectSnapshot({ comments: req.query.comments !== '0' });
+    const snap = await backup.getSnapshot({
+      comments: req.query.comments !== '0',
+      fresh: req.query.fresh === '1',
+    });
     if (req.query.format === 'json') {
       res.set('Cache-Control', 'no-store');
       return res.json(snap);

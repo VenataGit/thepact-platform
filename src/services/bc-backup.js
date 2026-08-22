@@ -164,6 +164,37 @@ function timeFor(index, item) {
 }
 
 // ---------------------------------------------------------------------------
+// Темпо и повтаряне — Basecamp брои заявките за ЦЕЛИЯ акаунт
+// ---------------------------------------------------------------------------
+// Лимитът е около 50 заявки на 10 секунди, а по същия акаунт работят и другите
+// ни автоматики (авто-датите, снапшотът на PM агента, разширението). Първото
+// пускане на бекъпа изяде лимита и 84 карти останаха без коментари, затова:
+//   * заявките минават през шлюз — най-много една на 250 мс (~40 за 10 сек.);
+//   * ударът в тавана (429) се изчаква и се повтаря, вместо да губим данни.
+let gateFreeAt = 0;
+async function gate() {
+  const now = Date.now();
+  const at = Math.max(now, gateFreeAt);
+  gateFreeAt = at + 250;
+  if (at > now) await new Promise((r) => setTimeout(r, at - now));
+}
+
+async function withRetry(fn, attempts = 4) {
+  for (let i = 1; ; i++) {
+    try {
+      await gate();
+      return await fn();
+    } catch (e) {
+      const retriable = /\((429|500|502|503|504)\)/.test(e.message || '');
+      if (!retriable || i >= attempts) throw e;
+      // Basecamp иска ~10 сек. покой при 429; чакаме нарастващо, за да не се
+      // върнем всички наведнъж и да ударим тавана повторно.
+      await new Promise((r) => setTimeout(r, i * 5000));
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Събиране на данните
 // ---------------------------------------------------------------------------
 async function collectSnapshot(opts = {}) {
@@ -179,13 +210,13 @@ async function collectSnapshot(opts = {}) {
   const tables = dock.filter((t) => /kanban|card/i.test(t.name));
   let boards = await mapLimit(tables, 2, async (t) => {
     try {
-      const table = (await bc.authedGet(t.url, token)).json;
+      const table = (await withRetry(() => bc.authedGet(t.url, token))).json;
       const columns = await mapLimit(table.lists || [], 3, async (list) => {
         const main = list.cards_count > 0
-          ? await bc.getColumnCards(token, account, projectId, list.id) : [];
+          ? await withRetry(() => bc.getColumnCards(token, account, projectId, list.id)) : [];
         // On hold картите живеят в отделна секция на колоната със свой списък.
         const held = (list.on_hold && list.on_hold.cards_count > 0)
-          ? await bc.getColumnCards(token, account, projectId, list.on_hold.id) : [];
+          ? await withRetry(() => bc.getColumnCards(token, account, projectId, list.on_hold.id)) : [];
         return {
           id: list.id,
           title: list.title || '',
@@ -210,17 +241,17 @@ async function collectSnapshot(opts = {}) {
   const todoLists = [];
   for (const t of todosets) {
     try {
-      const set = (await bc.authedGet(t.url, token)).json;
-      const lists = await bc.getTodoLists(token, account, projectId, set.id);
+      const set = (await withRetry(() => bc.authedGet(t.url, token))).json;
+      const lists = await withRetry(() => bc.getTodoLists(token, account, projectId, set.id));
       for (const l of lists) {
-        const open = await bc.getTodos(token, account, projectId, l.id, { completed: false });
-        const done = await bc.getTodos(token, account, projectId, l.id, { completed: true });
+        const open = await withRetry(() => bc.getTodos(token, account, projectId, l.id, { completed: false }));
+        const done = await withRetry(() => bc.getTodos(token, account, projectId, l.id, { completed: true }));
         const items = [...open, ...done].map((x) => mapTodo(x, null));
         // Задачите в група не излизат от todos.json на родителския списък.
-        const groups = await bc.getTodoGroups(token, account, projectId, l.id).catch(() => []);
+        const groups = await withRetry(() => bc.getTodoGroups(token, account, projectId, l.id)).catch(() => []);
         for (const g of groups) {
-          const gOpen = await bc.getTodos(token, account, projectId, g.id, { completed: false });
-          const gDone = await bc.getTodos(token, account, projectId, g.id, { completed: true });
+          const gOpen = await withRetry(() => bc.getTodos(token, account, projectId, g.id, { completed: false }));
+          const gDone = await withRetry(() => bc.getTodos(token, account, projectId, g.id, { completed: true }));
           items.push(...[...gOpen, ...gDone].map((x) => mapTodo(x, g.title || g.name || '')));
         }
         todoLists.push({
@@ -243,9 +274,9 @@ async function collectSnapshot(opts = {}) {
   ];
   if (withComments) {
     const needing = allItems.filter((i) => i.commentsCount > 0);
-    await mapLimit(needing, 4, async (item) => {
+    await mapLimit(needing, 3, async (item) => {
       try {
-        const list = await bc.getComments(token, account, projectId, item.id);
+        const list = await withRetry(() => bc.getComments(token, account, projectId, item.id));
         item.comments = list.map((c) => ({
           id: c.id,
           author: (c.creator && c.creator.name) || '',
@@ -593,4 +624,29 @@ ${todosHtml ? `<h2>To-do списъци</h2>${todosHtml}` : ''}
 </div><script>${SCRIPT}</script></body></html>`;
 }
 
-module.exports = { collectSnapshot, renderHtml, fmtHours };
+// ---------------------------------------------------------------------------
+// Кеш — HTML-ът и JSON-ът да са ЕДНА снимка, а не две
+// ---------------------------------------------------------------------------
+// Скриптът тегли двата файла един след друг. Без кеш това значеше две пълни
+// обхождания на Basecamp в рамките на минута (двоен разход на лимита — оттам
+// дойдоха 429-ките) и два файла от два различни момента. Сега второто теглене
+// връща същата снимка. `fresh=1` изрично я презарежда.
+let cache = { at: 0, key: '', snap: null };
+let inflight = null;
+const CACHE_TTL = 15 * 60 * 1000;
+
+function getSnapshot(opts = {}) {
+  const key = opts.comments === false ? 'no-comments' : 'full';
+  if (!opts.fresh && cache.snap && cache.key === key && Date.now() - cache.at < CACHE_TTL) {
+    return Promise.resolve(cache.snap);
+  }
+  if (inflight && inflight.key === key) return inflight.promise;
+  const promise = collectSnapshot(opts).then(
+    (snap) => { cache = { at: Date.now(), key, snap }; inflight = null; return snap; },
+    (e) => { inflight = null; throw e; }
+  );
+  inflight = { key, promise };
+  return promise;
+}
+
+module.exports = { collectSnapshot, getSnapshot, renderHtml, fmtHours };
