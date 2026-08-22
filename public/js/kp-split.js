@@ -206,6 +206,27 @@ function kpsRenderWarn() {
   el.innerHTML = html;
 }
 
+// Какво стана с архива и с главната карта след създаването (Венци, 22.08.2026).
+function kpsArchiveHtml(data) {
+  var a = data.archive, m = data.movedToDone, out = '';
+  if (a) {
+    if (a.basecamp) {
+      var b = a.basecamp;
+      out += '<div class="kps-muted">Архивирано в Docs &amp; Files → папка <b>' + esc(b.folder) + '</b>' +
+        (b.folderCreated ? ' (новосъздадена)' : '') +
+        (b.docUrl ? ' → <a href="' + esc(b.docUrl) + '" target="_blank" rel="noopener">' + esc(b.doc) + '</a>' : ' → ' + esc(b.doc)) +
+        (b.master ? ' + дописано в „' + esc(b.master) + '"' : '') + '.</div>';
+    }
+    if (a.basecampError) out += '<div class="kps-err">Архивът в Basecamp не стана: ' + esc(a.basecampError) + '</div>';
+    else if (a.masterError) out += '<div class="kps-err">Общият документ не се допълни: ' + esc(a.masterError) + '</div>';
+    if (a.server) out += '<div class="kps-muted">За вътрешния сървър е пусната заявка: <code>' + esc(a.server.file) + '</code> (агентът я изпълнява до 2 мин).</div>';
+    if (a.serverError) out += '<div class="kps-err">Архивът на сървъра не се пусна: ' + esc(a.serverError) + '</div>';
+  }
+  if (m && m.ok) out += '<div class="kps-muted">Контент планът е преместен в „' + esc(m.column) + '".</div>';
+  else if (m) out += '<div class="kps-err">Контент планът НЕ отиде в Done: ' + esc(m.error) + ' — премести го ръчно.</div>';
+  return out;
+}
+
 async function kpsCreate() {
   var cardId = _kps.cardId; // the plan that was actually previewed
   var destEl = document.querySelector('input[name="kpsDest"]:checked');
@@ -229,6 +250,7 @@ async function kpsCreate() {
       else if (pu.ok) html += '<div class="kps-err">Контент планът е обновен, но ' + pu.failed.length + ' дати не намериха реда си в текста — провери ги ръчно.</div>';
       else html += '<div class="kps-err">Задачите са с новите дати, но контент планът НЕ можа да се обнови' + (pu.error ? ': ' + esc(pu.error) : '') + ' — смени датите там ръчно.</div>';
     }
+    html += kpsArchiveHtml(data);
     if ((data.unusedDates || []).length) {
       html += '<div class="kps-warn">⚠ Дати без насрочено видео: <b>' +
         data.unusedDates.map(function (d) { return esc(formatDate(d)); }).join(', ') + '</b></div>';

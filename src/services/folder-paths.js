@@ -116,11 +116,15 @@ function pathsForTitle(title) {
 
 // Един блок („Локация на файлове" + трите реда) като редове inline HTML.
 // Заглавието е оцветено, не удебелено — виж services/bc-html.js.
+//
+// Без етикети „Windows:" / „Mac:" пред пътищата (Венци, 22.08.2026): двата пътя се
+// различават достатъчно на един поглед (`Z:\…` срещу `/Volumes/…`), а етикетите само
+// удължаваха реда и пречеха при копиране.
 function blockLines(heading, f) {
   return [
     bch.mark(heading),
-    `Windows: ${bch.esc(f.win)}`,
-    `Mac: ${bch.esc(f.mac)}`,
+    bch.esc(f.win),
+    bch.esc(f.mac),
     `<a href="${bch.escAttr(f.url)}">ОТВОРИ ПАПКА</a>`,
   ];
 }

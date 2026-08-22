@@ -17,6 +17,7 @@ const { parsePlan, parsePublishDate, planHtml } = kpPlan;
 const fp = require('../services/folder-paths');
 const fq = require('../services/folder-queue');
 const bch = require('../services/bc-html');
+const kpArchive = require('../services/kp-archive');
 
 const MAX_VIDEOS = 30; // hard safety cap so a malformed plan can't flood the board
 const MAX_ATTACH_BYTES = 200 * 1024 * 1024; // skip media larger than this
@@ -134,6 +135,24 @@ function cleanDateOverrides(raw) {
 function unusedPlanDates(planDates, videoDates) {
   const used = new Set(videoDates.filter(Boolean));
   return (planDates || []).filter((d) => !used.has(d));
+}
+
+function todayIso() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// Колоната Done на Pre-Production — там отива планът, след като е разбит.
+// Basecamp маркира финалната колона с type "Kanban::Column::DoneColumn"; ако някой
+// я е кръстил другояче, падаме на заглавието.
+async function doneColumnOfPre(token, tools) {
+  const preTool = findTool(tools, /pre[\s-]*produc|предпрод/i);
+  if (!preTool) return null;
+  const table = (await bc.authedGet(preTool.url, token)).json;
+  const lists = table.lists || [];
+  const done = lists.find((l) => /DoneColumn/i.test(l.type || ''))
+    || lists.find((l) => /^\s*(done|готово|приключен[иа]?)\s*$/i.test(l.title || ''));
+  return done ? { id: done.id, title: done.title } : null;
 }
 
 // Card-title prefix from the plan card's title (strip "контент план" tails).
@@ -274,9 +293,13 @@ router.post('/create', requireAuth, async (req, res) => {
       if (now && now !== was) changed.push({ videoNumber: s.videoNumber, from: was, to: now });
     }
 
+    // Описанието на плана такова, каквото е СЕГА — след редакциите на датите. От него
+    // се прави и архивът, за да не се архивира стара версия.
+    let planNowHtml = planHtml(card);
+
     const planUpdate = { changed: changed.length, ok: false, failed: [] };
     if (changed.length) {
-      let html = planHtml(card);
+      let html = planNowHtml;
       for (const ch of changed) {
         const r = kpPlan.setPublishDateInHtml(html, ch.videoNumber, ch.to);
         if (r.ok) html = r.html;
@@ -289,6 +312,7 @@ router.post('/create', requireAuth, async (req, res) => {
         try {
           await bc.updateCard(token, account, projectId, card, { content: html });
           planUpdate.ok = true;
+          planNowHtml = html;
         } catch (e) {
           console.error('[kp-split] plan card update failed:', e.message);
           planUpdate.error = e.message;
@@ -341,6 +365,34 @@ router.post('/create', requireAuth, async (req, res) => {
         errors.push({ title, error: e.message });
       }
     }
+    // --- планът си свърши работата: архивира се и отива в Done (Венци, 22.08.2026) ---
+    // Само ако наистина са създадени задачи. Празно минаване (всичко вече съществува)
+    // значи, че планът е бил разбит по-рано — тогава не го пипаме втори път.
+    // Оригиналната карта НЕ се изпразва: архивът е копие, не преместване на текста.
+    let archive = null, movedToDone = null;
+    if (created.length) {
+      try {
+        archive = await kpArchive.archivePlan({
+          auth: { token, account }, projectId,
+          planTitle: card.title, planHtml: planNowHtml, archivedOn: todayIso(),
+        });
+      } catch (e) {
+        console.error('[kp-split] archive failed:', e.message);
+        archive = { basecampError: e.message };
+      }
+      try {
+        const doneCol = await doneColumnOfPre(token, tools);
+        if (!doneCol) movedToDone = { ok: false, error: 'не намерих колона Done в Pre-Production' };
+        else {
+          await bc.moveCardToColumn(token, account, projectId, cardId, doneCol.id, 0);
+          movedToDone = { ok: true, column: doneCol.title };
+        }
+      } catch (e) {
+        console.error('[kp-split] move plan to Done failed:', e.message);
+        movedToDone = { ok: false, error: e.message };
+      }
+    }
+
     const planDates = kpPlan.parsePlanDates(header);
     res.json({
       created, errors, skipped, truncated, mediaErrors,
@@ -348,6 +400,7 @@ router.post('/create', requireAuth, async (req, res) => {
       planUpdate,
       planDates,
       unusedDates: unusedPlanDates(planDates, sections.map((s) => dateOf[s.videoNumber])),
+      archive, movedToDone,
     });
   } catch (err) {
     console.error('[kp-split create]', err.message);

@@ -78,8 +78,8 @@ describe('вратичката — задача извън КП/РЕК/КМП', 
 
   test('вратичката дава същия блок с двата пътя и линка', () => {
     const html = fp.locationLines('Credissimo - Кастинг').join('\n');
-    expect(html).toContain('Windows: Z:\\Credissimo\\Кастинг');
-    expect(html).toContain('Mac: /Volumes/Production/Credissimo/Кастинг');
+    expect(html).toContain('Z:\\Credissimo\\Кастинг');
+    expect(html).toContain('/Volumes/Production/Credissimo/Кастинг');
     expect((html.match(/ОТВОРИ ПАПКА/g) || []).length).toBe(2);
   });
 });
@@ -124,8 +124,8 @@ describe('locationLines — подредба', () => {
   test('двата блока са слепени, както ги иска Венци', () => {
     const html = fp.locationLines('Credissimo - Тестова задача').join('\n');
     expect(html.indexOf('Локация на файлове:')).toBeLessThan(html.indexOf('Локация на експортираното видео:'));
-    expect(html).toContain('Windows: Z:\\Credissimo\\Тестова задача');
-    expect(html).toContain('Windows: Z:\\Exported Videos\\Credissimo\\Тестова задача');
+    expect(html).toContain('Z:\\Credissimo\\Тестова задача');
+    expect(html).toContain('Z:\\Exported Videos\\Credissimo\\Тестова задача');
   });
 
   test('връща редове, не блокове — вграждат се в общия Trix блок', () => {
@@ -175,9 +175,14 @@ describe('locationLines', () => {
   test('носи двата пътя и работещия линк', () => {
     expect(html).toContain('Локация на файлове');
     expect(html).toContain('Локация на експортираното видео');
-    expect(html).toContain('Windows: Z:\\Credissimo\\Реклами 8\\Видео 2 - Промоция');
-    expect(html).toContain('Mac: /Volumes/Production/Credissimo/Реклами 8/Видео 2 - Промоция');
+    expect(html).toContain('Z:\\Credissimo\\Реклами 8\\Видео 2 - Промоция');
+    expect(html).toContain('/Volumes/Production/Credissimo/Реклами 8/Видео 2 - Промоция');
     expect((html.match(/ОТВОРИ ПАПКА/g) || []).length).toBe(2);
+  });
+
+  test('пред пътищата НЯМА етикети „Windows:" / „Mac:" (Венци, 22.08.2026)', () => {
+    expect(html).not.toContain('Windows:');
+    expect(html).not.toContain('Mac:');
   });
 
   test('двете заглавия са ОЦВЕТЕНИ, а не удебелени', () => {

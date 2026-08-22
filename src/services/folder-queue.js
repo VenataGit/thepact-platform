@@ -33,6 +33,11 @@ async function ensureTable() {
     )`);
   await execute('CREATE INDEX IF NOT EXISTS folder_jobs_status_idx ON folder_jobs (status, id)');
   await execute("ALTER TABLE folder_jobs ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'video'");
+  // kind = 'text': `files_path` е път до .txt файл, а не папка (архивът на контент
+  // плановете в Z:\Контент планове - Архив). `content` е самият текст, `append_mode`
+  // казва дали файлът се дописва (общият файл) или се презаписва (файлът на плана).
+  await execute('ALTER TABLE folder_jobs ADD COLUMN IF NOT EXISTS content TEXT');
+  await execute('ALTER TABLE folder_jobs ADD COLUMN IF NOT EXISTS append_mode BOOLEAN NOT NULL DEFAULT FALSE');
   tableReady = true;
 }
 
@@ -64,6 +69,26 @@ async function enqueue({ cardId, title }) {
     return row ? row.id : null;
   } catch (e) {
     console.error('[folder-queue enqueue]', e.message);
+    return null;
+  }
+}
+
+// Заявка за текстов файл на вътрешния сървър (архивът на контент плановете).
+// Никога не хвърля — архивът не бива да събаря създаването на задачите.
+// Няма проверка за дублиране: повторното разбиване на същия план трябва да
+// презапише файла с последния текст.
+async function enqueueText({ title, filePath, content, append }) {
+  try {
+    if (!filePath || !/\.txt$/i.test(filePath)) return null;
+    await ensureTable();
+    const row = await queryOne(
+      `INSERT INTO folder_jobs (title, kind, files_path, export_path, content, append_mode)
+       VALUES ($1,'text',$2,'',$3,$4) RETURNING id`,
+      [String(title || filePath).slice(0, 300), filePath, String(content || ''), !!append]
+    );
+    return row ? row.id : null;
+  } catch (e) {
+    console.error('[folder-queue enqueueText]', e.message);
     return null;
   }
 }
@@ -107,7 +132,14 @@ async function requeueStale() {
 
 async function recent(limit = 40) {
   await ensureTable();
-  return query('SELECT * FROM folder_jobs ORDER BY id DESC LIMIT $1', [Math.min(200, Math.max(1, limit))]);
+  // Без `content` — при текстовите заявки той е цял контент план и няма работа в
+  // диагностичния списък.
+  return query(
+    `SELECT id, bc_card_id, title, kind, files_path, export_path, append_mode,
+            status, attempts, result, error, created_at, updated_at
+       FROM folder_jobs ORDER BY id DESC LIMIT $1`,
+    [Math.min(200, Math.max(1, limit))]
+  );
 }
 
-module.exports = { ensureTable, enqueue, peekNext, claimNext, complete, requeueStale, recent };
+module.exports = { ensureTable, enqueue, enqueueText, peekNext, claimNext, complete, requeueStale, recent };

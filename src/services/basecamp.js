@@ -292,6 +292,59 @@ async function updateCard(token, account, projectId, card, fields = {}) {
   return r.json();
 }
 
+// ---- Docs & Files (vaults) — архивът на контент плановете ----
+// Едно „vault" е една папка. Папките са вложени: подпапките на дадена папка се
+// четат/създават на .../vaults/{id}/vaults.json, а документите в нея — на
+// .../vaults/{id}/documents.json.
+
+// Подпапките на една папка.
+async function getVaultFolders(token, account, projectId, vaultId) {
+  return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/vaults/${vaultId}/vaults.json`, token, 20);
+}
+
+// Нова подпапка. POST .../vaults/{vaultId}/vaults.json body { title }.
+async function createVaultFolder(token, account, projectId, vaultId, title) {
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/vaults/${vaultId}/vaults.json`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ title }),
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp create folder failed (${r.status}): ${b.slice(0, 200)}`); }
+  return r.json();
+}
+
+// Документите в една папка.
+async function getVaultDocuments(token, account, projectId, vaultId) {
+  return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/vaults/${vaultId}/documents.json`, token, 40);
+}
+
+async function getDocument(token, account, projectId, documentId) {
+  return (await authedGet(`${API_BASE}/${account}/buckets/${projectId}/documents/${documentId}.json`, token)).json;
+}
+
+// Нов документ. POST .../vaults/{vaultId}/documents.json body { title, content, status }.
+// Без status: 'active' документът остава чернова и не се вижда в папката.
+async function createDocument(token, account, projectId, vaultId, { title, content }) {
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/vaults/${vaultId}/documents.json`, {
+    method: 'POST',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ title, content, status: 'active' }),
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp create document failed (${r.status}): ${b.slice(0, 200)}`); }
+  return r.json();
+}
+
+// PUT .../documents/{id}.json — пълна замяна, затова title се праща винаги.
+async function updateDocument(token, account, projectId, documentId, { title, content }) {
+  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/documents/${documentId}.json`, {
+    method: 'PUT',
+    headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ title, content }),
+  });
+  if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp update document failed (${r.status}): ${b.slice(0, 200)}`); }
+  return r.json();
+}
+
 // Create a step (to-do) on a card. POST .../card_tables/cards/{cardId}/steps.json
 async function createStep(token, account, projectId, cardId, { title, due_on, assignee_ids } = {}) {
   const body = { title };
@@ -501,6 +554,12 @@ module.exports = {
   createCard,
   updateCard,
   createStep,
+  getVaultFolders,
+  createVaultFolder,
+  getVaultDocuments,
+  getDocument,
+  createDocument,
+  updateDocument,
   getProjectPeople,
   getProjects,
   getComments,
