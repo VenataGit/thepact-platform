@@ -435,6 +435,7 @@ button{background:var(--green);color:#fff;border:0;border-radius:20px;padding:7p
 font-size:13px;font-weight:600;cursor:pointer;margin-left:6px}
 .hidden{display:none!important}
 .note{color:var(--dim);font-size:12.5px}
+.gone{color:var(--dim);font-size:12px;font-style:italic}
 @media print{
  body{background:#fff;color:#000}
  .tools,button{display:none}
@@ -468,6 +469,17 @@ const SCRIPT = `
  document.getElementById('close').onclick=function(){
   cards.forEach(function(c){c.open=false});
  };
+ // Снимките са по сървърите на Basecamp. Ако файлът се чете офлайн (или Basecamp
+ // вече го няма), вместо счупена иконка застава честен надпис.
+ document.addEventListener('error',function(e){
+  var t=e.target;
+  if(!t||t.tagName!=='IMG'||t.dataset.gone)return;
+  t.dataset.gone='1';
+  var n=document.createElement('span');
+  n.className='gone';
+  n.textContent='[снимка от Basecamp — не се зарежда]';
+  if(t.parentNode)t.parentNode.replaceChild(n,t);
+ },true);
 })();
 `;
 
@@ -531,7 +543,7 @@ function renderItem(item, ctx) {
   const link = item.url ? ` <a href="${esc(item.url)}">отвори в Basecamp ↗</a>` : '';
   return `<details class="${cls.join(' ')}" data-s="${esc(haystack)}">`
     + `<summary><div class="ttl">${esc(item.title || '(без заглавие)')}</div>`
-    + `<div class="meta">${tags.join('')}</div>`
+    + (tags.length ? `<div class="meta">${tags.join('')}</div>` : '')
     + `<div class="meta">${meta.join(' · ')}${link}</div></summary>`
     + `<div class="body">${parts.join('')}</div></details>`;
 }
