@@ -143,16 +143,20 @@ function todayIso() {
 }
 
 // Колоната Done на Pre-Production — там отива планът, след като е разбит.
-// Basecamp маркира финалната колона с type "Kanban::Column::DoneColumn"; ако някой
-// я е кръстил другояче, падаме на заглавието.
+// Разпознаването живее в services/basecamp.js (pickDoneColumn). Тук освен колоната
+// връщаме и списъка с всички колони, за да го каже съобщението за грешка, вместо да
+// остане глухо „не намерих Done".
 async function doneColumnOfPre(token, tools) {
   const preTool = findTool(tools, /pre[\s-]*produc|предпрод/i);
-  if (!preTool) return null;
+  if (!preTool) return { column: null, columns: [], board: null };
   const table = (await bc.authedGet(preTool.url, token)).json;
   const lists = table.lists || [];
-  const done = lists.find((l) => /DoneColumn/i.test(l.type || ''))
-    || lists.find((l) => /^\s*(done|готово|приключен[иа]?)\s*$/i.test(l.title || ''));
-  return done ? { id: done.id, title: done.title } : null;
+  const done = bc.pickDoneColumn(lists);
+  return {
+    column: done ? { id: done.id, title: done.title } : null,
+    columns: lists.map((l) => l.title || '?'),
+    board: preTool.title || table.title || 'Pre-Production',
+  };
 }
 
 // Card-title prefix from the plan card's title (strip "контент план" tails).
@@ -366,11 +370,17 @@ router.post('/create', requireAuth, async (req, res) => {
       }
     }
     // --- планът си свърши работата: архивира се и отива в Done (Венци, 22.08.2026) ---
-    // Само ако наистина са създадени задачи. Празно минаване (всичко вече съществува)
-    // значи, че планът е бил разбит по-рано — тогава не го пипаме втори път.
+    // Условието е „планът е разбит ДОКРАЙ", а не „създадени са нови карти". Разликата
+    // има значение при повторно пускане: тогава всички задачи вече съществуват, нищо
+    // не се създава — и с предишното условие (created.length) планът си оставаше в
+    // „В продукция", което Венци видя на живо. Пропаднала ли е поне една задача обаче,
+    // планът НЕ се закрива — има какво да се доправи.
+    // Двете стъпки са идемпотентни: архивният документ се презаписва, а местене в
+    // колоната, в която картата вече стои, е без ефект.
     // Оригиналната карта НЕ се изпразва: архивът е копие, не преместване на текста.
+    const fullySplit = sections.length > 0 && errors.length === 0;
     let archive = null, movedToDone = null;
-    if (created.length) {
+    if (fullySplit) {
       try {
         archive = await kpArchive.archivePlan({
           auth: { token, account }, projectId,
@@ -381,16 +391,25 @@ router.post('/create', requireAuth, async (req, res) => {
         archive = { basecampError: e.message };
       }
       try {
-        const doneCol = await doneColumnOfPre(token, tools);
-        if (!doneCol) movedToDone = { ok: false, error: 'не намерих колона Done в Pre-Production' };
-        else {
-          await bc.moveCardToColumn(token, account, projectId, cardId, doneCol.id, 0);
-          movedToDone = { ok: true, column: doneCol.title };
+        const done = await doneColumnOfPre(token, tools);
+        if (!done.column) {
+          movedToDone = {
+            ok: false,
+            error: 'не намерих колона Done в „' + (done.board || 'Pre-Production') + '"'
+              + (done.columns.length ? ' — колоните са: ' + done.columns.join(', ') : ''),
+          };
+        } else if (String((card.parent && card.parent.id) || '') === String(done.column.id)) {
+          movedToDone = { ok: true, column: done.column.title, already: true };
+        } else {
+          await bc.moveCardToColumn(token, account, projectId, cardId, done.column.id, 0);
+          movedToDone = { ok: true, column: done.column.title };
         }
       } catch (e) {
         console.error('[kp-split] move plan to Done failed:', e.message);
         movedToDone = { ok: false, error: e.message };
       }
+    } else if (errors.length) {
+      movedToDone = { ok: false, error: errors.length + ' задачи не се създадоха — планът остава отворен, докато не минат' };
     }
 
     const planDates = kpPlan.parsePlanDates(header);

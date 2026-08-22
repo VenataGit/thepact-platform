@@ -292,6 +292,17 @@ async function updateCard(token, account, projectId, card, fields = {}) {
   return r.json();
 }
 
+// Финалната колона на една card table. Basecamp я маркира с type
+// "Kanban::Column::DoneColumn" — това е източникът на истината, защото името ѝ е
+// свободно („Done", „Done - Pre-Production", „Готово"). Затова заглавието е само
+// резерва и се търси СВОБОДНО в него, не с точно съвпадение.
+function pickDoneColumn(lists) {
+  const l = lists || [];
+  return l.find((c) => /DoneColumn/i.test(c.type || ''))
+    || l.find((c) => /\bdone\b|готов|приключ/i.test(c.title || ''))
+    || null;
+}
+
 // ---- Docs & Files (vaults) — архивът на контент плановете ----
 // Едно „vault" е една папка. Папките са вложени: подпапките на дадена папка се
 // четат/създават на .../vaults/{id}/vaults.json, а документите в нея — на
@@ -554,6 +565,7 @@ module.exports = {
   createCard,
   updateCard,
   createStep,
+  pickDoneColumn,
   getVaultFolders,
   createVaultFolder,
   getVaultDocuments,

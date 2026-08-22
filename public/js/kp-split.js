@@ -223,8 +223,12 @@ function kpsArchiveHtml(data) {
       (a.server.masterFile ? ' и <code>' + esc(a.server.masterFile) + '</code>' : '') + ' (агентът ги изпълнява до 2 мин).</div>';
     if (a.serverError) out += '<div class="kps-err">Архивът на сървъра не се пусна: ' + esc(a.serverError) + '</div>';
   }
-  if (m && m.ok) out += '<div class="kps-muted">Контент планът е преместен в „' + esc(m.column) + '".</div>';
-  else if (m) out += '<div class="kps-err">Контент планът НЕ отиде в Done: ' + esc(m.error) + ' — премести го ръчно.</div>';
+  if (m && m.ok) {
+    out += '<div class="kps-muted">Контент планът ' + (m.already ? 'вече беше в' : 'е преместен в') +
+      ' „' + esc(m.column) + '".</div>';
+  } else if (m) {
+    out += '<div class="kps-err">Контент планът НЕ отиде в Done: ' + esc(m.error) + ' — премести го ръчно.</div>';
+  }
   return out;
 }
 
