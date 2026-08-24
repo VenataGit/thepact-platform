@@ -412,7 +412,11 @@ async function runPart(part, f, limit, opts) {
 
 async function loadSource(key, f, limit, opts) {
   return safe(key, async () => {
-    const lists = await Promise.all(SOURCES[key].parts.map((p) => runPart(p, f, limit, opts)));
+    // Всяко парче е подсигурено ПООТДЕЛНО: слетите табове (карти + коментари,
+    // срокове от платформата + срокове от Basecamp) не бива да остават празни,
+    // защото едната им таблица е паднала.
+    const lists = await Promise.all(
+      SOURCES[key].parts.map((p) => safe(key, () => runPart(p, f, limit, opts))));
     const all = [].concat(...lists);
     // Слетите източници (карти + коментари) се подреждат и режат тук, за да не
     // върнат двойно повече редове от поисканите.
