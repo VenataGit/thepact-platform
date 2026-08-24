@@ -134,6 +134,90 @@ describe('logCardTextChange', () => {
   });
 });
 
+// ------------------------------------------------------------------ датите
+
+describe('logCardDateChange', () => {
+  // Списъчният payload на картата — той носи и due_on, и steps.
+  const card = (over) => ({
+    id: 77, title: 'Fornetti — Видео 3', app_url: 'https://3.basecamp.com/c/77',
+    updated_at: '2026-08-20T09:00:00.000Z', due_on: '2026-09-01', steps: [], ...over,
+  });
+  const step = (title, due) => ({ title, due_on: due, completed: false, assignees: [] });
+
+  test('нова карта (няма предишен снапшот) не се брои за промяна', async () => {
+    expect(await ctl.logCardDateChange(AUTH, card(), null, META)).toBe(0);
+    expect(insertedRows()).toHaveLength(0);
+  });
+
+  test('същите дати → нищо не се записва', async () => {
+    const prev = { due_on: '2026-09-01', steps: [step('Монтаж', '2026-08-28')] };
+    const n = await ctl.logCardDateChange(AUTH, card({ steps: [step('Монтаж', '2026-08-28')] }), prev, META);
+    expect(n).toBe(0);
+  });
+
+  test('сменен Due on → ред със старата и новата дата', async () => {
+    const n = await ctl.logCardDateChange(AUTH, card({ due_on: '2026-09-05' }), { due_on: '2026-09-01', steps: [] }, META);
+    expect(n).toBe(1);
+    const r = insertedRows()[0];
+    expect(r[5]).toBe('due_on');      // field
+    expect(r[6]).toBe('');            // step_title
+    expect(r[7]).toBe('2026-09-01');  // old
+    expect(r[8]).toBe('2026-09-05');  // new
+  });
+
+  test('pg DATE (обект Date) се сравнява с низа от Basecamp без лъжлива промяна', async () => {
+    const prev = { due_on: new Date(2026, 8, 1), steps: [] }; // локална полунощ, 01.09.2026
+    expect(await ctl.logCardDateChange(AUTH, card({ due_on: '2026-09-01' }), prev, META)).toBe(0);
+  });
+
+  test('махнат Due on се записва като „без дата"', async () => {
+    const n = await ctl.logCardDateChange(AUTH, card({ due_on: null }), { due_on: '2026-09-01', steps: [] }, META);
+    expect(n).toBe(1);
+    expect(insertedRows()[0][8]).toBe('');
+  });
+
+  test('сменена дата на стъпка → ред със заглавието на стъпката', async () => {
+    bc.getRecordingEvents.mockResolvedValue([
+      { created_at: '2026-08-20T09:00:03.000Z', creator: { id: 4, name: 'Венци' } },
+    ]);
+    const prev = { due_on: '2026-09-01', steps: [step('Снимане', '2026-08-25'), step('Монтаж', '2026-08-28')] };
+    const now = card({ steps: [step('Снимане', '2026-08-26'), step('Монтаж', '2026-08-28')] });
+    const n = await ctl.logCardDateChange(AUTH, now, prev, META);
+    expect(n).toBe(1);
+    const r = insertedRows()[0];
+    expect(r[5]).toBe('step_due');
+    expect(r[6]).toBe('Снимане');
+    expect(r[7]).toBe('2026-08-25');
+    expect(r[8]).toBe('2026-08-26');
+    expect(r[10]).toBe('Венци'); // who_name
+  });
+
+  test('нова стъпка с дата не е смяна на дата', async () => {
+    const prev = { due_on: '2026-09-01', steps: [step('Снимане', '2026-08-25')] };
+    const now = card({ steps: [step('Снимане', '2026-08-25'), step('Монтаж', '2026-08-28')] });
+    expect(await ctl.logCardDateChange(AUTH, now, prev, META)).toBe(0);
+  });
+
+  test('липсващ списък със стъпки не минава за изтрити дати', async () => {
+    const prev = { due_on: '2026-09-01', steps: [step('Снимане', '2026-08-25')] };
+    const now = card({ steps: undefined });
+    expect(await ctl.logCardDateChange(AUTH, now, prev, META)).toBe(0);
+  });
+
+  test('две стъпки с еднакво заглавие се пропускат — не се знае коя с коя', async () => {
+    const prev = { due_on: '2026-09-01', steps: [step('Монтаж', '2026-08-25'), step('Монтаж', '2026-08-28')] };
+    const now = card({ steps: [step('Монтаж', '2026-08-26'), step('Монтаж', '2026-08-29')] });
+    expect(await ctl.logCardDateChange(AUTH, now, prev, META)).toBe(0);
+  });
+
+  test('няколко мръднати дати наведнъж → само едно питане кой', async () => {
+    const prev = { due_on: '2026-09-01', steps: [step('Снимане', '2026-08-25'), step('Монтаж', '2026-08-28')] };
+    const now = card({ due_on: '2026-09-04', steps: [step('Снимане', '2026-08-26'), step('Монтаж', '2026-08-29')] });
+    expect(await ctl.logCardDateChange(AUTH, now, prev, META)).toBe(3);
+    expect(bc.getRecordingEvents).toHaveBeenCalledTimes(1);
+  });
+});
+
 // --------------------------------------------------------------- авторът
 
 describe('кой е променил', () => {

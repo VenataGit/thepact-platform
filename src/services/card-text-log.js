@@ -1,8 +1,12 @@
-// Дневник на текста по Basecamp картите — какъв е бил и с какво е заменен.
+// Дневник на промените по Basecamp картите — какво е било и с какво е заменено.
 //
-// Basecamp не пази версии на текста на картата: отвориш ли я, виждаш само сегашния
-// вариант. Затова при всеки снапшот (pm-agent/snapshot.js, на 15 минути) сравняваме
-// новия текст със записания и при разлика оставяме ред тук.
+// Basecamp не пази версии: отвориш ли картата, виждаш само сегашния ѝ вид. Затова
+// при всеки снапшот (pm-agent/snapshot.js, на 15 минути) сравняваме прясната карта
+// със записаната и при разлика оставяме ред тук.
+//
+// Два вида редове, разделени по колоната `field`:
+//   * текст   — `content` / `title` (таб „Текст" в История);
+//   * дати    — `due_on` / `step_due` (таб „Срокове").
 //
 // Пазим САМО текста. Снимките и видеата от картата не се пазят — на тяхно място
 // остава бележка „[снимка]" / „[видео]", колкото да се вижда, че ги е имало.
@@ -30,6 +34,7 @@ function ensureSchema() {
         board_title   TEXT NOT NULL DEFAULT '',
         app_url       TEXT NOT NULL DEFAULT '',
         field         TEXT NOT NULL DEFAULT 'content',
+        step_title    TEXT NOT NULL DEFAULT '',
         old_text      TEXT NOT NULL DEFAULT '',
         new_text      TEXT NOT NULL DEFAULT '',
         who_id        BIGINT,
@@ -37,6 +42,10 @@ function ensureSchema() {
         bc_updated_at TIMESTAMPTZ,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`)
+      // `step_title` дойде по-късно (дневникът на датите) — CREATE TABLE IF NOT
+      // EXISTS не добавя колони към вече съществуваща таблица.
+      .then(() => execute(`ALTER TABLE bc_card_text_log
+        ADD COLUMN IF NOT EXISTS step_title TEXT NOT NULL DEFAULT ''`))
       .then(() => Promise.all([
         execute('CREATE INDEX IF NOT EXISTS idx_bc_card_text_log_created ON bc_card_text_log (created_at DESC)'),
         execute('CREATE INDEX IF NOT EXISTS idx_bc_card_text_log_card ON bc_card_text_log (card_id, created_at DESC)'),
@@ -151,6 +160,99 @@ async function logCardTextChange(auth, card, prev, meta) {
   return changes.length;
 }
 
+// --------------------------------------------------------------------- датите
+
+// Датите идват от две места и в различен вид: Basecamp ги дава като „2026-08-30",
+// а собственият ни снапшот връща `due_on` като pg DATE → JS Date на ЛОКАЛНА
+// полунощ. Компонентите се четат локално — през UTC на сървър извън UTC би излязъл
+// предният ден и всеки sync щеше да „вижда" промяна.
+function dateKey(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (v instanceof Date) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`;
+  }
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(v));
+  return m ? m[1] : String(v).trim();
+}
+
+// Стъпките (subtasks) нямат стабилен идентификатор в снапшота — сравняват се по
+// заглавие. Повтарящо се заглавие се изхвърля: не се знае коя с коя се сравнява,
+// а грешно съпоставена двойка би раждала измислена „промяна" при всеки sync.
+function stepDues(steps) {
+  const dues = new Map();
+  const dupes = new Set();
+  for (const s of Array.isArray(steps) ? steps : []) {
+    const title = String((s && s.title) || '').trim();
+    if (!title) continue;
+    if (dues.has(title)) { dupes.add(title); continue; }
+    dues.set(title, dateKey(s && s.due_on));
+  }
+  dupes.forEach((t) => dues.delete(t));
+  return dues;
+}
+
+/**
+ * Сравнява датите на картата с предишния снапшот и записва разликите.
+ *
+ * Хваща „Due on" на самата карта и датите по стъпките ѝ. Викаме го със СПИСЪЧНИЯ
+ * payload на картата (той вече носи и `due_on`, и `steps`), а не с пълната карта:
+ * смяна на дата по стъпка невинаги вдига `updated_at` на картата и иначе би
+ * останала незабелязана.
+ *
+ * Авторът се търси както при текста — от събитията на картата. Ако Basecamp не
+ * върне подходящо събитие, редът пак се записва, само без име.
+ *
+ * @param auth   Basecamp токен (същият, с който върви снапшотът)
+ * @param card   картата от Basecamp (списъчен payload или пълна)
+ * @param prev   редът от bc_cards_snap отпреди upsert-а ({ due_on, steps }) или null
+ * @param meta   { projectId, boardTitle }
+ * @returns брой записани реда
+ */
+async function logCardDateChange(auth, card, prev, meta) {
+  if (!prev) return 0; // нова карта — няма предишна дата, която да е сменена
+
+  const changes = [];
+
+  const oldDue = dateKey(prev.due_on);
+  const newDue = dateKey(card.due_on);
+  if (oldDue !== newDue) changes.push({ field: 'due_on', step: '', old: oldDue, new: newDue });
+
+  // Липсващ `steps` в payload-а НЕ значи „изтрити дати" — сравнява се само когато
+  // и двете страни наистина носят списък.
+  if (Array.isArray(card.steps) && Array.isArray(prev.steps)) {
+    const before = stepDues(prev.steps);
+    stepDues(card.steps).forEach((now, title) => {
+      // Стъпка, която я е нямало преди, е нова стъпка, а не сменена дата.
+      if (!before.has(title) || before.get(title) === now) return;
+      changes.push({ field: 'step_due', step: title, old: before.get(title), new: now });
+    });
+  }
+
+  if (!changes.length) return 0;
+
+  await ensureSchema();
+  // Едно питане за автора, дори когато са мръднати няколко дати наведнъж.
+  const who = await findEditor(auth, meta.projectId, card.id, card.updated_at);
+  const title = String(card.title || '').trim();
+
+  for (const ch of changes) {
+    await execute(
+      `INSERT INTO bc_card_text_log
+         (card_id, project_id, card_title, board_title, app_url, field, step_title,
+          old_text, new_text, who_id, who_name, bc_updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [
+        card.id, meta.projectId || null, title, meta.boardTitle || '',
+        bc.normalizeAppUrl(card.app_url || ''), ch.field, ch.step.slice(0, 500),
+        ch.old, ch.new, who ? who.id : null, who ? who.name : '',
+        card.updated_at || null,
+      ]
+    );
+  }
+  return changes.length;
+}
+
 // Списъкът за админ панела. `withText: false` връща само резюмето — обединеният
 // таб на „История" не бива да мъкне мегабайти стар текст.
 async function recentTextChanges(limit, withText) {
@@ -160,9 +262,13 @@ async function recentTextChanges(limit, withText) {
             who_name, bc_updated_at,
             ${withText ? 'old_text, new_text,' : ''}
             LENGTH(old_text) AS old_len, LENGTH(new_text) AS new_len
-       FROM bc_card_text_log ORDER BY id DESC LIMIT $1`,
+       FROM bc_card_text_log
+      WHERE field IN ('content', 'title')
+      ORDER BY id DESC LIMIT $1`,
     [limit]
   );
 }
 
-module.exports = { plainText, logCardTextChange, recentTextChanges, ensureSchema, MAX_TEXT };
+module.exports = {
+  plainText, logCardTextChange, logCardDateChange, recentTextChanges, ensureSchema, MAX_TEXT,
+};

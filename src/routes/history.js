@@ -176,6 +176,8 @@ const P_TEXT = {
                   t.field, t.who_name AS who,
                   ${o.withText ? 't.old_text, t.new_text,' : ''}
                   LENGTH(t.old_text) AS old_len, LENGTH(t.new_text) AS new_len`,
+  // Същият дневник пази и смяната на датите — тя обаче е за таба „Срокове".
+  where: `t.field IN ('content', 'title')`,
   ts: 't.created_at',
   who: 't.who_name',
   title: 't.card_title',
@@ -313,6 +315,36 @@ const P_DATES = {
   }),
 };
 
+// Датите по Basecamp картите — „Due on" и датите по стъпките (subtasks). Стоят в
+// същия дневник като текста (bc_card_text_log), защото се засичат по същия начин:
+// сравнение на прясната карта с предишния снапшот. Тук се четат отделно, за да
+// излизат при другите местени дати, а не в таба „Текст".
+const P_BC_DATES = {
+  prepare: () => cardTextLog.ensureSchema(),
+  from: 'bc_card_text_log b',
+  select: `b.id, b.created_at AS ts, b.card_id, b.card_title, b.board_title, b.app_url,
+           b.field, b.step_title, b.old_text AS old_value, b.new_text AS new_value, b.who_name AS who`,
+  where: `b.field IN ('due_on', 'step_due')`,
+  ts: 'b.created_at',
+  who: 'b.who_name',
+  title: 'b.card_title',
+  search: ['b.board_title', 'b.step_title'],
+  map: (r) => ({
+    source: 'dates', key: `bcdate-${r.id}`, icon: '📆', ts: r.ts,
+    who: r.who || 'не се знае', avatar: '',
+    action: r.field === 'step_due'
+      ? 'Смени датата на стъпка в Basecamp'
+      : 'Смени крайния срок в Basecamp',
+    title: r.card_title || (r.card_id ? `Карта ${r.card_id}` : ''),
+    url: r.app_url || '',
+    details: [
+      r.step_title ? `стъпка „${r.step_title}"` : '',
+      `${dmy(r.old_value) || '(без дата)'} → ${dmy(r.new_value) || '(без дата)'}`,
+      r.board_title,
+    ].filter(Boolean).join(' · '),
+  }),
+};
+
 const P_CRM = {
   from: `crm_events ce
          LEFT JOIN users u ON u.id = ce.user_id
@@ -342,7 +374,7 @@ const SOURCES = {
   kp: { icon: '📋', label: 'КП', parts: [P_KP] },
   calendar: { icon: '📅', label: 'Календар', parts: [P_CALENDAR] },
   cards: { icon: '🗂', label: 'Карти', parts: [P_CARD_EVENTS, P_CARD_COMMENTS] },
-  dates: { icon: '📆', label: 'Срокове', parts: [P_DATES] },
+  dates: { icon: '📆', label: 'Срокове', parts: [P_DATES, P_BC_DATES] },
   crm: { icon: '💼', label: 'CRM', parts: [P_CRM], needsCrm: true },
 };
 

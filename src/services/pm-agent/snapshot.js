@@ -193,6 +193,7 @@ async function syncTeamCards(auth, { deep = false } = {}) {
   const seen = [];
   let commentsFetched = 0;
   let textChanges = 0;
+  let dateChanges = 0;
 
   for (const t of tools) {
     const table = (await bc.authedGet(t.url, auth.token)).json;
@@ -211,11 +212,30 @@ async function syncTeamCards(auth, { deep = false } = {}) {
           // Списъчният payload НЕ гарантира content/comments_count → при нова или
           // променена карта (updated_at) теглим пълната карта с getCard.
           const prev = await queryOne(
-            'SELECT bc_updated_at, comments_count, title, content FROM bc_cards_snap WHERE card_id = $1', [c.id]);
+            `SELECT bc_updated_at, comments_count, title, content, due_on, steps
+               FROM bc_cards_snap WHERE card_id = $1`, [c.id]);
           const listUpdated = c.updated_at ? new Date(c.updated_at).toISOString() : '';
           const prevUpdated = prev && prev.bc_updated_at ? new Date(prev.bc_updated_at).toISOString() : '';
           const changed = !prev || listUpdated !== prevUpdated;
-          if (!changed && !deep) continue; // нищо ново по картата
+
+          // Дневникът на датите („Due on" + датите по стъпките) се сверява ВИНАГИ и
+          // от списъчния payload — той вече носи due_on и steps, тоест не струва
+          // нито една допълнителна заявка. Причината да не се пази за после:
+          // смяна на дата по стъпка невинаги вдига `updated_at` на картата, така че
+          // проверката „нищо ново" би я изпуснала завинаги.
+          let dateLogged = 0;
+          if (dateChanges < TEXT_LOG_MAX_PER_SYNC) {
+            try {
+              dateLogged = await cardTextLog.logCardDateChange(auth, c, prev, { projectId, boardTitle });
+              dateChanges += dateLogged;
+            } catch (err) {
+              console.warn('[pm-agent] date log failed:', c.id, err.message);
+            }
+          }
+          // Засечена ли е промяна по датите, картата задължително се преписва —
+          // иначе снапшотът остава на старата дата и същата промяна се записва пак
+          // на всеки 15 минути.
+          if (!changed && !deep && !dateLogged) continue; // нищо ново по картата
           let full = c;
           let fullFetched = false;
           try {
@@ -224,6 +244,10 @@ async function syncTeamCards(auth, { deep = false } = {}) {
           } catch (err) {
             console.warn('[pm-agent] getCard failed:', c.id, err.message);
           }
+          // Провали ли се getCard, остава списъчният payload — а той може да е без
+          // `content`. Тогава се пази вече записаният текст: празно поле в снапшота
+          // би минало за „изтрит текст" и на следващия sync би родило лъжлив запис.
+          if (!fullFetched && prev && full.content == null) full = { ...full, content: prev.content };
           // Дневникът на текста — ПРЕДИ upsert-а, докато старата версия още стои в
           // снапшота. Само при успешен getCard: списъчният payload няма content и
           // празното поле би минало за „изтрит текст".
@@ -264,7 +288,7 @@ async function syncTeamCards(auth, { deep = false } = {}) {
       [projectId, seen]
     );
   }
-  return { cards: seen.length, comments: commentsFetched, textChanges };
+  return { cards: seen.length, comments: commentsFetched, textChanges, dateChanges };
 }
 
 // Клиентските проекти: съобщения + отворени задачи (+ campfire периодично).
