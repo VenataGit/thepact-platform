@@ -42,7 +42,7 @@ describe('разпознаване на заглавия', () => {
 
 describe('префикси на дъските', () => {
   test('новият префикс е пръв, старият остава резервен', () => {
-    expect(steps.prefixesForBoard('Pre-Production')).toEqual(['pre-production', 'измисляне']);
+    expect(steps.prefixesForBoard('Pre-Production')).toEqual(['pre-production', 'измисляне', 'контент криейтър']);
     expect(steps.prefixesForBoard('Production')).toEqual(['production', 'видеограф']);
     expect(steps.prefixesForBoard('Акаунт Мениджмънт')).toEqual(['project management', 'pm']);
   });

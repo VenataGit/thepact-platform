@@ -58,17 +58,30 @@ async function loadStepRules() {
   return rules;
 }
 
-// Първата НЕзавършена стъпка с дата, чието заглавие започва с някой от префиксите.
-// Редът на префиксите е важен: новото име се пробва първо, старите са резервни.
+// Стъпката на дъската — тази, чието заглавие започва с някой от префиксите. Редът на
+// префиксите е важен: новото име се пробва първо, старите са резервни.
+//
+// Правилото (Венци, 24.08.2026): Due On на картата значи САМО „дата за публикуване" и
+// вече не е срок на никой отдел — всяка колона следи своята стъпка. Затова:
+//   * има чакаща стъпка с дата → нейната дата;
+//   * стъпката е чекната → пак нейната дата, но отбелязана като готова (done), за да е
+//     неутрална на цвят и да не се брои за просрочена — отделът е приключил;
+//   * стъпката я има, но е БЕЗ дата → картата остава без дата („Няма дата"), вместо да
+//     показва датата за публикуване като чужд срок;
+//   * дъската изобщо няма такава стъпка (обикновена задача, не видео) → пада на Due On.
 function stepDueOf(stepList, prefixes) {
   const pfx = (prefixes || []).filter(Boolean);
   if (!pfx.length) return null;
-  const pending = (stepList || []).filter(
-    (x) => !x.completed && x.due_on && String(x.title || '').trim()
-  );
+  const titled = (stepList || []).filter((x) => String(x.title || '').trim());
   for (const p of pfx) {
-    const s = pending.find((x) => String(x.title).trim().toLowerCase().startsWith(p));
-    if (s) return { due: s.due_on, title: s.title };
+    const mine = titled.filter((x) => String(x.title).trim().toLowerCase().startsWith(p));
+    if (!mine.length) continue;
+    const pending = mine.find((x) => !x.completed && x.due_on);
+    if (pending) return { due: pending.due_on, title: pending.title, done: false };
+    const done = mine.find((x) => x.completed && x.due_on);
+    if (done) return { due: done.due_on, title: done.title, done: true };
+    // Стъпката съществува, но е без дата — нарочно връщаме „без дата", не Due On.
+    return { due: null, title: mine[0].title, done: mine.every((x) => x.completed) };
   }
   return null;
 }
@@ -92,7 +105,12 @@ function mapCard(c, stepPrefix) {
     url: bc.normalizeAppUrl(c.app_url), // 3.basecamp.com — там са сесията и тъмната тема
     position: c.position,
   };
-  if (sd) { out.dueFromStep = true; out.dueStep = sd.title; out.cardDueOn = c.due_on; }
+  if (sd) {
+    out.dueFromStep = true;
+    out.dueStep = sd.title;
+    out.dueStepDone = !!sd.done; // отделът е приключил — датата не е чакащ срок
+    out.cardDueOn = c.due_on;
+  }
   if (isPriority(c.steps)) out.priority = true;
   return out;
 }
@@ -299,13 +317,17 @@ async function aggregateAll(token, account) {
         const vNum = videoNumberOf(card.title);
         const isVideo = vNum != null;
         const isDone = info.isDone;
-        const overdue = !!(card.dueOn && card.dueOn < today && !card.completed && !card.onHold && !isDone);
-        const soon = !overdue && !!(card.dueOn && card.dueOn >= today && card.dueOn <= soonEdge && !card.completed && !card.onHold && !isDone);
+        // Чекната стъпка = отделът е приключил; датата ѝ вече не е чакащ срок, затова
+        // не вдига нито „просрочена", нито „наближава".
+        const pending = !card.completed && !card.onHold && !isDone && !card.dueStepDone;
+        const overdue = !!(card.dueOn && card.dueOn < today && pending);
+        const soon = !overdue && !!(card.dueOn && card.dueOn >= today && card.dueOn <= soonEdge && pending);
         const entry = {
           id: card.id, title: card.title, videoNumber: vNum,
           board: board.title, boardId: board.id, boardRole: role,
           column: info.title, isDoneColumn: isDone,
           dueOn: card.dueOn || null, completed: !!card.completed, onHold: !!card.onHold,
+          dueStepDone: !!card.dueStepDone,
           overdue, soon, url: card.url,
           // Датата на публикуване = собственият Due на картата. dueOn може да е изместен
           // към стъпка (bc_step_date_rules), затова тук винаги връщаме картовия Due.
@@ -382,6 +404,6 @@ async function listClientNames(token, account) {
 }
 
 module.exports = {
-  mapLimit, mapCard, loadStructure, loadBoardCards, invalidateBoard,
+  mapLimit, mapCard, stepDueOf, loadStructure, loadBoardCards, invalidateBoard,
   parseClientKp, aggregateAll, listClientNames, boardRank, sortBoards,
 };

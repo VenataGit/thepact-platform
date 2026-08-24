@@ -81,8 +81,12 @@ function canonicalTitle(title) {
 //
 // Внимание: съвпадението е по НАЧАЛОТО на заглавието, а „Post-Production …" не
 // започва с „Production", така че двете дъски не се крадат една друга.
+//
+// „Контент Криейтър" е старото име на идейната стъпка, както реално стои по живите
+// карти („Контент Криейтър - Измисляне"). То не започва с „Измисляне", затова без него
+// Pre-Production не намираше своята стъпка и падаше на Due On. (24.08.2026)
 const BOARD_PREFIXES = {
-  'pre-production': ['Pre-Production', 'Измисляне'],
+  'pre-production': ['Pre-Production', 'Измисляне', 'Контент Криейтър'],
   'production': ['Production', 'Видеограф'],
   'post-production': ['Post-Production', 'Монтажист'],
   'project management': ['Project Management', 'PM'],

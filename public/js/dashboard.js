@@ -99,7 +99,7 @@ function dashDueMatches(card, mode) {
   const now = new Date(); now.setHours(0, 0, 0, 0);
   const d = _parseDateMidnight(card.dueOn);
   const diff = Math.round((d - now) / 86400000);
-  if (mode === 'overdue') return diff < 0 && !card.completed;
+  if (mode === 'overdue') return diff < 0 && !card.completed && !card.dueStepDone;
   if (mode === 'today') return diff === 0;
   if (mode === 'soon') return diff >= 0 && diff <= 3;
   if (mode === 'week') return diff >= 0 && diff <= 7;
@@ -331,7 +331,8 @@ async function dashSyncBoardTimer(boardId) {
   let hasOverdue = false;
   Object.values(_dashCards[boardId]).forEach((cards) => cards.forEach((c) => {
     const d = c.dueOn ? _parseDateMidnight(c.dueOn) : null;
-    if (d && d < now && !c.completed) hasOverdue = true;
+    // Чекната стъпка на отдела = приключено; старата ѝ дата не е просрочен срок.
+    if (d && d < now && !c.completed && !c.dueStepDone) hasOverdue = true;
   }));
   try {
     const res = await fetch('/api/timers/boards/sync', {
@@ -509,12 +510,13 @@ function dashBoardSectionHtml(b) {
 }
 
 // Ред в колоната: ⚡ Приоритет (чекната стъпка „Приоритет") → без дата → по дата
-// възходящо (просрочените най-отгоре) → завършените най-долу. При равенство — по
-// ръчния Basecamp ред (position).
+// възходящо (просрочените най-отгоре) → с приключена стъпка на отдела → завършените
+// най-долу. При равенство — по ръчния Basecamp ред (position).
 function dashCardGroup(c) {
-  if (c.completed) return 3;
+  if (c.completed) return 4;
   if (c.priority) return 0;
   if (!c.dueOn) return 1;
+  if (c.dueStepDone) return 3; // отделът е чекнал стъпката си — не е чакащ срок
   return 2;
 }
 function dashCardCompare(a, b) {
@@ -553,16 +555,20 @@ function renderDashCard(card) {
   let colorClass = 'dash-card--none'; // no due date (or completed) → neutral grey
   if (isPrio) {
     colorClass = 'dash-card--priority'; // чекната стъпка „Приоритет" → лилава, преди всички
-  } else if (d && !card.completed) {
+  } else if (d && !card.completed && !card.dueStepDone) {
+    // dueStepDone = стъпката на отдела е чекната: датата се показва, но неутрално сиво —
+    // работата тук е приключила, срокът вече не тече. (Венци, 24.08.2026)
     const diff = Math.ceil((d - now) / 86400000);
     colorClass = diff < 0 ? 'dash-card--overdue' : diff === 0 ? 'dash-card--today' : diff <= 3 ? 'dash-card--soon' : 'dash-card--ok';
   }
   const noDate = !card.dueOn && !card.completed && !isPrio; // needs a date — flag until one is set
   const assignee = card.assignees && card.assignees[0] ? esc(card.assignees[0].name.split(' ')[0]) : '';
-  const dueTip = card.dueFromStep && card.dueStep ? ' title="Дата от стъпка: ' + esc(card.dueStep) + '"' : '';
+  const dueTip = card.dueFromStep && card.dueStep
+    ? ' title="Дата от стъпка: ' + esc(card.dueStep) + (card.dueStepDone ? ' (приключена)' : '') + '"'
+    : '';
   const due = card.dueOn
     ? '<div class="dash-card__date"' + dueTip + '>' + DASH_CAL_SVG + '<span>' + formatDate(card.dueOn) + '</span></div>'
-    : (noDate ? '<div class="dash-card__nodate">' + DASH_CAL_SVG + '<span>Няма дата</span></div>' : '');
+    : (noDate ? '<div class="dash-card__nodate"' + (card.dueFromStep && card.dueStep ? ' title="Стъпката „' + esc(card.dueStep) + '" е без дата"' : '') + '>' + DASH_CAL_SVG + '<span>Няма дата</span></div>' : '');
   // Картата е ИСТИНСКИ <a> към Basecamp, а не <div> — само така средният бутон (скролът)
   // отваря задачата в нов раздел НА ЗАДЕН ПЛАН и таблицата остава отпред. С JS не става:
   // `window.open` винаги изважда новия раздел отпред, а средният бутон върху <div> не прави
