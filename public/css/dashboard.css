@@ -299,20 +299,18 @@
 .dash-card--priority { background: var(--dl-purple-bg, rgba(124,58,237,0.55)); }
 
 /* Чекната стъпка на отдела: картата НЕ пада най-долу и не посивява — остава си на
-   мястото по дата, а зеленото ѝ пулсира много бавно от светло към тъмно, за да личи,
-   че работата тук е приключила. Пулсът е около темата (--dl-green-bg), за да следва
-   „Админ → DEADLINE ФОНОВЕ". (Венци, 25.08.2026) */
-.dash-card--stepdone {
-  background: var(--dl-green-bg, rgba(45,165,98,0.48));
-  animation: dashStepDonePulse 5s ease-in-out infinite alternate;
+   мястото по дата, със спокойно зелено. Премигването е махнато по молба на Венци
+   (25.08.2026) — сигналът вече е зеленото чекче до таймера, виж .dash-card__stepdone. */
+.dash-card--stepdone { background: var(--dl-green-bg, rgba(45,165,98,0.48)); }
+
+/* Зелено чекче до иконата на таймера — стъпката на ТАЗИ колона е чекната. */
+.dash-card__actions-left { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.dash-card__stepdone {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  background: var(--dash-stepdone-mark, #22c55e); color: #06210f;
 }
-@keyframes dashStepDonePulse {
-  from { background: color-mix(in srgb, var(--dl-green-bg, rgba(45,165,98,0.48)) 70%, #fff); }
-  to   { background: color-mix(in srgb, var(--dl-green-bg, rgba(45,165,98,0.48)) 70%, #000); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .dash-card--stepdone { animation: none; }
-}
+.dash-card__stepdone svg { flex-shrink: 0; }
 
 /* On-hold cards: shown below the normal cards under a divider, slightly dimmed. */
 .dash-onhold-sep {

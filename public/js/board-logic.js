@@ -155,7 +155,7 @@ function renderBoardLogic(el) {
               <tr><td><span class="bl-swatch" style="background:var(--dl-red-bg, rgba(239,68,68,0.48))"></span></td><td><strong>Днес</strong> — срокът е днес.</td></tr>
               <tr><td><span class="bl-swatch" style="background:var(--dl-yellow-bg, rgba(234,179,8,0.52))"></span></td><td><strong>До 3 дни</strong> — остават 1, 2 или 3 дни.</td></tr>
               <tr><td><span class="bl-swatch" style="background:var(--dl-green-bg, rgba(45,165,98,0.48))"></span></td><td><strong>4 дни и повече</strong> — има време.</td></tr>
-              <tr><td><span class="bl-swatch dash-card--stepdone"></span></td><td><strong>Чекната стъпка на отдела</strong> — зелено, което пулсира бавно от светло към тъмно. Картата си остава на мястото по дата.</td></tr>
+              <tr><td><span class="bl-swatch dash-card--stepdone"></span></td><td><strong>Чекната стъпка на отдела</strong> — спокойно зелено и <strong>зелено чекче до иконата на таймера</strong>. Картата си остава на мястото по дата. Гледа се само стъпката на дъската, в която стои картата: в Pre-Production — „Pre-Production - Готов сценарий“, в Production — „Production - Заснет материал“, в Post-Production — „Post-Production - Приключен монтаж“, в Project Management — „Project Management - Качване/Насрочване“.</td></tr>
               <tr><td><span class="bl-swatch" style="background:var(--dl-none-bg, rgba(136,153,166,0.22))"></span></td><td><strong>Без дата или завършена</strong> — неутрално сиво.</td></tr>
             </tbody>
           </table>

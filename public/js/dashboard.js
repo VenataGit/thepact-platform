@@ -548,6 +548,7 @@ function dashSubColHtml(board, col, loaded) {
 // Inline icons (stroke=currentColor → inherit the date's deadline color / button color).
 var DASH_CAL_SVG   = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>';
 var DASH_CLOCK_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/></svg>';
+var DASH_CHECK_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6.5 9.5 17.5 4 12"/></svg>';
 
 function renderDashCard(card) {
   const now = new Date(); now.setHours(0, 0, 0, 0);
@@ -557,9 +558,10 @@ function renderDashCard(card) {
   if (isPrio) {
     colorClass = 'dash-card--priority'; // чекната стъпка „Приоритет" → лилава, преди всички
   } else if (d && !card.completed && card.dueStepDone) {
-    // dueStepDone = стъпката на отдела е чекната: картата остава на мястото си по дата,
-    // а цветът е бавно пулсиращо зелено (светло → тъмно) — работата тук е приключила,
-    // срокът вече не тече. (Венци, 25.08.2026)
+    // dueStepDone = стъпката НА ТАЗИ ДЪСКА е чекната (Pre-Production картата гледа само
+    // „Pre-Production - …", Production само „Production - …" и т.н. — виж services/steps.js
+    // BOARD_PREFIXES). Картата остава на мястото си по дата, със спокойно зелено; сигналът
+    // е зеленото чекче до таймера. Премигването е махнато. (Венци, 25.08.2026)
     colorClass = 'dash-card--stepdone';
   } else if (d && !card.completed) {
     const diff = Math.ceil((d - now) / 86400000);
@@ -567,6 +569,13 @@ function renderDashCard(card) {
   }
   const noDate = !card.dueOn && !card.completed && !isPrio; // needs a date — flag until one is set
   const assignee = card.assignees && card.assignees[0] ? esc(card.assignees[0].name.split(' ')[0]) : '';
+  // Зелено чекче до таймера, щом стъпката на дъската, в която стои картата, е чекната.
+  // `dueStepDone` идва от сървъра и е сметнат САМО по стъпката на тази дъска, така че
+  // Pre-Production не светва от чекнат монтаж и обратно. Показва се и когато стъпката е
+  // без дата (тогава картата е „Няма дата") — отметката си е отметка. (Венци, 25.08.2026)
+  const stepDoneMark = card.dueStepDone && !card.completed
+    ? '<span class="dash-card__stepdone" title="' + esc(card.dueStep || 'Стъпката на тази колона') + ' — чекната">' + DASH_CHECK_SVG + '</span>'
+    : '';
   const dueTip = card.dueFromStep && card.dueStep
     ? ' title="Дата от стъпка: ' + esc(card.dueStep) + (card.dueStepDone ? ' (приключена)' : '') + '"'
     : '';
@@ -585,7 +594,10 @@ function renderDashCard(card) {
     '<div class="dash-card__title">' + esc(card.title) + '</div>' +
     due +
     '<div class="dash-card__actions">' +
-      '<button class="dash-card__timer" onclick="dashCardTimer(event, \'' + card.id + '\')" title="Следене на времето">' + DASH_CLOCK_SVG + '</button>' +
+      '<span class="dash-card__actions-left">' +
+        '<button class="dash-card__timer" onclick="dashCardTimer(event, \'' + card.id + '\')" title="Следене на времето">' + DASH_CLOCK_SVG + '</button>' +
+        stepDoneMark +
+      '</span>' +
       (assignee ? '<span class="dash-card__assignee">' + assignee + '</span>' : '') +
     '</div>' +
   '</' + tag + '>';
