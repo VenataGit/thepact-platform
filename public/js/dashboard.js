@@ -77,20 +77,42 @@ let _dashDragCardId = null, _dashDragBoardId = null, _dashDragFromCol = null;
 // Само за текущата сесия — нарочно НЕ се пази (нито в prefs, нито в localStorage),
 // за да не завариш дашборда мистериозно "празен" при следващо влизане. „Изчисти"
 // връща нормалния изглед с всички задачи.
-let _dashFilter = { client: '', kp: '', due: '', assignee: '' };
+let _dashFilter = { client: '', block: '', due: '', assignee: '' };
 
-function dashFilterCount() { return ['client', 'kp', 'due', 'assignee'].filter((k) => _dashFilter[k]).length; }
+function dashFilterCount() { return ['client', 'block', 'due', 'assignee'].filter((k) => _dashFilter[k]).length; }
 function dashFilterActive() { return dashFilterCount() > 0; }
 
-// Клиент/КП живеят само в заглавието на картата — Basecamp няма структурно поле за тях.
-// Същата конвенция като в src/services/bc-aggregate.js: "Cineland КП-18 - Видео 3 - …".
-function dashParseClientKp(title) {
-  const m = String(title || '').match(/^(.+?)\s+(?:КП|KP)\s*[-–—]?\s*0*(\d+)/i);
+// Клиентът и блокът живеят само в заглавието на картата — Basecamp няма структурно поле
+// за тях. Разпознаваме СЪЩИТЕ три префикса като src/services/folder-paths.js, а не само
+// КП: клиент с добавена кампания или реклама иначе изчезваше от филтъра (Венци, 25.08.2026
+// — „избирам MASTERHAUS и виждам само задачите по КП, а не КМП или РЕК").
+const DASH_KINDS = [
+  { key: 'kp', re: /^(?:КП|KP)$/i, label: 'КП' },
+  { key: 'campaign', re: /^(?:КМП|KMP)$/i, label: 'КМП' },
+  { key: 'ads', re: /^(?:РЕК|REK)$/i, label: 'РЕК' },
+];
+
+// "Cineland КП-18 - Видео 3 - …" / "Credissimo КМП-3 - …" / "Credissimo РЕК-8 - …"
+// Търпи „КП 12", „КП-012", тире/дълго тире, както и опашка след номера.
+function dashParseClientBlock(title) {
+  const m = String(title || '').trim().match(/^(.+?)\s+([А-Яа-яA-Za-z]{2,3})\s*[-–—]?\s*0*(\d+)\b/);
   if (!m) return null;
+  const kind = DASH_KINDS.find((k) => k.re.test(m[2]));
+  if (!kind) return null;
   const client = m[1].trim().replace(/\s+/g, ' ');
-  const kp = parseInt(m[2], 10);
-  if (!client || !Number.isFinite(kp)) return null;
-  return { client, kp };
+  const number = parseInt(m[3], 10);
+  if (!client || !Number.isFinite(number) || number < 1) return null;
+  return { client, kind: kind.key, number, block: kind.key + ':' + number, label: kind.label + '-' + number };
+}
+
+// Вратичката „Клиент - Задача" (същата конвенция като folder-paths.js): задача извън
+// КП/КМП/РЕК също носи името на клиента. Ползва се САМО за съвпадение по вече избран
+// клиент — НЕ и за списъка с клиенти, за да не се напълни падащото меню с измислени
+// „клиенти" от вътрешни задачи от вида „Сайт - редизайн".
+function dashParseFreeClient(title) {
+  const m = String(title || '').trim().match(/^([^-–—]{1,60}?)\s+[-–—]\s+.+$/);
+  const client = m ? m[1].trim().replace(/\s+/g, ' ') : '';
+  return client || null;
 }
 
 function dashDueMatches(card, mode) {
@@ -109,11 +131,16 @@ function dashDueMatches(card, mode) {
 function dashCardMatches(card) {
   const f = _dashFilter;
   if (!dashFilterActive()) return true;
-  if (f.client || f.kp) {
-    const p = dashParseClientKp(card.title);
-    if (!p) return false; // картата не следва конвенцията „Клиент КП-N …"
-    if (f.client && p.client.toLowerCase() !== f.client.toLowerCase()) return false;
-    if (f.kp && String(p.kp) !== String(f.kp)) return false;
+  if (f.client || f.block) {
+    const p = dashParseClientBlock(card.title);
+    // Избран блок (КП-18, КМП-3, РЕК-8) → картата трябва да е точно от него.
+    if (f.block && (!p || p.block !== f.block)) return false;
+    if (f.client) {
+      // Клиентът се търси и по вратичката, за да излязат ВСИЧКИ негови задачи, а не
+      // само тези с КП/КМП/РЕК номер.
+      const client = p ? p.client : dashParseFreeClient(card.title);
+      if (!client || client.toLowerCase() !== f.client.toLowerCase()) return false;
+    }
   }
   if (f.assignee && !(card.assignees || []).some((a) => String(a.id) === String(f.assignee))) return false;
   if (f.due && !dashDueMatches(card, f.due)) return false;
@@ -173,21 +200,27 @@ function dashClientCompare(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;   // тотална подредба — за да не „трепти" при равни имена
 }
 
-// Опциите се градят от видимите активни карти. КП списъкът се стеснява до избрания
-// клиент, за да не предлагаме комбинации, които не съществуват.
+// Опциите се градят от видимите активни карти. Списъкът с блокове се стеснява до
+// избрания клиент, за да не предлагаме комбинации, които не съществуват.
+//
+// Клиентите идват САМО от заглавия с КП/КМП/РЕК — там името е гарантирано клиентско.
+// Вратичката „Клиент - Задача" нарочно не пълни менюто (виж dashParseFreeClient), но
+// щом клиентът веднъж е в списъка, изборът му хваща и свободните му задачи.
 function dashFilterOptions() {
-  const clients = new Map(), kps = new Set(), assignees = new Map();
+  const clients = new Map(), blocks = new Map(), assignees = new Map();
   dashVisibleActiveCards().forEach((c) => {
-    const p = dashParseClientKp(c.title);
+    const p = dashParseClientBlock(c.title);
     if (p) {
       clients.set(p.client.toLowerCase(), p.client);
-      if (!_dashFilter.client || p.client.toLowerCase() === _dashFilter.client.toLowerCase()) kps.add(p.kp);
+      if (!_dashFilter.client || p.client.toLowerCase() === _dashFilter.client.toLowerCase()) blocks.set(p.block, p);
     }
     (c.assignees || []).forEach((a) => assignees.set(String(a.id), a.name));
   });
+  const kindOrder = DASH_KINDS.map((k) => k.key);
   return {
     clients: [...clients.values()].sort(dashClientCompare),
-    kps: [...kps].sort((a, b) => b - a),
+    blocks: [...blocks.values()].sort((a, b) =>
+      kindOrder.indexOf(a.kind) - kindOrder.indexOf(b.kind) || b.number - a.number),
     assignees: [...assignees.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'bg')),
   };
 }
@@ -409,10 +442,10 @@ function showDashFilter() {
     '<button onclick="this.closest(\'.dash-filter-panel\').remove()">✕</button></div>' +
     '<div class="dash-filter-panel__body">';
   html += _dashSelect('client', 'Клиент', 'Всички клиенти', opts.clients.map((c) => [c, c]));
-  html += _dashSelect('kp', 'Контент план', 'Всички КП', opts.kps.map((k) => [k, 'КП-' + k]));
+  html += _dashSelect('block', 'КП / КМП / РЕК', 'Всички', opts.blocks.map((b) => [b.block, b.label]));
   html += _dashSelect('due', 'Дата', 'Всички дати', DASH_DUE_OPTS);
   html += _dashSelect('assignee', 'Изпълнител', 'Всички', opts.assignees.map((a) => [a.id, a.name]));
-  if (!opts.clients.length) html += '<div class="dash-filter-note">Клиенти/КП се четат от заглавията („Клиент КП-18 — …"). Изчакай дъските да се заредят.</div>';
+  if (!opts.clients.length) html += '<div class="dash-filter-note">Клиентите се четат от заглавията („Клиент КП-18 — …", КМП, РЕК). Изчакай дъските да се заредят.</div>';
   html += '</div>';
   html += '<div class="dash-settings-panel__footer"><button class="btn btn-sm btn-ghost dash-advanced-btn" onclick="dashClearFilter()"' +
     (n ? '' : ' disabled') + '>Изчисти филтрите' + (n ? ' (' + n + ')' : '') + '</button></div>';
@@ -428,12 +461,12 @@ function showDashFilter() {
 
 function dashSetFilter(key, val) {
   _dashFilter[key] = val || '';
-  if (key === 'client') _dashFilter.kp = ''; // КП-тата зависят от клиента — старият избор може да не съществува
+  if (key === 'client') _dashFilter.block = ''; // блоковете зависят от клиента — старият избор може да не съществува
   dashRenderBoards(); dashUpdateFilterBtn(); showDashFilter();
 }
 
 function dashClearFilter() {
-  _dashFilter = { client: '', kp: '', due: '', assignee: '' };
+  _dashFilter = { client: '', block: '', due: '', assignee: '' };
   dashRenderBoards(); dashUpdateFilterBtn(); showDashFilter();
 }
 
