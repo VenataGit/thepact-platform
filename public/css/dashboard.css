@@ -303,11 +303,13 @@
    (25.08.2026) — сигналът вече е зеленото чекче до таймера, виж .dash-card__stepdone. */
 .dash-card--stepdone { background: var(--dl-green-bg, rgba(45,165,98,0.48)); }
 
-/* Зелено чекче до иконата на таймера — стъпката на ТАЗИ колона е чекната. */
-.dash-card__actions-left { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+/* Зелено чекче до иконата на таймера — стъпката на ТАЗИ колона е чекната.
+   Смалено от 22px на 15px по молба на Венци (25.08.2026): дискретен знак до
+   таймера, а не втори бутон до него. */
+.dash-card__actions-left { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
 .dash-card__stepdone {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0;
   background: var(--dash-stepdone-mark, #22c55e); color: #06210f;
 }
 .dash-card__stepdone svg { flex-shrink: 0; }
