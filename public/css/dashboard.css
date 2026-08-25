@@ -298,6 +298,22 @@
 /* Чекната стъпка „Приоритет" → лилава карта, най-отгоре в колоната. */
 .dash-card--priority { background: var(--dl-purple-bg, rgba(124,58,237,0.55)); }
 
+/* Чекната стъпка на отдела: картата НЕ пада най-долу и не посивява — остава си на
+   мястото по дата, а зеленото ѝ пулсира много бавно от светло към тъмно, за да личи,
+   че работата тук е приключила. Пулсът е около темата (--dl-green-bg), за да следва
+   „Админ → DEADLINE ФОНОВЕ". (Венци, 25.08.2026) */
+.dash-card--stepdone {
+  background: var(--dl-green-bg, rgba(45,165,98,0.48));
+  animation: dashStepDonePulse 5s ease-in-out infinite alternate;
+}
+@keyframes dashStepDonePulse {
+  from { background: color-mix(in srgb, var(--dl-green-bg, rgba(45,165,98,0.48)) 70%, #fff); }
+  to   { background: color-mix(in srgb, var(--dl-green-bg, rgba(45,165,98,0.48)) 70%, #000); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-card--stepdone { animation: none; }
+}
+
 /* On-hold cards: shown below the normal cards under a divider, slightly dimmed. */
 .dash-onhold-sep {
   display: flex; align-items: center; gap: 6px;

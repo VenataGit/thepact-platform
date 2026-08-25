@@ -155,7 +155,8 @@ function renderBoardLogic(el) {
               <tr><td><span class="bl-swatch" style="background:var(--dl-red-bg, rgba(239,68,68,0.48))"></span></td><td><strong>Днес</strong> — срокът е днес.</td></tr>
               <tr><td><span class="bl-swatch" style="background:var(--dl-yellow-bg, rgba(234,179,8,0.52))"></span></td><td><strong>До 3 дни</strong> — остават 1, 2 или 3 дни.</td></tr>
               <tr><td><span class="bl-swatch" style="background:var(--dl-green-bg, rgba(45,165,98,0.48))"></span></td><td><strong>4 дни и повече</strong> — има време.</td></tr>
-              <tr><td><span class="bl-swatch" style="background:var(--dl-none-bg, rgba(136,153,166,0.22))"></span></td><td><strong>Без дата, завършена или с чекната стъпка на отдела</strong> — неутрално сиво.</td></tr>
+              <tr><td><span class="bl-swatch dash-card--stepdone"></span></td><td><strong>Чекната стъпка на отдела</strong> — зелено, което пулсира бавно от светло към тъмно. Картата си остава на мястото по дата.</td></tr>
+              <tr><td><span class="bl-swatch" style="background:var(--dl-none-bg, rgba(136,153,166,0.22))"></span></td><td><strong>Без дата или завършена</strong> — неутрално сиво.</td></tr>
             </tbody>
           </table>
         </div>
@@ -170,7 +171,7 @@ function renderBoardLogic(el) {
       <div class="bl-sec">
         <h2>6. Ред на картите и броячите</h2>
         <h3>Ред в колоната</h3>
-        <p>Приоритетните → без дата → по дата възходящо (тоест просрочените най-отгоре) → с чекната стъпка на отдела → завършените най-долу. При две карти с еднаква дата решава ръчният ред от Basecamp.</p>
+        <p>Приоритетните → без дата → по дата възходящо (тоест просрочените най-отгоре) → завършените най-долу. При две карти с еднаква дата решава ръчният ред от Basecamp. Чекнатата стъпка на отдела <strong>не</strong> мести картата — тя си стои по датата, само цветът ѝ става пулсиращо зелено.</p>
         <p><strong>On Hold</strong> картите не се месят с останалите — падат най-долу, под разделителя „⏸ On Hold (N)“. Помежду си обаче се подреждат по същото правило: по датата, която следим за тази колона.</p>
         <h3>Броячите</h3>
         <ul>

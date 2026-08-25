@@ -510,13 +510,14 @@ function dashBoardSectionHtml(b) {
 }
 
 // Ред в колоната: ⚡ Приоритет (чекната стъпка „Приоритет") → без дата → по дата
-// възходящо (просрочените най-отгоре) → с приключена стъпка на отдела → завършените
-// най-долу. При равенство — по ръчния Basecamp ред (position).
+// възходящо (просрочените най-отгоре) → завършените най-долу. При равенство — по
+// ръчния Basecamp ред (position).
+// Чекнатата стъпка на отдела НЕ мести картата: тя си стои на мястото по дата, само
+// цветът ѝ става пулсиращо зелено (виж renderDashCard). (Венци, 25.08.2026)
 function dashCardGroup(c) {
   if (c.completed) return 4;
   if (c.priority) return 0;
   if (!c.dueOn) return 1;
-  if (c.dueStepDone) return 3; // отделът е чекнал стъпката си — не е чакащ срок
   return 2;
 }
 function dashCardCompare(a, b) {
@@ -555,9 +556,12 @@ function renderDashCard(card) {
   let colorClass = 'dash-card--none'; // no due date (or completed) → neutral grey
   if (isPrio) {
     colorClass = 'dash-card--priority'; // чекната стъпка „Приоритет" → лилава, преди всички
-  } else if (d && !card.completed && !card.dueStepDone) {
-    // dueStepDone = стъпката на отдела е чекната: датата се показва, но неутрално сиво —
-    // работата тук е приключила, срокът вече не тече. (Венци, 24.08.2026)
+  } else if (d && !card.completed && card.dueStepDone) {
+    // dueStepDone = стъпката на отдела е чекната: картата остава на мястото си по дата,
+    // а цветът е бавно пулсиращо зелено (светло → тъмно) — работата тук е приключила,
+    // срокът вече не тече. (Венци, 25.08.2026)
+    colorClass = 'dash-card--stepdone';
+  } else if (d && !card.completed) {
     const diff = Math.ceil((d - now) / 86400000);
     colorClass = diff < 0 ? 'dash-card--overdue' : diff === 0 ? 'dash-card--today' : diff <= 3 ? 'dash-card--soon' : 'dash-card--ok';
   }
