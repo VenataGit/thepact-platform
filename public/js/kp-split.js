@@ -32,7 +32,9 @@ async function showKpSplit() {
   function onKey(e) { if (e.key === 'Escape') close(); }
   function close() { ov.remove(); document.removeEventListener('keydown', onKey); kpsLockPage(false); }
   ov.querySelector('.kps-close').addEventListener('click', close);
-  ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+  // Нарочно НЯМА затваряне при цъкане отстрани (Венци, 26.08.2026) — прозорецът е
+  // работно място с наредени дати и едно случайно цъкане до него изтриваше всичко.
+  // Затваря се само с „✕" (или Escape).
   document.addEventListener('keydown', onKey);
   try {
     var res = await fetch('/api/kp-split/init');
