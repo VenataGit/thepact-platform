@@ -51,6 +51,23 @@ const STEPS = [
 // за план е достатъчна датата, докога сценарият трябва да е готов).
 const PLAN_STEP_KEY = 'idea';
 
+// „Приоритет" — последна отметка на новите задачи. Чекне ли я някой, картата става БЯЛА
+// и отива най-отгоре, независимо от дъската, колоната и датата (bc-aggregate.isPriority).
+//
+// НАРОЧНО не е в STEPS и няма `offset`. Ако беше вътре, всичко, което обхожда STEPS,
+// щеше да я сметне за производствена стъпка: авто-синхронът (bc-date-sync) щеше да ѝ
+// слага датата за публикуване при всяка промяна на Due On (`subtractWorkingDays(d,
+// undefined)` връща самата дата), настройките на „Създаване на задачи" щяха да я запишат
+// с offset 0, а поправящите скриптове щяха да я трият като „липсваща". Затова стои
+// отделно и се създава изрично там, където трябва. (Венци, 25.08.2026)
+const PRIORITY_STEP = { key: 'priority', title: 'Приоритет' };
+
+// Заглавие → приоритетна отметка ли е. Единственият източник на това сравнение —
+// ползва се и при разпознаването (bc-aggregate), и при създаването.
+function isPriorityTitle(title) {
+  return norm(title).startsWith(norm(PRIORITY_STEP.title));
+}
+
 const norm = (s) => String(s || '').trim().toLowerCase();
 
 const byKey = (key) => STEPS.find((s) => s.key === key) || null;
@@ -108,6 +125,8 @@ function titleMatchesKey(title, key) {
 module.exports = {
   STEPS,
   PLAN_STEP_KEY,
+  PRIORITY_STEP,
+  isPriorityTitle,
   byKey,
   namesOf,
   keyOfTitle,

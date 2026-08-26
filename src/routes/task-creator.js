@@ -224,6 +224,17 @@ router.post('/single', requireAuth, async (req, res) => {
         stepErrors.push(s.title);
       }
     }
+    // Последна отметка „Приоритет" — БЕЗ дата, нарочно (виж services/steps.js). Чекне ли
+    // я някой, картата става бяла и отива най-отгоре, независимо от колоната и датата.
+    // (Венци, 25.08.2026)
+    try {
+      await bc.createStep(auth.token, auth.account, struct.projectId, card.id, {
+        title: prodSteps.PRIORITY_STEP.title,
+      });
+    } catch (e) {
+      console.warn('[task-creator] priority step failed', e.message);
+      stepErrors.push(prodSteps.PRIORITY_STEP.title);
+    }
     agg.invalidateBoard(board.id);
 
     const out = {

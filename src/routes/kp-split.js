@@ -110,10 +110,15 @@ function previewBody(sectionText, attachments, title) {
 
 // Стъпките, които картата ще получи, с изчислените дати (работни дни + БГ празници).
 function stepsFor(publishDate) {
-  return VIDEO_STEPS.map((s) => ({
-    title: s.title,
-    due_on: publishDate ? subtractWorkingDays(publishDate, s.offset) : null,
-  }));
+  return [
+    ...VIDEO_STEPS.map((s) => ({
+      title: s.title,
+      due_on: publishDate ? subtractWorkingDays(publishDate, s.offset) : null,
+    })),
+    // Прегледът показва и „Приоритет", за да отговаря на това, което наистина се създава.
+    // Тя е без дата и си остава без дата. (Венци, 25.08.2026)
+    { title: prodSteps.PRIORITY_STEP.title, due_on: null },
+  ];
 }
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -364,6 +369,11 @@ router.post('/create', requireAuth, async (req, res) => {
           try { await bc.createStep(token, account, projectId, newCard.id, { title: step.title, due_on: stepDate }); }
           catch (e) { console.warn('[kp-split] step failed', step.title, e.message); }
         }
+        // Последна отметка „Приоритет" — БЕЗ дата, нарочно (виж services/steps.js). Стои
+        // нечекната; чекне ли я някой, картата става бяла и отива най-отгоре, независимо
+        // от колоната и датата. (Венци, 25.08.2026)
+        try { await bc.createStep(token, account, projectId, newCard.id, { title: prodSteps.PRIORITY_STEP.title }); }
+        catch (e) { console.warn('[kp-split] priority step failed', e.message); }
         created.push({ id: newCard.id, title: newCard.title, url: bc.normalizeAppUrl(newCard.app_url), publishDate: publishDate || null, media: idxs.length });
       } catch (e) {
         errors.push({ title, error: e.message });

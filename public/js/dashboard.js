@@ -121,7 +121,9 @@ function dashDueMatches(card, mode) {
   const now = new Date(); now.setHours(0, 0, 0, 0);
   const d = _parseDateMidnight(card.dueOn);
   const diff = Math.round((d - now) / 86400000);
-  if (mode === 'overdue') return diff < 0 && !card.completed && !card.dueStepDone;
+  // Просрочена = датата е минала. Чекнатата стъпка вече НЕ извинява просрочието — иначе
+  // черна карта нямаше да се показва под филтъра „Просрочени". (Венци, 25.08.2026)
+  if (mode === 'overdue') return diff < 0 && !card.completed;
   if (mode === 'today') return diff === 0;
   if (mode === 'soon') return diff >= 0 && diff <= 3;
   if (mode === 'week') return diff >= 0 && diff <= 7;
@@ -364,8 +366,8 @@ async function dashSyncBoardTimer(boardId) {
   let hasOverdue = false;
   Object.values(_dashCards[boardId]).forEach((cards) => cards.forEach((c) => {
     const d = c.dueOn ? _parseDateMidnight(c.dueOn) : null;
-    // Чекната стъпка на отдела = приключено; старата ѝ дата не е просрочен срок.
-    if (d && d < now && !c.completed && !c.dueStepDone) hasOverdue = true;
+    // Просрочието се мери само по датата — както и цветът на картата. (Венци, 25.08.2026)
+    if (d && d < now && !c.completed) hasOverdue = true;
   }));
   try {
     const res = await fetch('/api/timers/boards/sync', {
@@ -589,14 +591,11 @@ function renderDashCard(card) {
   const isPrio = !!card.priority && !card.completed;
   let colorClass = 'dash-card--none'; // no due date (or completed) → neutral grey
   if (isPrio) {
-    colorClass = 'dash-card--priority'; // чекната стъпка „Приоритет" → лилава, преди всички
-  } else if (d && !card.completed && card.dueStepDone) {
-    // dueStepDone = стъпката НА ТАЗИ ДЪСКА е чекната (Pre-Production картата гледа само
-    // „Pre-Production - …", Production само „Production - …" и т.н. — виж services/steps.js
-    // BOARD_PREFIXES). Картата остава на мястото си по дата, със спокойно зелено; сигналът
-    // е зеленото чекче до таймера. Премигването е махнато. (Венци, 25.08.2026)
-    colorClass = 'dash-card--stepdone';
+    colorClass = 'dash-card--priority'; // чекната стъпка „Приоритет" → бяла, преди всички
   } else if (d && !card.completed) {
+    // Цветът е ИЗЦЯЛО по датата — чекнатата стъпка не го променя. Просрочена карта си е
+    // черна, дори отделът да е приключил: датата е датата. Че стъпката е чекната, се вижда
+    // от зеленото чекче до таймера, не от фона. (Венци, 25.08.2026)
     const diff = Math.ceil((d - now) / 86400000);
     colorClass = diff < 0 ? 'dash-card--overdue' : diff === 0 ? 'dash-card--today' : diff <= 3 ? 'dash-card--soon' : 'dash-card--ok';
   }

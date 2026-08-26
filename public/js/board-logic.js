@@ -155,12 +155,12 @@ function renderBoardLogic(el) {
               <tr><td><span class="bl-swatch" style="background:var(--dl-red-bg, rgba(239,68,68,0.48))"></span></td><td><strong>Днес</strong> — срокът е днес.</td></tr>
               <tr><td><span class="bl-swatch" style="background:var(--dl-yellow-bg, rgba(234,179,8,0.52))"></span></td><td><strong>До 3 дни</strong> — остават 1, 2 или 3 дни.</td></tr>
               <tr><td><span class="bl-swatch" style="background:var(--dl-green-bg, rgba(45,165,98,0.48))"></span></td><td><strong>4 дни и повече</strong> — има време.</td></tr>
-              <tr><td><span class="bl-swatch dash-card--stepdone"></span></td><td><strong>Чекната стъпка на отдела</strong> — спокойно зелено и <strong>зелено чекче до иконата на таймера</strong>. Картата си остава на мястото по дата. Гледа се само стъпката на дъската, в която стои картата: в Pre-Production — „Pre-Production - Готов сценарий“, в Production — „Production - Заснет материал“, в Post-Production — „Post-Production - Приключен монтаж“, в Project Management — „Project Management - Качване/Насрочване“.</td></tr>
               <tr><td><span class="bl-swatch" style="background:var(--dl-none-bg, rgba(136,153,166,0.22))"></span></td><td><strong>Без дата или завършена</strong> — неутрално сиво.</td></tr>
             </tbody>
           </table>
         </div>
         <ul>
+          <li><strong>Зелено чекче до иконата на таймера</strong>: стъпката на <em>тази</em> дъска е чекната. Гледа се само нейната стъпка — в Pre-Production „Pre-Production - Готов сценарий“, в Production „Production - Заснет материал“, в Post-Production „Post-Production - Приключен монтаж“, в Project Management „Project Management - Качване/Насрочване“. Чекчето <strong>не</strong> променя цвета: просрочена карта си остава черна, дори отделът да е приключил.</li>
           <li><strong>Оранжев кант + надпис „Няма дата“</strong>: незавършена карта без никаква дата. Това е сигнал, че на картата ѝ трябва дата, а не че всичко е наред.</li>
           <li><strong>Избледняла карта</strong> = On Hold (спряна в Basecamp). Става плътна при минаване с мишката.</li>
           <li>Дните се броят в <strong>календарни</strong> дни спрямо днес — цветът не прескача уикенда, за разлика от сметките за стъпките.</li>
@@ -171,7 +171,7 @@ function renderBoardLogic(el) {
       <div class="bl-sec">
         <h2>6. Ред на картите и броячите</h2>
         <h3>Ред в колоната</h3>
-        <p>Приоритетните → без дата → по дата възходящо (тоест просрочените най-отгоре) → завършените най-долу. При две карти с еднаква дата решава ръчният ред от Basecamp. Чекнатата стъпка на отдела <strong>не</strong> мести картата — тя си стои по датата, само цветът ѝ става пулсиращо зелено.</p>
+        <p>Приоритетните → без дата → по дата възходящо (тоест просрочените най-отгоре) → завършените най-долу. При две карти с еднаква дата решава ръчният ред от Basecamp. Чекнатата стъпка на отдела <strong>не</strong> мести картата и <strong>не</strong> ѝ променя цвета — тя си стои по датата и получава само зелено чекче до таймера.</p>
         <p><strong>On Hold</strong> картите не се месят с останалите — падат най-долу, под разделителя „⏸ On Hold (N)“. Помежду си обаче се подреждат по същото правило: по датата, която следим за тази колона.</p>
         <h3>Броячите</h3>
         <ul>

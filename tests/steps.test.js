@@ -59,6 +59,36 @@ describe('префикси на дъските', () => {
   });
 });
 
+describe('„Приоритет" е отделно от производствените стъпки', () => {
+  // Пази инварианта: влезе ли „Приоритет" в STEPS, авто-синхронът ще ѝ слага датата за
+  // публикуване при всяка промяна на Due On, защото subtractWorkingDays(d, undefined)
+  // връща самата дата. Затова тя нарочно стои отвън и без offset.
+  test('не е в STEPS и няма отместване', () => {
+    expect(steps.STEPS.some((s) => s.key === steps.PRIORITY_STEP.key)).toBe(false);
+    expect(steps.PRIORITY_STEP.offset).toBeUndefined();
+    expect(steps.PRIORITY_STEP.title).toBe('Приоритет');
+  });
+
+  test('авто-синхронът не я разпознава като производствена стъпка', () => {
+    expect(steps.keyOfTitle(steps.PRIORITY_STEP.title)).toBe(null);
+  });
+
+  test('isPriorityTitle лови регистър, интервали и опашка след името', () => {
+    expect(steps.isPriorityTitle('Приоритет')).toBe(true);
+    expect(steps.isPriorityTitle('  приоритет  ')).toBe(true);
+    expect(steps.isPriorityTitle('Приоритет - спешно')).toBe(true);
+    expect(steps.isPriorityTitle('Pre-Production - Готов сценарий')).toBe(false);
+    expect(steps.isPriorityTitle('')).toBe(false);
+  });
+
+  test('никоя дъска не следи „Приоритет" за срок', () => {
+    for (const board of Object.keys(steps.BOARD_PREFIXES)) {
+      const pfx = steps.prefixesForBoard(board);
+      expect(pfx.some((p) => steps.PRIORITY_STEP.title.toLowerCase().startsWith(p))).toBe(false);
+    }
+  });
+});
+
 describe('контент план', () => {
   test('планът носи само стъпката за сценарий', () => {
     const s = steps.byKey(steps.PLAN_STEP_KEY);

@@ -86,11 +86,11 @@ function stepDueOf(stepList, prefixes) {
   return null;
 }
 
-// Чекната стъпка „Приоритет" = картата е приоритетна (лилава, най-отгоре в дашборда).
+// Чекната стъпка „Приоритет" = картата е приоритетна (бяла, най-отгоре в дашборда,
+// независимо от дъската и датата). Сравнението живее в services/steps.js, за да е едно
+// и също при разпознаването тук и при създаването на стъпката.
 function isPriority(steps) {
-  return (steps || []).some(
-    (s) => s.completed && String(s.title || '').trim().toLowerCase().startsWith('приоритет')
-  );
+  return (steps || []).some((s) => s.completed && prodSteps.isPriorityTitle(s.title));
 }
 
 function mapCard(c, stepPrefix) {
@@ -317,9 +317,9 @@ async function aggregateAll(token, account) {
         const vNum = videoNumberOf(card.title);
         const isVideo = vNum != null;
         const isDone = info.isDone;
-        // Чекната стъпка = отделът е приключил; датата ѝ вече не е чакащ срок, затова
-        // не вдига нито „просрочена", нито „наближава".
-        const pending = !card.completed && !card.onHold && !isDone && !card.dueStepDone;
+        // Просрочено/наближаващо се мери само по датата — чекнатата стъпка вече не го
+        // извинява, точно както и цветът на картата в дашборда. (Венци, 25.08.2026)
+        const pending = !card.completed && !card.onHold && !isDone;
         const overdue = !!(card.dueOn && card.dueOn < today && pending);
         const soon = !overdue && !!(card.dueOn && card.dueOn >= today && card.dueOn <= soonEdge && pending);
         const entry = {
