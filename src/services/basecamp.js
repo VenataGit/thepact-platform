@@ -225,9 +225,14 @@ async function deleteWormhole(token, account, projectId, wormholeId) {
 
 // POST .../card_tables/cards/{cardId}/moves.json  body { column_id, position }.
 // `column_id` may be a normal column OR a wormhole id (that is what makes it a teleport).
+//
+// `position` е ПО ИЗБОР и се брои ОТ 1, не от 0. Подаден 0 връща 400 „Position out of
+// bounds" и картата изобщо не се мести (закриването на КП плана се спъна точно в това —
+// Венци, 22.08.2026). Затова тук минава само цяло число >= 1; всичко друго просто не се
+// праща и Basecamp сам решава къде да сложи картата.
 async function moveCardToColumn(token, account, projectId, cardId, columnId, position) {
   const body = { column_id: columnId };
-  if (position != null) body.position = position;
+  if (Number.isInteger(position) && position >= 1) body.position = position;
   const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${cardId}/moves.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),

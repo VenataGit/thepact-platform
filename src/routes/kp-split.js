@@ -401,7 +401,9 @@ router.post('/create', requireAuth, async (req, res) => {
         } else if (String((card.parent && card.parent.id) || '') === String(done.column.id)) {
           movedToDone = { ok: true, column: done.column.title, already: true };
         } else {
-          await bc.moveCardToColumn(token, account, projectId, cardId, done.column.id, 0);
+          // Без позиция — Basecamp сам решава къде в Done да сложи картата. Подадена
+          // 0 връща 400 „Position out of bounds" (позициите се броят от 1).
+          await bc.moveCardToColumn(token, account, projectId, cardId, done.column.id);
           movedToDone = { ok: true, column: done.column.title };
         }
       } catch (e) {
