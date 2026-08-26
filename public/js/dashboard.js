@@ -105,14 +105,57 @@ function dashParseClientBlock(title) {
   return { client, kind: kind.key, number, block: kind.key + ':' + number, label: kind.label + '-' + number };
 }
 
-// Вратичката „Клиент - Задача" (същата конвенция като folder-paths.js): задача извън
-// КП/КМП/РЕК също носи името на клиента. Ползва се САМО за съвпадение по вече избран
-// клиент — НЕ и за списъка с клиенти, за да не се напълни падащото меню с измислени
-// „клиенти" от вътрешни задачи от вида „Сайт - редизайн".
-function dashParseFreeClient(title) {
-  const m = String(title || '').trim().match(/^([^-–—]{1,60}?)\s+[-–—]\s+.+$/);
-  const client = m ? m[1].trim().replace(/\s+/g, ' ') : '';
-  return client || null;
+// --- на кой клиент е картата -------------------------------------------------
+// Решението на Венци (26.08.2026): „Основното нещо, което трябва да следиш, е името на
+// клиента — което ВИНАГИ е в началото на задачата. Няма да имаме 100% правилно
+// структурирани задачи, но винаги слагаме името на клиента."
+//
+// Затова вече НЕ гадаем клиента по формата на заглавието. Тръгваме от речник с познати
+// имена и питаме само: започва ли заглавието с някое от тях. Така „Fornetti Статични
+// постове - Септември" се хваща от филтъра за Fornetti, макар да няма нито КП номер,
+// нито разделител „ - " след името.
+//
+// Речникът е и предпазителят: без него всяко първо парче от заглавие би минало за
+// клиент и менюто щеше да се напълни с измислени „клиенти" от вътрешни задачи от вида
+// „Сайт - редизайн".
+//
+// Два източника, слети:
+//   1. /api/kp/client-names — регистърът (kp_clients) + живите заглавия в Basecamp.
+//      Същият списък, който пълни падащите менюта „Клиент" из платформата.
+//   2. Имената от заглавията с КП/КМП/РЕК по видимите карти — за клиент, който още не
+//      е стигнал до регистъра.
+let _dashVocab = null;      // [{ norm, name }], подредени с най-дългото име НАПРЕД
+let _dashNamesAsked = false;   // за да дръпнем /api/kp/client-names само веднъж
+
+function dashInvalidateVocab() { _dashVocab = null; }
+
+function dashClientVocab() {
+  if (_dashVocab) return _dashVocab;
+  const byNorm = new Map();
+  const add = (name) => {
+    const norm = normClientName(name);
+    if (norm && !byNorm.has(norm)) byNorm.set(norm, { norm, name: String(name).trim() });
+  };
+  (typeof _clientNames !== 'undefined' && _clientNames || []).forEach((c) => add(c && c.name));
+  dashVisibleActiveCards().forEach((c) => {
+    const p = dashParseClientBlock(c.title);
+    if (p) add(p.client);
+  });
+  // Най-дългото име печели: „Pulse Fitness КП-2" принадлежи на „Pulse Fitness", а не на
+  // „Pulse" — иначе филтърът за „Pulse" щеше да влачи и чуждите карти.
+  _dashVocab = [...byNorm.values()].sort((a, b) => b.norm.length - a.norm.length);
+  return _dashVocab;
+}
+
+// normClientName() (utils.js) смъква всичко до малки букви и цифри, разделени с по един
+// интервал: „Fornetti Статични постове - Септември" → „fornetti статични постове септември".
+// Затова границата на думата тук е просто интервал (или край на низа) — „Forn" няма как
+// да мине за „Fornetti", а точките и тиретата не пречат („Св. Влас" = „Св Влас").
+function dashCardClient(title) {
+  const t = normClientName(title);
+  if (!t) return null;
+  const hit = dashClientVocab().find((c) => t === c.norm || t.startsWith(c.norm + ' '));
+  return hit ? hit.name : null;
 }
 
 function dashDueMatches(card, mode) {
@@ -138,10 +181,10 @@ function dashCardMatches(card) {
     // Избран блок (КП-18, КМП-3, РЕК-8) → картата трябва да е точно от него.
     if (f.block && (!p || p.block !== f.block)) return false;
     if (f.client) {
-      // Клиентът се търси и по вратичката, за да излязат ВСИЧКИ негови задачи, а не
-      // само тези с КП/КМП/РЕК номер.
-      const client = p ? p.client : dashParseFreeClient(card.title);
-      if (!client || client.toLowerCase() !== f.client.toLowerCase()) return false;
+      // Клиентът се познава по НАЧАЛОТО на заглавието, не по структурата му — така под
+      // филтъра излизат и задачите без КП/КМП/РЕК номер.
+      const client = dashCardClient(card.title);
+      if (!client || normClientName(client) !== normClientName(f.client)) return false;
     }
   }
   if (f.assignee && !(card.assignees || []).some((a) => String(a.id) === String(f.assignee))) return false;
@@ -205,16 +248,17 @@ function dashClientCompare(a, b) {
 // Опциите се градят от видимите активни карти. Списъкът с блокове се стеснява до
 // избрания клиент, за да не предлагаме комбинации, които не съществуват.
 //
-// Клиентите идват САМО от заглавия с КП/КМП/РЕК — там името е гарантирано клиентско.
-// Вратичката „Клиент - Задача" нарочно не пълни менюто (виж dashParseFreeClient), но
-// щом клиентът веднъж е в списъка, изборът му хваща и свободните му задачи.
+// В менюто влиза само клиент, който има поне една видима активна карта — регистърът е
+// речник за разпознаване, а не списък за показване. Иначе тук щяха да висят и клиенти,
+// които изобщо не са на дъската в момента.
 function dashFilterOptions() {
   const clients = new Map(), blocks = new Map(), assignees = new Map();
   dashVisibleActiveCards().forEach((c) => {
+    const client = dashCardClient(c.title);
+    if (client) clients.set(normClientName(client), client);
     const p = dashParseClientBlock(c.title);
-    if (p) {
-      clients.set(p.client.toLowerCase(), p.client);
-      if (!_dashFilter.client || p.client.toLowerCase() === _dashFilter.client.toLowerCase()) blocks.set(p.block, p);
+    if (p && (!_dashFilter.client || normClientName(client || p.client) === normClientName(_dashFilter.client))) {
+      blocks.set(p.block, p);
     }
     (c.assignees || []).forEach((a) => assignees.set(String(a.id), a.name));
   });
@@ -408,6 +452,14 @@ function dashRenderStats() {
   if (btn) btn.style.display = 'inline-flex';
   const fbtn = document.getElementById('navDashFilter');
   if (fbtn) { fbtn.style.display = 'inline-flex'; dashUpdateFilterBtn(); }
+  // Речникът с познатите имена на клиенти (utils.js кешира заявката за цялата сесия).
+  // Дърпаме го веднага, за да е готов преди да се отвори филтърът; докато го няма,
+  // разпознаването пада обратно към имената от заглавията с КП/КМП/РЕК.
+  if (typeof ensureClientNames === 'function' && !_dashNamesAsked) {
+    _dashNamesAsked = true;
+    ensureClientNames().then(() => { dashInvalidateVocab(); dashRenderBoards(); })
+      .catch(() => { /* филтърът пак работи, само с по-беден речник */ });
+  }
 }
 
 var DASH_FILTER_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h18l-7 8.5v6.5l-4 2v-8.5z"/></svg>';
@@ -447,7 +499,7 @@ function showDashFilter() {
   html += _dashSelect('block', 'КП / КМП / РЕК', 'Всички', opts.blocks.map((b) => [b.block, b.label]));
   html += _dashSelect('due', 'Дата', 'Всички дати', DASH_DUE_OPTS);
   html += _dashSelect('assignee', 'Изпълнител', 'Всички', opts.assignees.map((a) => [a.id, a.name]));
-  if (!opts.clients.length) html += '<div class="dash-filter-note">Клиентите се четат от заглавията („Клиент КП-18 — …", КМП, РЕК). Изчакай дъските да се заредят.</div>';
+  if (!opts.clients.length) html += '<div class="dash-filter-note">Клиентът се познава по името в НАЧАЛОТО на заглавието. Изчакай дъските да се заредят.</div>';
   html += '</div>';
   html += '<div class="dash-settings-panel__footer"><button class="btn btn-sm btn-ghost dash-advanced-btn" onclick="dashClearFilter()"' +
     (n ? '' : ' disabled') + '>Изчисти филтрите' + (n ? ' (' + n + ')' : '') + '</button></div>';
@@ -503,6 +555,7 @@ function dashEffectiveExpanded() {
 function dashRenderBoards() {
   const container = document.getElementById('dashBoard');
   if (!container || !_dashStruct) return;
+  dashInvalidateVocab();   // нова дъска/карта може да е донесла нов клиент
   const boards = dashOrderedVisibleBoards();
   if (!boards.length) { container.innerHTML = '<div style="padding:40px;color:var(--text-dim)">Няма видими дъски. Виж ⚙ Настройки.</div>'; return; }
   container.innerHTML = boards.map(dashBoardSectionHtml).join('');
