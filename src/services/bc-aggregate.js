@@ -168,7 +168,11 @@ async function loadStructure(token, account) {
       id: table.id,
       title: t.title || table.title,
       projectId,
-      columns: (table.lists || []).map((l) => ({ id: l.id, title: l.title, cardsCount: l.cards_count, isDone: /DoneColumn/i.test(l.type || '') })),
+      columns: (table.lists || []).map((l) => ({
+        id: l.id, title: l.title, cardsCount: l.cards_count,
+        isDone: /DoneColumn/i.test(l.type || ''),
+        isTriage: /Triage/i.test(l.type || ''), // "Not now" — структурен тип, не по заглавие
+      })),
     };
   });
   structCache = { at: Date.now(), data: { projectId, boards: sortBoards(boards) } };

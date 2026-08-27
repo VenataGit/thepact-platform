@@ -97,14 +97,16 @@ function csEnrich(c, board, colInfo, onHold) {
   out.boardTitle = board.title;
   out.column = colInfo.title || '';
   out.isDoneColumn = !!colInfo.isDone;
+  out.isTriageColumn = !!colInfo.isTriage; // "Not now"
   out.onHold = onHold;
   out.stage = csStageOf(board.title);
   return out;
 }
 
-// Активна = както на Dashboard-а: не е завършена и не е в Done колона.
+// Активна = не е завършена, не е в Done колона и не е в Not now (Венци, 27.08.2026:
+// "Нека да пропуска задачите от Not now и Done").
 function csActiveCards() {
-  return _csCards.filter(function (c) { return !c.completed && !c.isDoneColumn; });
+  return _csCards.filter(function (c) { return !c.completed && !c.isDoneColumn && !c.isTriageColumn; });
 }
 
 function csClientVocab() { return dashClientVocab(csActiveCards()); }
