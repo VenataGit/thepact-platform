@@ -65,6 +65,7 @@ var SG_SECTIONS = [
   { id: 'kp', icon: '📋', label: 'КП-Автоматизация', hint: 'Basecamp, текстове, график', adminOnly: true },
   { id: 'tasks', icon: '🧾', label: 'Създаване на задачи', hint: 'Шаблони, стъпки, история', adminOnly: true },
   { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
+  { id: 'hidden-clients', icon: '🚫', label: 'Скрити клиенти', hint: 'Имена, изчистени от филтрите', adminOnly: true },
   { id: 'calendar', icon: '📅', label: 'Производствен календар', hint: 'Календари за снимки + известия', adminOnly: false },
   { id: 'results', icon: '📊', label: 'Резултати', hint: 'Известие при изпубликуван КП', adminOnly: true },
   { id: 'sheets', icon: '📄', label: 'Таблица известия', hint: 'Google Sheets → Basecamp', adminOnly: true },
@@ -126,6 +127,7 @@ async function renderSettings(el, sub) {
   else if (active === 'kp') sgSectionKp(body);
   else if (active === 'tasks') sgSectionTasks(body);
   else if (active === 'dashboard') sgSectionDashboard(body);
+  else if (active === 'hidden-clients') sgSectionHiddenClients(body);
   else if (active === 'calendar') sgSectionCalendar(body);
   else if (active === 'results') sgSectionResults(body);
   else if (active === 'sheets') sgSectionSheets(body);
@@ -181,6 +183,91 @@ function sgSectionDashboard(host) {
       '<div id="sgDashBoards"><div class="ga-loading">Зареждане…</div></div>' +
     '</div>';
   sgDashBoardsLoad();
+}
+
+// ==================== СЕКЦИЯ: СКРИТИ КЛИЕНТИ ====================
+// Венци, 27.08.2026: "Трябва да има начин да се премахват имена/клиенти, които да не
+// се показват въобще в цялата платформа... настройки, публични за всички. Всеки нов
+// добавен клиент/карта да си влиза, но ако искаме да го премахнем, трябва да стане от
+// тази страница." Прост общ списък (app_settings), не пипа kp_clients/КП-автоматизацията.
+var _sgHidden = null; // [names]
+
+function sgSectionHiddenClients(host) {
+  host.innerHTML =
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">🚫 Скрити клиенти</div>' +
+      '<div class="sg-section__desc">Скрито тук име изчезва от филтъра „Клиент" на Dashboard-а, „Клиент — график" и от страницата „Клиенти" — навсякъде в платформата. Нов клиент или нова карта се появяват автоматично; премахването е ръчно, точно оттук.</div>' +
+      '<div class="sg-hidden-add">' +
+        '<input class="input" type="text" id="sgHiddenInput" list="clientNamesList" autocomplete="off" placeholder="Име на клиент за скриване…" onkeydown="if(event.key===\'Enter\')sgAddHiddenClient()">' +
+        '<button class="btn btn-sm" onclick="sgAddHiddenClient()">Скрий</button>' +
+      '</div>' +
+      '<div id="sgHiddenList"><div class="ga-loading">Зареждане…</div></div>' +
+    '</div>';
+  if (typeof ensureClientNames === 'function') ensureClientNames(); // за автодовършването
+  sgHiddenClientsLoad();
+}
+
+async function sgHiddenClientsLoad() {
+  var host = document.getElementById('sgHiddenList');
+  if (!host) return;
+  try {
+    var res = await fetch('/api/kp/hidden-clients');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    _sgHidden = data.hidden || [];
+    sgHiddenClientsRender();
+  } catch (e) {
+    host.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка при зареждане: ' + esc(e.message) + '</div>';
+  }
+}
+
+function sgHiddenClientsRender() {
+  var host = document.getElementById('sgHiddenList');
+  if (!host || !_sgHidden) return;
+  if (!_sgHidden.length) { host.innerHTML = '<div class="sg-dashboard-note">Няма скрити клиенти.</div>'; return; }
+  host.innerHTML = _sgHidden.map(function (name) {
+    return '<div class="sg-dashboard-row">' +
+      '<span class="sg-dashboard-row__name">' + esc(name) + '</span>' +
+      '<button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="sgRemoveHiddenClient(' + JSON.stringify(name).replace(/"/g, '&quot;') + ')">Покажи отново</button>' +
+    '</div>';
+  }).join('');
+}
+
+function sgHiddenClientsInvalidate() {
+  // Останалата платформа кешира имената за сесията — форсираме ново дърпане.
+  _clientNames = null; _clientNamesPromise = null;
+  if (typeof dashInvalidateVocab === 'function') dashInvalidateVocab();
+}
+
+function sgAddHiddenClient() {
+  var input = document.getElementById('sgHiddenInput');
+  var name = input ? input.value.trim() : '';
+  if (!name) return;
+  fetch('/api/kp/hidden-clients', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }),
+  }).then(function (res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function (data) {
+    _sgHidden = data.hidden || [];
+    sgHiddenClientsRender();
+    sgHiddenClientsInvalidate();
+    if (input) input.value = '';
+    showToast('Скрито ✓', 'success');
+  }).catch(function (e) { showToast('Грешка: ' + e.message, 'error'); });
+}
+
+function sgRemoveHiddenClient(name) {
+  fetch('/api/kp/hidden-clients/' + encodeURIComponent(name), { method: 'DELETE' })
+    .then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }).then(function (data) {
+      _sgHidden = data.hidden || [];
+      sgHiddenClientsRender();
+      sgHiddenClientsInvalidate();
+      showToast('Показва се отново ✓', 'success');
+    }).catch(function (e) { showToast('Грешка: ' + e.message, 'error'); });
 }
 
 // ==================== СЕКЦИЯ: КАЛЕНДАР ИЗВЕСТИЯ ====================

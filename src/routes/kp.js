@@ -116,18 +116,72 @@ function calcProductionDates(publishDate, offsets) {
   };
 }
 
+// ---------- скрити клиенти (публична настройка, важи за цялата платформа) ----------
+// Венци, 27.08.2026: "Трябва да има начин да се премахват имена/клиенти, които да не
+// се показват въобще в цялата платформа... настройки, публични за всички." Прост общ
+// списък с имена в app_settings — не пипа kp_clients (тяхното `active` си остава само
+// за КП-автоматизацията). Управлява се от Настройки → Скрити клиенти (админ), чете се
+// навсякъде, където се строи списък с клиенти (тук, и bc-aggregate.aggregateAll за
+// страницата „Клиенти").
+const HIDDEN_CLIENTS_KEY = 'hidden_client_names';
+function normClientNameSrv(s) {
+  return String(s || '').toLowerCase().replace(/[^0-9a-zа-я]+/g, ' ').trim();
+}
+async function getHiddenClientNames() {
+  const row = await queryOne('SELECT value FROM app_settings WHERE key = $1', [HIDDEN_CLIENTS_KEY]);
+  try { return row && row.value ? JSON.parse(row.value) : []; } catch { return []; }
+}
+async function setHiddenClientNames(list) {
+  await execute(
+    'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()',
+    [HIDDEN_CLIENTS_KEY, JSON.stringify(list)]
+  );
+}
+
+// GET /api/kp/hidden-clients — списъкът, видим за всички (само за четене).
+router.get('/hidden-clients', requireAuth, async (req, res) => {
+  try { res.json({ hidden: await getHiddenClientNames() }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/kp/hidden-clients { name } — скрий име навсякъде (само админ).
+router.post('/hidden-clients', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const name = String((req.body && req.body.name) || '').trim();
+    if (!name) return res.status(400).json({ error: 'name required' });
+    const hidden = await getHiddenClientNames();
+    const norm = normClientNameSrv(name);
+    if (!hidden.some((n) => normClientNameSrv(n) === norm)) hidden.push(name);
+    await setHiddenClientNames(hidden);
+    res.json({ hidden });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/kp/hidden-clients/:name — покажи го отново (само админ).
+router.delete('/hidden-clients/:name', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const norm = normClientNameSrv(req.params.name);
+    const hidden = (await getHiddenClientNames()).filter((n) => normClientNameSrv(n) !== norm);
+    await setHiddenClientNames(hidden);
+    res.json({ hidden });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/kp/client-names — всички познати изписвания на клиентски имена, слети от
 // двата източника: регистъра (kp_clients, „добавените") и живите заглавия на картите
 // в Basecamp („наличните"). Ползва се за падащото меню при създаване на клиент и на
-// задача, за да не се появява един клиент под две имена.
+// задача, за да не се появява един клиент под две имена. Скритите имена (виж по-горе)
+// не влизат — за филтрите/менютата те просто не съществуват.
 // Basecamp е best-effort: ако не отговори, регистърът пак се връща.
 router.get('/client-names', requireAuth, async (req, res) => {
   try {
+    const hidden = await getHiddenClientNames();
+    const hiddenSet = new Set(hidden.map(normClientNameSrv));
     const rows = await query('SELECT name, active FROM kp_clients ORDER BY name');
     const byKey = new Map(); // lowercase name -> entry
     for (const r of rows) {
       const name = String(r.name || '').trim();
-      if (!name) continue;
+      if (!name || hiddenSet.has(normClientNameSrv(name))) continue;
       byKey.set(name.toLowerCase(), {
         name, inRegistry: true, active: r.active !== false, inBasecamp: false, cards: 0,
       });
@@ -137,6 +191,7 @@ router.get('/client-names', requireAuth, async (req, res) => {
     try {
       const auth = await kpAuth(req.user.userId);
       for (const c of await agg.listClientNames(auth.token, auth.account)) {
+        if (hiddenSet.has(normClientNameSrv(c.name))) continue;
         const key = c.name.toLowerCase();
         const hit = byKey.get(key);
         if (hit) { hit.inBasecamp = true; hit.cards = c.cards; }
@@ -148,7 +203,7 @@ router.get('/client-names', requireAuth, async (req, res) => {
     }
 
     const names = [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, 'bg'));
-    res.json({ names, basecampError });
+    res.json({ names, hidden, basecampError });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

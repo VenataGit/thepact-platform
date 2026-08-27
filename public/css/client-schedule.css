@@ -1,11 +1,44 @@
 /* ==================== КЛИЕНТ — ГРАФИК ==================== */
-.cs-filters { display: flex; flex-wrap: wrap; gap: 12px; padding-bottom: 14px; }
-.cs-filter-field { min-width: 200px; }
+/* По-тесен, центриран стълб вместо full-width (Венци, 27.08.2026). */
+.cs-wrap { max-width: 640px; margin: 0 auto; }
+
+.cs-filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; padding-bottom: 16px; }
+.cs-filter-field { min-width: 210px; }
 .cs-filter-field select { width: 100%; }
 
-.cs-list { display: flex; flex-direction: column; gap: 5px; }
-.cs-row__client { font-size: 11px; font-weight: 700; color: var(--text-dim); flex-shrink: 0; min-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-list { display: flex; flex-direction: column; gap: 10px; }
 
-@media (max-width: 700px) {
-  .cs-row__client { display: none; }
+/* По-дебели "карти" — ясна йерархия: клиент+етап горе, заглавие едро в средата,
+   колона+дата долу. Цветна лява рамка по спешността на избраната дата. */
+.cs-card {
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--border);
+  border-radius: 12px; padding: 16px 18px; text-decoration: none;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
+.cs-card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px var(--card-hover-shadow); }
+.cs-card--over, .cs-card--today { border-left-color: var(--red); }
+.cs-card--soon { border-left-color: var(--orange, #f97316); }
+.cs-card--ok { border-left-color: var(--green); }
+.cs-card--none { border-left-color: var(--border); }
+.cs-card--hold { border-left-color: #6b7280; }
+
+.cs-card__top { display: flex; align-items: center; gap: 10px; }
+.cs-card__client {
+  font-size: 11px; font-weight: 700; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cs-card__stage {
+  margin-left: auto; flex-shrink: 0; font-size: 11px; font-weight: 700;
+  padding: 3px 10px; border-radius: 12px; background: var(--bg-elevated); color: var(--text-dim);
+}
+.cs-card__title { font-size: 16px; font-weight: 700; color: #fff; line-height: 1.35; }
+.cs-card__bottom { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-dim); }
+.cs-card__col { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-card__date { margin-left: auto; flex-shrink: 0; font-weight: 700; }
+.cs-card__date--over, .cs-card__date--today { color: var(--red); }
+.cs-card__date--soon { color: var(--orange, #f97316); }
+.cs-card__date--ok { color: var(--text); }
+.cs-card__date--none { color: var(--text-dim); }
+.cs-card__date--hold { color: #9ca3af; }

@@ -14,18 +14,30 @@ function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace
 // наличните в заглавията на картите в Basecamp. Полето слага list="clientNamesList"
 // и вика ensureClientNames() — така един клиент не се появява под две изписвания
 // („Св. Влас" срещу „Свети Влас"), от което после КП картите му не се намират.
-var _clientNames = null;        // [{ name, inRegistry, active, inBasecamp, cards }]
+var _clientNames = null;        // [{ name, inRegistry, active, inBasecamp, cards }] — вече без скритите
 var _clientNamesPromise = null;
+var _hiddenClientNames = [];    // нормализирани (normClientName) — скрити навсякъде (Настройки → Скрити клиенти)
 
 function ensureClientNames() {
   if (_clientNames) { renderClientNamesList(); return Promise.resolve(_clientNames); }
   if (!_clientNamesPromise) {
     _clientNamesPromise = fetch('/api/kp/client-names')
       .then(function (r) { return r.json(); })
-      .then(function (d) { _clientNames = (d && d.names) || []; return _clientNames; })
+      .then(function (d) {
+        _clientNames = (d && d.names) || [];
+        _hiddenClientNames = ((d && d.hidden) || []).map(normClientName);
+        return _clientNames;
+      })
       .catch(function () { _clientNames = []; return _clientNames; });
   }
   return _clientNamesPromise.then(function (names) { renderClientNamesList(); return names; });
+}
+
+// Скрито ли е това име навсякъде (Настройки → Скрити клиенти)? Пуска се и над имена,
+// които никога не са стигали до kp_clients — сравнението е по нормализираното име,
+// не по регистъра.
+function isHiddenClientName(name) {
+  return _hiddenClientNames.indexOf(normClientName(name)) !== -1;
 }
 
 // Един-единствен <datalist> на края на body — всички полета сочат към него по id.

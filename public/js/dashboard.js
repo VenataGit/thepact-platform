@@ -137,7 +137,11 @@ function dashClientVocab(cards) {
   const byNorm = new Map();
   const add = (name) => {
     const norm = normClientName(name);
-    if (norm && !byNorm.has(norm)) byNorm.set(norm, { norm, name: String(name).trim() });
+    // Скрит клиент (Настройки → Скрити клиенти) — не влиза в менюто, независимо
+    // дали идва от регистъра или от заглавие, разпознато В МОМЕНТА. (Венци, 27.08.2026)
+    if (norm && !byNorm.has(norm) && (typeof isHiddenClientName !== 'function' || !isHiddenClientName(name))) {
+      byNorm.set(norm, { norm, name: String(name).trim() });
+    }
   };
   (typeof _clientNames !== 'undefined' && _clientNames || []).forEach((c) => add(c && c.name));
   (cards || dashVisibleActiveCards()).forEach((c) => {

@@ -34,7 +34,10 @@ function csStageOf(boardTitle) {
 
 async function renderClientSchedule(el) {
   setBreadcrumb(null);
-  el.className = 'full-width';
+  // Не full-width нарочно (Венци, 27.08.2026): "информацията да се събере малко
+  // повече в центъра" — по-тесен, центриран стълб вместо да се разтяга по цялата
+  // ширина на екрана.
+  el.className = '';
   el.innerHTML =
     '<div class="cl-wrap cs-wrap">' +
       '<div class="cl-head">' +
@@ -160,27 +163,35 @@ function csSetFilter(key, val) {
 function csFmt(d) { if (!d) return ''; var s = d.split('T')[0].split('-'); return s[2] + '.' + s[1] + '.' + s[0]; }
 
 function csStatus(card, dateVal) {
-  if (card.onHold) return { cls: 'cl-dot--hold', text: 'на пауза' };
-  if (!dateVal) return { cls: 'cl-dot--none', text: 'без дата' };
+  if (card.onHold) return { cls: 'hold', text: 'на пауза' };
+  if (!dateVal) return { cls: 'none', text: 'без дата' };
   var today = new Date(); today.setHours(0, 0, 0, 0);
   var d = _parseDateMidnight(dateVal);
   var diff = Math.round((d - today) / 86400000);
-  if (diff < 0) return { cls: 'cl-dot--over', text: 'просрочено · ' + csFmt(dateVal) };
-  if (diff === 0) return { cls: 'cl-dot--today', text: 'днес' };
-  if (diff <= 3) return { cls: 'cl-dot--soon', text: csFmt(dateVal) };
-  return { cls: 'cl-dot--ok', text: csFmt(dateVal) };
+  if (diff < 0) return { cls: 'over', text: 'просрочено · ' + csFmt(dateVal) };
+  if (diff === 0) return { cls: 'today', text: 'днес' };
+  if (diff <= 3) return { cls: 'soon', text: csFmt(dateVal) };
+  return { cls: 'ok', text: csFmt(dateVal) };
 }
 
+// По-дебели, ясно разчленени "карти" вместо тънък ред (Венци, 27.08.2026: "ако трябва
+// да станат малко по-дебели самите карти и да се вижда по-ясно клиента, името на
+// видеото, дата, на какъв етап е"). Реда на четене: клиент + етап горе, заглавие в
+// средата (най-едро), колона + дата долу.
 function csRowHtml(card, showClient) {
   var dateVal = csDateValue(card, _csFilter.dateType || 'due');
   var st = csStatus(card, dateVal);
   var clientName = showClient ? dashCardClient(card.title, csClientVocab()) : null;
-  return '<a class="cl-vid cs-row" href="' + esc(card.url || '#') + '" target="_blank" rel="noopener">' +
-    '<span class="cl-dot ' + st.cls + '"></span>' +
-    (clientName ? '<span class="cs-row__client">' + esc(clientName) + '</span>' : '') +
-    '<span class="cl-vid__t">' + esc(card.title || '') + '</span>' +
-    '<span class="cl-vid__stage">' + esc(CS_STAGE_LABELS[card.stage] || '—') + (card.column ? ' / ' + esc(card.column) : '') + '</span>' +
-    '<span class="cl-vid__st ' + st.cls + '">' + esc(st.text) + '</span>' +
+  return '<a class="cs-card cs-card--' + st.cls + '" href="' + esc(card.url || '#') + '" target="_blank" rel="noopener">' +
+    '<div class="cs-card__top">' +
+      (clientName ? '<span class="cs-card__client">' + esc(clientName) + '</span>' : '') +
+      '<span class="cs-card__stage">' + esc(CS_STAGE_LABELS[card.stage] || '—') + '</span>' +
+    '</div>' +
+    '<div class="cs-card__title">' + esc(card.title || '') + '</div>' +
+    '<div class="cs-card__bottom">' +
+      (card.column ? '<span class="cs-card__col">' + esc(card.column) + '</span>' : '') +
+      '<span class="cs-card__date cs-card__date--' + st.cls + '">' + esc(st.text) + '</span>' +
+    '</div>' +
   '</a>';
 }
 

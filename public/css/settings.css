@@ -134,6 +134,10 @@
 .sg-dashboard-row__meta { margin-left: auto; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
 .sg-dashboard-note { font-size: 11px; color: var(--text-dim); margin-top: 10px; }
 
+/* ---- скрити клиенти ---- */
+.sg-hidden-add { display: flex; gap: 8px; margin-bottom: 12px; }
+.sg-hidden-add .input { flex: 1; }
+
 /* ---- footer ---- */
 .sg-foot { display: flex; align-items: center; gap: 14px; margin-top: 6px; }
 .sg-legacy { margin-left: auto; font-size: 12px; color: var(--text-dim); text-decoration: none; }

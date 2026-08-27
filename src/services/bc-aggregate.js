@@ -268,6 +268,25 @@ async function loadRegistry() {
   return reg;
 }
 
+// Глобален списък с имена на клиенти, скрити от цялата платформа — не само от
+// падащите менюта, а и от тази страница (Клиенти) и нейния API. Настройката е
+// обща за всички (app_settings), редактира се от Настройки → Скрити клиенти
+// (виж routes/kp.js). Кеширана за минута, както loadStepRules() по-горе.
+let hiddenClientsCache = { at: 0, set: null };
+async function loadHiddenClientNames() {
+  if (hiddenClientsCache.set && Date.now() - hiddenClientsCache.at < 60_000) return hiddenClientsCache.set;
+  let names = [];
+  try {
+    const rows = await query("SELECT value FROM app_settings WHERE key = 'hidden_client_names'");
+    names = rows && rows[0] && rows[0].value ? JSON.parse(rows[0].value) : [];
+  } catch (e) {
+    console.warn('[bc-aggregate] hidden_client_names unavailable:', e.message);
+  }
+  const set = new Set(names.map((n) => String(n || '').trim().toLowerCase()));
+  hiddenClientsCache = { at: Date.now(), set };
+  return set;
+}
+
 function finalizePlan(plan) {
   const roles = ['pre', 'production', 'post', 'account', 'other'];
   const stages = {};
@@ -307,6 +326,7 @@ async function aggregateAll(token, account) {
     catch (e) { console.warn('[bc-aggregate] board failed', b.title, e.message); return { board: b, data: { columns: [] } }; }
   });
 
+  const hiddenClients = await loadHiddenClientNames();
   const clients = new Map(); // key -> { name, key, plans: Map<kp, plan> }
 
   for (const { board, data } of perBoard) {
@@ -323,6 +343,7 @@ async function aggregateAll(token, account) {
         const parsed = parseClientKp(card.title);
         if (!parsed) continue;
         const key = parsed.client.toLowerCase();
+        if (hiddenClients.has(key)) continue; // скрит клиент — не влиза в списъка изобщо
         if (!clients.has(key)) clients.set(key, { name: parsed.client, key, plans: new Map() });
         const cl = clients.get(key);
         if (!cl.plans.has(parsed.kp)) cl.plans.set(parsed.kp, { kp: parsed.kp, planCard: null, videos: [] });
