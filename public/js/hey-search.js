@@ -134,6 +134,7 @@ function populateMore(el) {
   el.innerHTML = `
     <div class="nav-dropdown__section">
       <a class="nav-dropdown__item" href="#/clients" onclick="closeAllDropdowns()">Клиенти</a>
+      <a class="nav-dropdown__item" href="#/client-schedule" onclick="closeAllDropdowns()">Клиент — график</a>
       <a class="nav-dropdown__item" href="#" onclick="event.preventDefault();showKpSplit()">Създай задачи по КП</a>
       <a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()">КП-Автоматизация</a>
       <a class="nav-dropdown__item" href="#/create-task" onclick="closeAllDropdowns()">Създаване на задачи</a>

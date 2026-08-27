@@ -93,6 +93,19 @@ function isPriority(steps) {
   return (steps || []).some((s) => s.completed && prodSteps.isPriorityTitle(s.title));
 }
 
+// Датите на четирите производствени стъпки (измисляне/заснемане/монтаж/качване),
+// независимо на коя дъска стои картата в момента — за изгледи, които показват
+// график по клиент през всички етапи наведнъж (напр. графикът по клиент).
+// Ползва СЪЩОТО правило като stepDueOf (чакаща стъпка > чекната > без дата > липсва).
+function stageDatesOf(stepList) {
+  const out = {};
+  for (const step of prodSteps.STEPS) {
+    const sd = stepDueOf(stepList, prodSteps.prefixesForBoard(step.board));
+    out[step.key] = sd ? sd.due : null;
+  }
+  return out;
+}
+
 function mapCard(c, stepPrefix) {
   const sd = stepDueOf(c.steps, stepPrefix);
   const out = {
@@ -104,12 +117,13 @@ function mapCard(c, stepPrefix) {
     stepsCount: (c.steps || []).length,
     url: bc.normalizeAppUrl(c.app_url), // 3.basecamp.com — там са сесията и тъмната тема
     position: c.position,
+    cardDueOn: c.due_on, // истинската Due On (за публикуване), независимо дали дъската следи своя стъпка
+    stageDates: stageDatesOf(c.steps),
   };
   if (sd) {
     out.dueFromStep = true;
     out.dueStep = sd.title;
     out.dueStepDone = !!sd.done; // отделът е приключил — датата не е чакащ срок
-    out.cardDueOn = c.due_on;
   }
   if (isPriority(c.steps)) out.priority = true;
   return out;

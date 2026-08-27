@@ -1,0 +1,11 @@
+/* ==================== КЛИЕНТ — ГРАФИК ==================== */
+.cs-filters { display: flex; flex-wrap: wrap; gap: 12px; padding-bottom: 14px; }
+.cs-filter-field { min-width: 200px; }
+.cs-filter-field select { width: 100%; }
+
+.cs-list { display: flex; flex-direction: column; gap: 5px; }
+.cs-row__client { font-size: 11px; font-weight: 700; color: var(--text-dim); flex-shrink: 0; min-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 700px) {
+  .cs-row__client { display: none; }
+}

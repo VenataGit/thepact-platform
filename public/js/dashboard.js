@@ -129,32 +129,37 @@ let _dashNamesAsked = false;   // за да дръпнем /api/kp/client-names 
 
 function dashInvalidateVocab() { _dashVocab = null; }
 
-function dashClientVocab() {
-  if (_dashVocab) return _dashVocab;
+// `cards` по избор — други изгледи (напр. графикът по клиент) имат СВОЙ зареден набор
+// от карти, различен от този на дашборда, но искат СЪЩОТО разпознаване на клиент.
+// Без аргумент пази старото поведение: дашбордовите видими активни карти, кеширани.
+function dashClientVocab(cards) {
+  if (!cards && _dashVocab) return _dashVocab;
   const byNorm = new Map();
   const add = (name) => {
     const norm = normClientName(name);
     if (norm && !byNorm.has(norm)) byNorm.set(norm, { norm, name: String(name).trim() });
   };
   (typeof _clientNames !== 'undefined' && _clientNames || []).forEach((c) => add(c && c.name));
-  dashVisibleActiveCards().forEach((c) => {
+  (cards || dashVisibleActiveCards()).forEach((c) => {
     const p = dashParseClientBlock(c.title);
     if (p) add(p.client);
   });
   // Най-дългото име печели: „Pulse Fitness КП-2" принадлежи на „Pulse Fitness", а не на
   // „Pulse" — иначе филтърът за „Pulse" щеше да влачи и чуждите карти.
-  _dashVocab = [...byNorm.values()].sort((a, b) => b.norm.length - a.norm.length);
-  return _dashVocab;
+  const vocab = [...byNorm.values()].sort((a, b) => b.norm.length - a.norm.length);
+  if (!cards) _dashVocab = vocab;
+  return vocab;
 }
 
 // normClientName() (utils.js) смъква всичко до малки букви и цифри, разделени с по един
 // интервал: „Fornetti Статични постове - Септември" → „fornetti статични постове септември".
 // Затова границата на думата тук е просто интервал (или край на низа) — „Forn" няма как
 // да мине за „Fornetti", а точките и тиретата не пречат („Св. Влас" = „Св Влас").
-function dashCardClient(title) {
+// `vocab` по избор, за същата причина като dashClientVocab() по-горе.
+function dashCardClient(title, vocab) {
   const t = normClientName(title);
   if (!t) return null;
-  const hit = dashClientVocab().find((c) => t === c.norm || t.startsWith(c.norm + ' '));
+  const hit = (vocab || dashClientVocab()).find((c) => t === c.norm || t.startsWith(c.norm + ' '));
   return hit ? hit.name : null;
 }
 
