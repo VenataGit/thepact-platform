@@ -15,6 +15,44 @@ function requireCookieSession(req, res, next) {
   next();
 }
 
+// GET /api/extension/me — кой е човекът според платформата.
+//
+// Разширението разчита името си от самия Basecamp, но това понякога пропада
+// (сменена подредба, бавно зареждане, друг домейн) и в канала „кой редактира"
+// отиваше празно име — колегите виждаха „Колега". Платформата вече знае кой е
+// човекът: токенът е издаден от неговата сесия. Това е по-сигурният източник.
+router.get('/me', requireAuth, async (req, res, next) => {
+  try {
+    const u = await queryOne('SELECT name, basecamp_user_id FROM users WHERE id = $1', [req.user.userId]);
+    res.json({
+      name: (u && u.name) || req.user.name || '',
+      basecampUserId: u && u.basecamp_user_id ? String(u.basecamp_user_id) : ''
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/extension/people?ids=123,456 — име по Basecamp id на човека.
+//
+// Оправя „Колега" и когато колегата е на по-стара версия: неговото id винаги
+// пътува в канала, а името му го има в снапшота на екипа (bc_people).
+router.get('/people', requireAuth, async (req, res, next) => {
+  try {
+    const ids = String(req.query.ids || '')
+      .split(',')
+      .map((s) => s.replace(/\D/g, ''))
+      .filter(Boolean)
+      .slice(0, 50);
+    if (!ids.length) return res.json({});
+    const rows = await query(
+      'SELECT person_id, name FROM bc_people WHERE person_id = ANY($1::bigint[])',
+      [ids]
+    );
+    const out = {};
+    for (const r of rows) if (r.name) out[String(r.person_id)] = r.name;
+    res.json(out);
+  } catch (err) { next(err); }
+});
+
 // POST /api/extension/token — издава нов токен (показва се само веднъж)
 router.post('/token', requireAuth, requireCookieSession, async (req, res, next) => {
   try {

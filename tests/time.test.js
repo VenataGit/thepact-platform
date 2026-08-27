@@ -239,6 +239,50 @@ describe('POST /api/extension/token', () => {
   });
 });
 
+// Разширението пита платформата „кой съм аз" и „как се казва човек с това
+// Basecamp id" — оттам се оправя „Колега редактира…" в Basecamp.
+describe('GET /api/extension/me и /api/extension/people', () => {
+  it('/me връща името и Basecamp id-то на човека', async () => {
+    mockDb.queryOne.mockResolvedValueOnce({ name: 'Венцислав Калчев', basecamp_user_id: '123' });
+    const res = await request(app).get('/api/extension/me').set('Cookie', memberCookie);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ name: 'Венцислав Калчев', basecampUserId: '123' });
+  });
+
+  it('/me не гърми, ако човекът още няма вързан Basecamp профил', async () => {
+    mockDb.queryOne.mockResolvedValueOnce({ name: 'Някой', basecamp_user_id: null });
+    const res = await request(app).get('/api/extension/me').set('Cookie', memberCookie);
+    expect(res.status).toBe(200);
+    expect(res.body.basecampUserId).toBe('');
+  });
+
+  it('/people връща имена по id и пропуска боклука в списъка', async () => {
+    mockDb.query.mockResolvedValueOnce([
+      { person_id: '777', name: 'Йоанна Минчева' },
+      { person_id: '888', name: '' }
+    ]);
+    const res = await request(app)
+      .get('/api/extension/people?ids=777,%20888,абв,999')
+      .set('Cookie', memberCookie);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ 777: 'Йоанна Минчева' });   // празните имена не се връщат
+    expect(mockDb.query.mock.calls[0][1][0]).toEqual(['777', '888', '999']);
+  });
+
+  it('/people без id-та не пита базата', async () => {
+    const before = mockDb.query.mock.calls.length;
+    const res = await request(app).get('/api/extension/people').set('Cookie', memberCookie);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({});
+    expect(mockDb.query.mock.calls.length).toBe(before);
+  });
+
+  it('без вход не се дава нищо', async () => {
+    expect((await request(app).get('/api/extension/me')).status).toBe(401);
+    expect((await request(app).get('/api/extension/people?ids=1')).status).toBe(401);
+  });
+});
+
 describe('PATCH/DELETE /api/time/entries/:id', () => {
   it("forbids editing someone else's entry", async () => {
     mockDb.queryOne.mockResolvedValueOnce(entryRow({ user_id: ADMIN_USER.id, ended_at: '2026-07-10T11:00:00.000Z' }));
