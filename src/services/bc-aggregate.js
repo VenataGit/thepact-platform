@@ -10,7 +10,7 @@
 // convention (confirmed) is "Cineland КП-18 - Видео 3 - …", produced by kp-split.js.
 const config = require('../config');
 const bc = require('./basecamp');
-const { query } = require('../db/pool');
+const { query, execute } = require('../db/pool');
 const prodSteps = require('./steps'); // не `steps` — isPriority() вече ползва това име за параметър
 
 // Run async fn over items with limited concurrency (gentle on Basecamp rate limits).
@@ -271,20 +271,66 @@ async function loadRegistry() {
 // Глобален списък с имена на клиенти, скрити от цялата платформа — не само от
 // падащите менюта, а и от тази страница (Клиенти) и нейния API. Настройката е
 // обща за всички (app_settings), редактира се от Настройки → Скрити клиенти
-// (виж routes/kp.js). Кеширана за минута, както loadStepRules() по-горе.
-let hiddenClientsCache = { at: 0, set: null };
-async function loadHiddenClientNames() {
-  if (hiddenClientsCache.set && Date.now() - hiddenClientsCache.at < 60_000) return hiddenClientsCache.set;
-  let names = [];
+// (виж routes/kp.js, единственият друг четец/писач на този ключ — държи се тук,
+// за да няма два различни начина на нормализиране на едно и също име).
+const HIDDEN_CLIENTS_KEY = 'hidden_client_names';
+function normClientKey(s) {
+  return String(s || '').toLowerCase().replace(/[^0-9a-zа-я]+/g, ' ').trim();
+}
+async function getHiddenClientNames() {
   try {
-    const rows = await query("SELECT value FROM app_settings WHERE key = 'hidden_client_names'");
-    names = rows && rows[0] && rows[0].value ? JSON.parse(rows[0].value) : [];
+    const rows = await query('SELECT value FROM app_settings WHERE key = $1', [HIDDEN_CLIENTS_KEY]);
+    return rows && rows[0] && rows[0].value ? JSON.parse(rows[0].value) : [];
   } catch (e) {
     console.warn('[bc-aggregate] hidden_client_names unavailable:', e.message);
+    return [];
   }
-  const set = new Set(names.map((n) => String(n || '').trim().toLowerCase()));
-  hiddenClientsCache = { at: Date.now(), set };
-  return set;
+}
+async function setHiddenClientNames(list) {
+  await execute(
+    'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()',
+    [HIDDEN_CLIENTS_KEY, JSON.stringify(list)]
+  );
+}
+
+// Скрит клиент, за когото излезе НОВА карта в Basecamp, се маха от скрития списък
+// сам — трайно, не само за тази заявка. Венци, 27.08.2026: „да не трябва да се
+// влиза и да се цъкне 'покажи отново' ... когато клиентът бъде добавен в някаква
+// задача отново - той се маха от този списък". Сравнението е СЪЩОТО като навсякъде
+// другаде, където разпознаваме клиент по заглавие (dashCardClient в dashboard.js):
+// началото на заглавието, без пунктуация/главни букви — не само строгия КП формат,
+// за да хване и КМП/РЕК/свободни заглавия.
+// Скъпата част (дъски + карти) минава през loadStructure/loadBoardCards, които вече
+// си имат кеш (STRUCT_TTL/CARDS_TTL) — второ повикване в същия прозорец е ~безплатно.
+async function autoRestoreHiddenClients(token, account, knownHidden) {
+  const hidden = knownHidden || await getHiddenClientNames();
+  if (!hidden.length) return { hidden: [], set: new Set() };
+  const struct = await loadStructure(token, account);
+  const boards = struct.boards || [];
+  const perBoard = await mapLimit(boards, 4, async (b) => {
+    try { return await loadBoardCards(token, account, b.id); }
+    catch (e) { return { columns: [] }; }
+  });
+  const titles = [];
+  for (const data of perBoard) {
+    for (const col of (data.columns || [])) {
+      for (const card of [...(col.cards || []), ...(col.onHoldCards || [])]) {
+        if (card.title) titles.push(normClientKey(card.title));
+      }
+    }
+  }
+  const stillHidden = [], restored = [];
+  for (const name of hidden) {
+    const norm = normClientKey(name);
+    const reappeared = !!norm && titles.some((t) => t === norm || t.startsWith(norm + ' '));
+    (reappeared ? restored : stillHidden).push(name);
+  }
+  if (restored.length) {
+    await setHiddenClientNames(stillHidden);
+    console.log('[bc-aggregate] клиент(и) отново в Basecamp — махнати от скрития списък сами:', restored.join(', '));
+  }
+  const set = new Set(stillHidden.map(normClientKey));
+  return { hidden: stillHidden, set };
 }
 
 function finalizePlan(plan) {
@@ -326,7 +372,7 @@ async function aggregateAll(token, account) {
     catch (e) { console.warn('[bc-aggregate] board failed', b.title, e.message); return { board: b, data: { columns: [] } }; }
   });
 
-  const hiddenClients = await loadHiddenClientNames();
+  const hiddenClients = (await autoRestoreHiddenClients(token, account)).set;
   const clients = new Map(); // key -> { name, key, plans: Map<kp, plan> }
 
   for (const { board, data } of perBoard) {
@@ -343,7 +389,7 @@ async function aggregateAll(token, account) {
         const parsed = parseClientKp(card.title);
         if (!parsed) continue;
         const key = parsed.client.toLowerCase();
-        if (hiddenClients.has(key)) continue; // скрит клиент — не влиза в списъка изобщо
+        if (hiddenClients.has(normClientKey(parsed.client))) continue; // скрит клиент — не влиза в списъка изобщо
         if (!clients.has(key)) clients.set(key, { name: parsed.client, key, plans: new Map() });
         const cl = clients.get(key);
         if (!cl.plans.has(parsed.kp)) cl.plans.set(parsed.kp, { kp: parsed.kp, planCard: null, videos: [] });
@@ -441,4 +487,5 @@ async function listClientNames(token, account) {
 module.exports = {
   mapLimit, mapCard, stepDueOf, loadStructure, loadBoardCards, invalidateBoard,
   parseClientKp, aggregateAll, listClientNames, boardRank, sortBoards,
+  normClientKey, getHiddenClientNames, setHiddenClientNames, autoRestoreHiddenClients,
 };

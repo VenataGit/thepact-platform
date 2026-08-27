@@ -120,23 +120,11 @@ function calcProductionDates(publishDate, offsets) {
 // Венци, 27.08.2026: "Трябва да има начин да се премахват имена/клиенти, които да не
 // се показват въобще в цялата платформа... настройки, публични за всички." Прост общ
 // списък с имена в app_settings — не пипа kp_clients (тяхното `active` си остава само
-// за КП-автоматизацията). Управлява се от Настройки → Скрити клиенти (админ), чете се
-// навсякъде, където се строи списък с клиенти (тук, и bc-aggregate.aggregateAll за
-// страницата „Клиенти").
-const HIDDEN_CLIENTS_KEY = 'hidden_client_names';
-function normClientNameSrv(s) {
-  return String(s || '').toLowerCase().replace(/[^0-9a-zа-я]+/g, ' ').trim();
-}
-async function getHiddenClientNames() {
-  const row = await queryOne('SELECT value FROM app_settings WHERE key = $1', [HIDDEN_CLIENTS_KEY]);
-  try { return row && row.value ? JSON.parse(row.value) : []; } catch { return []; }
-}
-async function setHiddenClientNames(list) {
-  await execute(
-    'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()',
-    [HIDDEN_CLIENTS_KEY, JSON.stringify(list)]
-  );
-}
+// за КП-автоматизацията). Управлява се от Настройки → Скрити клиенти (админ).
+// Съхранението, нормализирането на имена и автоматичното връщане (виж по-долу) живеят
+// в bc-aggregate.js — единствения източник, — за да не се разминат две копия на едно и
+// също сравнение между тази страница и bc-aggregate.aggregateAll (за „Клиенти").
+const { getHiddenClientNames, setHiddenClientNames, normClientKey, autoRestoreHiddenClients } = agg;
 
 // GET /api/kp/hidden-clients — списъкът, видим за всички (само за четене).
 router.get('/hidden-clients', requireAuth, async (req, res) => {
@@ -150,8 +138,8 @@ router.post('/hidden-clients', requireAuth, requireAdmin, async (req, res) => {
     const name = String((req.body && req.body.name) || '').trim();
     if (!name) return res.status(400).json({ error: 'name required' });
     const hidden = await getHiddenClientNames();
-    const norm = normClientNameSrv(name);
-    if (!hidden.some((n) => normClientNameSrv(n) === norm)) hidden.push(name);
+    const norm = normClientKey(name);
+    if (!hidden.some((n) => normClientKey(n) === norm)) hidden.push(name);
     await setHiddenClientNames(hidden);
     res.json({ hidden });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -160,8 +148,8 @@ router.post('/hidden-clients', requireAuth, requireAdmin, async (req, res) => {
 // DELETE /api/kp/hidden-clients/:name — покажи го отново (само админ).
 router.delete('/hidden-clients/:name', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const norm = normClientNameSrv(req.params.name);
-    const hidden = (await getHiddenClientNames()).filter((n) => normClientNameSrv(n) !== norm);
+    const norm = normClientKey(req.params.name);
+    const hidden = (await getHiddenClientNames()).filter((n) => normClientKey(n) !== norm);
     await setHiddenClientNames(hidden);
     res.json({ hidden });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -172,34 +160,42 @@ router.delete('/hidden-clients/:name', requireAuth, requireAdmin, async (req, re
 // в Basecamp („наличните"). Ползва се за падащото меню при създаване на клиент и на
 // задача, за да не се появява един клиент под две имена. Скритите имена (виж по-горе)
 // не влизат — за филтрите/менютата те просто не съществуват.
-// Basecamp е best-effort: ако не отговори, регистърът пак се връща.
+//
+// Скрит клиент, за когото излезе нова карта в Basecamp, се маха от скрития списък сам,
+// точно тук — преди да е построен отговорът, за да се появи веднага, а не чак след
+// презареждане (Венци, 27.08.2026: „да не трябва да се влиза и да се цъкне 'покажи
+// отново'"). Basecamp е best-effort: ако не отговори, регистърът пак се връща и
+// скритият списък просто не се преизчислява за този път.
 router.get('/client-names', requireAuth, async (req, res) => {
   try {
-    const hidden = await getHiddenClientNames();
-    const hiddenSet = new Set(hidden.map(normClientNameSrv));
+    let hidden = await getHiddenClientNames();
+    let liveNames = [];
+    let basecampError = null;
+    try {
+      const auth = await kpAuth(req.user.userId);
+      hidden = (await autoRestoreHiddenClients(auth.token, auth.account, hidden)).hidden;
+      liveNames = await agg.listClientNames(auth.token, auth.account);
+    } catch (err) {
+      console.error('[kp client-names] Basecamp check failed:', err.message);
+      basecampError = err.message;
+    }
+
+    const hiddenSet = new Set(hidden.map(normClientKey));
     const rows = await query('SELECT name, active FROM kp_clients ORDER BY name');
     const byKey = new Map(); // lowercase name -> entry
     for (const r of rows) {
       const name = String(r.name || '').trim();
-      if (!name || hiddenSet.has(normClientNameSrv(name))) continue;
+      if (!name || hiddenSet.has(normClientKey(name))) continue;
       byKey.set(name.toLowerCase(), {
         name, inRegistry: true, active: r.active !== false, inBasecamp: false, cards: 0,
       });
     }
-
-    let basecampError = null;
-    try {
-      const auth = await kpAuth(req.user.userId);
-      for (const c of await agg.listClientNames(auth.token, auth.account)) {
-        if (hiddenSet.has(normClientNameSrv(c.name))) continue;
-        const key = c.name.toLowerCase();
-        const hit = byKey.get(key);
-        if (hit) { hit.inBasecamp = true; hit.cards = c.cards; }
-        else byKey.set(key, { name: c.name, inRegistry: false, active: true, inBasecamp: true, cards: c.cards });
-      }
-    } catch (err) {
-      console.error('[kp client-names] Basecamp check failed:', err.message);
-      basecampError = err.message;
+    for (const c of liveNames) {
+      if (hiddenSet.has(normClientKey(c.name))) continue;
+      const key = c.name.toLowerCase();
+      const hit = byKey.get(key);
+      if (hit) { hit.inBasecamp = true; hit.cards = c.cards; }
+      else byKey.set(key, { name: c.name, inRegistry: false, active: true, inBasecamp: true, cards: c.cards });
     }
 
     const names = [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, 'bg'));

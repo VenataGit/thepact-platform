@@ -196,7 +196,7 @@ function sgSectionHiddenClients(host) {
   host.innerHTML =
     '<div class="sg-section">' +
       '<div class="sg-section__hdr">🚫 Скрити клиенти</div>' +
-      '<div class="sg-section__desc">Скрито тук име изчезва от филтъра „Клиент" на Dashboard-а, „Клиент — график" и от страницата „Клиенти" — навсякъде в платформата. Нов клиент или нова карта се появяват автоматично; премахването е ръчно, точно оттук.</div>' +
+      '<div class="sg-section__desc">Скрито тук име изчезва от филтъра „Клиент" на Dashboard-а, „Клиент — график" и от страницата „Клиенти" — навсякъде в платформата. Премахването е ръчно, точно оттук — но щом за скрит клиент излезе НОВА карта в Basecamp, той сам се маха от списъка и се показва пак, без да чакаме „Покажи отново".</div>' +
       '<div class="sg-hidden-add">' +
         '<input class="input" type="text" id="sgHiddenInput" list="clientNamesList" autocomplete="off" placeholder="Име на клиент за скриване…" onkeydown="if(event.key===\'Enter\')sgAddHiddenClient()">' +
         '<button class="btn btn-sm" onclick="sgAddHiddenClient()">Скрий</button>' +
