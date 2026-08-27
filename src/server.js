@@ -64,6 +64,9 @@ setTimeout(() => {
   initPmAgent();
   initPmDigest();
   initTimeSweeper();
+  // колоните за етапа (Pre-/Production/Post-) — миграциите не се прилагат сами
+  require("./routes/time").ensureStageColumns()
+    .catch((e) => console.warn("[time] колоните за етапа:", e.message));
   initDevQueue();
   initDevChat();
   initCrmReminders();

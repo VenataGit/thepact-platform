@@ -13,6 +13,54 @@ const { parseClientKp } = require('../services/bc-aggregate');
 const TZ = 'Europe/Sofia';
 const STOP_REASONS = new Set(['user', 'pause', 'unload']);
 
+// ---------- етап (Pre-Production / Production / Post-Production) ----------
+//
+// Дъските в Basecamp СА отделите: „Pre-Production" (измисляне), „Production"
+// (записване), „Post-Production" (монтаж), плюс „Project Management" и т.н.
+// Затова етапът е дъската, на която стои картата В МОМЕНТА НА СТАРТА, и се
+// записва върху сегмента.
+//
+// Нарочно се записва, а не се смята при отчета: картата се мести между дъските
+// (това е самият процес), а живо свързване би пренаписало историята — времето за
+// измисляне щеше да изчезне в мига, в който картата мине в Production.
+//
+// Колоните се добавят и в движение, не само от миграция: `db/migrations/` не се
+// прилага при deploy (същият подход като дневника на картите).
+let stageSchema = null;
+function ensureStageColumns() {
+  if (!stageSchema) {
+    stageSchema = query(
+      `ALTER TABLE time_entries
+         ADD COLUMN IF NOT EXISTS stage_board  TEXT NOT NULL DEFAULT '',
+         ADD COLUMN IF NOT EXISTS stage_column TEXT NOT NULL DEFAULT ''`
+    ).catch((err) => {
+      stageSchema = null;   // следващият опит да пробва пак
+      throw err;
+    });
+  }
+  return stageSchema;
+}
+
+// Къде стои картата сега. Снапшотът се опреснява на 15 минути — карта, преместена
+// преди малко, може да се хване с предишната дъска. По-добре от нищо и не пипа
+// Basecamp на всеки старт.
+async function stageOf(recordingId, recordingType) {
+  if (!recordingId || recordingType === 'todos') return { board: '', column: '' };
+  try {
+    const row = await queryOne(
+      `SELECT board_title, column_title FROM bc_cards_snap WHERE card_id = $1 LIMIT 1`,
+      [recordingId]
+    );
+    return {
+      board: (row && row.board_title) || '',
+      column: (row && row.column_title) || ''
+    };
+  } catch (err) {
+    console.warn('[time] етапът не можа да се определи:', err.message);
+    return { board: '', column: '' };
+  }
+}
+
 function entryPublic(e) {
   return {
     id: e.id,
@@ -28,7 +76,9 @@ function entryPublic(e) {
     durationSeconds: e.duration_seconds,
     isManual: e.is_manual,
     stoppedBy: e.stopped_by,
-    note: e.note
+    note: e.note,
+    stageBoard: e.stage_board || '',
+    stageColumn: e.stage_column || ''
   };
 }
 
@@ -84,6 +134,9 @@ router.post('/start', requireAuth, async (req, res, next) => {
     const title = String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 300);
     const url = String(b.url || '').slice(0, 500);
 
+    await ensureStageColumns();
+    const stage = await stageOf(recordingId, recordingType);
+
     let entry = null;
     // Retry при съвсем едновременни start-ове (уникалният индекс пази инварианта).
     for (let attempt = 0; attempt < 2 && !entry; attempt++) {
@@ -91,9 +144,10 @@ router.post('/start', requireAuth, async (req, res, next) => {
       broadcastStop(closed);
       try {
         entry = await queryOne(
-          `INSERT INTO time_entries (user_id, bc_project_id, bc_recording_id, recording_type, title, url)
-           VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-          [req.user.userId, projectId || null, recordingId, recordingType, title, url]
+          `INSERT INTO time_entries (user_id, bc_project_id, bc_recording_id, recording_type, title, url,
+                                     stage_board, stage_column)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+          [req.user.userId, projectId || null, recordingId, recordingType, title, url, stage.board, stage.column]
         );
       } catch (err) {
         if (err.code !== '23505' || attempt === 1) throw err;
@@ -435,7 +489,7 @@ function rollUp(byTitle) {
 router.get('/report', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const params = [dateParam(req.query.from), dateParam(req.query.to)];
-    const [totals, byUser, byProject, tasks, byDay] = await Promise.all([
+    const [totals, byUser, byProject, tasks, byDay, byStage] = await Promise.all([
       queryOne(
         `SELECT COALESCE(SUM(${DUR}),0)::int AS seconds, COUNT(*)::int AS entries,
                 COUNT(DISTINCT e.user_id)::int AS users,
@@ -458,13 +512,22 @@ router.get('/report', requireAuth, requireAdmin, async (req, res, next) => {
       taskGroups(params[0], params[1]),
       query(
         `SELECT ((e.started_at AT TIME ZONE '${TZ}')::date)::text AS day, COALESCE(SUM(${DUR}),0)::int AS seconds
-           FROM time_entries e ${RANGE} GROUP BY day ORDER BY day`, params)
+           FROM time_entries e ${RANGE} GROUP BY day ORDER BY day`, params),
+      // Колко е отнело измислянето, колко записването и колко монтажът: етапът е
+      // дъската, на която е стояла картата при старта на таймера.
+      query(
+        `SELECT COALESCE(NULLIF(e.stage_board, ''), '(без етап)') AS stage,
+                COALESCE(SUM(${DUR}),0)::int AS seconds, COUNT(*)::int AS entries,
+                COUNT(DISTINCT e.user_id)::int AS users,
+                COUNT(DISTINCT e.bc_recording_id)::int AS tasks
+           FROM time_entries e ${RANGE}
+          GROUP BY stage ORDER BY seconds DESC`, params)
     ]);
     const { byClient, byKp } = rollUp(tasks);
     // „Задачи" в плочките = броят сглобени задачи, а не броят различни заглавия.
     res.json({
       totals: Object.assign({}, totals, { tasks: tasks.length }),
-      byUser, byClient, byKp, byProject, byDay,
+      byUser, byClient, byKp, byProject, byDay, byStage,
       byTask: tasks.slice(0, 200),
       tasksTotal: tasks.length
     });
@@ -491,7 +554,7 @@ async function titleKeysFor(from, to, client, kp) {
   return keys;
 }
 
-// GET /api/time/report/entries?from&to&user_id&project_id&recording_id&title_key&client&kp
+// GET /api/time/report/entries?from&to&user_id&project_id&recording_id&title_key&client&kp&stage
 router.get('/report/entries', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const from = dateParam(req.query.from);
@@ -509,6 +572,11 @@ router.get('/report/entries', requireAuth, requireAdmin, async (req, res, next) 
     const keyList = (Array.isArray(rawKeys) ? rawKeys : [rawKeys])
       .map((k) => String(k === undefined || k === null ? '' : k).trim())
       .filter(Boolean);
+    // Редът „без етап" в панела са записи без запомнена дъска, затова етикетът се
+    // подава както си е; липсващ параметър значи „без филтър по етап".
+    const stage = req.query.stage === undefined
+      ? null
+      : String(req.query.stage).trim().slice(0, 200);
     const client = String(req.query.client || '').trim();
     const kpRaw = String(req.query.kp || '').trim();
     if (keyList.length) {
@@ -528,11 +596,15 @@ router.get('/report/entries', requireAuth, requireAdmin, async (req, res, next) 
           AND ($4::bigint IS NULL OR e.bc_project_id = $4::bigint)
           AND ($5::bigint IS NULL OR e.bc_recording_id = $5::bigint)
           AND ($6::text[] IS NULL OR ${TITLE_KEY} = ANY($6::text[]))
+          AND ($7::text IS NULL OR COALESCE(NULLIF(e.stage_board, ''), '(без етап)') = $7::text)
         ORDER BY e.started_at DESC LIMIT 1000`,
-      [from, to, userId, projectId, recordingId, titleKeys]
+      [from, to, userId, projectId, recordingId, titleKeys, stage]
     );
     res.json(rows.map((r) => Object.assign(entryPublic(r), { projectName: r.project_name })));
   } catch (err) { next(err); }
 });
 
 module.exports = router;
+/* Колоните за етапа се създават и при вдигане на сървъра (server.js), за да
+   работи отчетът и преди първия пуснат таймер. */
+module.exports.ensureStageColumns = ensureStageColumns;

@@ -69,6 +69,7 @@ describe('POST /api/time/start', () => {
   });
 
   it('starts a timer and broadcasts working:start', async () => {
+    mockDb.queryOne.mockResolvedValueOnce(null);            // stageOf — картата не е в снапшота
     mockDb.queryOne.mockResolvedValueOnce(null);            // closeRunning — няма стар
     mockDb.queryOne.mockResolvedValueOnce(entryRow());      // INSERT RETURNING
     mockDb.queryOne.mockResolvedValueOnce({ secs: 3600 });  // todaySeconds
@@ -89,6 +90,7 @@ describe('POST /api/time/start', () => {
 
   it('stops the previous timer when starting a new one (one per user)', async () => {
     const prev = entryRow({ id: 5, bc_recording_id: '111', ended_at: '2026-07-10T10:00:00.000Z' });
+    mockDb.queryOne.mockResolvedValueOnce(null);            // stageOf
     mockDb.queryOne.mockResolvedValueOnce(prev);            // closeRunning затвори стария
     mockDb.queryOne.mockResolvedValueOnce(entryRow());      // INSERT
     mockDb.queryOne.mockResolvedValueOnce({ secs: 100 });   // todaySeconds
@@ -103,6 +105,43 @@ describe('POST /api/time/start', () => {
       type: 'time:working:stop', entryId: 5, bcRecordingId: '111'
     }));
     expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ type: 'time:working:start' }));
+  });
+
+  // Етапът = дъската, на която стои картата в момента на старта. Записва се
+  // върху сегмента, за да не се пренапише, когато картата мине нататък.
+  it('записва етапа от дъската на картата', async () => {
+    mockDb.queryOne.mockResolvedValueOnce({ board_title: 'Production', column_title: 'Студио' });
+    mockDb.queryOne.mockResolvedValueOnce(null);
+    mockDb.queryOne.mockResolvedValueOnce(entryRow({ stage_board: 'Production', stage_column: 'Студио' }));
+    mockDb.queryOne.mockResolvedValueOnce({ secs: 0 });
+
+    const res = await request(app)
+      .post('/api/time/start')
+      .set('Cookie', memberCookie)
+      .send({ bc_recording_id: '12345', recording_type: 'cards', title: 'Заснемане' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.entry).toMatchObject({ stageBoard: 'Production', stageColumn: 'Студио' });
+
+    const insert = mockDb.queryOne.mock.calls.find((c) => /INSERT INTO time_entries/.test(c[0]));
+    expect(insert[1]).toEqual(expect.arrayContaining(['Production', 'Студио']));
+  });
+
+  it('todo-то не се води на етап (дъски има само при картите)', async () => {
+    mockDb.queryOne.mockResolvedValueOnce(null);            // closeRunning (stageOf се прескача)
+    mockDb.queryOne.mockResolvedValueOnce(entryRow({ recording_type: 'todos' }));
+    mockDb.queryOne.mockResolvedValueOnce({ secs: 0 });
+
+    const res = await request(app)
+      .post('/api/time/start')
+      .set('Cookie', memberCookie)
+      .send({ bc_recording_id: '999', recording_type: 'todos', title: 'Todo' });
+
+    expect(res.status).toBe(200);
+    const lookedUp = mockDb.queryOne.mock.calls.some((c) => /FROM bc_cards_snap/.test(c[0]));
+    expect(lookedUp).toBe(false);
+    const insert = mockDb.queryOne.mock.calls.find((c) => /INSERT INTO time_entries/.test(c[0]));
+    expect(insert[1].slice(-2)).toEqual(['', '']);
   });
 });
 
@@ -290,12 +329,28 @@ describe('GET /api/time/report — една задача през местене
       .mockResolvedValueOnce([])     // byUser
       .mockResolvedValueOnce([])     // byProject
       .mockResolvedValueOnce(pairs)  // двойките (заглавие, карта)
-      .mockResolvedValueOnce([]);    // byDay
+      .mockResolvedValueOnce([])     // byDay
+      .mockResolvedValueOnce([       // byStage — колко е отнело на всеки етап
+        { stage: 'Post-Production', seconds: 3600, entries: 3, users: 2, tasks: 2 },
+        { stage: 'Production', seconds: 1800, entries: 1, users: 1, tasks: 1 },
+        { stage: '(без етап)', seconds: 1200, entries: 1, users: 1, tasks: 0 }
+      ]);
   };
 
   it('изисква админ', async () => {
     const res = await request(app).get('/api/time/report').set('Cookie', memberCookie);
     expect(res.status).toBe(403);
+  });
+
+  it('връща разбивка по етап (измисляне / записване / монтаж)', async () => {
+    mockReport();
+    const res = await request(app).get('/api/time/report').set('Cookie', adminCookie);
+    expect(res.status).toBe(200);
+    expect(res.body.byStage).toHaveLength(3);
+    expect(res.body.byStage[0]).toMatchObject({ stage: 'Post-Production', seconds: 3600 });
+    // подредбата е по време, за да се вижда веднага кое отнема най-много
+    const secs = res.body.byStage.map((s) => s.seconds);
+    expect(secs).toEqual([...secs].sort((a, b) => b - a));
   });
 
   it('слива местене + преименуване в една задача', async () => {
@@ -412,6 +467,21 @@ describe('GET /api/time/report/entries — филтър по задача / кл
       'cineland кп-18 - видео 3 - монтаж',
       'cineland кп-18 - видео 3 - финален монтаж'
     ]);
+  });
+
+  it('филтрира по етап (седмият параметър стига до заявката)', async () => {
+    mockDb.query.mockResolvedValueOnce([]);
+    const res = await request(app)
+      .get('/api/time/report/entries?stage=' + encodeURIComponent('Pre-Production'))
+      .set('Cookie', adminCookie);
+    expect(res.status).toBe(200);
+    expect(mockDb.query.mock.calls[0][1][6]).toBe('Pre-Production');
+  });
+
+  it('без параметър „stage" няма филтър по етап', async () => {
+    mockDb.query.mockResolvedValueOnce([]);
+    await request(app).get('/api/time/report/entries').set('Cookie', adminCookie);
+    expect(mockDb.query.mock.calls[0][1][6]).toBeNull();
   });
 
   it('клиентът включва и старите заглавия на преименуваните си задачи', async () => {

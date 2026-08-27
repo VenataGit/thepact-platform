@@ -70,6 +70,10 @@ async function renderTimeReport(el) {
         <div class="tr-box"><h3>По хора</h3><div id="trByUser"></div></div>
         <div class="tr-box"><h3>По клиенти</h3><div id="trByClient"></div></div>
       </div>
+      <div class="tr-box">
+        <h3>По етап <span class="tr-dim">(Pre-Production = измисляне, Production = записване, Post-Production = монтаж)</span></h3>
+        <div id="trByStage"></div>
+      </div>
       <div class="tr-grid">
         <div class="tr-box"><h3>По контент план (КП)</h3><div id="trByKp"></div></div>
         <div class="tr-box"><h3>По Basecamp проекти</h3><div id="trByProject"></div></div>
@@ -152,6 +156,18 @@ async function trLoadReport() {
   byUserHost.querySelectorAll('.tr-row').forEach((row) => row.addEventListener('click', () => {
     const u = data.byUser[Number(row.dataset.i)];
     _trState.filter = { user_id: u.user_id, label: 'човек: ' + u.name };
+    trLoadEntries();
+  }));
+
+  // Етапът е дъската, на която е стояла картата, когато таймерът е тръгнал —
+  // затова местенето ѝ по-късно не пренаписва вече отчетеното време.
+  const byStageHost = document.getElementById('trByStage');
+  byStageHost.innerHTML = bars(data.byStage || [],
+    (s) => esc(s.stage) + ' <span class="tr-dim">(' + s.tasks + ' задачи, ' + s.users + ' души)</span>',
+    (s) => Number(s.seconds));
+  byStageHost.querySelectorAll('.tr-row').forEach((row) => row.addEventListener('click', () => {
+    const s = (data.byStage || [])[Number(row.dataset.i)];
+    _trState.filter = { stage: s.stage, label: 'етап: ' + s.stage };
     trLoadEntries();
   }));
 
@@ -242,6 +258,8 @@ function trEntriesQuery() {
   (f.title_keys || []).forEach((k) => { q += '&title_key=' + encodeURIComponent(k); });
   if (f.client) q += '&client=' + encodeURIComponent(f.client);
   if (f.kp) q += '&kp=' + f.kp;
+  // етапът може да е и празният ред „(без етап)", затова се проверява за undefined
+  if (f.stage !== undefined) q += '&stage=' + encodeURIComponent(f.stage);
   return q;
 }
 
