@@ -118,8 +118,25 @@ function csActiveCards() {
 
 function csClientVocab() { return dashClientVocab(csActiveCards()); }
 
+// КП/КМП/РЕК карта БЕЗ "Видео N" в заглавието = самият контент план (master картата),
+// не конкретно видео — разпознаването е същото като на dashParseClientBlock, само дето
+// на нея не гледаме за номер на видео. (Венци, 27.08.2026)
+function csIsPlanCard(title) {
+  return !!dashParseClientBlock(title) && !/Видео\s+\d+/i.test(title || '');
+}
+
+// "Due On" значи различно нещо според типа карта (Венци, 27.08.2026: "на обикновените
+// задачи дата за публикуване, а на контент плановете датата кога трябва да е готов
+// контент планът"): за видео/обикновена задача — истинската Due On (публикуване,
+// cardDueOn); за самия план — датата на неговата единствена стъпка ("Дата за
+// сценарий", вече в dueOn след като планът получава само idea стъпката — виж
+// PLAN_STEP_KEY в services/steps.js).
 function csDateValue(card, type) {
-  if (type === 'due') return card.cardDueOn || card.dueOn || null;
+  if (type === 'due') {
+    return csIsPlanCard(card.title)
+      ? (card.dueOn || card.cardDueOn || null)
+      : (card.cardDueOn || card.dueOn || null);
+  }
   return (card.stageDates && card.stageDates[type]) || null;
 }
 
@@ -171,16 +188,21 @@ function csSetFilter(key, val) {
 
 function csFmt(d) { if (!d) return ''; var s = d.split('T')[0].split('-'); return s[2] + '.' + s[1] + '.' + s[0]; }
 
+// On hold вече НЕ крие датата (Венци, 27.08.2026: "трябва нещо и да бъде On Hold пак
+// да излиза датата") — картата продължи да се подрежда по нея (csSorted() вече го
+// прави, csDateValue() не гледа onHold), само цветът остава неутрално сив, за да си
+// личи, че е на пауза.
 function csStatus(card, dateVal) {
-  if (card.onHold) return { cls: 'hold', text: 'на пауза' };
-  if (!dateVal) return { cls: 'none', text: 'без дата' };
+  if (!dateVal) return { cls: card.onHold ? 'hold' : 'none', text: card.onHold ? 'на пауза · без дата' : 'без дата' };
   var today = new Date(); today.setHours(0, 0, 0, 0);
   var d = _parseDateMidnight(dateVal);
   var diff = Math.round((d - today) / 86400000);
-  if (diff < 0) return { cls: 'over', text: 'просрочено · ' + csFmt(dateVal) };
-  if (diff === 0) return { cls: 'today', text: 'днес' };
-  if (diff <= 3) return { cls: 'soon', text: csFmt(dateVal) };
-  return { cls: 'ok', text: csFmt(dateVal) };
+  var text = diff < 0 ? 'просрочено · ' + csFmt(dateVal) : diff === 0 ? 'днес' : csFmt(dateVal);
+  if (card.onHold) return { cls: 'hold', text: '⏸ ' + text };
+  if (diff < 0) return { cls: 'over', text: text };
+  if (diff === 0) return { cls: 'today', text: text };
+  if (diff <= 3) return { cls: 'soon', text: text };
+  return { cls: 'ok', text: text };
 }
 
 // По-дебели, ясно разчленени "карти" вместо тънък ред (Венци, 27.08.2026: "ако трябва
