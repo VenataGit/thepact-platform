@@ -92,12 +92,19 @@ async function csLoad() {
   }
 }
 
+// "Not now" в Basecamp е обикновена колона с това заглавие (няма структурен тип за
+// нея, за разлика от Done) — затова се разпознава по заглавие, СЪЩОТО регулярно
+// изражение като дефолтните скрити колони на Dashboard-а (initDashDefaults,
+// dashboard.js). Първият опит с колонния тип "Triage" не улучи — той е Basecamp-овата
+// "Разпределение" колона (виж kp-split.js), нищо общо с "Not now". (Венци, 27.08.2026)
+function csIsNotNow(title) { return /not\s*now/i.test(title || ''); }
+
 function csEnrich(c, board, colInfo, onHold) {
   var out = Object.assign({}, c);
   out.boardTitle = board.title;
   out.column = colInfo.title || '';
   out.isDoneColumn = !!colInfo.isDone;
-  out.isTriageColumn = !!colInfo.isTriage; // "Not now"
+  out.isNotNowColumn = csIsNotNow(colInfo.title);
   out.onHold = onHold;
   out.stage = csStageOf(board.title);
   return out;
@@ -106,7 +113,7 @@ function csEnrich(c, board, colInfo, onHold) {
 // Активна = не е завършена, не е в Done колона и не е в Not now (Венци, 27.08.2026:
 // "Нека да пропуска задачите от Not now и Done").
 function csActiveCards() {
-  return _csCards.filter(function (c) { return !c.completed && !c.isDoneColumn && !c.isTriageColumn; });
+  return _csCards.filter(function (c) { return !c.completed && !c.isDoneColumn && !c.isNotNowColumn; });
 }
 
 function csClientVocab() { return dashClientVocab(csActiveCards()); }
