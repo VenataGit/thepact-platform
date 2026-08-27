@@ -1,3 +1,22 @@
+// ==================== ФУНКЦИИ И СТРАНИЦИ (вкл./изкл. от админ панела) ====================
+// Списък със страниците, които админ може да скрие от #/admin/pages. Изключено НЕ значи
+// изтрито — само не се вижда в „Още" и директен линк/бутон връща към Dashboard. Ядрото
+// на приложението (Табло, Календар, Настройки) нарочно го няма тук — самозаключване.
+var PAGE_TOGGLES = [
+  { id: 'clients', label: 'Клиенти' },
+  { id: 'client-schedule', label: 'Клиент — график' },
+  { id: 'kp-auto', label: 'КП-Автоматизация' },
+  { id: 'create-task', label: 'Създаване на задачи' },
+  { id: 'premiere', label: 'Premiere Downgrade' },
+  { id: 'board-logic', label: 'Логика на табло' },
+  { id: 'history', label: 'История' },
+  { id: 'crm', label: 'CRM' },
+  { id: 'time-report', label: 'Време' },
+];
+function isPageOff(id) {
+  return !!(typeof _platformConfig === 'object' && _platformConfig && _platformConfig['page_off_' + id] === 'true');
+}
+
 // ==================== ROUTER ====================
 // Hash-based routing — навигацията е view'ове.
 function router() {
@@ -6,6 +25,13 @@ function router() {
   const page = parts[0] || 'home';
   const id = parts[1] ? parseInt(parts[1]) : null;
   const sub = parts[2] || null;
+
+  // Изключена страница (админ панел → Функции и страници) — обратно към Dashboard.
+  if (PAGE_TOGGLES.some(function (p) { return p.id === page; }) && isPageOff(page)) {
+    if (typeof showToast === 'function') showToast('Тази страница е изключена от админ панела.', 'error', 4000);
+    location.hash = '#/dashboard';
+    return;
+  }
 
   // Highlight active nav
   document.querySelectorAll('.nav__link').forEach(el => el.classList.remove('active'));

@@ -133,20 +133,20 @@ async function markAllHeyRead(e) {
 function populateMore(el) {
   el.innerHTML = `
     <div class="nav-dropdown__section">
-      <a class="nav-dropdown__item" href="#/clients" onclick="closeAllDropdowns()">Клиенти</a>
-      <a class="nav-dropdown__item" href="#/client-schedule" onclick="closeAllDropdowns()">Клиент — график</a>
+      ${isPageOff('clients') ? '' : `<a class="nav-dropdown__item" href="#/clients" onclick="closeAllDropdowns()">Клиенти</a>`}
+      ${isPageOff('client-schedule') ? '' : `<a class="nav-dropdown__item" href="#/client-schedule" onclick="closeAllDropdowns()">Клиент — график</a>`}
       <a class="nav-dropdown__item" href="#" onclick="event.preventDefault();showKpSplit()">Създай задачи по КП</a>
-      <a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()">КП-Автоматизация</a>
-      <a class="nav-dropdown__item" href="#/create-task" onclick="closeAllDropdowns()">Създаване на задачи</a>
-      <a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()">Premiere Downgrade</a>
-      <a class="nav-dropdown__item" href="#/board-logic" onclick="closeAllDropdowns()">Логика на табло</a>
-      <a class="nav-dropdown__item" href="#/history" onclick="closeAllDropdowns()">История</a>
+      ${isPageOff('kp-auto') ? '' : `<a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()">КП-Автоматизация</a>`}
+      ${isPageOff('create-task') ? '' : `<a class="nav-dropdown__item" href="#/create-task" onclick="closeAllDropdowns()">Създаване на задачи</a>`}
+      ${isPageOff('premiere') ? '' : `<a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()">Premiere Downgrade</a>`}
+      ${isPageOff('board-logic') ? '' : `<a class="nav-dropdown__item" href="#/board-logic" onclick="closeAllDropdowns()">Логика на табло</a>`}
+      ${isPageOff('history') ? '' : `<a class="nav-dropdown__item" href="#/history" onclick="closeAllDropdowns()">История</a>`}
       <span id="moreCrmSlot"></span>
     </div>
     <div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
       <!-- Разширението е unlisted в Web Store — не се търси, стига се само по този линк. -->
       <a class="nav-dropdown__item" href="https://chromewebstore.google.com/detail/the-pact-tools/lpkffegpgdgfpfmbncldjijjmnncbpgf" target="_blank" rel="noopener" onclick="closeAllDropdowns()">Chrome разширение</a>
-      ${currentUser?.role === 'admin' ? `<a class="nav-dropdown__item" href="#/time-report" onclick="closeAllDropdowns()">Време</a>` : ''}
+      ${(currentUser?.role === 'admin' && !isPageOff('time-report')) ? `<a class="nav-dropdown__item" href="#/time-report" onclick="closeAllDropdowns()">Време</a>` : ''}
       <!-- Настройките се виждат от всички; отварят се само с админ права (sgOpenSettings). -->
       <a class="nav-dropdown__item" href="#/admin" onclick="return sgOpenSettings(event)">Настройки</a>
     </div>
@@ -156,7 +156,7 @@ function populateMore(el) {
   if (typeof crmCheckAccess === 'function') {
     crmCheckAccess().then(function(ok) {
       var slot = el.querySelector('#moreCrmSlot');
-      if (!ok || !slot) return;
+      if (!ok || !slot || isPageOff('crm')) return;
       slot.outerHTML = '<a class="nav-dropdown__item" href="#/crm" onclick="closeAllDropdowns()">CRM</a>';
     });
   }

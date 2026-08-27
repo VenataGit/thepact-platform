@@ -138,6 +138,10 @@
 .sg-hidden-add { display: flex; gap: 8px; margin-bottom: 12px; }
 .sg-hidden-add .input { flex: 1; }
 
+/* ---- функции и страници ---- */
+.sg-pages-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 16px; }
+.sg-pages-row { padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+
 /* ---- footer ---- */
 .sg-foot { display: flex; align-items: center; gap: 14px; margin-top: 6px; }
 .sg-legacy { margin-left: auto; font-size: 12px; color: var(--text-dim); text-decoration: none; }

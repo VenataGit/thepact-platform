@@ -66,6 +66,7 @@ var SG_SECTIONS = [
   { id: 'tasks', icon: '🧾', label: 'Създаване на задачи', hint: 'Шаблони, стъпки, история', adminOnly: true },
   { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
   { id: 'hidden-clients', icon: '🚫', label: 'Скрити клиенти', hint: 'Имена, изчистени от филтрите', adminOnly: true },
+  { id: 'pages', icon: '🧩', label: 'Функции и страници', hint: 'Скрий/покажи инструменти', adminOnly: true },
   { id: 'calendar', icon: '📅', label: 'Производствен календар', hint: 'Календари за снимки + известия', adminOnly: false },
   { id: 'results', icon: '📊', label: 'Резултати', hint: 'Известие при изпубликуван КП', adminOnly: true },
   { id: 'sheets', icon: '📄', label: 'Таблица известия', hint: 'Google Sheets → Basecamp', adminOnly: true },
@@ -128,6 +129,7 @@ async function renderSettings(el, sub) {
   else if (active === 'tasks') sgSectionTasks(body);
   else if (active === 'dashboard') sgSectionDashboard(body);
   else if (active === 'hidden-clients') sgSectionHiddenClients(body);
+  else if (active === 'pages') sgSectionPages(body);
   else if (active === 'calendar') sgSectionCalendar(body);
   else if (active === 'results') sgSectionResults(body);
   else if (active === 'sheets') sgSectionSheets(body);
@@ -268,6 +270,30 @@ function sgRemoveHiddenClient(name) {
       sgHiddenClientsInvalidate();
       showToast('Показва се отново ✓', 'success');
     }).catch(function (e) { showToast('Грешка: ' + e.message, 'error'); });
+}
+
+// ==================== СЕКЦИЯ: ФУНКЦИИ И СТРАНИЦИ ====================
+// Списъкът PAGE_TOGGLES живее в router.js (там го ползват и router()/populateMore()).
+function sgSectionPages(host) {
+  host.innerHTML =
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">🧩 Функции и страници</div>' +
+      '<div class="sg-section__desc">Изключена страница изчезва от менюто „Още" за целия екип, а директен линк към нея връща към Dashboard. Не трие нищо — само крие. Ядрото на платформата (Табло, Календар, Настройки) не може да се спира оттук.</div>' +
+      '<div class="sg-pages-list">' +
+        PAGE_TOGGLES.map(function (p) {
+          return '<label class="ga-toggle sg-pages-row"><input type="checkbox" ' + (isPageOff(p.id) ? '' : 'checked') +
+            ' onchange="sgTogglePage(\'' + p.id + '\', this.checked)"> ' + esc(p.label) + '</label>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+}
+
+function sgTogglePage(id, enabled) {
+  var key = 'page_off_' + id;
+  var value = enabled ? 'false' : 'true';
+  saveSetting(key, value);
+  if (typeof _platformConfig === 'object') _platformConfig[key] = value;
+  showToast(enabled ? 'Включено ✓' : 'Изключено ✓', 'success', 1500);
 }
 
 // ==================== СЕКЦИЯ: КАЛЕНДАР ИЗВЕСТИЯ ====================
