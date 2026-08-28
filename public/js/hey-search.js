@@ -146,6 +146,7 @@ function populateMore(el) {
     <div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
       <!-- Разширението е unlisted в Web Store — не се търси, стига се само по този линк. -->
       <a class="nav-dropdown__item" href="https://chromewebstore.google.com/detail/the-pact-tools/lpkffegpgdgfpfmbncldjijjmnncbpgf" target="_blank" rel="noopener" onclick="closeAllDropdowns()">Chrome разширение</a>
+      <a class="nav-dropdown__item" href="#/release-notes" onclick="closeAllDropdowns()">Какво ново</a>
       ${(currentUser?.role === 'admin' && !isPageOff('time-report')) ? `<a class="nav-dropdown__item" href="#/time-report" onclick="closeAllDropdowns()">Време</a>` : ''}
       <!-- Настройките се виждат от всички; отварят се само с админ права (sgOpenSettings). -->
       <a class="nav-dropdown__item" href="#/admin" onclick="return sgOpenSettings(event)">Настройки</a>
