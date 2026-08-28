@@ -300,6 +300,12 @@ async function setHiddenClientNames(list) {
 // другаде, където разпознаваме клиент по заглавие (dashCardClient в dashboard.js):
 // началото на заглавието, без пунктуация/главни букви — не само строгия КП формат,
 // за да хване и КМП/РЕК/свободни заглавия.
+//
+// Броим само АКТИВНИ карти — завършена, Done или Not now карта НЕ връща клиента.
+// Без това скрит тестов/неактивен клиент никога не оставаше скрит: старата му карта
+// (архивна, в Done или Not now) го „връщаше" веднага при следващото зареждане и
+// „Скрий" изглеждаше сякаш изобщо не запазва нищо. (Венци, 28.08.2026)
+//
 // Скъпата част (дъски + карти) минава през loadStructure/loadBoardCards, които вече
 // си имат кеш (STRUCT_TTL/CARDS_TTL) — второ повикване в същия прозорец е ~безплатно.
 async function autoRestoreHiddenClients(token, account, knownHidden) {
@@ -308,14 +314,18 @@ async function autoRestoreHiddenClients(token, account, knownHidden) {
   const struct = await loadStructure(token, account);
   const boards = struct.boards || [];
   const perBoard = await mapLimit(boards, 4, async (b) => {
-    try { return await loadBoardCards(token, account, b.id); }
-    catch (e) { return { columns: [] }; }
+    try { return { board: b, data: await loadBoardCards(token, account, b.id) }; }
+    catch (e) { return { board: b, data: { columns: [] } }; }
   });
   const titles = [];
-  for (const data of perBoard) {
+  for (const { board, data } of perBoard) {
+    const colInfo = {};
+    (board.columns || []).forEach((c) => { colInfo[c.id] = c; });
     for (const col of (data.columns || [])) {
+      const info = colInfo[col.id] || {};
+      if (info.isDone || /not\s*now/i.test(info.title || '')) continue;
       for (const card of [...(col.cards || []), ...(col.onHoldCards || [])]) {
-        if (card.title) titles.push(normClientKey(card.title));
+        if (card.title && !card.completed) titles.push(normClientKey(card.title));
       }
     }
   }

@@ -181,18 +181,22 @@ router.get('/client-names', requireAuth, async (req, res) => {
     }
 
     const hiddenSet = new Set(hidden.map(normClientKey));
+    // Ключът е normClientKey (без пунктуация), не голо .toLowerCase() — иначе "Adecco"
+    // и "Adecco -" излизат като два различни клиента, вместо да се слеят в един.
+    // (Венци, 28.08.2026)
     const rows = await query('SELECT name, active FROM kp_clients ORDER BY name');
-    const byKey = new Map(); // lowercase name -> entry
+    const byKey = new Map(); // normClientKey -> entry
     for (const r of rows) {
       const name = String(r.name || '').trim();
-      if (!name || hiddenSet.has(normClientKey(name))) continue;
-      byKey.set(name.toLowerCase(), {
+      const key = normClientKey(name);
+      if (!name || !key || hiddenSet.has(key)) continue;
+      byKey.set(key, {
         name, inRegistry: true, active: r.active !== false, inBasecamp: false, cards: 0,
       });
     }
     for (const c of liveNames) {
-      if (hiddenSet.has(normClientKey(c.name))) continue;
-      const key = c.name.toLowerCase();
+      const key = normClientKey(c.name);
+      if (!key || hiddenSet.has(key)) continue;
       const hit = byKey.get(key);
       if (hit) { hit.inBasecamp = true; hit.cards = c.cards; }
       else byKey.set(key, { name: c.name, inRegistry: false, active: true, inBasecamp: true, cards: c.cards });
