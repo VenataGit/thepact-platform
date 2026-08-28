@@ -1,5 +1,6 @@
 {
   "_комент": "Единственият източник за страницата /extension.html. При ново издание: добави запис най-отгоре в releases и обнови features, ако функция е добавена или махната.",
+  "store": "https://chromewebstore.google.com/detail/lpkffegpgdgfpfmbncldjijjmnncbpgf",
   "download": "/dl/thepact-tools-latest.zip",
   "features": [
     {

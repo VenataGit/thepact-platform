@@ -85,6 +85,7 @@
       padding: 9px 12px; border: 1px dashed var(--line); border-radius: 8px;
     }
     .ver b { color: var(--ink); }
+    .hint { margin: 16px 0 0; color: var(--dim); font-size: 14px; max-width: 62ch; }
 
     /* ---------- секции ---------- */
     h2 {
@@ -179,21 +180,29 @@
       предупреждение кой редактира в момента и бутоните за запазване под ръка.
     </p>
     <div class="actions">
-      <a class="dl" id="dl" href="/dl/thepact-tools-latest.zip" download>⬇ Изтегли разширението</a>
+      <a class="dl" id="dl" href="#" target="_blank" rel="noopener">🧩 Инсталирай от Chrome Web Store</a>
       <a class="ghost" href="#novo">Какво ново</a>
       <span class="ver" id="ver">версия <b>…</b></span>
     </div>
+    <p class="hint">
+      Отваря официалната страница в Chrome Web Store — натискаш <strong>Add to Chrome</strong> и толкова.
+      Оттам нататък Chrome го обновява сам, без да правиш нищо.
+      Ако в магазина още стои по-стара версия от показаната тук, значи новата е при Google за проверка
+      и ще дойде сама.
+    </p>
 
     <details class="how">
-      <summary>Как се слага (ако не ти е инсталирано)</summary>
+      <summary>Ръчно слагане (само ако трябва да пробваш нещо преди одобрението на Google)</summary>
       <p style="margin-top:0;color:var(--dim)">
-        Ако вече го имаш, <strong>не пипай нищо</strong> — Chrome го обновява сам.
-        Ръчното слагане е за нов компютър или когато трябва да пробваш нещо преди
-        одобрението на Google.
+        Нормалният път е бутонът горе. Това тук е за случая, когато поправка още чака
+        проверката на Google и трябва да се пробва веднага. <strong>Внимание:</strong> сложено
+        така, разширението <em>не се обновява само</em> — затова после се връщай на версията
+        от Chrome Web Store.
       </p>
       <ol>
-        <li>Изтегли архива с бутона горе и го <strong>разархивирай</strong> в папка, която ще остане (Chrome чете от нея при всяко пускане).</li>
+        <li><a id="zip" href="/dl/thepact-tools-latest.zip" download>Изтегли архива</a> и го <strong>разархивирай</strong> в папка, която ще остане (Chrome чете от нея при всяко пускане).</li>
         <li>Отвори <code>chrome://extensions</code> и включи <strong>Developer mode</strong> (горе вдясно).</li>
+        <li>Изключи временно версията от магазина, за да не вървят две наведнъж.</li>
         <li>Натисни <strong>Load unpacked</strong> и посочи разархивираната папка.</li>
         <li>Отвори Basecamp и презареди страницата.</li>
       </ol>
@@ -230,7 +239,10 @@
       .then(function (data) {
         if (!data) throw new Error('няма данни');
 
-        if (data.download) document.getElementById('dl').setAttribute('href', data.download);
+        /* Основният път е магазинът: там Chrome обновява сам. Архивът остава
+           като резервен вариант вътре в сгънатата секция. */
+        if (data.store) document.getElementById('dl').setAttribute('href', data.store);
+        if (data.download) document.getElementById('zip').setAttribute('href', data.download);
 
         var rel = Array.isArray(data.releases) ? data.releases : [];
         var latest = rel[0] ? rel[0].version : '';
