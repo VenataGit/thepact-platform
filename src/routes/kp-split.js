@@ -222,10 +222,10 @@ router.get('/init', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/kp-split/preview { cardId } — parse only, no writes.
+// POST /api/kp-split/preview { cardId, destBoardId? } — parse only, no writes.
 router.post('/preview', requireAuth, async (req, res) => {
   try {
-    const { cardId } = req.body || {};
+    const { cardId, destBoardId } = req.body || {};
     if (!cardId) return res.status(400).json({ error: 'cardId required' });
     const { token, account } = await getUserAuth(req.user.userId);
     const projectId = config.BASECAMP_TEAM_PROJECT_ID;
@@ -234,9 +234,29 @@ router.post('/preview', requireAuth, async (req, res) => {
     let { sections, attachments, header } = parsePlan(planHtml(card));
     const truncated = sections.length > MAX_VIDEOS;
     if (truncated) sections = sections.slice(0, MAX_VIDEOS);
+
+    // Сигнал "вече има задача с това заглавие" (Венци, 28.08.2026) — същата проверка
+    // по точно заглавие, която /create прави за идемпотентност, само че тук се вика
+    // рано, за да може човекът да види и да цъкне "Пропусни" ПРЕДИ да създава нищо.
+    // Без избрана дестинация (destBoardId) прескачаме — прегледът пак работи, само
+    // без сигнала.
+    const existingByTitle = new Map();
+    if (destBoardId) {
+      try {
+        const destTable = await bc.getCardTable(token, account, projectId, destBoardId);
+        const target = (destTable.lists || []).find((l) => /разпределение/i.test(l.title || ''))
+          || (destTable.lists || []).find((l) => /Triage/i.test(l.type || ''));
+        if (target) {
+          const existing = await bc.getColumnCards(token, account, projectId, target.id);
+          existing.forEach((c) => existingByTitle.set((c.title || '').trim(), c));
+        }
+      } catch (e) { console.warn('[kp-split preview] existing-cards check failed:', e.message); }
+    }
+
     const videos = sections.map((s) => {
       const cardTitle = prefix + ' - Видео ' + s.videoNumber + ' - ' + s.title;
       const publishDate = parsePublishDate(s.sectionText);
+      const existing = existingByTitle.get(cardTitle.trim());
       return {
         videoNumber: s.videoNumber,
         cardTitle,
@@ -245,6 +265,7 @@ router.post('/preview', requireAuth, async (req, res) => {
         snippet: snippetOf(s.sectionText),
         body: previewBody(s.sectionText, attachments, cardTitle),
         steps: stepsFor(publishDate),
+        existingCardUrl: existing ? bc.normalizeAppUrl(existing.app_url) : null,
       };
     });
     const planDates = kpPlan.parsePlanDates(header);
@@ -282,6 +303,15 @@ router.post('/create', requireAuth, async (req, res) => {
     if (!sections.length) return res.status(400).json({ error: 'Няма разпознати „Видео N - …" секции в плана.' });
     const truncated = sections.length > MAX_VIDEOS;
     if (truncated) sections = sections.slice(0, MAX_VIDEOS);
+
+    // Видеата, които потребителят изрично е маркирал "Пропусни" в прегледа
+    // (Венци, 28.08.2026) — изключват се напълно: не се създават, не пипат датите
+    // в плана, не влизат в никое от резюметата по-долу.
+    const skippedByUser = new Set(
+      (Array.isArray((req.body || {}).skip) ? req.body.skip : [])
+        .map((n) => parseInt(n, 10)).filter(Number.isFinite)
+    );
+    if (skippedByUser.size) sections = sections.filter((s) => !skippedByUser.has(s.videoNumber));
 
     // Find the "Разпределение" (Triage) column in the destination board.
     // ВАЖНО: намираме я ПРЕДИ да пипнем датите в плана — иначе при липсваща колона
@@ -426,7 +456,7 @@ router.post('/create', requireAuth, async (req, res) => {
 
     const planDates = kpPlan.parsePlanDates(header);
     res.json({
-      created, errors, skipped, truncated, mediaErrors,
+      created, errors, skipped, skippedByUser: skippedByUser.size, truncated, mediaErrors,
       board: destTable.title, column: target.title,
       planUpdate,
       planDates,

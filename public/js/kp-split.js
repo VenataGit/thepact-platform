@@ -9,7 +9,7 @@
 //     самия контент план (бота го пренаписва), и в новата задача, и в стъпките;
 //   • подготвените дати от главата на плана се следят: остане ли дата без видео,
 //     излиза известие точно коя е.
-var _kps = { init: null, cardId: null, videos: [], planDates: [] };
+var _kps = { init: null, cardId: null, videos: [], planDates: [], truncated: false };
 
 async function showKpSplit() {
   if (typeof closeAllDropdowns === 'function') closeAllDropdowns();
@@ -94,28 +94,32 @@ async function kpsPreview() {
   var planEl = document.getElementById('kpsPlan');
   var cardId = planEl && planEl.value;
   if (!cardId) return;
+  var destEl = document.querySelector('input[name="kpsDest"]:checked');
+  var destBoardId = destEl && destEl.value;
   _kps.cardId = cardId; // lock in the previewed plan so Create uses exactly this one
   var box = document.getElementById('kpsPreview');
   box.innerHTML = '<div class="kps-muted">Чета плана…</div>';
   try {
-    var res = await fetch('/api/kp-split/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId: cardId }) });
+    var res = await fetch('/api/kp-split/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId: cardId, destBoardId: destBoardId }) });
     var data = await res.json();
     if (!res.ok || data.error) { box.innerHTML = '<div class="kps-err">' + esc(data.error || 'Грешка.') + '</div>'; return; }
     if (!data.count) { box.innerHTML = '<div class="kps-err">Не разпознах „Видео N - …" секции в този план. Провери формата.</div>'; return; }
     _kps.planDates = data.planDates || [];
+    _kps.truncated = !!data.truncated;
     _kps.videos = (data.videos || []).map(function (v) {
       return {
         videoNumber: v.videoNumber, cardTitle: v.cardTitle, snippet: v.snippet,
         mediaCount: v.mediaCount, body: v.body, steps: v.steps || [],
         publishDate: v.publishDate || '', origDate: v.publishDate || '', open: false,
+        skip: false, existingCardUrl: v.existingCardUrl || null,
       };
     });
     box.innerHTML =
       '<div class="kps-preview">' +
-        '<div class="kps-preview__hdr">Ще се създадат <b>' + data.count + '</b> задачи' + (data.truncated ? ' (ограничено)' : '') + ':</div>' +
+        '<div class="kps-preview__hdr" id="kpsCreateHdr">Ще се създадат <b>' + data.count + '</b> задачи' + (data.truncated ? ' (ограничено)' : '') + ':</div>' +
         '<div id="kpsDatesWarn"></div>' +
         '<ol class="kps-vlist">' + _kps.videos.map(kpsRowHtml).join('') + '</ol>' +
-        '<button class="btn btn-primary kps-btn" onclick="kpsCreate()">Създай ' + data.count + ' задачи</button>' +
+        '<button class="btn btn-primary kps-btn" id="kpsCreateBtn" onclick="kpsCreate()">Създай ' + data.count + ' задачи</button>' +
         '<div id="kpsResult"></div>' +
       '</div>';
     kpsRenderWarn();
@@ -124,19 +128,49 @@ async function kpsPreview() {
 
 function kpsRowHtml(v, i) {
   var media = v.mediaCount ? '<span class="kps-vmedia" title="прикачени файлове">📎 ' + v.mediaCount + '</span>' : '';
-  return '<li class="kps-v">' +
+  var existing = v.existingCardUrl
+    ? '<div class="kps-vexistrow"><a class="kps-vexist" href="' + esc(v.existingCardUrl) + '" target="_blank" rel="noopener"' +
+      ' title="Вече има задача с това заглавие в Basecamp — отвори я в нов прозорец">⚠ вече съществува като задача — отвори</a></div>'
+    : '';
+  return '<li class="kps-v' + (v.skip ? ' kps-v--skip' : '') + '">' + existing +
     '<div class="kps-vhead">' +
       '<div class="kps-vtitle">' + esc(v.cardTitle) + '</div>' +
       '<div class="kps-vctl">' + media +
         '<input type="date" id="kpsDate' + i + '" class="kps-vdate-inp' + (v.publishDate ? '' : ' kps-vdate-inp--none') + '"' +
           ' value="' + esc(v.publishDate) + '" title="Дата за публикуване — може да се смени преди създаването"' +
+          (v.skip ? ' disabled' : '') +
           ' onchange="kpsDateChange(' + i + ', this.value)">' +
         '<button type="button" class="kps-vtoggle" id="kpsTgl' + i + '" onclick="kpsToggle(' + i + ')">Преглед</button>' +
+        '<button type="button" class="kps-vskip" id="kpsSkip' + i + '" onclick="kpsSkipToggle(' + i + ')">' + (v.skip ? 'Включи' : 'Пропусни') + '</button>' +
       '</div>' +
     '</div>' +
     (v.snippet ? '<div class="kps-vsnip">' + esc(v.snippet) + '…</div>' : '') +
     '<div class="kps-vfull" id="kpsFull' + i + '" hidden></div>' +
   '</li>';
+}
+
+// Маркира видео да НЕ се създава — оставя го в плана, но извън тази операция
+// (Венци, 28.08.2026: контент планът често има идеи, за които вече е пусната отделна
+// задача, или клиентът не е избрал точно тях).
+function kpsSkipToggle(i) {
+  var v = _kps.videos[i]; if (!v) return;
+  v.skip = !v.skip;
+  var lis = document.querySelectorAll('.kps-vlist > .kps-v');
+  var li = lis[i];
+  if (li) li.classList.toggle('kps-v--skip', v.skip);
+  var btn = document.getElementById('kpsSkip' + i);
+  if (btn) btn.textContent = v.skip ? 'Включи' : 'Пропусни';
+  var dateInp = document.getElementById('kpsDate' + i);
+  if (dateInp) dateInp.disabled = v.skip;
+  kpsUpdateCreateCount();
+}
+
+function kpsUpdateCreateCount() {
+  var n = (_kps.videos || []).filter(function (v) { return !v.skip; }).length;
+  var hdr = document.getElementById('kpsCreateHdr');
+  if (hdr) hdr.innerHTML = 'Ще се създадат <b>' + n + '</b> задачи' + (_kps.truncated ? ' (ограничено)' : '') + ':';
+  var btn = document.getElementById('kpsCreateBtn');
+  if (btn) { btn.textContent = 'Създай ' + n + ' задачи'; btn.disabled = n === 0; }
 }
 
 function kpsToggle(i) {
@@ -239,14 +273,17 @@ async function kpsCreate() {
   var destEl = document.querySelector('input[name="kpsDest"]:checked');
   var destBoardId = destEl && destEl.value;
   if (!cardId || !destBoardId) return;
-  var dates = {};
-  (_kps.videos || []).forEach(function (v) { if (v.publishDate) dates[v.videoNumber] = v.publishDate; });
+  var dates = {}, skipNums = [];
+  (_kps.videos || []).forEach(function (v) {
+    if (v.skip) { skipNums.push(v.videoNumber); return; }
+    if (v.publishDate) dates[v.videoNumber] = v.publishDate;
+  });
   var rbox = document.getElementById('kpsResult');
   var btns = Array.prototype.slice.call(document.querySelectorAll('.kps-btn'));
   btns.forEach(function (b) { b.disabled = true; });
   if (rbox) rbox.innerHTML = '<div class="kps-muted">Създавам задачите в Basecamp и прехвърлям медията… може да отнеме малко (не затваряй прозореца).</div>';
   try {
-    var res = await fetch('/api/kp-split/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId: cardId, destBoardId: destBoardId, dates: dates }) });
+    var res = await fetch('/api/kp-split/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId: cardId, destBoardId: destBoardId, dates: dates, skip: skipNums }) });
     var data = await res.json();
     if (!res.ok || data.error) { if (rbox) rbox.innerHTML = '<div class="kps-err">' + esc(data.error || 'Грешка.') + '</div>'; btns.forEach(function (b) { b.disabled = false; }); return; }
     var ok = (data.created || []).length, errs = (data.errors || []), skip = (data.skipped || []), merr = (data.mediaErrors || []);
@@ -263,6 +300,7 @@ async function kpsCreate() {
         data.unusedDates.map(function (d) { return esc(formatDate(d)); }).join(', ') + '</b></div>';
     }
     if (skip.length) html += '<div class="kps-muted">Пропуснати ' + skip.length + ' (вече съществуват със същото заглавие).</div>';
+    if (data.skippedByUser) html += '<div class="kps-muted">Пропуснати ръчно ' + data.skippedByUser + ' (маркирани „Пропусни").</div>';
     if (data.truncated) html += '<div class="kps-muted">⚠ Планът има повече видеа от лимита — създадени са само първите.</div>';
     if (merr.length) html += '<div class="kps-err">' + merr.length + ' медийни файла не се прехвърлиха:<br>' + merr.map(function (m) { return esc((m.filename || '') + ' — ' + (m.error || '')); }).join('<br>') + '</div>';
     if (errs.length) html += '<div class="kps-err">' + errs.length + ' неуспешни задачи: ' + esc(errs.map(function (e) { return e.title; }).join('; ')) + '</div>';

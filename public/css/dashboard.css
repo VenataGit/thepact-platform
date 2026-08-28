@@ -111,6 +111,15 @@
 .kps-warn { color: var(--orange, #f97316); font-size: 13px; padding: 6px 0; }
 .kps-okline { color: var(--green); font-size: 13px; padding: 6px 0; }
 
+/* Пропусни видео + сигнал "вече съществува като задача" (28.08.2026) */
+.kps-vskip { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; cursor: pointer; }
+.kps-vskip:hover { color: var(--red); border-color: var(--red); }
+.kps-v--skip { opacity: .45; }
+.kps-v--skip .kps-vskip { color: var(--green); border-color: var(--green); }
+.kps-vexistrow { margin-bottom: 4px; }
+.kps-vexist { display: inline-block; font-size: 11px; font-weight: 600; color: var(--orange, #f97316); border: 1px solid var(--orange, #f97316); border-radius: 6px; padding: 2px 8px; text-decoration: none; }
+.kps-vexist:hover { background: rgba(249,115,22,.12); }
+
 /* Инструмент „Създаване на задачи" (#/create-task) */
 .tcr-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .tcr-tab { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; color: var(--text-dim); font-family: inherit; font-size: 14px; font-weight: 600; padding: 10px 16px; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
