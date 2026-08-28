@@ -43,14 +43,35 @@ const HEADING_RE = /^(?:Видео\s+\d+\s*[-–—].*|Локация на фа�
 // („Копи: ХХХ" → жълто е само „Копи:").
 const LABEL_RE = /^(Копи:)(.*)$/i;
 
-// Един ред обикновен текст → inline HTML (escape + оцветяване по правилата горе).
+// http(s) адрес в чист текст → истинска кликаема връзка. kp-plan.js htmlToText()
+// пази оригиналните <a href> връзки от плана като видим адрес в текста
+// ("Текст (https://...)" или самия адрес) точно за да минат оттук обратно към HTML
+// (Венци, 28.08.2026: линковете от контент плана трябва да работят и в новата задача).
+const URL_RE = /https?:\/\/[^\s<>"]+/gi;
+
+function linkify(s) {
+  const str = String(s == null ? '' : s);
+  let out = '', last = 0, m;
+  URL_RE.lastIndex = 0;
+  while ((m = URL_RE.exec(str))) {
+    const url = m[0].replace(/[.,;:!?)\]]+$/, ''); // не влачи пунктуацията след адреса
+    out += esc(str.slice(last, m.index));
+    out += `<a href="${escAttr(url)}" target="_blank">${esc(url)}</a>`;
+    last = m.index + url.length;
+    URL_RE.lastIndex = last;
+  }
+  return out + esc(str.slice(last));
+}
+
+// Един ред обикновен текст → inline HTML (escape + оцветяване по правилата горе,
+// адресите в текста стават кликаеми връзки).
 function line(text) {
   const t = String(text == null ? '' : text).trim();
   if (t === '') return '';
   if (HEADING_RE.test(t)) return mark(t);
   const m = t.match(LABEL_RE);
-  if (m) return mark(m[1]) + esc(m[2]);
-  return esc(t);
+  if (m) return mark(m[1]) + linkify(m[2]);
+  return linkify(t);
 }
 
 // Многоредов текст → масив inline части (по една на ред; празният ред е '').

@@ -27,9 +27,26 @@ function parseAttachment(html) {
   };
 }
 
+// <a href="URL">TEXT</a> → "TEXT (URL)" (или само URL-а, ако текстът на връзката си Е
+// URL-ът) — иначе генералният tag-stripper по-долу изтрива и тага, и адреса, и
+// линкът изчезва безследно (Венци, 28.08.2026: "хипервръзки ... не пренасяха").
+// Адресът остава като чист текст в sectionText; bc-html.js го превръща обратно в
+// кликаема връзка, когато секцията се излива в новата карта.
+const LINK_RE = /<a\b[^>]*\bhref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+
+function linkToText(href, inner) {
+  const url = String(href || '').trim();
+  const text = String(inner || '').replace(/<[^>]+>/g, '').trim();
+  if (!url) return text;
+  const norm = (s) => s.replace(/\/+$/, '').toLowerCase();
+  if (!text || norm(text) === norm(url)) return url;
+  return text + ' (' + url + ')';
+}
+
 function htmlToText(html) {
   return (html || '')
     .replace(/<br\s*\/?>/gi, '\n').replace(/<\/div>/gi, '\n').replace(/<\/p>/gi, '\n')
+    .replace(LINK_RE, (m, href, inner) => linkToText(href, inner))
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
