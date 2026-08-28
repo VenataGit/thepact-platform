@@ -273,16 +273,18 @@ router.get('/clients', requireAuth, async (req, res) => {
 // POST /api/kp/clients
 router.post('/clients', requireAuth, async (req, res) => {
   try {
-    const { name, videos_per_month, current_kp_number, first_publish_date, notes } = req.body;
+    const { name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, notes } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
 
     const cfg = await kpc.loadKpConfig();
     const vidCount = videos_per_month || cfg.defaultVideos;
-    let computedInterval = null, computedLast = null, computedNext = null;
+    // Интервалът идва от формата („Стандарт — 10 видеа през 3 дни" или Custom).
+    const interval = parseInt(publish_interval_days, 10) || null;
+    let computedInterval = interval, computedLast = null, computedNext = null;
 
     // Auto-compute dates if first_publish_date provided
     if (first_publish_date) {
-      const dist = kpc.distributePublishDates(first_publish_date, vidCount, cfg.calendarWindow);
+      const dist = kpc.distributePublishDates(first_publish_date, vidCount, cfg.calendarWindow, interval);
       computedInterval = Math.round(dist.interval);
       computedLast = toDateStr(dist.lastVideoDate);
       computedNext = toDateStr(dist.nextKpFirstDate);
@@ -348,15 +350,19 @@ router.delete('/clients/:id', requireAuth, requireAdmin, async (req, res) => {
 // GET /api/kp/preview-dates?firstDate=YYYY-MM-DD&videoCount=N
 router.get('/preview-dates', requireAuth, async (req, res) => {
   try {
-    const { firstDate, videoCount } = req.query;
+    const { firstDate, videoCount, interval } = req.query;
     if (!firstDate) return res.status(400).json({ error: 'firstDate required' });
     const cfg = await kpc.loadKpConfig();
     const count = parseInt(videoCount) || cfg.defaultVideos;
-    const dist = kpc.distributePublishDates(firstDate, count, cfg.calendarWindow);
+    const dist = kpc.distributePublishDates(firstDate, count, cfg.calendarWindow, parseInt(interval, 10) || null);
+    // cycleDays = от първото видео на този КП до първото на следващия — така във
+    // формата се вижда веднага дали планът се събира в месец.
+    const cycleDays = Math.round((dist.nextKpFirstDate - dist.dates[0]) / 86400000);
     res.json({
       dates: dist.dates.map(d => toDateStr(d)),
       datesBg: dist.dates.map(d => toBgDate(d)),
       interval: dist.interval,
+      cycleDays,
       lastVideoDate: toDateStr(dist.lastVideoDate),
       nextKpFirstDate: toDateStr(dist.nextKpFirstDate),
     });

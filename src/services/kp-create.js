@@ -124,18 +124,39 @@ function addCalendarMonths(date, months) {
   return d;
 }
 
-// Distribute N videos across the client's calendar month, aiming for roughly one
-// every 3 calendar days, and place the NEXT КП's first video exactly one calendar
-// month later (same day-of-month). The window length is taken automatically from
-// the real month (28/30/31 дни), NOT a fixed 30 — so plans never drift and no
-// video slot is lost between two consecutive КП-та.
+// Датите за публикуване на един КП.
+//
+// Правилото (Венци, 28.08.2026): ритъмът е ФИКСИРАН интервал на клиент, а не
+// календарният месец — месецът е само ориентир. Стандартът е „10 видеа през 3 дни";
+// всичко останало се задава ръчно (брой видеа + през колко дни). Датите се броят от
+// първото видео нататък през равен брой дни, а първото видео на СЛЕДВАЩИЯ КП пада
+// точно един интервал след последното на текущия.
 //
 // Пример: 01.09 → 04.09 → 07.09 → … → 28.09 (10 видеа), следващ КП: 01.10.
 //
-// `calendarWindow` вече е само резервна стойност — ползва се единствено ако датата
-// не позволява да се изчисли реалната дължина на месеца.
-function distributePublishDates(firstDateStr, videoCount, calendarWindow) {
+// Защо се смени: досега стъпката се смяташе като „дължина на месеца / брой видеа",
+// заради което в 31-дневните месеци едно видео насред плана падаше през 4 дни
+// (25.08 → … → 06.09 → 10.09), а на клиента е обещано през 3.
+//
+// `intervalDays` липсва (стар запис без зададен интервал) → падаме на старото
+// разпределяне в календарния месец, за да не се разчупи клиент без настройка.
+function distributePublishDates(firstDateStr, videoCount, calendarWindow, intervalDays) {
   const first = new Date(firstDateStr + 'T12:00:00');
+  const step = parseInt(intervalDays, 10);
+
+  if (Number.isFinite(step) && step >= 1) {
+    const n = Math.max(1, parseInt(videoCount, 10) || 1);
+    const dates = [];
+    for (let i = 0; i < n; i++) {
+      const d = new Date(first);
+      d.setDate(d.getDate() + i * step);
+      dates.push(d);
+    }
+    const lastVideoDate = dates[n - 1];
+    const nextKpFirstDate = new Date(lastVideoDate);
+    nextKpFirstDate.setDate(nextKpFirstDate.getDate() + step);
+    return { dates, interval: step, lastVideoDate, nextKpFirstDate };
+  }
 
   // Следващият КП започва на същия ден от следващия календарен месец.
   const nextKpFirst = addCalendarMonths(first, 1);
@@ -364,7 +385,8 @@ async function createKpForClient({ client, firstPublishDate, cfg, auth, dest, cr
   const videoCount = client.videos_per_month || cfg.defaultVideos;
   const kpNumber = client.current_kp_number || 1;
 
-  const dist = distributePublishDates(firstPublishDate, videoCount, cfg.calendarWindow);
+  // Интервалът на клиента е водещ („10 видеа през 3 дни" или ръчно зададен).
+  const dist = distributePublishDates(firstPublishDate, videoCount, cfg.calendarWindow, client.publish_interval_days);
   const publishDatesBg = dist.dates.map((d) => toBgDate(d));
   const title = renderKpTitle(cfg, client.name, kpNumber);
   const contentText = buildKpContentText(cfg, client, kpNumber, publishDatesBg);
