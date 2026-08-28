@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>The Pact Tools — разширението за Basecamp</title>
+  <style>
+    /* Тонът е „работилница", не реклама: тъмно като платформата, зелен акцент,
+       моноширинен шрифт за версиите и вертикална линия вместо решетка от карти. */
+    :root {
+      color-scheme: dark;
+      --bg: #111a1e;
+      --ink: #e6e6e6;
+      --dim: #8a9aa3;
+      --green: #46a374;
+      --gold: #8c734b;
+      --panel: rgba(255, 255, 255, 0.05);
+      --line: rgba(255, 255, 255, 0.10);
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* тънка зелена нишка най-горе — знакът на платформата */
+    body::before {
+      content: "";
+      position: fixed; inset: 0 0 auto 0; height: 3px;
+      background: linear-gradient(90deg, var(--green), #6ec49a 40%, transparent);
+      z-index: 5;
+    }
+    main { max-width: 880px; margin: 0 auto; padding: 64px 22px 90px; }
+
+    /* ---------- начало ---------- */
+    .hero { position: relative; padding-bottom: 34px; border-bottom: 1px solid var(--line); }
+    .hero::after {   /* едва доловима мрежа зад заглавието */
+      content: ""; position: absolute; inset: -30px -30px auto -30px; height: 220px; z-index: -1;
+      background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: 34px 34px;
+      -webkit-mask-image: radial-gradient(120% 80% at 20% 0%, #000 10%, transparent 70%);
+      mask-image: radial-gradient(120% 80% at 20% 0%, #000 10%, transparent 70%);
+      opacity: .5;
+    }
+    .kicker {
+      font: 600 12px/1 var(--mono);
+      letter-spacing: .18em; text-transform: uppercase; color: var(--green);
+      margin: 0 0 18px;
+    }
+    h1 {
+      margin: 0 0 14px;
+      font-size: clamp(34px, 6vw, 54px);
+      line-height: 1.04;
+      letter-spacing: -0.03em;
+      font-weight: 800;
+    }
+    .lede { margin: 0 0 30px; max-width: 60ch; color: var(--dim); font-size: 17px; }
+
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+    .dl {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 15px 26px; border-radius: 999px;
+      background: var(--green); color: #06170f;
+      font-size: 16px; font-weight: 700; text-decoration: none;
+      box-shadow: 0 10px 30px rgba(70, 163, 116, .25);
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .dl:hover { transform: translateY(-2px); background: #52b483; box-shadow: 0 16px 38px rgba(70, 163, 116, .34); }
+    .dl:active { transform: translateY(0); }
+    .ghost {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 20px; border-radius: 999px;
+      border: 1px solid var(--line); color: var(--ink);
+      text-decoration: none; font-size: 15px;
+      transition: border-color .18s ease, color .18s ease;
+    }
+    .ghost:hover { border-color: var(--green); color: var(--green); }
+    .ver {
+      font: 600 13px/1 var(--mono); color: var(--dim);
+      padding: 9px 12px; border: 1px dashed var(--line); border-radius: 8px;
+    }
+    .ver b { color: var(--ink); }
+
+    /* ---------- секции ---------- */
+    h2 {
+      margin: 62px 0 8px;
+      font-size: 13px; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--green); font-family: var(--mono); font-weight: 600;
+    }
+    .sub { margin: 0 0 26px; color: var(--dim); font-size: 15px; }
+
+    /* възможности: номериран списък с висящ знак, а не решетка от карти */
+    .feat { border-top: 1px solid var(--line); }
+    .feat__row {
+      display: grid; grid-template-columns: 54px 1fr; gap: 20px;
+      padding: 22px 6px; border-bottom: 1px solid var(--line);
+      transition: background .18s ease;
+    }
+    .feat__row:hover { background: rgba(255, 255, 255, 0.03); }
+    .feat__ic {
+      font-size: 22px; line-height: 1.2;
+      display: flex; align-items: flex-start; justify-content: center;
+      filter: saturate(.9);
+    }
+    .feat__t { margin: 0 0 4px; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+    .feat__d { margin: 0; color: var(--dim); font-size: 15px; }
+
+    /* дневник: вертикална линия с точки */
+    .log { position: relative; margin-top: 6px; padding-left: 26px; }
+    .log::before {
+      content: ""; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 1px;
+      background: linear-gradient(var(--green), rgba(255,255,255,.08) 22%, rgba(255,255,255,.08));
+    }
+    .rel { position: relative; padding: 0 0 26px; }
+    .rel::before {
+      content: ""; position: absolute; left: -25px; top: 9px;
+      width: 11px; height: 11px; border-radius: 50%;
+      background: var(--bg); border: 2px solid rgba(255,255,255,.22);
+      transition: border-color .18s ease, background .18s ease;
+    }
+    .rel:hover::before { border-color: var(--green); }
+    .rel--new::before { border-color: var(--green); background: var(--green); box-shadow: 0 0 0 5px rgba(70,163,116,.16); }
+    .rel__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+    .rel__v { font: 700 15px/1.4 var(--mono); color: var(--ink); }
+    .rel__d { font: 400 13px/1.4 var(--mono); color: var(--dim); }
+    .rel__new {
+      font: 700 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase;
+      color: #06170f; background: var(--green); padding: 4px 7px; border-radius: 5px;
+    }
+    .rel ul { margin: 8px 0 0; padding-left: 18px; }
+    .rel li { margin: 5px 0; color: var(--dim); }
+    .rel--new li { color: var(--ink); }
+
+    /* как се слага */
+    details.how {
+      margin-top: 18px; background: var(--panel); border: 1px solid var(--line);
+      border-radius: 15px; padding: 16px 22px;
+    }
+    details.how summary { cursor: pointer; font-weight: 600; }
+    details.how[open] summary { margin-bottom: 10px; color: var(--green); }
+    details.how ol { padding-left: 20px; margin: 0; }
+    details.how li { margin: 7px 0; color: var(--dim); }
+    code {
+      font: 13px/1.4 var(--mono);
+      background: rgba(255,255,255,.07); padding: 2px 6px; border-radius: 5px; color: var(--ink);
+    }
+    .note { color: var(--dim); font-size: 14px; margin-top: 26px; }
+    a { color: var(--green); }
+    footer { margin-top: 70px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--dim); font-size: 13px; }
+
+    /* влизане: сдържано, само веднъж */
+    .rise { animation: rise .5s cubic-bezier(.2,.7,.3,1) both; }
+    .rise:nth-of-type(2) { animation-delay: .05s; }
+    @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .rise { animation: none; }
+      .dl, .ghost, .feat__row, .rel::before { transition: none; }
+    }
+    @media (max-width: 560px) {
+      main { padding: 46px 18px 70px; }
+      .feat__row { grid-template-columns: 38px 1fr; gap: 14px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+
+  <section class="hero rise">
+    <p class="kicker">Вътрешен инструмент · The Pact</p>
+    <h1>The Pact Tools<br>за Basecamp</h1>
+    <p class="lede">
+      Разширение за Chrome, което добавя към Basecamp нещата, които всеки ден ни трябват:
+      отчитане на време по задачите, закачане на коментари и на полето за писане,
+      предупреждение кой редактира в момента и бутоните за запазване под ръка.
+    </p>
+    <div class="actions">
+      <a class="dl" id="dl" href="/dl/thepact-tools-latest.zip" download>⬇ Изтегли разширението</a>
+      <a class="ghost" href="#novo">Какво ново</a>
+      <span class="ver" id="ver">версия <b>…</b></span>
+    </div>
+
+    <details class="how">
+      <summary>Как се слага (ако не ти е инсталирано)</summary>
+      <p style="margin-top:0;color:var(--dim)">
+        Ако вече го имаш, <strong>не пипай нищо</strong> — Chrome го обновява сам.
+        Ръчното слагане е за нов компютър или когато трябва да пробваш нещо преди
+        одобрението на Google.
+      </p>
+      <ol>
+        <li>Изтегли архива с бутона горе и го <strong>разархивирай</strong> в папка, която ще остане (Chrome чете от нея при всяко пускане).</li>
+        <li>Отвори <code>chrome://extensions</code> и включи <strong>Developer mode</strong> (горе вдясно).</li>
+        <li>Натисни <strong>Load unpacked</strong> и посочи разархивираната папка.</li>
+        <li>Отвори Basecamp и презареди страницата.</li>
+      </ol>
+    </details>
+  </section>
+
+  <h2>Какво може</h2>
+  <p class="sub">Всяка функция може да се изключи поотделно от настройките на разширението.</p>
+  <div class="feat" id="feat"></div>
+
+  <h2 id="novo">Какво ново</h2>
+  <p class="sub">Всяко издание — какво е добавено и какво е поправено. Най-новото е най-отгоре.</p>
+  <div class="log" id="log"></div>
+
+  <p class="note">
+    Нещо не работи или ти липсва? Пиши в Basecamp — задачите за разширението се
+    поемат от дев опашката.
+  </p>
+
+  <footer>The Pact Tools · вътрешно разширение на агенция The Pact · <a href="/extension-privacy.html">политика за поверителност</a></footer>
+
+</main>
+
+<script>
+  (function () {
+    var esc = function (s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    };
+
+    fetch('/extension-releases.json', { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) throw new Error('няма данни');
+
+        if (data.download) document.getElementById('dl').setAttribute('href', data.download);
+
+        var rel = Array.isArray(data.releases) ? data.releases : [];
+        var latest = rel[0] ? rel[0].version : '';
+        document.getElementById('ver').innerHTML = 'версия <b>' + esc(latest) + '</b>';
+
+        document.getElementById('feat').innerHTML = (data.features || []).map(function (f) {
+          return '<div class="feat__row">' +
+            '<div class="feat__ic" aria-hidden="true">' + esc(f.icon) + '</div>' +
+            '<div><p class="feat__t">' + esc(f.title) + '</p>' +
+            '<p class="feat__d">' + esc(f.text) + '</p></div></div>';
+        }).join('');
+
+        /* Известието от разширението идва с ?v=<версия> — открояваме точно нея,
+           за да види човек какво се е сменило при него. */
+        var asked = new URLSearchParams(location.search).get('v');
+        document.getElementById('log').innerHTML = rel.map(function (r, i) {
+          var isNew = asked ? (r.version === asked) : (i === 0);
+          return '<div class="rel' + (isNew ? ' rel--new' : '') + '">' +
+            '<div class="rel__head"><span class="rel__v">v' + esc(r.version) + '</span>' +
+            '<span class="rel__d">' + esc(r.date) + '</span>' +
+            (isNew ? '<span class="rel__new">ново</span>' : '') + '</div>' +
+            '<ul>' + (r.items || []).map(function (it) { return '<li>' + esc(it) + '</li>'; }).join('') + '</ul>' +
+            '</div>';
+        }).join('');
+
+        if (asked) {
+          var mark = document.querySelector('.rel--new');
+          if (mark) mark.scrollIntoView({ block: 'center' });
+        }
+      })
+      .catch(function () {
+        document.getElementById('log').innerHTML =
+          '<p style="color:var(--dim)">Списъкът с промените не можа да се зареди. Опитай да презаредиш страницата.</p>';
+      });
+  })();
+</script>
+</body>
+</html>
