@@ -77,9 +77,15 @@ function parsePlan(html) {
   const sections = [];
   const headerLines = [];
   let cur = null, curLines = [];
+  // Заглавието често е получерно/оцветено в плана — fmtToMarkers го е обвил в
+  // **/_/~~/^^ ПРЕДИ да стигне дотук, така че редът вече не започва буквално с
+  // „Видео" (Венци, 28.08.2026: "не ми излизат отделните задачи" — двата плана,
+  // на които не проработи, имаха точно това форматиране на заглавията).
+  const MARKER_RE = /^(?:\*\*|__|~~|\^\^|_)+|(?:\*\*|__|~~|\^\^|_)+$/g;
   for (const raw of htmlToText(withPlaceholders).split('\n')) {
     const line = raw.trim();
-    const m = line.match(/^Видео\s+(\d+)\s*[-–—]\s*(.+)$/);
+    const bare = line.replace(MARKER_RE, '');
+    const m = bare.match(/^Видео\s+(\d+)\s*[-–—]\s*(.+)$/);
     if (m) {
       if (cur) sections.push({ ...cur, sectionText: curLines.join('\n') });
       cur = { videoNumber: parseInt(m[1], 10), title: m[2].trim() };
