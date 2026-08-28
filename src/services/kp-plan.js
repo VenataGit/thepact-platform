@@ -43,8 +43,20 @@ function linkToText(href, inner) {
   return text + ' (' + url + ')';
 }
 
+// Получер/курсив/зачеркнат/оцветяване от Trix → обикновени маркери в текста, СЪЩАТА
+// причина като при връзките: генералният tag-stripper по-долу маха тага заедно със
+// смисъла му (Венци, 28.08.2026: "оцветявания ... болдване, италик, зачеркване").
+// bc-html.js/line() ги разпознава по маркерите и ги връща обратно в реални тагове.
+function fmtToMarkers(html) {
+  return String(html || '')
+    .replace(/<(?:strong|b)\b[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi, (m, inner) => '**' + inner + '**')
+    .replace(/<(?:em|i)\b[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, (m, inner) => '_' + inner + '_')
+    .replace(/<(?:del|s|strike)\b[^>]*>([\s\S]*?)<\/(?:del|s|strike)>/gi, (m, inner) => '~~' + inner + '~~')
+    .replace(/<mark\b[^>]*>([\s\S]*?)<\/mark>/gi, (m, inner) => '^^' + inner + '^^');
+}
+
 function htmlToText(html) {
-  return (html || '')
+  return fmtToMarkers(html || '')
     .replace(/<br\s*\/?>/gi, '\n').replace(/<\/div>/gi, '\n').replace(/<\/p>/gi, '\n')
     .replace(LINK_RE, (m, href, inner) => linkToText(href, inner))
     .replace(/<[^>]+>/g, '')

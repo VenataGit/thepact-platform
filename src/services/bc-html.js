@@ -63,15 +63,43 @@ function linkify(s) {
   return out + esc(str.slice(last));
 }
 
+// Маркерите, с които kp-plan.js/htmlToText() бележи Trix-форматирането на плана
+// (получер/курсив/зачеркнат/оцветено), за да не изчезне при парсването. `_италик_`
+// изисква граница на дума от двете страни, за да не пипа файлови имена и потребителски
+// имена с долна черта по средата (напр. "eco_pack", "@some_user") — те си остават чист
+// текст (Венци, 28.08.2026: "оцветявания ... болдване, италик, зачеркване").
+function fmtTokenRe() {
+  return /\*\*([\s\S]+?)\*\*|~~([\s\S]+?)~~|\^\^([\s\S]+?)\^\^|(?<!\w)_([^\s_][\s\S]*?[^\s_]|[^\s_])_(?!\w)/g;
+}
+
+// Текст с маркери → inline HTML: получер/курсив/зачеркнат/оцветено (рекурсивно, за
+// вложени комбинации), плюс linkify() за адресите между маркерите.
+function formatInline(s) {
+  const str = String(s == null ? '' : s);
+  const re = fmtTokenRe();
+  let out = '', last = 0, m;
+  while ((m = re.exec(str))) {
+    out += linkify(str.slice(last, m.index));
+    if (m[1] != null) out += '<strong>' + formatInline(m[1]) + '</strong>';
+    else if (m[2] != null) out += '<del>' + formatInline(m[2]) + '</del>';
+    else if (m[3] != null) out += `<mark style="${HIGHLIGHT_STYLE}">` + formatInline(m[3]) + '</mark>';
+    else if (m[4] != null) out += '<em>' + formatInline(m[4]) + '</em>';
+    last = m.index + m[0].length;
+    re.lastIndex = last;
+  }
+  return out + linkify(str.slice(last));
+}
+
 // Един ред обикновен текст → inline HTML (escape + оцветяване по правилата горе,
-// адресите в текста стават кликаеми връзки).
+// адресите в текста стават кликаеми връзки, а маркерите за получер/курсив/зачеркнат/
+// оцветено — реални тагове).
 function line(text) {
   const t = String(text == null ? '' : text).trim();
   if (t === '') return '';
   if (HEADING_RE.test(t)) return mark(t);
   const m = t.match(LABEL_RE);
-  if (m) return mark(m[1]) + linkify(m[2]);
-  return linkify(t);
+  if (m) return mark(m[1]) + formatInline(m[2]);
+  return formatInline(t);
 }
 
 // Многоредов текст → масив inline части (по една на ред; празният ред е '').
