@@ -144,8 +144,11 @@ function populateMore(el) {
       <span id="moreCrmSlot"></span>
     </div>
     <div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
-      <!-- Разширението е unlisted в Web Store — не се търси, стига се само по този линк. -->
-      <a class="nav-dropdown__item" href="https://chromewebstore.google.com/detail/the-pact-tools/lpkffegpgdgfpfmbncldjijjmnncbpgf" target="_blank" rel="noopener" onclick="closeAllDropdowns()">Chrome разширение</a>
+      <!-- Води към страницата на разширението (какво може + какво ново), а самото
+           инсталиране става с бутона вътре в нея — там е и линкът към Web Store,
+           където разширението е unlisted и се стига само по линк. Нов таб, за да
+           не изхвърля човека от платформата. -->
+      <a class="nav-dropdown__item" href="/extension.html" target="_blank" rel="noopener" onclick="closeAllDropdowns()">Chrome разширение</a>
       <a class="nav-dropdown__item" href="#/release-notes" onclick="closeAllDropdowns()">Какво ново</a>
       ${(currentUser?.role === 'admin' && !isPageOff('time-report')) ? `<a class="nav-dropdown__item" href="#/time-report" onclick="closeAllDropdowns()">Време</a>` : ''}
       <!-- Настройките се виждат от всички; отварят се само с админ права (sgOpenSettings). -->
