@@ -13,6 +13,7 @@ const config = require('../../config');
 const { query, queryOne, execute } = require('../../db/pool');
 const bc = require('../basecamp');
 const cardTextLog = require('../card-text-log');
+const stageLog = require('../stage-log');
 const { getServiceAuth, getUserAuth } = require('../basecamp-token');
 
 const COMMENT_HORIZON_DAYS = 90; // първоначален прозорец за коментари/съобщения назад
@@ -194,6 +195,7 @@ async function syncTeamCards(auth, { deep = false } = {}) {
   let commentsFetched = 0;
   let textChanges = 0;
   let dateChanges = 0;
+  let stageChanges = 0;
 
   for (const t of tools) {
     const table = (await bc.authedGet(t.url, auth.token)).json;
@@ -212,7 +214,7 @@ async function syncTeamCards(auth, { deep = false } = {}) {
           // Списъчният payload НЕ гарантира content/comments_count → при нова или
           // променена карта (updated_at) теглим пълната карта с getCard.
           const prev = await queryOne(
-            `SELECT bc_updated_at, comments_count, title, content, due_on, steps
+            `SELECT bc_updated_at, comments_count, title, content, due_on, steps, board_title
                FROM bc_cards_snap WHERE card_id = $1`, [c.id]);
           const listUpdated = c.updated_at ? new Date(c.updated_at).toISOString() : '';
           const prevUpdated = prev && prev.bc_updated_at ? new Date(prev.bc_updated_at).toISOString() : '';
@@ -232,10 +234,22 @@ async function syncTeamCards(auth, { deep = false } = {}) {
               console.warn('[pm-agent] date log failed:', c.id, err.message);
             }
           }
-          // Засечена ли е промяна по датите, картата задължително се преписва —
-          // иначе снапшотът остава на старата дата и същата промяна се записва пак
-          // на всеки 15 минути.
-          if (!changed && !deep && !dateLogged) continue; // нищо ново по картата
+          // Дневникът на етапите (кой отдел я е поел + кои стъпки са чекнати) —
+          // също от списъчния payload, по същата причина като датите: местене
+          // между дъски и чекване на стъпка невинаги вдигат `updated_at`.
+          let stageLogged = 0;
+          if (stageChanges < TEXT_LOG_MAX_PER_SYNC) {
+            try {
+              stageLogged = await stageLog.logStageTransitions(c, prev, { projectId, boardTitle });
+              stageChanges += stageLogged;
+            } catch (err) {
+              console.warn('[pm-agent] stage log failed:', c.id, err.message);
+            }
+          }
+          // Засечена ли е промяна по датите или етапите, картата задължително се
+          // преписва — иначе снапшотът остава на старото и същата промяна се
+          // записва пак на всеки 15 минути.
+          if (!changed && !deep && !dateLogged && !stageLogged) continue; // нищо ново по картата
           let full = c;
           let fullFetched = false;
           try {
@@ -288,7 +302,7 @@ async function syncTeamCards(auth, { deep = false } = {}) {
       [projectId, seen]
     );
   }
-  return { cards: seen.length, comments: commentsFetched, textChanges, dateChanges };
+  return { cards: seen.length, comments: commentsFetched, textChanges, dateChanges, stageChanges };
 }
 
 // Клиентските проекти: съобщения + отворени задачи (+ campfire периодично).
