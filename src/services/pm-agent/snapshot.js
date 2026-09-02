@@ -240,7 +240,9 @@ async function syncTeamCards(auth, { deep = false } = {}) {
           let stageLogged = 0;
           if (stageChanges < TEXT_LOG_MAX_PER_SYNC) {
             try {
-              stageLogged = await stageLog.logStageTransitions(c, prev, { projectId, boardTitle });
+              stageLogged = await stageLog.logStageTransitions(auth, c, prev, {
+                projectId, boardTitle, columnTitle: list.title || '', onHold: g.onHold,
+              });
               stageChanges += stageLogged;
             } catch (err) {
               console.warn('[pm-agent] stage log failed:', c.id, err.message);
@@ -297,6 +299,22 @@ async function syncTeamCards(auth, { deep = false } = {}) {
   }
 
   if (seen.length) {
+    // Отпадналите карти (изчезнали от активните дъски — местени в Trash,
+    // архивирани или отказан проект) си остават в снапшота (active = FALSE),
+    // но БЕЗ следа кой отдел ги е държал в момента на отпадането. Затова
+    // последното им познато състояние се пази в дневника ПРЕДИ UPDATE-а.
+    const dropped = await query(
+      `SELECT card_id, project_id, title, app_url, board_title, column_title, due_on, assignees, on_hold
+         FROM bc_cards_snap WHERE project_id = $1 AND active = TRUE AND card_id != ALL($2::bigint[])`,
+      [projectId, seen]
+    );
+    for (const row of dropped) {
+      try {
+        await stageLog.logCardArchived(row);
+      } catch (err) {
+        console.warn('[pm-agent] archive log failed:', row.card_id, err.message);
+      }
+    }
     await execute(
       'UPDATE bc_cards_snap SET active = FALSE WHERE project_id = $1 AND card_id != ALL($2::bigint[])',
       [projectId, seen]

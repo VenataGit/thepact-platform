@@ -270,5 +270,5 @@ async function recentTextChanges(limit, withText) {
 }
 
 module.exports = {
-  plainText, logCardTextChange, logCardDateChange, recentTextChanges, ensureSchema, MAX_TEXT,
+  plainText, logCardTextChange, logCardDateChange, recentTextChanges, ensureSchema, MAX_TEXT, findEditor,
 };
