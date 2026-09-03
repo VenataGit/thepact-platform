@@ -277,6 +277,23 @@ router.get('/folder', (req, res) => {
   }
   copier('copyBtn', mainPath, 'Копирай пътя');
   copier('copyOther', otherPath, 'Копирай и този път');
+
+  // Линкът е еднократен мост към папката — щом Explorer/Finder наистина се вдигне
+  // (прозорецът губи фокус), тази страница вече е ненужна и се затваря сама. Ако
+  // схемата не е инсталирана, фокусът не излиза от таба — остава, за да се вижда
+  // бележката с инсталатора.
+  document.getElementById('openBtn').addEventListener('click', function () {
+    var closed = false;
+    function tryClose() {
+      if (closed) return;
+      closed = true;
+      setTimeout(function () { window.close(); }, 200);
+    }
+    window.addEventListener('blur', tryClose, { once: true });
+    document.addEventListener('visibilitychange', function onVis() {
+      if (document.hidden) { document.removeEventListener('visibilitychange', onVis); tryClose(); }
+    });
+  });
 })();
 </script>
 </body>
