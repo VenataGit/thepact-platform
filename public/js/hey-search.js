@@ -149,6 +149,7 @@ function populateMore(el) {
            където разширението е unlisted и се стига само по линк. Нов таб, за да
            не изхвърля човека от платформата. -->
       <a class="nav-dropdown__item" href="/extension.html" target="_blank" rel="noopener" onclick="closeAllDropdowns()">Chrome разширение</a>
+      <a class="nav-dropdown__item" href="/folder-access.html" target="_blank" rel="noopener" onclick="closeAllDropdowns()">Отваряне на папки</a>
       <a class="nav-dropdown__item" href="#/release-notes" onclick="closeAllDropdowns()">Какво ново</a>
       ${(currentUser?.role === 'admin' && !isPageOff('time-report')) ? `<a class="nav-dropdown__item" href="#/time-report" onclick="closeAllDropdowns()">Време</a>` : ''}
       ${(currentUser?.role === 'admin' && !isPageOff('client-report')) ? `<a class="nav-dropdown__item" href="#/client-report" onclick="closeAllDropdowns()">Отчет по клиенти</a>` : ''}
