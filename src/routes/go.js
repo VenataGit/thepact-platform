@@ -282,12 +282,17 @@ router.get('/folder', (req, res) => {
   // (прозорецът губи фокус), тази страница вече е ненужна и се затваря сама. Ако
   // схемата не е инсталирана, фокусът не излиза от таба — остава, за да се вижда
   // бележката с инсталатора.
+  //
+  // Забавянето е нарочно 4.5 сек, не мигновено: на някои компютри Windows показва
+  // свое собствено предупреждение („Open Microsoft Windows Based Script Host?")
+  // ПРЕДИ да отвори Explorer — прозорецът губи фокус заради това известие, а не
+  // заради Explorer, и ако затворим веднага, потребителят няма време да го цъкне.
   document.getElementById('openBtn').addEventListener('click', function () {
     var closed = false;
     function tryClose() {
       if (closed) return;
       closed = true;
-      setTimeout(function () { window.close(); }, 200);
+      setTimeout(function () { window.close(); }, 4500);
     }
     window.addEventListener('blur', tryClose, { once: true });
     document.addEventListener('visibilitychange', function onVis() {
