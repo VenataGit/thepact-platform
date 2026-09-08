@@ -17,8 +17,16 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
+const config = require('../config');
 const cardTextLog = require('../services/card-text-log');
+const stageLog = require('../services/stage-log');
+const activityLog = require('../services/bc-activity-log');
 const crm = require('../services/crm');
+
+// Video Production е ЕДИН фиксиран Basecamp проект — всичко друго, което токенът
+// на pm-agent-а вижда, е клиентски проект. Числото идва от config (не от заявка),
+// затова е безопасно да се вгражда directно в SQL-а по-долу.
+const TEAM_PROJECT_ID = config.BASECAMP_TEAM_PROJECT_ID;
 
 const MAX_LIMIT = 500;
 
@@ -345,6 +353,86 @@ const P_BC_DATES = {
   }),
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Basecamp „на едро" — Video Production и Клиенти.
+//
+// Отделно от P_TEXT/P_BC_DATES (само Kanban::Card): това е дневникът за всичко
+// друго в Basecamp — документи/файлове (Docs & Files), съобщения от Message
+// Board, задачи (to-dos). Пълни се от pm-agent/snapshot.js на всеки час
+// (за да засече и изтритото трябва пълен обход на инструмента, не "since").
+// ─────────────────────────────────────────────────────────────────────────────
+
+const STAGE_LABELS = {
+  card_created: 'Създаде карта', board_moved: 'Премести карта между отдели',
+  step_completed: 'Чекна стъпка', card_archived: 'Отпадна от активните',
+};
+
+// Дневникът на живота на VP картите (създаване/местене/стъпки/архивиране) — само
+// Video Production, затова project_id се сравнява директно с TEAM_PROJECT_ID.
+const P_STAGE_VP = {
+  prepare: () => stageLog.ensureSchema(),
+  from: 'bc_stage_events s',
+  select: `s.id, s.occurred_at AS ts, s.card_id, s.card_title, s.app_url, s.event_type,
+           s.step_title, s.from_board, s.to_board, s.board_title, s.who_name AS who`,
+  where: `s.project_id = ${TEAM_PROJECT_ID}`,
+  ts: 's.occurred_at',
+  who: 's.who_name',
+  title: 's.card_title',
+  search: ['s.board_title', 's.step_title'],
+  map: (r) => ({
+    source: 'bc_vp', icon: '🗂', ts: r.ts, who: r.who || 'не се знае', avatar: '',
+    action: STAGE_LABELS[r.event_type] || r.event_type || '',
+    title: r.card_title || `Карта ${r.card_id}`, url: r.app_url || '',
+    details: r.event_type === 'board_moved' ? [r.from_board, r.to_board].filter(Boolean).join(' → ')
+      : r.event_type === 'step_completed' ? (r.step_title || '')
+      : (r.board_title || ''),
+  }),
+};
+
+const ACT_ICONS = { Document: '📄', Upload: '📎', Message: '📰', Todo: '✅' };
+const ACT_LABELS = {
+  'Document:created': 'Създаде документ', 'Document:updated:title': 'Преименува документ',
+  'Document:updated:content': 'Редактира документ', 'Document:deleted': 'Изтри документ',
+  'Upload:created': 'Качи файл', 'Upload:updated:title': 'Преименува файл', 'Upload:deleted': 'Изтри файл',
+  'Message:created': 'Публикува съобщение', 'Message:updated:title': 'Преименува съобщение',
+  'Message:updated:content': 'Редактира съобщение', 'Message:deleted': 'Изтри съобщение',
+  'Todo:created': 'Създаде задача', 'Todo:updated:title': 'Преименува задача',
+  'Todo:updated:content': 'Редактира задача', 'Todo:completed': 'Завърши задача', 'Todo:deleted': 'Изтри задача',
+};
+function activityAction(r) {
+  const key = `${r.recording_type}:${r.event}${r.field ? ':' + r.field : ''}`;
+  return ACT_LABELS[key] || ACT_LABELS[`${r.recording_type}:${r.event}`] || `${r.event} — ${r.recording_type}`;
+}
+
+function activityPart(projectExpr) {
+  return {
+    prepare: () => activityLog.ensureSchema(),
+    from: 'bc_activity_log v',
+    select: `v.id, v.created_at AS ts, v.project_id, v.recording_type, v.recording_id, v.event, v.field,
+             v.title, v.parent_title, v.who_name AS who, v.app_url,
+             LENGTH(v.old_text) AS old_len, LENGTH(v.new_text) AS new_len`,
+    where: projectExpr,
+    ts: 'v.created_at',
+    who: 'v.who_name',
+    title: 'v.title',
+    search: ['v.parent_title', 'v.recording_type'],
+    map: (r) => ({
+      source: r.recording_type, icon: ACT_ICONS[r.recording_type] || '🗎', ts: r.ts,
+      who: r.who || 'не се знае', avatar: '',
+      action: activityAction(r),
+      title: r.title || `${r.recording_type} ${r.recording_id}`,
+      url: r.app_url || '',
+      details: [
+        r.parent_title || '',
+        r.event === 'updated' && r.field === 'content' ? `беше ${r.old_len} знака, стана ${r.new_len}` : '',
+      ].filter(Boolean).join(' · '),
+    }),
+  };
+}
+
+const P_ACTIVITY_VP = activityPart(`v.project_id = ${TEAM_PROJECT_ID}`);
+const P_ACTIVITY_CLIENTS = activityPart(`v.project_id != ${TEAM_PROJECT_ID}`);
+
 const P_CRM = {
   from: `crm_events ce
          LEFT JOIN users u ON u.id = ce.user_id
@@ -375,6 +463,11 @@ const SOURCES = {
   calendar: { icon: '📅', label: 'Календар', parts: [P_CALENDAR] },
   cards: { icon: '🗂', label: 'Карти', parts: [P_CARD_EVENTS, P_CARD_COMMENTS] },
   dates: { icon: '📆', label: 'Срокове', parts: [P_DATES, P_BC_DATES] },
+  // P_TEXT/P_BC_DATES НЕ участват тук — те вече стоят в „Текст"/„Срокове" (същите
+  // редове от bc_card_text_log) и включването им и тук би удвоило записите в
+  // обединения таб „Всичко" (там всеки позволен таб се тегли и слива).
+  bc_vp: { icon: '🎬', label: 'Video Production', parts: [P_STAGE_VP, P_ACTIVITY_VP] },
+  bc_clients: { icon: '🧑‍💼', label: 'Клиенти', parts: [P_ACTIVITY_CLIENTS] },
   crm: { icon: '💼', label: 'CRM', parts: [P_CRM], needsCrm: true },
 };
 

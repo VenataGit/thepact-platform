@@ -14,6 +14,7 @@ const { query, queryOne, execute } = require('../../db/pool');
 const bc = require('../basecamp');
 const cardTextLog = require('../card-text-log');
 const stageLog = require('../stage-log');
+const activityLog = require('../bc-activity-log');
 const { getServiceAuth, getUserAuth } = require('../basecamp-token');
 
 const COMMENT_HORIZON_DAYS = 90; // първоначален прозорец за коментари/съобщения назад
@@ -78,6 +79,39 @@ async function lastGoodSyncAt() {
     "SELECT finished_at FROM agent_runs WHERE kind = 'sync' AND status = 'done' ORDER BY id DESC LIMIT 1"
   );
   return row && row.finished_at ? new Date(row.finished_at) : null;
+}
+
+// Нови таблици/колони за Docs&Files и изтриване на съобщения/задачи — миграциите
+// не се прилагат автоматично при deploy (само от кода), затова се подсигуряват
+// в движение, по същия начин като card-text-log.js/stage-log.js.
+let snapSchemaReady = null;
+function ensureSnapshotSchema() {
+  if (!snapSchemaReady) {
+    snapSchemaReady = execute(`
+      CREATE TABLE IF NOT EXISTS bc_vault_snap (
+        item_id       BIGINT PRIMARY KEY,
+        project_id    BIGINT NOT NULL,
+        vault_id      BIGINT,
+        kind          TEXT NOT NULL,
+        title         TEXT NOT NULL DEFAULT '',
+        content       TEXT NOT NULL DEFAULT '',
+        app_url       TEXT NOT NULL DEFAULT '',
+        bc_created_at TIMESTAMPTZ,
+        bc_updated_at TIMESTAMPTZ,
+        active        BOOLEAN NOT NULL DEFAULT TRUE,
+        synced_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`)
+      .then(() => Promise.all([
+        execute('CREATE INDEX IF NOT EXISTS idx_bc_vault_snap_project ON bc_vault_snap(project_id)'),
+        execute('ALTER TABLE bc_messages_snap ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE'),
+        execute('ALTER TABLE bc_todos_snap ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE'),
+      ]))
+      .catch((err) => {
+        snapSchemaReady = null;
+        throw err;
+      });
+  }
+  return snapSchemaReady;
 }
 
 // ---------- upserts ----------
@@ -172,6 +206,337 @@ async function upsertCampfireLine(line, projectId, campfireId) {
      line.creator ? line.creator.name || '' : '', isClientPerson(line.creator),
      line.content || '', line.created_at || null]
   );
+}
+
+// ---------- Docs & Files (Vault) — създаване/редакция/изтриване ----------
+//
+// Basecamp не дава "since" за vault-а — за да засечем изтриване трябва да
+// обходим ЦЯЛАТА папкова структура и да сравним какво сме видели с активния
+// снапшот. Затова тече по същата рядка стъпка като campfire-а (веднъж на час),
+// не на всеки 15 мин — иначе на всеки цикъл ще бомбардираме Basecamp с толкова
+// заявки, колкото файлове+папки имат ВСИЧКИ проекти.
+const VAULT_MAX_DEPTH = 6;
+const VAULT_CONCURRENCY = 2;
+
+async function syncVaultDocument(auth, projectId, vaultId, d, parentTitle, ctx) {
+  const prev = await queryOne(
+    `SELECT bc_updated_at, title, content FROM bc_vault_snap WHERE item_id = $1`, [d.id]);
+  const listUpdated = d.updated_at ? new Date(d.updated_at).toISOString() : '';
+  const prevUpdated = prev && prev.bc_updated_at ? new Date(prev.bc_updated_at).toISOString() : '';
+  const changed = !prev || listUpdated !== prevUpdated;
+
+  let full = d;
+  if (changed) {
+    try {
+      full = await bc.getDocument(auth.token, auth.account, projectId, d.id);
+    } catch (err) {
+      console.warn('[pm-agent] getDocument failed:', d.id, err.message);
+    }
+  }
+
+  try {
+    if (!prev) {
+      await activityLog.logEvent({
+        projectId, recordingType: 'Document', recordingId: d.id, event: 'created',
+        title: full.title || '', parentTitle, appUrl: bc.normalizeAppUrl(full.app_url || ''),
+        bcUpdatedAt: full.updated_at || null,
+      });
+    } else if (changed) {
+      const who = await cardTextLog.findEditor(auth, projectId, d.id, full.updated_at);
+      await activityLog.logDiff({
+        projectId, recordingType: 'Document', recordingId: d.id, prevRow: prev, currRow: full,
+        who, appUrl: bc.normalizeAppUrl(full.app_url || ''), parentTitle, bcUpdatedAt: full.updated_at,
+      });
+    }
+  } catch (err) {
+    console.warn('[pm-agent] doc activity log failed:', d.id, err.message);
+  }
+
+  await execute(
+    `INSERT INTO bc_vault_snap (item_id, project_id, vault_id, kind, title, content, app_url, bc_created_at, bc_updated_at, active, synced_at)
+     VALUES ($1,$2,$3,'document',$4,$5,$6,$7,$8,TRUE,NOW())
+     ON CONFLICT (item_id) DO UPDATE SET title=$4, content=$5, app_url=$6, bc_updated_at=$8, active=TRUE, synced_at=NOW()`,
+    [d.id, projectId, vaultId, full.title || '', full.content || '',
+     bc.normalizeAppUrl(full.app_url || ''), full.created_at || null, full.updated_at || null]
+  );
+}
+
+// Файловете (Uploads) са двоични — не се диф-ва съдържание, само заглавие/име.
+async function syncVaultUpload(auth, projectId, vaultId, u, parentTitle) {
+  const title = String(u.title || u.filename || '').trim();
+  const prev = await queryOne(`SELECT title FROM bc_vault_snap WHERE item_id = $1`, [u.id]);
+
+  try {
+    if (!prev) {
+      await activityLog.logEvent({
+        projectId, recordingType: 'Upload', recordingId: u.id, event: 'created',
+        title, parentTitle, appUrl: bc.normalizeAppUrl(u.app_url || ''), bcUpdatedAt: u.updated_at || null,
+      });
+    } else if (String(prev.title || '').trim() !== title) {
+      await activityLog.logDiff({
+        projectId, recordingType: 'Upload', recordingId: u.id,
+        prevRow: { title: prev.title }, currRow: { title }, who: null,
+        appUrl: bc.normalizeAppUrl(u.app_url || ''), parentTitle, bcUpdatedAt: u.updated_at, hasContent: false,
+      });
+    }
+  } catch (err) {
+    console.warn('[pm-agent] upload activity log failed:', u.id, err.message);
+  }
+
+  await execute(
+    `INSERT INTO bc_vault_snap (item_id, project_id, vault_id, kind, title, app_url, bc_created_at, bc_updated_at, active, synced_at)
+     VALUES ($1,$2,$3,'upload',$4,$5,$6,$7,TRUE,NOW())
+     ON CONFLICT (item_id) DO UPDATE SET title=$4, app_url=$5, bc_updated_at=$7, active=TRUE, synced_at=NOW()`,
+    [u.id, projectId, vaultId, title, bc.normalizeAppUrl(u.app_url || ''), u.created_at || null, u.updated_at || null]
+  );
+}
+
+// Обхожда една папка + рекурсивно подпапките ѝ. `ctx.errors` брои провалени
+// заявки — ако има поне една, по-нагоре НЕ се засича изтриване (частичен обход
+// би объркал реално съществуващ файл с изтрит).
+async function syncVaultFolder(auth, projectId, vaultId, parentTitle, depth, ctx) {
+  // Твърде дълбоко — не се обхожда по-нататък. Брои се като грешка (не просто
+  // пропуск), иначе тези файлове биха изчезнали от `seen` и следващият цикъл
+  // би ги отчел за „изтрити", макар да просто не сме стигнали до тях.
+  if (depth > VAULT_MAX_DEPTH) { ctx.errors += 1; return; }
+  let docs = [];
+  let uploads = [];
+  let folders = [];
+  try {
+    docs = await bc.getVaultDocuments(auth.token, auth.account, projectId, vaultId);
+  } catch (err) { ctx.errors += 1; console.warn('[pm-agent] vault docs failed:', vaultId, err.message); }
+  try {
+    uploads = await bc.getVaultUploads(auth.token, auth.account, projectId, vaultId);
+  } catch (err) { ctx.errors += 1; console.warn('[pm-agent] vault uploads failed:', vaultId, err.message); }
+  try {
+    folders = await bc.getVaultFolders(auth.token, auth.account, projectId, vaultId);
+  } catch (err) { ctx.errors += 1; console.warn('[pm-agent] vault folders failed:', vaultId, err.message); }
+
+  for (const d of docs) {
+    ctx.seen.push(d.id);
+    try { await syncVaultDocument(auth, projectId, vaultId, d, parentTitle, ctx); }
+    catch (err) { console.warn('[pm-agent] vault document sync failed:', d.id, err.message); }
+  }
+  for (const u of uploads) {
+    ctx.seen.push(u.id);
+    try { await syncVaultUpload(auth, projectId, vaultId, u, parentTitle); }
+    catch (err) { console.warn('[pm-agent] vault upload sync failed:', u.id, err.message); }
+  }
+  await mapLimit(folders, VAULT_CONCURRENCY, (f) =>
+    syncVaultFolder(auth, projectId, f.id, f.title || parentTitle, depth + 1, ctx));
+}
+
+// Синхронизира целия Docs&Files инструмент на един проект (ако е включен).
+async function syncProjectVault(auth, project) {
+  const projectId = project.id;
+  const vault = dockTool(project, 'vault');
+  if (!vault || !vault.id) return { docs: 0 };
+  const ctx = { seen: [], errors: 0 };
+  try {
+    await syncVaultFolder(auth, projectId, vault.id, project.name || '', 0, ctx);
+  } catch (err) {
+    ctx.errors += 1;
+    console.warn('[pm-agent] vault sync failed:', projectId, err.message);
+  }
+  if (ctx.errors === 0 && ctx.seen.length) {
+    try {
+      const dropped = await query(
+        `SELECT item_id, kind, title, app_url FROM bc_vault_snap
+          WHERE project_id = $1 AND active = TRUE AND item_id != ALL($2::bigint[])`,
+        [projectId, ctx.seen]
+      );
+      for (const row of dropped) {
+        await activityLog.logEvent({
+          projectId, recordingType: row.kind === 'upload' ? 'Upload' : 'Document', recordingId: row.item_id,
+          event: 'deleted', title: row.title || '', appUrl: row.app_url || '',
+        });
+      }
+      if (dropped.length) {
+        await execute('UPDATE bc_vault_snap SET active = FALSE WHERE project_id = $1 AND item_id != ALL($2::bigint[])',
+          [projectId, ctx.seen]);
+      }
+    } catch (err) {
+      console.warn('[pm-agent] vault drop detection failed:', projectId, err.message);
+    }
+  }
+  return { docs: ctx.seen.length };
+}
+
+// ---------- Message board — създаване/редакция/изтриване ----------
+async function syncProjectMessageBoard(auth, project) {
+  const projectId = project.id;
+  const board = dockTool(project, 'message_board');
+  if (!board || !board.id) return { messages: 0 };
+  let messages = [];
+  try {
+    messages = await bc.getMessages(auth.token, auth.account, projectId, board.id);
+  } catch (err) {
+    console.warn('[pm-agent] messages fetch failed:', projectId, err.message);
+    return { messages: 0 };
+  }
+
+  const seen = [];
+  for (const m of messages) {
+    seen.push(m.id);
+    const prev = await queryOne(
+      `SELECT bc_updated_at, subject, content FROM bc_messages_snap WHERE message_id = $1`, [m.id]);
+    const listUpdated = m.updated_at ? new Date(m.updated_at).toISOString() : '';
+    const prevUpdated = prev && prev.bc_updated_at ? new Date(prev.bc_updated_at).toISOString() : '';
+    const changed = !prev || listUpdated !== prevUpdated;
+    try {
+      if (!prev) {
+        await activityLog.logEvent({
+          projectId, recordingType: 'Message', recordingId: m.id, event: 'created',
+          title: m.subject || m.title || '', parentTitle: board.title || project.name || '',
+          appUrl: bc.normalizeAppUrl(m.app_url || ''), bcUpdatedAt: m.updated_at || null,
+        });
+      } else if (changed) {
+        const who = await cardTextLog.findEditor(auth, projectId, m.id, m.updated_at);
+        await activityLog.logDiff({
+          projectId, recordingType: 'Message', recordingId: m.id,
+          prevRow: { title: prev.subject, content: prev.content },
+          currRow: { title: m.subject || m.title || '', content: m.content || '' },
+          who, appUrl: bc.normalizeAppUrl(m.app_url || ''), parentTitle: board.title || project.name || '',
+          bcUpdatedAt: m.updated_at,
+        });
+      }
+    } catch (err) {
+      console.warn('[pm-agent] message activity log failed:', m.id, err.message);
+    }
+    await upsertMessage({ ...m, bucket: { id: projectId } });
+  }
+
+  if (seen.length) {
+    try {
+      const dropped = await query(
+        `SELECT message_id, subject, app_url FROM bc_messages_snap
+          WHERE project_id = $1 AND active = TRUE AND message_id != ALL($2::bigint[])`,
+        [projectId, seen]
+      );
+      for (const row of dropped) {
+        await activityLog.logEvent({
+          projectId, recordingType: 'Message', recordingId: row.message_id, event: 'deleted',
+          title: row.subject || '', appUrl: row.app_url || '',
+        });
+      }
+      if (dropped.length) {
+        await execute('UPDATE bc_messages_snap SET active = FALSE WHERE project_id = $1 AND message_id != ALL($2::bigint[])',
+          [projectId, seen]);
+      }
+    } catch (err) {
+      console.warn('[pm-agent] message drop detection failed:', projectId, err.message);
+    }
+  }
+  return { messages: seen.length };
+}
+
+// ---------- To-dos — създаване/редакция/завършване/изтриване (клиентски проекти) ----------
+async function syncProjectTodos(auth, project) {
+  const projectId = project.id;
+  const todoset = dockTool(project, 'todoset');
+  if (!todoset || !todoset.id) return { todos: 0 };
+  let lists = [];
+  try {
+    lists = await bc.getTodoLists(auth.token, auth.account, projectId, todoset.id);
+  } catch (err) {
+    console.warn('[pm-agent] todolists fetch failed:', projectId, err.message);
+    return { todos: 0 };
+  }
+
+  const seen = [];
+  for (const list of lists) {
+    let open = [];
+    let done = [];
+    try {
+      open = await bc.getTodos(auth.token, auth.account, projectId, list.id, { completed: false });
+      done = await bc.getTodos(auth.token, auth.account, projectId, list.id, { completed: true });
+    } catch (err) {
+      console.warn('[pm-agent] todos fetch failed:', list.id, err.message);
+      continue; // тази задача-листа пропускаме, но продължаваме с останалите
+    }
+    const listMeta = { id: list.id, title: list.title || list.name || '' };
+    for (const td of [...open, ...done]) {
+      seen.push(td.id);
+      const prev = await queryOne(
+        `SELECT bc_updated_at, title, description, completed FROM bc_todos_snap WHERE todo_id = $1`, [td.id]);
+      const listUpdated = td.updated_at ? new Date(td.updated_at).toISOString() : '';
+      const prevUpdated = prev && prev.bc_updated_at ? new Date(prev.bc_updated_at).toISOString() : '';
+      const changed = !prev || listUpdated !== prevUpdated;
+      try {
+        if (!prev) {
+          await activityLog.logEvent({
+            projectId, recordingType: 'Todo', recordingId: td.id, event: 'created',
+            title: td.content || td.title || '', parentTitle: listMeta.title,
+            appUrl: bc.normalizeAppUrl(td.app_url || ''), bcUpdatedAt: td.updated_at || null,
+          });
+        } else if (changed) {
+          if (!prev.completed && td.completed) {
+            await activityLog.logEvent({
+              projectId, recordingType: 'Todo', recordingId: td.id, event: 'completed',
+              title: td.content || td.title || '', parentTitle: listMeta.title,
+              appUrl: bc.normalizeAppUrl(td.app_url || ''), bcUpdatedAt: td.updated_at || null,
+            });
+          }
+          const who = await cardTextLog.findEditor(auth, projectId, td.id, td.updated_at);
+          await activityLog.logDiff({
+            projectId, recordingType: 'Todo', recordingId: td.id,
+            prevRow: { title: prev.title, content: prev.description },
+            currRow: { title: td.content || td.title || '', content: td.description || '' },
+            who, appUrl: bc.normalizeAppUrl(td.app_url || ''), parentTitle: listMeta.title,
+            bcUpdatedAt: td.updated_at,
+          });
+        }
+      } catch (err) {
+        console.warn('[pm-agent] todo activity log failed:', td.id, err.message);
+      }
+      await upsertTodo({ ...td, bucket: { id: projectId } }, listMeta);
+    }
+  }
+
+  if (seen.length) {
+    try {
+      const dropped = await query(
+        `SELECT todo_id, title, app_url FROM bc_todos_snap
+          WHERE project_id = $1 AND active = TRUE AND todo_id != ALL($2::bigint[])`,
+        [projectId, seen]
+      );
+      for (const row of dropped) {
+        await activityLog.logEvent({
+          projectId, recordingType: 'Todo', recordingId: row.todo_id, event: 'deleted',
+          title: row.title || '', appUrl: row.app_url || '',
+        });
+      }
+      if (dropped.length) {
+        await execute('UPDATE bc_todos_snap SET active = FALSE WHERE project_id = $1 AND todo_id != ALL($2::bigint[])',
+          [projectId, seen]);
+      }
+    } catch (err) {
+      console.warn('[pm-agent] todo drop detection failed:', projectId, err.message);
+    }
+  }
+  return { todos: seen.length };
+}
+
+// Docs&Files + message board за ВСИЧКИ проекти (Video Production и клиентските
+// еднакво — dockTool() просто връща null, ако инструментът не е включен там).
+// To-dos само там, където има todoset (Video Production работи с карти, не с тях).
+async function syncAllProjectTools(auth, projects) {
+  const stats = { vaultDocs: 0, boardMessages: 0, todos: 0 };
+  await mapLimit(projects, 2, async (p) => {
+    try {
+      const r = await syncProjectVault(auth, p);
+      stats.vaultDocs += r.docs || 0;
+    } catch (err) { console.warn('[pm-agent] vault failed for project', p.id, err.message); }
+    try {
+      const r = await syncProjectMessageBoard(auth, p);
+      stats.boardMessages += r.messages || 0;
+    } catch (err) { console.warn('[pm-agent] message board failed for project', p.id, err.message); }
+    try {
+      const r = await syncProjectTodos(auth, p);
+      stats.todos += r.todos || 0;
+    } catch (err) { console.warn('[pm-agent] todos failed for project', p.id, err.message); }
+  });
+  return stats;
 }
 
 // ---------- sync стъпки ----------
@@ -323,36 +688,22 @@ async function syncTeamCards(auth, { deep = false } = {}) {
   return { cards: seen.length, comments: commentsFetched, textChanges, dateChanges, stageChanges };
 }
 
-// Клиентските проекти: съобщения + отворени задачи (+ campfire периодично).
+// Campfire (чат) на клиентските проекти — периодично, само на всеки 4-ти цикъл
+// (виж runSync). Съобщенията/задачите минаха в syncAllProjectTools, където се
+// диф-логват и засичат изтритите, вместо да се презаписват тихо.
 async function syncClientProjects(auth, projects, { withCampfires = false } = {}) {
   const teamId = String(config.BASECAMP_TEAM_PROJECT_ID);
   const others = projects.filter((p) => String(p.id) !== teamId);
-  const stats = { messages: 0, todos: 0, campfireLines: 0 };
+  const stats = { campfireLines: 0 };
+  if (!withCampfires) return stats;
 
   await mapLimit(others, 3, async (p) => {
     try {
-      const board = dockTool(p, 'message_board');
-      if (board && board.id) {
-        const messages = await bc.getMessages(auth.token, auth.account, p.id, board.id);
-        for (const m of messages) await upsertMessage({ ...m, bucket: { id: p.id } });
-        stats.messages += messages.length;
-      }
-      const todoset = dockTool(p, 'todoset');
-      if (todoset && todoset.id) {
-        const lists = await bc.getTodoLists(auth.token, auth.account, p.id, todoset.id);
-        for (const list of lists) {
-          const todos = await bc.getTodos(auth.token, auth.account, p.id, list.id);
-          for (const td of todos) await upsertTodo({ ...td, bucket: { id: p.id } }, { id: list.id, title: list.title || list.name || '' });
-          stats.todos += todos.length;
-        }
-      }
-      if (withCampfires) {
-        const chat = dockTool(p, 'chat');
-        if (chat && chat.id) {
-          const lines = await bc.getCampfireLines(auth.token, auth.account, p.id, chat.id, 2);
-          for (const ln of lines) await upsertCampfireLine(ln, p.id, chat.id);
-          stats.campfireLines += lines.length;
-        }
+      const chat = dockTool(p, 'chat');
+      if (chat && chat.id) {
+        const lines = await bc.getCampfireLines(auth.token, auth.account, p.id, chat.id, 2);
+        for (const ln of lines) await upsertCampfireLine(ln, p.id, chat.id);
+        stats.campfireLines += lines.length;
       }
     } catch (err) {
       console.warn('[pm-agent] project sync failed:', p.name, err.message);
@@ -399,6 +750,7 @@ async function runSync({ trigger = 'manual', full = false } = {}) {
       [JSON.stringify({ trigger })]
     );
     runId = runRow.id;
+    await ensureSnapshotSchema();
     const auth = await getReadAuth();
     const empty = !(await queryOne('SELECT 1 AS x FROM bc_projects LIMIT 1'));
     const isFull = full || empty;
@@ -407,10 +759,12 @@ async function runSync({ trigger = 'manual', full = false } = {}) {
     const projects = await syncProjects(auth);
     const cardStats = await syncTeamCards(auth, { deep: isFull });
 
-    let clientStats = { messages: 0, todos: 0, campfireLines: 0 };
+    let clientStats = { campfireLines: 0 };
     let sweepStats = { comments: 0, messages: 0, todos: 0 };
+    let toolsStats = { vaultDocs: 0, boardMessages: 0, todos: 0 };
     if (isFull) {
       clientStats = await syncClientProjects(auth, projects, { withCampfires: true });
+      toolsStats = await syncAllProjectTools(auth, projects);
       const horizon = new Date(Date.now() - COMMENT_HORIZON_DAYS * 24 * 3600_000).toISOString();
       sweepStats = await syncRecordingsSince(auth, horizon);
     } else {
@@ -419,16 +773,18 @@ async function runSync({ trigger = 'manual', full = false } = {}) {
       const since = last ? new Date(last.getTime() - 30 * 60_000).toISOString()
         : new Date(Date.now() - COMMENT_HORIZON_DAYS * 24 * 3600_000).toISOString();
       sweepStats = await syncRecordingsSince(auth, since);
-      // Campfire — на всеки 4-ти цикъл (веднъж на час), защото няма "since" API.
+      // Docs&Files, message board, to-dos, campfire — на всеки 4-ти цикъл (веднъж
+      // на час): за да засечем изтриване трябва пълен обход, а не "since" заявка.
       if (runCounter % 4 === 0) {
         clientStats = await syncClientProjects(auth, projects, { withCampfires: true });
+        toolsStats = await syncAllProjectTools(auth, projects);
       }
     }
 
     const stats = {
       trigger, full: isFull, seconds: Math.round((Date.now() - started) / 1000),
       projects: projects.length, ...cardStats,
-      client: clientStats, sweep: sweepStats,
+      client: clientStats, sweep: sweepStats, tools: toolsStats,
     };
     await execute("UPDATE agent_runs SET status = 'done', stats = $2, finished_at = NOW() WHERE id = $1",
       [runId, JSON.stringify(stats)]);

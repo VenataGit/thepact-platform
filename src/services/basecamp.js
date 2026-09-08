@@ -338,6 +338,11 @@ async function getDocument(token, account, projectId, documentId) {
   return (await authedGet(`${API_BASE}/${account}/buckets/${projectId}/documents/${documentId}.json`, token)).json;
 }
 
+// Качените файлове в една папка (различни от Documents — двоично съдържание).
+async function getVaultUploads(token, account, projectId, vaultId) {
+  return pagedGet(`${API_BASE}/${account}/buckets/${projectId}/vaults/${vaultId}/uploads.json`, token, 40);
+}
+
 // Нов документ. POST .../vaults/{vaultId}/documents.json body { title, content, status }.
 // Без status: 'active' документът остава чернова и не се вижда в папката.
 async function createDocument(token, account, projectId, vaultId, { title, content }) {
@@ -574,6 +579,7 @@ module.exports = {
   getVaultFolders,
   createVaultFolder,
   getVaultDocuments,
+  getVaultUploads,
   getDocument,
   createDocument,
   updateDocument,
