@@ -329,6 +329,46 @@ describe('POST /api/time/manual', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('isManual', true);
   });
+
+  // Ръчно добавеното време също влиза в разбивката по етап — иначе щеше да пада
+  // в „(без етап)" само защото не е пуснат таймер.
+  it('записва и етапа, когато времето е по карта', async () => {
+    mockDb.queryOne.mockResolvedValueOnce({ board_title: 'Production', column_title: 'Студио' }); // stageOf
+    mockDb.queryOne.mockResolvedValueOnce(entryRow({
+      is_manual: true, duration_seconds: 5400,
+      stage_board: 'Production', stage_column: 'Студио'
+    }));
+
+    const res = await request(app)
+      .post('/api/time/manual')
+      .set('Cookie', memberCookie)
+      .send({
+        started_at: '2026-07-10T10:00:00Z', ended_at: '2026-07-10T11:30:00Z',
+        bc_recording_id: '12345', recording_type: 'cards', title: 'Заснемане'
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ stageBoard: 'Production', stageColumn: 'Студио' });
+    const insert = mockDb.queryOne.mock.calls.find((c) => /INSERT INTO time_entries/.test(c[0]));
+    expect(insert[1]).toEqual(expect.arrayContaining(['Production', 'Студио']));
+  });
+
+  it('todo-то не иска справка за етап (дъски има само при картите)', async () => {
+    mockDb.queryOne.mockResolvedValueOnce(entryRow({ is_manual: true, recording_type: 'todos' }));
+    const before = mockDb.queryOne.mock.calls.length;
+
+    const res = await request(app)
+      .post('/api/time/manual')
+      .set('Cookie', memberCookie)
+      .send({
+        started_at: '2026-07-10T10:00:00Z', ended_at: '2026-07-10T10:30:00Z',
+        bc_recording_id: '999', recording_type: 'todos', title: 'Todo'
+      });
+
+    expect(res.status).toBe(200);
+    const after = mockDb.queryOne.mock.calls.slice(before);
+    expect(after.some((c) => /FROM bc_cards_snap/.test(c[0]))).toBe(false);
+  });
 });
 
 

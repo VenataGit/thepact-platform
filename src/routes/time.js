@@ -255,23 +255,34 @@ router.post('/manual', requireAuth, async (req, res, next) => {
     if (ended <= started) return res.status(400).json({ error: 'ended_at must be after started_at' });
     const seconds = Math.round((ended - started) / 1000);
     if (seconds > 24 * 3600) return res.status(400).json({ error: 'Entry longer than 24h' });
+
+    /* и ръчно добавеното време влиза в разбивката по етап — иначе щеше да пада
+       в „(без етап)" само защото не е пуснат таймер */
+    await ensureStageColumns();
+    const recordingId = String(b.bc_recording_id || '').replace(/\D/g, '') || null;
+    const recordingType = String(b.recording_type || '').slice(0, 40);
+    const stage = await stageOf(recordingId, recordingType);
+
     const entry = await queryOne(
       `INSERT INTO time_entries
          (user_id, bc_project_id, bc_recording_id, recording_type, title, url,
-          started_at, ended_at, last_beat, duration_seconds, is_manual, stopped_by, note)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, TRUE, 'user', $10)
+          started_at, ended_at, last_beat, duration_seconds, is_manual, stopped_by, note,
+          stage_board, stage_column)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, TRUE, 'user', $10, $11, $12)
        RETURNING *`,
       [
         req.user.userId,
         String(b.bc_project_id || '').replace(/\D/g, '') || null,
-        String(b.bc_recording_id || '').replace(/\D/g, '') || null,
-        String(b.recording_type || '').slice(0, 40),
+        recordingId,
+        recordingType,
         String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 300),
         String(b.url || '').slice(0, 500),
         started.toISOString(),
         ended.toISOString(),
         seconds,
-        String(b.note || '').slice(0, 500)
+        String(b.note || '').slice(0, 500),
+        stage.board,
+        stage.column
       ]
     );
     res.json(entryPublic(entry));
