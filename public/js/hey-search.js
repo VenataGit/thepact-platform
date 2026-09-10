@@ -152,7 +152,7 @@ function populateMore(el) {
       <a class="nav-dropdown__item" href="/folder-access.html" target="_blank" rel="noopener" onclick="closeAllDropdowns()">Отваряне на папки</a>
       <a class="nav-dropdown__item" href="#/release-notes" onclick="closeAllDropdowns()">Какво ново</a>
       ${(currentUser?.role === 'admin' && !isPageOff('time-report')) ? `<a class="nav-dropdown__item" href="#/time-report" onclick="closeAllDropdowns()">Време</a>` : ''}
-      ${(currentUser?.role === 'admin' && !isPageOff('client-report')) ? `<a class="nav-dropdown__item" href="#/client-report" onclick="closeAllDropdowns()">Отчет по клиенти</a>` : ''}
+      ${(currentUser?.role === 'admin' && !isPageOff('client-report')) ? `<a class="nav-dropdown__item" href="#/client-report" onclick="closeAllDropdowns()">Статистика</a>` : ''}
       <!-- Настройките се виждат от всички; отварят се само с админ права (sgOpenSettings). -->
       <a class="nav-dropdown__item" href="#/admin" onclick="return sgOpenSettings(event)">Настройки</a>
     </div>

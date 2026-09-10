@@ -138,6 +138,11 @@
 .tr-task { cursor: pointer; }
 .tr-task:hover { background: rgba(255, 255, 255, 0.05); }
 
+.cr-bucket-row { cursor: pointer; }
+.cr-bucket-row:hover { background: rgba(255, 255, 255, 0.05); }
+.cr-bucket-row.cr-active { background: rgba(70, 163, 116, 0.15); }
+.cr-tab.active { background: #46a374; border-color: #46a374; color: #fff; font-weight: 600; }
+
 .tr-badge {
   display: inline-block;
   padding: 2px 8px;

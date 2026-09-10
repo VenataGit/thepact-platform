@@ -12,7 +12,7 @@ var PAGE_TOGGLES = [
   { id: 'history', label: 'История' },
   { id: 'crm', label: 'CRM' },
   { id: 'time-report', label: 'Време' },
-  { id: 'client-report', label: 'Отчет по клиенти' },
+  { id: 'client-report', label: 'Статистика' },
 ];
 function isPageOff(id) {
   return !!(typeof _platformConfig === 'object' && _platformConfig && _platformConfig['page_off_' + id] === 'true');
