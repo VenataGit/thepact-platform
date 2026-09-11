@@ -287,6 +287,12 @@
   font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.82); margin-bottom: 6px;
 }
 .dash-card__date svg { flex-shrink: 0; }
+/* Ориентир „кога излиза първото видео от плана" — само на главната КП карта в
+   Pre-Production, изкарана от текста ѝ. Дискретна, не бие Due датата отгоре. */
+.dash-card__firstpub {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 600; color: rgba(255,255,255,0.62); margin-bottom: 6px;
+}
 .dash-card__actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .dash-card__timer {
   display: inline-flex; align-items: center; justify-content: center;
@@ -346,9 +352,11 @@
 .dash-card--priority { border-left-color: var(--dash-priority-bg, #fff); background: var(--dash-priority-bg, rgba(255,255,255,0.9)); }
 .dash-card--priority .dash-card__title { color: var(--dash-priority-text, #111); }
 .dash-card--priority .dash-card__date { color: var(--dash-priority-text, #333); font-weight: 600; }
+.dash-card--priority .dash-card__firstpub { color: var(--dash-priority-text, #555); }
 .dash-card--on-hold { border-left-color: var(--dash-hold, #6b7280); background: var(--dash-hold-bg, rgba(107,114,128,0.1)); opacity: 0.7; }
 .dash-card--on-hold .dash-card__title { color: var(--dash-hold, #9ca3af); }
 .dash-card--on-hold .dash-card__date { color: var(--dash-hold, #6b7280); }
+.dash-card--on-hold .dash-card__firstpub { color: var(--dash-hold, #6b7280); }
 .dash-card--on-hold:hover { opacity: 1; }
 .dash-card--hold { opacity: 0.7; }
 .dash-card--hold:hover { opacity: 1; }

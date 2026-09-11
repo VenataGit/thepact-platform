@@ -12,6 +12,7 @@ const config = require('../config');
 const bc = require('./basecamp');
 const { query, execute } = require('../db/pool');
 const prodSteps = require('./steps'); // не `steps` — isPriority() вече ползва това име за параметър
+const kpPlan = require('./kp-plan'); // за planFirstPublishDateOf() — четем текста на КП картата, не викаме Basecamp повторно
 
 // Run async fn over items with limited concurrency (gentle on Basecamp rate limits).
 async function mapLimit(items, limit, fn) {
@@ -106,7 +107,25 @@ function stageDatesOf(stepList) {
   return out;
 }
 
-function mapCard(c, stepPrefix) {
+// Само за Pre-Production, само за самата (не-видео) КП карта: изважда „Дата за
+// публикуване на първо видео" от ТЕКСТА на плана (записва я kp-create.js при
+// създаване, виж KP_DEFAULT_TEMPLATE) — чист ориентир кога излиза първото видео
+// от плана. Due On на тази карта си остава 10 работни дни ПРЕДИ нея (виж
+// #/board-logic т.4), нарочно не се пипа. Basecamp вече връща пълния `content` в
+// листването на колоната (bc-backup.js разчита на същото), затова не е нужна
+// допълнителна заявка. (Венци, 11.09.2026)
+function planFirstPublishDateOf(c) {
+  if (videoNumberOf(c.title) != null) return null; // видео карта, не плана
+  const html = kpPlan.planHtml(c);
+  if (!html) return null;
+  try {
+    const { header } = kpPlan.parsePlan(html);
+    const dates = kpPlan.parsePlanDates(header);
+    return dates[0] || null;
+  } catch { return null; }
+}
+
+function mapCard(c, stepPrefix, opts) {
   const sd = stepDueOf(c.steps, stepPrefix);
   const out = {
     id: c.id,
@@ -126,6 +145,10 @@ function mapCard(c, stepPrefix) {
     out.dueStepDone = !!sd.done; // отделът е приключил — датата не е чакащ срок
   }
   if (isPriority(c.steps)) out.priority = true;
+  if (opts && opts.isPreBoard) {
+    const fpd = planFirstPublishDateOf(c);
+    if (fpd) out.firstVideoPublishDate = fpd;
+  }
   return out;
 }
 
@@ -183,6 +206,7 @@ async function loadBoardCards(token, account, cardTableId) {
   const table = await bc.getCardTable(token, account, projectId, cardTableId);
   const rules = await loadStepRules();
   const stepPrefix = rules[String(table.title || '').trim().toLowerCase()] || [];
+  const mapOpts = { isPreBoard: boardRole(table.title) === 'pre' };
   const lists = table.lists || [];
   const columns = await mapLimit(lists, 5, async (list) => {
     const cards = list.cards_count > 0 ? await bc.getColumnCards(token, account, projectId, list.id) : [];
@@ -190,9 +214,9 @@ async function loadBoardCards(token, account, cardTableId) {
     let onHoldCards = [];
     if (list.on_hold && list.on_hold.cards_count > 0) {
       const oh = await bc.getColumnCards(token, account, projectId, list.on_hold.id);
-      onHoldCards = oh.map((c) => { const m = mapCard(c, stepPrefix); m.onHold = true; return m; });
+      onHoldCards = oh.map((c) => { const m = mapCard(c, stepPrefix, mapOpts); m.onHold = true; return m; });
     }
-    return { id: list.id, cards: cards.map((c) => mapCard(c, stepPrefix)), onHoldCards };
+    return { id: list.id, cards: cards.map((c) => mapCard(c, stepPrefix, mapOpts)), onHoldCards };
   });
   const result = { at: Date.now(), cardTableId: table.id, columns };
   cardsCache.set(key, result);

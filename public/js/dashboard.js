@@ -706,6 +706,13 @@ function renderDashCard(card) {
   const due = effDue
     ? '<div class="dash-card__date"' + dueTip + '>' + DASH_CAL_SVG + '<span>' + formatDate(effDue) + '</span></div>'
     : (noDate ? '<div class="dash-card__nodate"' + (!_dashPublishMode && card.dueFromStep && card.dueStep ? ' title="Стъпката „' + esc(card.dueStep) + '" е без дата"' : '') + '>' + DASH_CAL_SVG + '<span>Няма дата</span></div>' : '');
+  // Само главната КП карта в Pre-Production я има (server: planFirstPublishDateOf в
+  // bc-aggregate.js) — извадена от ТЕКСТА на плана, а не от Due On. Чист ориентир
+  // „кога излиза първото видео от този план", независимо от бутона „📅 Публикуване"
+  // по-горе. (Венци, 11.09.2026)
+  const firstPub = card.firstVideoPublishDate
+    ? '<div class="dash-card__firstpub" title="Дата за публикуване на първото видео от плана — от текста на картата">🎬 <span>' + formatDate(card.firstVideoPublishDate) + '</span></div>'
+    : '';
   // Картата е ИСТИНСКИ <a> към Basecamp, а не <div> — само така средният бутон (скролът)
   // отваря задачата в нов раздел НА ЗАДЕН ПЛАН и таблицата остава отпред. С JS не става:
   // `window.open` винаги изважда новия раздел отпред, а средният бутон върху <div> не прави
@@ -717,6 +724,7 @@ function renderDashCard(card) {
       ' ondragstart="dashBcDragStart(event)" ondragend="dashBcDragEnd(event)" onclick="dashOpenCard(event, this)" title="' + esc(card.title) + ' — отвори в Basecamp' + (url ? ' (среден бутон: нов раздел отзад)' : '') + '">' +
     '<div class="dash-card__title">' + esc(card.title) + '</div>' +
     due +
+    firstPub +
     '<div class="dash-card__actions">' +
       '<span class="dash-card__actions-left">' +
         '<button class="dash-card__timer" onclick="dashCardTimer(event, \'' + card.id + '\')" title="Следене на времето">' + DASH_CLOCK_SVG + '</button>' +
