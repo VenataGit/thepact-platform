@@ -46,6 +46,8 @@ function router() {
   if (_dashGear) _dashGear.style.display = 'none';
   const _dashFilterBtn = document.getElementById('navDashFilter');
   if (_dashFilterBtn) _dashFilterBtn.style.display = 'none';
+  const _dashPublishBtn = document.getElementById('navDashPublish');
+  if (_dashPublishBtn) _dashPublishBtn.style.display = 'none';
   document.querySelectorAll('.dash-filter-panel').forEach((p) => p.remove());
 
   // Reset card edit mode when navigating away from card page

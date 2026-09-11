@@ -79,6 +79,15 @@ let _dashDragCardId = null, _dashDragBoardId = null, _dashDragFromCol = null;
 // връща нормалния изглед с всички задачи.
 let _dashFilter = { client: '', block: '', due: '', assignee: '' };
 
+// --- „Дата за публикуване" превключвател (бутон до Филтър) ---------------------
+// Изключен по подразбиране: всяка дъска гледа своята отделна дата (виж 3. в
+// #/board-logic). Включен: всички карти, на всички дъски, показват и се оцветяват
+// по РЕАЛНИЯ Due On на картата (cardDueOn от services/bc-aggregate.js) — датата за
+// публикуване, а не срокът на отдела. Само визия за текущата сесия, нарочно не се
+// пази между зареждания — както филтърът. (Венци, 11.09.2026)
+let _dashPublishMode = false;
+function dashEffectiveDue(card) { return (_dashPublishMode ? card.cardDueOn : card.dueOn) || null; }
+
 function dashFilterCount() { return ['client', 'block', 'due', 'assignee'].filter((k) => _dashFilter[k]).length; }
 function dashFilterActive() { return dashFilterCount() > 0; }
 
@@ -168,10 +177,11 @@ function dashCardClient(title, vocab) {
 }
 
 function dashDueMatches(card, mode) {
-  if (mode === 'nodate') return !card.dueOn;
-  if (!card.dueOn) return false;
+  const due = dashEffectiveDue(card);
+  if (mode === 'nodate') return !due;
+  if (!due) return false;
   const now = new Date(); now.setHours(0, 0, 0, 0);
-  const d = _parseDateMidnight(card.dueOn);
+  const d = _parseDateMidnight(due);
   const diff = Math.round((d - now) / 86400000);
   // Просрочена = датата е минала. Чекнатата стъпка вече НЕ извинява просрочието — иначе
   // черна карта нямаше да се показва под филтъра „Просрочени". (Венци, 25.08.2026)
@@ -461,6 +471,8 @@ function dashRenderStats() {
   if (btn) btn.style.display = 'inline-flex';
   const fbtn = document.getElementById('navDashFilter');
   if (fbtn) { fbtn.style.display = 'inline-flex'; dashUpdateFilterBtn(); }
+  const pbtn = document.getElementById('navDashPublish');
+  if (pbtn) { pbtn.style.display = 'inline-flex'; dashUpdatePublishBtn(); }
   // Речникът с познатите имена на клиенти (utils.js кешира заявката за цялата сесия).
   // Дърпаме го веднага, за да е готов преди да се отвори филтърът; докато го няма,
   // разпознаването пада обратно към имената от заглавията с КП/КМП/РЕК.
@@ -479,6 +491,21 @@ function dashUpdateFilterBtn() {
   const n = dashFilterCount();
   btn.classList.toggle('dash-filter-btn--on', n > 0);
   btn.innerHTML = DASH_FILTER_SVG + '<span>Филтър</span>' + (n ? '<span class="dash-filter-badge">' + n + '</span>' : '');
+}
+
+function dashUpdatePublishBtn() {
+  const btn = document.getElementById('navDashPublish');
+  if (!btn) return;
+  btn.classList.toggle('dash-filter-btn--on', _dashPublishMode);
+  btn.title = _dashPublishMode
+    ? 'Гледаш датата за публикуване (Due On) на всички карти — цъкни за връщане към датите по отдел'
+    : 'Покажи датата за публикуване (Due On) на всички карти, във всеки отдел';
+}
+
+function dashTogglePublishMode() {
+  _dashPublishMode = !_dashPublishMode;
+  dashUpdatePublishBtn();
+  dashRenderBoards();
 }
 
 const DASH_DUE_OPTS = [
@@ -614,13 +641,13 @@ function dashBoardSectionHtml(b) {
 function dashCardGroup(c) {
   if (c.completed) return 4;
   if (c.priority) return 0;
-  if (!c.dueOn) return 1;
+  if (!dashEffectiveDue(c)) return 1;
   return 2;
 }
 function dashCardCompare(a, b) {
   const ga = dashCardGroup(a), gb = dashCardGroup(b);
   if (ga !== gb) return ga - gb;
-  const da = a.dueOn || '', db = b.dueOn || ''; // '' сортира преди всяка дата
+  const da = dashEffectiveDue(a) || '', db = dashEffectiveDue(b) || ''; // '' сортира преди всяка дата
   if (da !== db) return da < db ? -1 : 1;
   return (a.position || 0) - (b.position || 0);
 }
@@ -649,7 +676,8 @@ var DASH_CHECK_SVG = '<svg viewBox="0 0 24 24" width="9" height="9" fill="none" 
 
 function renderDashCard(card) {
   const now = new Date(); now.setHours(0, 0, 0, 0);
-  const d = card.dueOn ? _parseDateMidnight(card.dueOn) : null;
+  const effDue = dashEffectiveDue(card);
+  const d = effDue ? _parseDateMidnight(effDue) : null;
   const isPrio = !!card.priority && !card.completed;
   let colorClass = 'dash-card--none'; // no due date (or completed) → neutral grey
   if (isPrio) {
@@ -661,7 +689,7 @@ function renderDashCard(card) {
     const diff = Math.ceil((d - now) / 86400000);
     colorClass = diff < 0 ? 'dash-card--overdue' : diff === 0 ? 'dash-card--today' : diff <= 3 ? 'dash-card--soon' : 'dash-card--ok';
   }
-  const noDate = !card.dueOn && !card.completed && !isPrio; // needs a date — flag until one is set
+  const noDate = !effDue && !card.completed && !isPrio; // needs a date — flag until one is set
   const assignee = card.assignees && card.assignees[0] ? esc(card.assignees[0].name.split(' ')[0]) : '';
   // Зелено чекче до таймера, щом стъпката на дъската, в която стои картата, е чекната.
   // `dueStepDone` идва от сървъра и е сметнат САМО по стъпката на тази дъска, така че
@@ -670,12 +698,14 @@ function renderDashCard(card) {
   const stepDoneMark = card.dueStepDone && !card.completed
     ? '<span class="dash-card__stepdone" title="' + esc(card.dueStep || 'Стъпката на тази колона') + ' — чекната">' + DASH_CHECK_SVG + '</span>'
     : '';
-  const dueTip = card.dueFromStep && card.dueStep
-    ? ' title="Дата от стъпка: ' + esc(card.dueStep) + (card.dueStepDone ? ' (приключена)' : '') + '"'
-    : '';
-  const due = card.dueOn
-    ? '<div class="dash-card__date"' + dueTip + '>' + DASH_CAL_SVG + '<span>' + formatDate(card.dueOn) + '</span></div>'
-    : (noDate ? '<div class="dash-card__nodate"' + (card.dueFromStep && card.dueStep ? ' title="Стъпката „' + esc(card.dueStep) + '" е без дата"' : '') + '>' + DASH_CAL_SVG + '<span>Няма дата</span></div>' : '');
+  // Режим „Дата за публикуване": датата вече не идва от стъпка, тя си е Due On —
+  // тогава tooltip-ът обяснява това вместо да сочи (грешно) към стъпката на отдела.
+  const dueTip = _dashPublishMode
+    ? ' title="Дата за публикуване"'
+    : (card.dueFromStep && card.dueStep ? ' title="Дата от стъпка: ' + esc(card.dueStep) + (card.dueStepDone ? ' (приключена)' : '') + '"' : '');
+  const due = effDue
+    ? '<div class="dash-card__date"' + dueTip + '>' + DASH_CAL_SVG + '<span>' + formatDate(effDue) + '</span></div>'
+    : (noDate ? '<div class="dash-card__nodate"' + (!_dashPublishMode && card.dueFromStep && card.dueStep ? ' title="Стъпката „' + esc(card.dueStep) + '" е без дата"' : '') + '>' + DASH_CAL_SVG + '<span>Няма дата</span></div>' : '');
   // Картата е ИСТИНСКИ <a> към Basecamp, а не <div> — само така средният бутон (скролът)
   // отваря задачата в нов раздел НА ЗАДЕН ПЛАН и таблицата остава отпред. С JS не става:
   // `window.open` винаги изважда новия раздел отпред, а средният бутон върху <div> не прави
