@@ -162,6 +162,7 @@ app.use('/api/production-calendar', require('./routes/production-calendar'));
 app.use('/api/bc-board', require('./routes/bc-board'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/client-report', require('./routes/client-report'));
+app.use('/api/task-completions', require('./routes/task-completions'));
 app.use('/api/bc-calendar', require('./routes/bc-calendar'));
 app.use('/api/kp-split', require('./routes/kp-split'));
 app.use('/api/task-creator', require('./routes/task-creator'));
