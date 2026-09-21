@@ -10,7 +10,7 @@
 // показва, без ново запитване. Кликване на ред във всеки таб филтрира
 // детайлните таблици долу по съответното измерение (клиент/отдел/човек).
 
-let _crState = { from: null, to: null, tab: 'client', filter: null, data: null, doneData: null, doneFilter: null };
+let _crState = { from: null, to: null, tab: 'client', filter: null, data: null };
 
 const CR_TABS = [
   { id: 'client', label: 'По клиенти', field: 'client', col: 'Клиент' },
@@ -93,22 +93,16 @@ async function renderClientReport(el) {
       <div class="tr-box"><h3 id="crNewTitle">Нови задачи</h3><div id="crNew"></div></div>
       <div class="tr-box"><h3 id="crStepTitle">Заснето / Монтирано / Качено</h3><div id="crSteps"></div></div>
       <div class="tr-box"><h3 id="crMoveTitle">Преместени към следващия отдел</h3><div id="crMoves"></div></div>
-      <div class="tr-box">
-        <h3>✓ Отбелязани като готови <span class="tr-dim">(бутонът в разширението — кой САМ е казал „аз я направих")</span></h3>
-        <div id="crDoneBoard"></div>
-      </div>
-      <div class="tr-box"><h3 id="crDoneTitle">Готови задачи</h3><div id="crDoneItems"></div></div>
     </div>`;
 
   el.querySelectorAll('.cr-preset').forEach((b) => b.addEventListener('click', () => {
-    Object.assign(_crState, crPreset(b.dataset.p), { filter: null, doneFilter: null });
+    Object.assign(_crState, crPreset(b.dataset.p), { filter: null });
     renderClientReport(el);
   }));
   document.getElementById('crApply').addEventListener('click', () => {
     _crState.from = document.getElementById('crFrom').value || _crState.from;
     _crState.to = document.getElementById('crTo').value || _crState.to;
     _crState.filter = null;
-    _crState.doneFilter = null;
     renderClientReport(el);
   });
   el.querySelectorAll('.cr-tab').forEach((b) => b.addEventListener('click', () => {
@@ -129,15 +123,12 @@ function crHighlightTab() {
 
 async function crLoad() {
   const q = '?from=' + _crState.from + '&to=' + _crState.to;
-  const [r, rDone] = await Promise.all([
-    fetch('/api/client-report' + q),
-    fetch('/api/task-completions/report' + q),
-  ]);
-  if (r.ok) _crState.data = await r.json();
-  if (rDone.ok) _crState.doneData = await rDone.json();
+  const r = await fetch('/api/client-report' + q);
+  if (!r.ok) return;
+  const data = await r.json();
+  _crState.data = data;
   crRenderBucket();
   crRenderDetail();
-  crRenderDone();
 }
 
 function crBucketRows() {
@@ -223,44 +214,4 @@ function crRenderDetail() {
     .forEach((a) => a.addEventListener('click', (ev) => {
       ev.preventDefault(); _crState.filter = null; crRenderBucket(); crRenderDetail();
     }));
-}
-
-// ---------- „✓ Отбелязани като готови" — класация по човек от бутона в разширението ----------
-
-function crDoneFilterChip() {
-  return _crState.doneFilter
-    ? ' <span class="tr-filterchip">' + esc(_crState.doneFilter) + ' <a href="#" class="cr-done-clear" title="Махни филтъра">✕</a></span>'
-    : '';
-}
-
-function crRenderDone() {
-  const data = _crState.doneData;
-  if (!data) return;
-
-  const rows = data.byUser || [];
-  const board = document.getElementById('crDoneBoard');
-  board.innerHTML = rows.length
-    ? '<table class="admin-table tr-table"><thead><tr><th>#</th><th>Човек</th><th>Отдел</th><th>Готови задачи</th></tr></thead><tbody>' +
-      rows.map((u, i) => '<tr class="cr-bucket-row' + (_crState.doneFilter === u.name ? ' cr-active' : '') + '" data-i="' + i + '">' +
-        '<td>' + (i + 1) + '</td><td><b>' + esc(u.name) + '</b></td>' +
-        '<td>' + esc(u.department) + '</td><td>' + u.count + '</td></tr>').join('') +
-      '</tbody></table>'
-    : '<div class="tr-empty">Никой не е отбелязал задача като готова за периода.</div>';
-  board.querySelectorAll('.cr-bucket-row').forEach((row) => row.addEventListener('click', () => {
-    const u = rows[Number(row.dataset.i)];
-    _crState.doneFilter = _crState.doneFilter === u.name ? null : u.name;
-    crRenderDone();
-  }));
-
-  const items = (data.items || []).filter((it) => !_crState.doneFilter || it.name === _crState.doneFilter);
-  document.getElementById('crDoneTitle').innerHTML = 'Готови задачи (' + items.length + ')' + crDoneFilterChip();
-  document.getElementById('crDoneItems').innerHTML = items.length
-    ? '<table class="admin-table tr-table"><thead><tr><th>Кога</th><th>Човек</th><th>Задача</th></tr></thead><tbody>' +
-      items.map((it) => '<tr><td>' + crFmtWhen(it.occurred_at) + '</td><td>' + esc(it.name) + '</td>' +
-        '<td>' + (it.url ? '<a href="' + esc(it.url) + '" target="_blank">' + crVideoLabel(it) + ' ↗</a>' : crVideoLabel(it)) + '</td></tr>').join('') +
-      '</tbody></table>'
-    : '<div class="tr-empty">Няма отбелязани задачи за периода' + (_crState.doneFilter ? ' за ' + esc(_crState.doneFilter) : '') + '.</div>';
-
-  document.querySelectorAll('.cr-done-clear')
-    .forEach((a) => a.addEventListener('click', (ev) => { ev.preventDefault(); _crState.doneFilter = null; crRenderDone(); }));
 }

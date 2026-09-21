@@ -13,6 +13,7 @@ var PAGE_TOGGLES = [
   { id: 'crm', label: 'CRM' },
   { id: 'time-report', label: 'Време' },
   { id: 'client-report', label: 'Статистика' },
+  { id: 'task-completions', label: 'Готови задачи' },
 ];
 function isPageOff(id) {
   return !!(typeof _platformConfig === 'object' && _platformConfig && _platformConfig['page_off_' + id] === 'true');
@@ -102,6 +103,7 @@ function router() {
     case 'board-logic': return renderBoardLogic(el);
     case 'time-report': return renderTimeReport(el);
     case 'client-report': return renderClientReport(el);
+    case 'task-completions': return renderTaskCompletionsReport(el);
     default: return renderDashboard(el);
   }
 }
