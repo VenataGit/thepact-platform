@@ -15,13 +15,14 @@ describe('оцветяване на редовете', () => {
     'Видео 10 — Десето',
     'Локация на файлове:',
     'Локация на експортираното видео:',
-    'Описание:',
   ])('„%s" е оцветено изцяло', (line) => {
     expect(bch.line(line)).toBe(mark(line));
   });
 
-  test('„Копи:" оцветява само етикета', () => {
-    expect(bch.line('Копи: ХХХ')).toBe(mark('Копи:') + ' ХХХ');
+  test('„Описание:" и „Копи:" вече не се оцветяват', () => {
+    expect(bch.line('Описание:')).not.toContain('<mark');
+    expect(bch.line('Копи: ХХХ')).not.toContain('<mark');
+    expect(bch.line('Копи: ХХХ')).toBe('Копи: ХХХ');
   });
 
   test('останалите редове от шаблона остават чисти', () => {
@@ -32,13 +33,13 @@ describe('оцветяване на редовете', () => {
   });
 
   test('оцветеното НЕ се удебелява', () => {
-    expect(bch.line('Описание:')).not.toContain('<strong>');
-    expect(bch.line('Описание:')).not.toContain('<b>');
+    expect(bch.line('Видео 1 - Тест 1')).not.toContain('<strong>');
+    expect(bch.line('Видео 1 - Тест 1')).not.toContain('<b>');
   });
 
   test('спецсимволите се escape-ват и вътре, и извън <mark>', () => {
     expect(bch.line('Видео 1 - Пепси & <Cineland>')).toBe(mark('Видео 1 - Пепси &amp; &lt;Cineland&gt;'));
-    expect(bch.line('Копи: <b>тест</b>')).toBe(mark('Копи:') + ' &lt;b&gt;тест&lt;/b&gt;');
+    expect(bch.line('Копи: <b>тест</b>')).toBe('Копи: &lt;b&gt;тест&lt;/b&gt;');
   });
 });
 
@@ -98,23 +99,24 @@ describe('цялото описание на една разбита задач�
     expect(html.split('<div>').length - 1).toBe(1);
   });
 
-  test('всичките пет неща от списъка на Венци са оцветени', () => {
-    for (const s of ['Видео 1 - Тест 1', 'Локация на файлове:',
-      'Локация на експортираното видео:', 'Описание:', 'Копи:']) {
+  test('заглавието на видеото и блокът с локации са оцветени, „Описание:"/„Копи:" вече не', () => {
+    for (const s of ['Видео 1 - Тест 1', 'Локация на файлове:', 'Локация на експортираното видео:']) {
       expect(html).toContain(mark(s));
     }
-    expect(html.split('<mark ').length - 1).toBe(5);
+    expect(html).not.toContain(mark('Описание:'));
+    expect(html).not.toContain(mark('Копи:'));
+    expect(html.split('<mark ').length - 1).toBe(3);
   });
 
   test('локациите стоят между водещите редове и „Описание:"', () => {
     expect(html.indexOf('/Необходими ресурси - ХХХ/'))
       .toBeLessThan(html.indexOf('Локация на файлове:'));
-    expect(html.indexOf('ОТВОРИ ПАПКА')).toBeLessThan(html.indexOf(mark('Описание:')));
+    expect(html.indexOf('ОТВОРИ ПАПКА')).toBeLessThan(html.indexOf('Описание:'));
   });
 
   test('празните редове около блока с локации са точно по един', () => {
     expect(html).toContain('Дата за публикуване: 26.08.2026<br><br>' + mark('Локация на файлове:'));
-    expect(html).toContain('ОТВОРИ ПАПКА</a><br><br>' + mark('Описание:'));
+    expect(html).toContain('ОТВОРИ ПАПКА</a><br><br>Описание:');
   });
 
   test('неразпознато заглавие → описанието си остава, само без локации', () => {
@@ -124,6 +126,6 @@ describe('цялото описание на една разбита задач�
       bch.lines(split.after),
     ]));
     expect(plain).not.toContain('Локация на файлове');
-    expect(plain).toContain('Дата за публикуване: 26.08.2026<br><br>' + mark('Описание:'));
+    expect(plain).toContain('Дата за публикуване: 26.08.2026<br><br>Описание:');
   });
 });

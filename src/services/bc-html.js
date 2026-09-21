@@ -35,13 +35,10 @@ const escAttr = (s) => esc(s).replace(/"/g, '&quot;');
 // Оцветен текст. САМО цвят — никакво удебеляване (изрично поискано, 12.08.2026).
 const mark = (s) => `<mark style="${HIGHLIGHT_STYLE}">${esc(s)}</mark>`;
 
-// Цели редове, които се оцветяват — списъкът е на Венци (20.08.2026):
-// името на видеото и етикетите на секциите.
-const HEADING_RE = /^(?:Видео\s+\d+\s*[-–—].*|Локация на файлове:|Локация на експортираното видео:|Описание:)$/i;
-
-// Етикет в началото на реда: оцветява се САМО той, стойността след него остава чиста
-// („Копи: ХХХ" → жълто е само „Копи:").
-const LABEL_RE = /^(Копи:)(.*)$/i;
+// Цели редове, които се оцветяват. Само заглавието на видеото и блокът с локациите
+// на файловете — „Описание:" и „Копи:" вече НЕ се оцветяват (Венци, 21.09.2026:
+// оцветяването да остане само на „Видео Х - Заглавието").
+const HEADING_RE = /^(?:Видео\s+\d+\s*[-–—].*|Локация на файлове:|Локация на експортираното видео:)$/i;
 
 // http(s) адрес в чист текст → истинска кликаема връзка. kp-plan.js htmlToText()
 // пази оригиналните <a href> връзки от плана като видим адрес в текста
@@ -97,8 +94,6 @@ function line(text) {
   const t = String(text == null ? '' : text).trim();
   if (t === '') return '';
   if (HEADING_RE.test(t)) return mark(t);
-  const m = t.match(LABEL_RE);
-  if (m) return mark(m[1]) + formatInline(m[2]);
   return formatInline(t);
 }
 
@@ -136,6 +131,6 @@ function textToHtml(text) {
 }
 
 module.exports = {
-  HIGHLIGHT_STYLE, HEADING_RE, LABEL_RE,
+  HIGHLIGHT_STYLE, HEADING_RE,
   esc, escAttr, mark, line, lines, join, block, textToHtml,
 };
