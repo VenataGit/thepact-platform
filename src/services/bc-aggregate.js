@@ -283,7 +283,7 @@ async function loadRegistry() {
       reg[String(r.name || '').trim().toLowerCase()] = {
         videosPerMonth: r.videos_per_month || null,
         currentKp: r.current_kp_number || null,
-        nextKpDate: r.next_kp_date ? String(r.next_kp_date).split('T')[0] : null,
+        nextKpDate: r.next_kp_date ? ymdLocal(new Date(r.next_kp_date)) : null, // Date обект → String(...) дава „… GMT+0000", не ISO
       };
     }
   } catch (e) {

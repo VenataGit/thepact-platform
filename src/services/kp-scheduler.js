@@ -98,7 +98,12 @@ async function runKpAutoCreate() {
       let reason = '';
 
       if (client.next_kp_date) {
-        const nkd = new Date(String(client.next_kp_date).split('T')[0] + 'T12:00:00');
+        // pg връща DATE като Date обект, а не като низ: String(...) дава
+        // „Sun Oct 11 2026 00:00:00 GMT+0000 (…)" и split('T') го реже на „… GM" →
+        // Invalid Date. Затова проверката „по график" не се задействаше НИКОГА и всяка
+        // авто-КП карта излизаше с причина „по-рано" (виж kp_audit_log). toDateStr
+        // разбира и Date, и низ — същото, което прави ръчният път в routes/kp.js.
+        const nkd = new Date(kpc.toDateStr(client.next_kp_date) + 'T12:00:00');
         if (!isNaN(nkd.getTime())) {
           const autoDate = kpc.subtractWorkingDaysSimple(nkd, cfg.daysBeforeNextKp);
           if (today >= autoDate) {
