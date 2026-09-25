@@ -48,7 +48,7 @@ async function loadKpConfig() {
       'kp_bc_enabled','kp_bc_board_id','kp_bc_column_id','kp_bc_title_template',
       'kp_bc_due_days','kp_bc_notify','kp_bc_actor','kp_bc_check_scope','kp_bc_ready_column_id',
       'kp_auto_create_enabled','kp_auto_create_time','kp_auto_create_weekends',
-      'kp_default_videos','kp_calendar_window','kp_days_before_next_kp',
+      'kp_default_videos','kp_calendar_window','kp_days_before_next_kp','kp_days_lead_before_due',
       'kp_izmislyane_column_id','kp_days_brainstorm'
     )`
   );
@@ -82,6 +82,9 @@ async function loadKpConfig() {
     defaultVideos: intOr(s.kp_default_videos, 10),
     calendarWindow: intOr(s.kp_calendar_window, 30),
     daysBeforeNextKp: intOr(s.kp_days_before_next_kp, 15),
+    // Колко работни дни ПРЕДИ срока за готов план трябва да е излязла картата
+    // (виж kpAutoCreateDate) — Венци, 25.09.2026.
+    leadBeforeDue: intOr(s.kp_days_lead_before_due, 5),
     localColumnId: s.kp_izmislyane_column_id ? parseInt(s.kp_izmislyane_column_id, 10) : null,
     brainstormDays: intOr(s.kp_days_brainstorm, 10),
     mainTemplate: t.kp_template || KP_DEFAULT_TEMPLATE,
@@ -109,6 +112,29 @@ function toDateStr(d) {
 }
 function toBgDate(d) {
   return d.toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// Кога трябва да ИЗЛЕЗЕ КП картата за план с първо видео `firstPublishDate`.
+// Взема се ПО-РАННАТА от две дати:
+//   1) cfg.daysBeforeNextKp работни дни преди първото видео (настройката
+//      „Създаване на следващ КП");
+//   2) поне cfg.leadBeforeDue работни дни ПРЕДИ срока за готов план — а самият срок
+//      е cfg.dueDays работни дни преди първото видео.
+//
+// Второто правило е от 25.09.2026. Дотогава двете настройки бяха еднакви (15 и 15),
+// тоест картата излизаше В ДЕНЯ на собствения си краен срок. Венци: „ако е сложен срок
+// за готов контент план до 21.09, а задачата излезе на 21.09, значи сме се провалили" —
+// екипът трябва да има поне седмица за идеите.
+//
+// Връща 'YYYY-MM-DD' (сравнимо лексикографски). Броенето е с работните дни от
+// services/workdays.js — със събота/неделя И българските празници, както е и срокът.
+function kpAutoCreateDate(firstPublishDate, cfg) {
+  const first = toDateStr(firstPublishDate);
+  const byPlan = workdays.subtractWorkingDays(first, Math.max(0, cfg.daysBeforeNextKp || 0));
+  if (cfg.dueDays == null) return byPlan; // без срок на картата → само правило 1
+  const due = workdays.subtractWorkingDays(first, Math.max(0, cfg.dueDays));
+  const beforeDue = workdays.subtractWorkingDays(due, Math.max(0, cfg.leadBeforeDue || 0));
+  return beforeDue < byPlan ? beforeDue : byPlan;
 }
 
 // Add whole calendar months, keeping the day-of-month (clamped to the last day of
@@ -471,6 +497,7 @@ module.exports = {
   toDateStr,
   toBgDate,
   distributePublishDates,
+  kpAutoCreateDate,
   renderKpTitle,
   kpTitlePrefix,
   kpMainTitleRegex,

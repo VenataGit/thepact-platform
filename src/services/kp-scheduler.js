@@ -2,8 +2,12 @@
  * KP Auto-Creation Scheduler
  *
  * Runs daily at the configured time (Админ → КП-Автоматизация; default 08:00
- * Europe/Sofia, weekdays). For each active KP client without an active КП card
- * at the destination → create the next one (via the shared kp-create service,
+ * Europe/Sofia, weekdays). За всеки активен клиент пуска следващия КП план, когато е
+ * дошла датата по график (kp-create.kpAutoCreateDate — толкова работни дни преди
+ * първото видео, че да остават поне N работни дни до срока за готов план). Графикът е
+ * ВОДЕЩ: от 25.09.2026 картата излиза дори ако предишният план още е отворен (Венци).
+ * Отворен предишен план спира само ПОДРАНИЛОТО пускане („по-рано" — когато планът е
+ * приключил преди срока). Всичко минава през общия kp-create service,
  * so the scheduler produces EXACTLY the same card as the manual button —
  * Basecamp Pre-Production by default, the local kanban when kp_bc_enabled=false).
  *
@@ -14,6 +18,7 @@
 const cron = require('node-cron');
 const { query, queryOne, execute } = require('../db/pool');
 const kpc = require('./kp-create');
+const workdays = require('./workdays');
 const { getServiceAuth } = require('./basecamp-token');
 
 let task = null;
@@ -52,8 +57,7 @@ async function runKpAutoCreate() {
     // Get all active clients
     const clients = await query('SELECT * FROM kp_clients WHERE active = true');
     if (!clients.length) return;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayStr = workdays.ymd(new Date());
 
     // Get first admin user as creator (local cards + audit)
     const admin = await queryOne("SELECT id, name FROM users WHERE role = 'admin' AND is_active = true ORDER BY id LIMIT 1");
@@ -89,26 +93,44 @@ async function runKpAutoCreate() {
       clientsWithCards = new Set(existingRows.map(r => r.cn));
     }
 
+    // Предпазител за клиент с изостанали дати (next_kp_date отпреди месеци): без него
+    // „по график" би му пускало по една нова карта ВСЕКИ ден, докато графикът догони
+    // днешната дата. Нормалният ритъм е един план на ~месец, така че при здрави данни
+    // този предпазител не се задейства никога.
+    const recentRows = await query(
+      `SELECT DISTINCT lower(client_name) AS cn FROM kp_audit_log
+        WHERE action IN ('auto_create_kp_card','create_kp_card')
+          AND created_at > NOW() - INTERVAL '7 days'`
+    );
+    const createdRecently = new Set(recentRows.map(r => r.cn));
+
     let created = 0;
     for (const client of clients) {
-      if (clientsWithCards.has((client.name || '').toLowerCase())) continue;
+      const key = (client.name || '').toLowerCase();
+      // „Зает" = предишният план още има активна главна КП карта преди „В продукция".
+      // От 25.09.2026 това НЕ спира графика (Венци: „Трябва да се пусне задачата по
+      // график, без значение дали бавим предишния контент план или не") — спира само
+      // подранилото пускане.
+      const busy = clientsWithCards.has(key);
 
-      // No card exists — check if we should create
       let shouldCreate = false;
       let reason = '';
 
       if (client.next_kp_date) {
-        // pg връща DATE като Date обект, а не като низ: String(...) дава
-        // „Sun Oct 11 2026 00:00:00 GMT+0000 (…)" и split('T') го реже на „… GM" →
-        // Invalid Date. Затова проверката „по график" не се задействаше НИКОГА и всяка
-        // авто-КП карта излизаше с причина „по-рано" (виж kp_audit_log). toDateStr
-        // разбира и Date, и низ — същото, което прави ръчният път в routes/kp.js.
-        const nkd = new Date(kpc.toDateStr(client.next_kp_date) + 'T12:00:00');
-        if (!isNaN(nkd.getTime())) {
-          const autoDate = kpc.subtractWorkingDaysSimple(nkd, cfg.daysBeforeNextKp);
-          if (today >= autoDate) {
-            shouldCreate = true;
-            reason = `по график (${cfg.daysBeforeNextKp} работни дни преди ${nkd.toISOString().split('T')[0]})`;
+        // pg връща DATE като Date обект, а не като низ — toDateStr разбира и двете
+        // (преди 25.09.2026 тук стоеше String(...).split('T'), което даваше Invalid Date
+        // и заради това проверката „по график" не се задействаше НИКОГА).
+        const nkd = kpc.toDateStr(client.next_kp_date);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(nkd)) {
+          const autoDate = kpc.kpAutoCreateDate(nkd, cfg);
+          if (todayStr >= autoDate) {
+            if (createdRecently.has(key)) {
+              console.log(`[KP Scheduler] ${client.name}: по график за ${autoDate}, но вече има създаден КП план през последните 7 дни — пропускам (изостанали дати?)`);
+            } else {
+              shouldCreate = true;
+              reason = `по график (картата трябваше да излезе на ${autoDate}, първо видео ${nkd})`;
+              if (busy) reason += ' — предишният план още е отворен, но графикът е водещ';
+            }
           }
         }
       }
@@ -116,7 +138,7 @@ async function runKpAutoCreate() {
       // Няма активна ГЛАВНА КП карта преди „В продукция" → пускаме следващия план
       // веднага, без значение колко дни по-рано е (Венци, 30.07.2026): щом планът е
       // минал напред, екипът може да мисли следващия, вместо да чака срока.
-      if (!shouldCreate && client.next_kp_date) {
+      if (!shouldCreate && !busy && client.next_kp_date) {
         shouldCreate = true;
         reason = dest && dest.readyColumnTitle
           ? `по-рано (главната КП карта е стигнала „${dest.readyColumnTitle}" или е приключена — готови сме за следващия)`

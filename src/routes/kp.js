@@ -218,15 +218,13 @@ router.get('/clients', requireAuth, async (req, res) => {
     const clients = await query('SELECT * FROM kp_clients WHERE active = true ORDER BY name');
     const cfg = await kpc.loadKpConfig();
 
-    // Auto-create date: X working days before next KP's first video (info column).
+    // Кога излиза следващата КП карта (инфо колона) — СЪЩАТА сметка, която ползва и
+    // авто-графикът (kpc.kpAutoCreateDate), за да не показва страницата една дата, а
+    // ботът да пуска на друга.
     const withAutoDate = clients.map((client) => {
       let auto_create_date = null;
-      if (client.next_kp_date) {
-        const nkd = new Date(toDateStr(client.next_kp_date) + 'T12:00:00');
-        if (!isNaN(nkd.getTime())) {
-          auto_create_date = toDateStr(subtractWorkingDays(nkd, cfg.daysBeforeNextKp));
-        }
-      }
+      const nkd = client.next_kp_date ? toDateStr(client.next_kp_date) : null;
+      if (nkd && /^\d{4}-\d{2}-\d{2}$/.test(nkd)) auto_create_date = kpc.kpAutoCreateDate(nkd, cfg);
       return { ...client, auto_create_date };
     });
 
