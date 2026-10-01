@@ -119,7 +119,7 @@
 .pc-cal-target select option:disabled { color: var(--text-dim); }
 
 /* История: кой какво е пипал в календара */
-.pc-history__menu { right: auto; min-width: 420px; max-height: 380px; overflow-y: auto; }
+.pc-history__menu { position: fixed; right: auto; min-width: 0; max-height: 380px; overflow-y: auto; box-sizing: border-box; }
 .pc-history__row { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 12px; color: var(--text-secondary); }
 .pc-history__row:hover { background: var(--overlay-white-faint, rgba(255,255,255,0.06)); }
 .pc-history__icon { flex-shrink: 0; }

@@ -594,11 +594,24 @@ function _pcCalendarPickerHtml() {
 var _PC_ACTION_ICONS = { add: '➕', reschedule: '🔀', move: '↔️', resize: '↕️', remove: '↩️' };
 
 function _pcHistoryHtml() {
-  return '<details class="pc-cal-picker pc-history" ontoggle="if(this.open)pcLoadHistory()">' +
+  return '<details class="pc-cal-picker pc-history" ontoggle="if(this.open){_pcPlaceHistory(this);pcLoadHistory()}">' +
     '<summary>🕘 История</summary>' +
     '<div class="pc-cal-menu pc-history__menu" id="pcHistoryList">' +
       '<div class="pc-history__empty">Зареждане…</div>' +
     '</div></details>';
+}
+
+// Панелът е fixed, иначе `.pc-wrap` (overflow: hidden) го реже отдясно и отдолу.
+// Слага се под бутона и се държи изцяло в прозореца на браузъра.
+function _pcPlaceHistory(details) {
+  var menu = details.querySelector('.pc-history__menu');
+  if (!menu) return;
+  var r = details.querySelector('summary').getBoundingClientRect();
+  var w = Math.min(560, window.innerWidth - 24);
+  menu.style.width = w + 'px';
+  menu.style.left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)) + 'px';
+  menu.style.top = (r.bottom + 6) + 'px';
+  menu.style.maxHeight = Math.max(200, window.innerHeight - r.bottom - 24) + 'px';
 }
 
 function _pcAgo(iso) {
