@@ -216,6 +216,12 @@ async function upsertCampfireLine(line, projectId, campfireId) {
 // не на всеки 15 мин — иначе на всеки цикъл ще бомбардираме Basecamp с толкова
 // заявки, колкото файлове+папки имат ВСИЧКИ проекти.
 const VAULT_MAX_DEPTH = 6;
+
+// {id,name} → полетата на logEvent. null → празно („не се знае", доизвлича се
+// по-късно от activityLog.backfillWho).
+function whoFields(who) {
+  return who ? { whoId: who.id || null, whoName: who.name || '' } : {};
+}
 const VAULT_CONCURRENCY = 2;
 
 async function syncVaultDocument(auth, projectId, vaultId, d, parentTitle, ctx) {
@@ -239,7 +245,7 @@ async function syncVaultDocument(auth, projectId, vaultId, d, parentTitle, ctx) 
       await activityLog.logEvent({
         projectId, recordingType: 'Document', recordingId: d.id, event: 'created',
         title: full.title || '', parentTitle, appUrl: bc.normalizeAppUrl(full.app_url || ''),
-        bcUpdatedAt: full.updated_at || null,
+        bcUpdatedAt: full.updated_at || null, ...whoFields(activityLog.creatorOf(full) || activityLog.creatorOf(d)),
       });
     } else if (changed) {
       const who = await cardTextLog.findEditor(auth, projectId, d.id, full.updated_at);
@@ -248,6 +254,7 @@ async function syncVaultDocument(auth, projectId, vaultId, d, parentTitle, ctx) 
         who, appUrl: bc.normalizeAppUrl(full.app_url || ''), parentTitle, bcUpdatedAt: full.updated_at,
       });
     }
+    if (prev) await activityLog.fillCreator('Document', d.id, activityLog.creatorOf(full) || activityLog.creatorOf(d));
   } catch (err) {
     console.warn('[pm-agent] doc activity log failed:', d.id, err.message);
   }
@@ -271,14 +278,17 @@ async function syncVaultUpload(auth, projectId, vaultId, u, parentTitle) {
       await activityLog.logEvent({
         projectId, recordingType: 'Upload', recordingId: u.id, event: 'created',
         title, parentTitle, appUrl: bc.normalizeAppUrl(u.app_url || ''), bcUpdatedAt: u.updated_at || null,
+        ...whoFields(activityLog.creatorOf(u)),
       });
     } else if (String(prev.title || '').trim() !== title) {
       await activityLog.logDiff({
         projectId, recordingType: 'Upload', recordingId: u.id,
-        prevRow: { title: prev.title }, currRow: { title }, who: null,
+        prevRow: { title: prev.title }, currRow: { title },
+        who: await cardTextLog.findEditor(auth, projectId, u.id, u.updated_at),
         appUrl: bc.normalizeAppUrl(u.app_url || ''), parentTitle, bcUpdatedAt: u.updated_at, hasContent: false,
       });
     }
+    if (prev) await activityLog.fillCreator('Upload', u.id, activityLog.creatorOf(u));
   } catch (err) {
     console.warn('[pm-agent] upload activity log failed:', u.id, err.message);
   }
@@ -349,6 +359,7 @@ async function syncProjectVault(auth, project) {
         await activityLog.logEvent({
           projectId, recordingType: row.kind === 'upload' ? 'Upload' : 'Document', recordingId: row.item_id,
           event: 'deleted', title: row.title || '', appUrl: row.app_url || '',
+          ...whoFields(await activityLog.findActor(auth, projectId, row.item_id, 'deleted', null)),
         });
       }
       if (dropped.length) {
@@ -389,6 +400,7 @@ async function syncProjectMessageBoard(auth, project) {
           projectId, recordingType: 'Message', recordingId: m.id, event: 'created',
           title: m.subject || m.title || '', parentTitle: board.title || project.name || '',
           appUrl: bc.normalizeAppUrl(m.app_url || ''), bcUpdatedAt: m.updated_at || null,
+          ...whoFields(activityLog.creatorOf(m)),
         });
       } else if (changed) {
         const who = await cardTextLog.findEditor(auth, projectId, m.id, m.updated_at);
@@ -400,6 +412,7 @@ async function syncProjectMessageBoard(auth, project) {
           bcUpdatedAt: m.updated_at,
         });
       }
+      if (prev) await activityLog.fillCreator('Message', m.id, activityLog.creatorOf(m));
     } catch (err) {
       console.warn('[pm-agent] message activity log failed:', m.id, err.message);
     }
@@ -417,6 +430,7 @@ async function syncProjectMessageBoard(auth, project) {
         await activityLog.logEvent({
           projectId, recordingType: 'Message', recordingId: row.message_id, event: 'deleted',
           title: row.subject || '', appUrl: row.app_url || '',
+          ...whoFields(await activityLog.findActor(auth, projectId, row.message_id, 'deleted', null)),
         });
       }
       if (dropped.length) {
@@ -468,13 +482,18 @@ async function syncProjectTodos(auth, project) {
             projectId, recordingType: 'Todo', recordingId: td.id, event: 'created',
             title: td.content || td.title || '', parentTitle: listMeta.title,
             appUrl: bc.normalizeAppUrl(td.app_url || ''), bcUpdatedAt: td.updated_at || null,
+            ...whoFields(activityLog.creatorOf(td)),
           });
         } else if (changed) {
           if (!prev.completed && td.completed) {
+            // Завършилият е в `completion.creator`; ако го няма — от събитията.
+            const doneBy = (td.completion && activityLog.creatorOf(td.completion))
+              || await activityLog.findActor(auth, projectId, td.id, 'completed', null);
             await activityLog.logEvent({
               projectId, recordingType: 'Todo', recordingId: td.id, event: 'completed',
               title: td.content || td.title || '', parentTitle: listMeta.title,
               appUrl: bc.normalizeAppUrl(td.app_url || ''), bcUpdatedAt: td.updated_at || null,
+              ...whoFields(doneBy),
             });
           }
           const who = await cardTextLog.findEditor(auth, projectId, td.id, td.updated_at);
@@ -486,6 +505,7 @@ async function syncProjectTodos(auth, project) {
             bcUpdatedAt: td.updated_at,
           });
         }
+        if (prev) await activityLog.fillCreator('Todo', td.id, activityLog.creatorOf(td));
       } catch (err) {
         console.warn('[pm-agent] todo activity log failed:', td.id, err.message);
       }
@@ -504,6 +524,7 @@ async function syncProjectTodos(auth, project) {
         await activityLog.logEvent({
           projectId, recordingType: 'Todo', recordingId: row.todo_id, event: 'deleted',
           title: row.title || '', appUrl: row.app_url || '',
+          ...whoFields(await activityLog.findActor(auth, projectId, row.todo_id, 'deleted', null)),
         });
       }
       if (dropped.length) {
@@ -536,6 +557,10 @@ async function syncAllProjectTools(auth, projects) {
       stats.todos += r.todos || 0;
     } catch (err) { console.warn('[pm-agent] todos failed for project', p.id, err.message); }
   });
+  // Редовете без автор (вкл. записаните преди авторът да се вадеше) — доизвличане.
+  try {
+    stats.whoBackfilled = await activityLog.backfillWho(auth);
+  } catch (err) { console.warn('[pm-agent] who backfill failed:', err.message); }
   return stats;
 }
 
