@@ -10,8 +10,8 @@
 //
 // Диалог: върне ли Claude въпрос, задачата минава в waiting_reply. Следващ коментар
 // под задачата, който не е от бота, я връща в pending с reply_html — watcher-ът
-// продължава СЪЩАТА сесия (claude --resume session_id). Същото важи и за наскоро
-// приключени (done/error) задачи с още отворен todo: нов коментар = нова итерация.
+// продължава СЪЩАТА сесия (claude --resume session_id). Същото важи и за
+// приключени (done/error) задачи с още отворен todo (без давност): нов коментар = нова итерация.
 const cron = require('node-cron');
 const config = require('../config');
 const { query, queryOne, execute } = require('../db/pool');
@@ -181,12 +181,14 @@ async function pollOnce() {
 
     // 4) Диалог: нови коментари (не от бота) активират задачата.
     //    - waiting_reply → отговор на въпроса ни;
-    //    - наскоро done/error с още отворен todo → нова итерация по същата задача.
+    //    - done/error с още отворен todo → нова итерация по същата задача
+    //      (без давност — докато todo-то е отворено, коментарът под него е поръчка;
+    //      отметнатите отпадат долу чрез openIds, така броят проверки остава малък).
     //    Per-task try/catch — един лош ред не замразява останалите.
     const watchable = await query(
       `SELECT * FROM dev_tasks
        WHERE status = 'waiting_reply'
-          OR (status IN ('done', 'error') AND updated_at > NOW() - INTERVAL '14 days')`
+          OR status IN ('done', 'error')`
     );
     for (const task of watchable) {
       try {
