@@ -627,7 +627,7 @@ async function pcLoadHistory() {
           '<strong>' + esc(r.user_name || 'някой') + '</strong> ' + esc(r.details || r.action) +
           '<span class="pc-history__card"> · ' + esc(r.card_title || ('Карта ' + r.basecamp_card_id)) + '</span>' +
         '</span>' +
-        '<span class="pc-history__ago">' + esc(_pcAgo(r.created_at)) + '</span>' +
+        '<span class="pc-history__ago" title="' + esc(new Date(r.created_at).toLocaleString('bg-BG')) + '">' + esc(_pcAgo(r.created_at)) + '</span>' +
       '</div>';
     }).join('');
   } catch (e) {

@@ -455,8 +455,15 @@ async function processEvent(feed, ev, cfg) {
           `❌ Отменена дата от „${escHtml(master.title || '')}"`,
           `❌ <strong>Отменена дата</strong> от „${escHtml(master.title || '')}"${when ? `: ${escHtml(when)}` : ''}.`);
         await insertLog(feed, ev, master, 'cancelled');
+        calendarHistory(feed, 'remove', master.title, null,
+          'махна дата от Google Calendar' + (when ? ' (беше ' + when + ')' : ''));
       }
       return;
+    }
+    if (logRow && logRow.status !== 'cancelled') {
+      const oldTime = timeFromFingerprint(logRow.fingerprint);
+      calendarHistory(feed, 'remove', logRow.title, null,
+        'изтри от Google Calendar' + (oldTime ? ' (беше ' + oldTime + ')' : ''));
     }
     if (logRow && logRow.status !== 'cancelled' && logRow.bc_message_id) {
       const oldTime = timeFromFingerprint(logRow.fingerprint);
@@ -487,11 +494,15 @@ async function processEvent(feed, ev, cfg) {
       }
       return;
     }
+    calendarHistory(feed, 'add', ev.summary, await creatorNameOf(ev),
+      'добави в Google Calendar за ' + fmtEventTime(ev.start, ev.end));
     await postNewEventMessage(feed, ev, cfg, fp);
     return;
   }
 
   if (logRow.status === 'cancelled') {
+    calendarHistory(feed, 'add', ev.summary || logRow.title, null,
+      'върна в Google Calendar за ' + fmtEventTime(ev.start, ev.end));
     if (logRow.bc_message_id) {
       await postChange(cfg, feed, ev, logRow,
         `↩️ Възстановено: „${escHtml(ev.summary || logRow.title || '')}"`,
@@ -510,6 +521,23 @@ async function processEvent(feed, ev, cfg) {
     }
     await execute('UPDATE gcal_event_log SET fingerprint = $2, title = $3, updated_at = NOW() WHERE id = $1', [logRow.id, fp, ev.summary || '']);
   }
+}
+
+// Историята на производствения календар (🕘 в изгледа) показва и добавеното /
+// махнатото направо в Google, не само действията с карти в платформата.
+// Google казва кой е създал събитието, но не и кой го е изтрил — тогава без име.
+// Записът никога не бива да спира известията, оттам catch-ът.
+function calendarHistory(feed, action, title, who, details) {
+  execute(
+    `INSERT INTO bc_production_calendar_log (card_title, action, details, user_name)
+     VALUES ($1,$2,$3,$4)`,
+    [title || 'Без заглавие', action, details + (feed.name ? ' · ' + feed.name : ''), who || null]
+  ).catch((err) => console.warn('[gcal-alerts] history:', err.message));
+}
+
+async function creatorNameOf(ev) {
+  const person = await resolvePersonByGoogleEmail(ev.creator && ev.creator.email).catch(() => null);
+  return (person && person.name) || (ev.creator && (ev.creator.displayName || ev.creator.email)) || null;
 }
 
 function buildChangeLines(logRow, ev) {
