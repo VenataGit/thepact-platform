@@ -153,10 +153,29 @@ function dashClientVocab(cards) {
     }
   };
   (typeof _clientNames !== 'undefined' && _clientNames || []).forEach((c) => add(c && c.name));
-  (cards || dashVisibleActiveCards()).forEach((c) => {
+  const source = cards || dashVisibleActiveCards();
+  source.forEach((c) => {
     const p = dashParseClientBlock(c.title);
     if (p) add(p.client);
   });
+  // 3. Името преди първото „ - " — за клиент без КП/КМП/РЕК и без запис в регистъра
+  //    („MoE - The Basics - Video Production…", Венци, 01.10.2026). Само ако същото начало
+  //    стои на поне 2 активни карти (единична вътрешна задача „Сайт - редизайн" не става
+  //    клиент) и не е по-дълъг вариант на вече познат клиент — иначе „Fornetti Статични
+  //    постове - …" щеше да открадне картите от „Fornetti" (най-дългото име печели).
+  const known = [...byNorm.keys()];
+  const prefixCount = new Map();   // norm -> { name, n }
+  source.forEach((c) => {
+    const m = String(c.title || '').trim().match(/^(.{1,40}?)\s+[-–—]\s+\S/);
+    if (!m) return;
+    const name = m[1].trim().replace(/\s+/g, ' ');
+    const norm = normClientName(name);
+    if (!norm || norm.split(' ').length > 4) return;
+    if (known.some((k) => norm === k || norm.startsWith(k + ' '))) return;
+    const hit = prefixCount.get(norm);
+    if (hit) hit.n += 1; else prefixCount.set(norm, { name, n: 1 });
+  });
+  prefixCount.forEach((v) => { if (v.n >= 2) add(v.name); });
   // Най-дългото име печели: „Pulse Fitness КП-2" принадлежи на „Pulse Fitness", а не на
   // „Pulse" — иначе филтърът за „Pulse" щеше да влачи и чуждите карти.
   const vocab = [...byNorm.values()].sort((a, b) => b.norm.length - a.norm.length);
