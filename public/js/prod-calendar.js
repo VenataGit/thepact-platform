@@ -17,6 +17,7 @@ var _prodCal = {
   team:      [],   // хората от Basecamp [{ person_id, name, title, avatar_url }]
   extPeople: [],   // запомнените външни хора [{ id, name }]
   selectedId: null, // видеото, на което се разпределят хора (панелът вляво)
+  draft:     null, // { entryId, picks: { ключ: { personId } | { name } } } — отметнатите, още незаписани
   focus:     null, // '<bc:id>' | '<ext:име>' — показва само снимките на този човек
 };
 
@@ -683,10 +684,11 @@ function _pcRenderSidebar() {
 }
 
 // ─── хора към видеото ─────────────────────────────────────────────────────────
-// Клик на видео → вляво излизат хората (Basecamp + запомнени външни). Клик на
-// човек го назначава/маха; може и да се влачи върху друго видео. Човек от
-// Basecamp става assignee на картата и получава коментар с таг — това го прави
-// сървърът. 👁 до човека = показва само неговите снимки.
+// Клик на видео → вляво излизат хората (Basecamp + запомнени външни). Отмятат се
+// колкото трябва и „Запази“ ги праща наведнъж (чернова в _prodCal.draft). Човек
+// може и да се влачи върху друго видео — това назначава веднага. Хората от
+// Basecamp стават assignee на картата и ботът пуска ЕДИН коментар с таг към
+// всички — това го прави сървърът. 👁 до човека = показва само неговите снимки.
 
 function _pcPersonKey(p) {
   return p.kind === 'ext' || (!p.person_id && p.name) ? 'ext:' + String(p.name).toLowerCase() : 'bc:' + p.person_id;
@@ -716,14 +718,36 @@ function _pcWeekCount(key) {
   }).length;
 }
 
+// Черновата на избраното видео: кой е отметнат, преди да се натисне „Запази“.
+function _pcDraft(entry) {
+  if (!_prodCal.draft || _prodCal.draft.entryId !== entry.id) {
+    var picks = {};
+    (entry.people || []).forEach(function(p) {
+      picks[_pcPersonKey(p)] = p.kind === 'ext' ? { name: p.name } : { personId: p.person_id };
+    });
+    _prodCal.draft = { entryId: entry.id, picks: picks };
+  }
+  return _prodCal.draft;
+}
+
+// Разликата между черновата и записаното: { add: [payload], remove: [assignId] }
+function _pcDraftDiff(entry) {
+  var picks = _pcDraft(entry).picks;
+  var add = Object.keys(picks).filter(function(k) { return !_pcHasPerson(entry, k); })
+    .map(function(k) { return picks[k]; });
+  var remove = (entry.people || []).filter(function(p) { return !picks[_pcPersonKey(p)]; })
+    .map(function(p) { return p.id; });
+  return { add: add, remove: remove };
+}
+
 function _pcPersonRowHtml(p, entry) {
   var key = _pcPersonKey(p);
-  var on = _pcHasPerson(entry, key);
+  var on = !!_pcDraft(entry).picks[key];
   var cnt = _pcWeekCount(key);
   var data = p.kind === 'ext' ? 'data-name="' + esc(p.name) + '"' : 'data-person="' + esc(p.person_id) + '"';
   return '<div class="pc-person' + (on ? ' pc-person--on' : '') + (p.kind === 'ext' ? ' pc-person--ext' : '') + '"' +
     ' ' + data + ' draggable="true"' +
-    ' title="' + (on ? 'Махни от видеото' : 'Назначи за видеото') + ' (или влачи върху друго видео)"' +
+    ' title="' + (on ? 'Махни отметката' : 'Отметни') + ' (или влачи върху друго видео)"' +
     ' onclick="pcTogglePerson(this)" ondragstart="pcPersonDragStart(event,this)" ondragend="pcPersonDragEnd()">' +
     _pcAvatarHtml(p) +
     '<div class="pc-person__name">' + esc(p.name) +
@@ -748,9 +772,13 @@ function _pcPeoplePanelHtml(entry) {
 
   // Външни: запомнените + назначени, които междувременно са „забравени“.
   var ext = _prodCal.extPeople.map(function(x) { return { kind: 'ext', id: x.id, name: x.name }; });
-  (entry.people || []).forEach(function(p) {
-    if (p.kind === 'ext' && !ext.some(function(x) { return _pcPersonKey(x) === _pcPersonKey(p); })) ext.push({ kind: 'ext', name: p.name });
+  // плюс новите, написани в черновата.
+  var picks = _pcDraft(entry).picks;
+  Object.keys(picks).forEach(function(k) {
+    if (picks[k].name && !ext.some(function(x) { return _pcPersonKey(x) === k; })) ext.push({ kind: 'ext', name: picks[k].name });
   });
+  var diff = _pcDraftDiff(entry);
+  var changes = diff.add.length + diff.remove.length;
 
   return '<div class="pc-sidebar__hdr">' +
       '<button class="pc-people__back" onclick="pcSelectEntry(null,null)">← Карти за снимки</button>' +
@@ -769,7 +797,12 @@ function _pcPeoplePanelHtml(entry) {
         '<input class="pc-sidebar__search" id="pcExtName" placeholder="+ Външен човек (име и Enter)" maxlength="120"' +
         ' onkeydown="if(event.key===\'Enter\')pcAddExternal()">' +
       '</div>' +
-      '<div class="pc-people__hint">Хората от Basecamp стават assignee на картата и получават коментар с таг за деня и часа. Всички се записват и в събитието в Google Calendar.</div>' +
+      '<div class="pc-people__hint">Отметни всички нужни хора и натисни „Запази“. Хората от Basecamp стават assignee на картата и ботът ги тагва с един коментар за деня и часа. Всички се записват и в събитието в Google Calendar.</div>' +
+    '</div>' +
+    '<div class="pc-people__save">' +
+      '<button class="btn btn-sm btn-primary" id="pcPeopleSave" onclick="pcSavePeople()"' + (changes ? '' : ' disabled') + '>' +
+        (changes ? 'Запази (' + changes + ')' : 'Няма промени') + '</button>' +
+      (changes ? '<button class="btn btn-sm btn-ghost" onclick="pcDiscardPeople()">Откажи</button>' : '') +
     '</div>';
 }
 
@@ -784,11 +817,21 @@ async function pcLoadPeople() {
   } catch (e) {}
 }
 
+function _pcHasUnsaved() {
+  var entry = _prodCal.draft && _prodCal.entries.find(function(x) { return x.id === _prodCal.draft.entryId; });
+  if (!entry) return false;
+  var d = _pcDraftDiff(entry);
+  return d.add.length + d.remove.length > 0;
+}
+
 function pcSelectEntry(e, entryId) {
   if (e) e.stopPropagation();
   // Клик точно след дърпане на долния ръб не е избор.
   if (_pcResize.didResize) { _pcResize.didResize = false; return; }
-  _prodCal.selectedId = (entryId && _prodCal.selectedId !== entryId) ? entryId : null;
+  var next = (entryId && _prodCal.selectedId !== entryId) ? entryId : null;
+  if (next !== _prodCal.selectedId && _pcHasUnsaved() && !confirm('Има незапазени промени по хората. Да ги откажа?')) return;
+  _prodCal.draft = null;
+  _prodCal.selectedId = next;
   _pcRenderSidebar();
   _pcRefreshWeekView();
 }
@@ -803,6 +846,14 @@ function _pcPersonPayload(el) {
   return el.dataset.person ? { personId: el.dataset.person } : { name: el.dataset.name };
 }
 
+function _pcAfterSave(entry, data, label) {
+  entry.people = data.people || [];
+  var known = _prodCal.extPeople.map(function(x) { return x.name.toLowerCase(); });
+  if (entry.people.some(function(p) { return p.kind === 'ext' && known.indexOf(p.name.toLowerCase()) < 0; })) pcLoadPeople();
+  if (data.warnings && data.warnings.length) alert(label + ', но:\n' + data.warnings.join('\n'));
+}
+
+// Влачене върху видео → веднага, без чернова.
 async function _pcAssign(entryId, payload) {
   var entry = _prodCal.entries.find(function(e) { return e.id === entryId; });
   if (!entry) return;
@@ -814,43 +865,61 @@ async function _pcAssign(entryId, payload) {
     });
     var data = await res.json().catch(function() { return {}; });
     if (!res.ok) { alert(data.error || 'Грешка при назначаване'); return; }
-    entry.people = data.people || [];
-    if (payload.name && !_prodCal.extPeople.some(function(x) { return x.name.toLowerCase() === payload.name.toLowerCase(); })) pcLoadPeople();
-    if (data.warnings && data.warnings.length) alert('Назначен(а) е в календара, но:\n' + data.warnings.join('\n'));
+    _pcAfterSave(entry, data, 'Назначен(а) е в календара');
+    // Ако е избраното видео — човекът влиза и в черновата, за да не се махне при „Запази“.
+    if (_prodCal.draft && _prodCal.draft.entryId === entryId) {
+      _prodCal.draft.picks[payload.personId ? 'bc:' + payload.personId : 'ext:' + String(payload.name).toLowerCase()] = payload;
+    }
   } catch (e) { alert('Грешка при назначаване'); }
   _pcRenderSidebar();
   _pcRefreshWeekView();
 }
 
-async function _pcUnassign(entryId, assignId) {
-  var entry = _prodCal.entries.find(function(e) { return e.id === entryId; });
+async function pcSavePeople() {
+  var entry = _prodCal.selectedId && _prodCal.entries.find(function(e) { return e.id === _prodCal.selectedId; });
   if (!entry) return;
+  var diff = _pcDraftDiff(entry);
+  if (!diff.add.length && !diff.remove.length) return;
+  var btn = document.getElementById('pcPeopleSave');
+  if (btn) { btn.disabled = true; btn.textContent = 'Записване…'; }
   try {
-    var res = await fetch('/api/bc-calendar/' + entryId + '/people/' + assignId, { method: 'DELETE' });
+    var res = await fetch('/api/bc-calendar/' + entry.id + '/people', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(diff),
+    });
     var data = await res.json().catch(function() { return {}; });
-    if (!res.ok) { alert(data.error || 'Грешка'); return; }
-    entry.people = data.people || [];
-    if (data.warnings && data.warnings.length) alert('Махнат(а) е от календара, но:\n' + data.warnings.join('\n'));
-  } catch (e) { alert('Грешка'); }
+    if (!res.ok) { alert(data.error || 'Грешка при записване'); }
+    else { _pcAfterSave(entry, data, 'Записано е в календара'); _prodCal.draft = null; }
+  } catch (e) { alert('Грешка при записване'); }
   _pcRenderSidebar();
   _pcRefreshWeekView();
+}
+
+function pcDiscardPeople() {
+  _prodCal.draft = null;
+  _pcRenderSidebar();
 }
 
 function pcTogglePerson(el) {
   var entryId = _prodCal.selectedId;
   var entry = entryId && _prodCal.entries.find(function(e) { return e.id === entryId; });
-  if (!entry || el.classList.contains('pc-busy')) return;
-  el.classList.add('pc-busy');
+  if (!entry) return;
+  var picks = _pcDraft(entry).picks;
   var key = el.dataset.person ? 'bc:' + el.dataset.person : 'ext:' + String(el.dataset.name).toLowerCase();
-  var hit = (entry.people || []).find(function(p) { return _pcPersonKey(p) === key; });
-  if (hit) _pcUnassign(entryId, hit.id); else _pcAssign(entryId, _pcPersonPayload(el));
+  if (picks[key]) delete picks[key]; else picks[key] = _pcPersonPayload(el);
+  _pcRenderSidebar();
 }
 
 function pcAddExternal() {
   var inp = document.getElementById('pcExtName');
   var name = inp ? inp.value.trim() : '';
-  if (!name || !_prodCal.selectedId) return;
-  _pcAssign(_prodCal.selectedId, { name: name });
+  var entry = _prodCal.selectedId && _prodCal.entries.find(function(e) { return e.id === _prodCal.selectedId; });
+  if (!name || !entry) return;
+  _pcDraft(entry).picks['ext:' + name.toLowerCase()] = { name: name };
+  _pcRenderSidebar();
+  var next = document.getElementById('pcExtName');
+  if (next) next.focus();
 }
 
 async function pcForgetExternal(id) {
@@ -963,6 +1032,7 @@ async function renderCalendar(el) {
     });
     _prodCal.cards = cards;
     _prodCal.selectedId = null;
+    _prodCal.draft = null;
 
     _pcFullRender(el);
     pcLoadPeople();    // хората за панела „кой снима" — отделно, не бавят календара

@@ -154,7 +154,9 @@
 .pc-person:hover { border-color: var(--accent); }
 .pc-person--ext { border-style: dashed; }
 .pc-person--on { border-color: var(--accent); background: rgba(28, 176, 246, 0.14); }
-.pc-person.pc-busy { opacity: 0.5; pointer-events: none; }
+.pc-people__save { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.pc-people__save .btn-primary { flex: 1; }
+.pc-people__save .btn-primary:disabled { opacity: 0.5; cursor: default; }
 .pc-person .pc-av { width: 24px; height: 24px; font-size: 9px; }
 .pc-person__name { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pc-person__sub { font-size: 10px; font-weight: 400; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; }

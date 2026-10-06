@@ -13,7 +13,7 @@ const { requireAuth } = require('../middleware/auth');
 const config = require('../config');
 const { query, queryOne, execute } = require('../db/pool');
 const bc = require('../services/basecamp');
-const { getUserAuth } = require('../services/basecamp-token');
+const { getUserAuth, getServiceAuth } = require('../services/basecamp-token');
 const {
   createGCalEvent, updateGCalEvent, deleteGCalEvent,
   isGCalEnabled, getCalendarClient, getTargetCalendarId, getServiceAccountEmail,
@@ -583,108 +583,139 @@ router.delete('/people/external/:id', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/bc-calendar/:id/people — { personId } (от Basecamp) или { name } (външен)
+// Basecamp действията (assignee + коментар с таг) ги прави ботът ThePactAlerts —
+// както задачите и останалите известия. Ако ботът не е свързан, пада на профила
+// на човека, който назначава.
+async function basecampAuth(req) {
+  try {
+    return await getServiceAuth();
+  } catch (e) {
+    console.warn('[bc-calendar people] ботът не е достъпен, ползвам профила на потребителя:', e.message);
+    return getUserAuth(req.user.userId);
+  }
+}
+
+// Сменя хората на едно видео наведнъж. add = [{ personId } | { name }],
+// removeIds = id-та от bc_production_calendar_people. В Basecamp това е ЕДНА
+// промяна на assignees и ЕДИН коментар, който тагва всички новодобавени.
+async function applyPeople(req, entry, add, removeIds) {
+  const current = await query('SELECT * FROM bc_production_calendar_people WHERE entry_id = $1', [entry.id]);
+  const rm = new Set((removeIds || []).map(String));
+  const removed = current.filter((r) => rm.has(String(r.id)));
+  if (removed.length) {
+    await execute('DELETE FROM bc_production_calendar_people WHERE id = ANY($1::int[])', [removed.map((r) => r.id)]);
+  }
+  const kept = current.filter((r) => !rm.has(String(r.id)));
+  const haveBc = new Set(kept.filter((r) => r.person_id).map((r) => String(r.person_id)));
+  const haveExt = new Set(kept.filter((r) => r.ext_name).map((r) => r.ext_name.toLowerCase()));
+
+  const addedBc = [];   // [{ id, person }]
+  const addedNames = [];
+  for (const a of add || []) {
+    const personId = a && a.personId ? String(a.personId) : null;
+    const extName = String((a && a.name) || '').trim().slice(0, 120);
+    if (personId) {
+      if (haveBc.has(personId)) continue;
+      const person = await queryOne('SELECT * FROM bc_people WHERE person_id = $1', [personId]);
+      if (!person) continue;
+      const row = await queryOne(
+        'INSERT INTO bc_production_calendar_people (entry_id, person_id, created_by) VALUES ($1,$2,$3) RETURNING id',
+        [entry.id, personId, req.user.userId]
+      );
+      haveBc.add(personId);
+      addedBc.push({ id: row.id, person });
+      addedNames.push(person.name);
+    } else if (extName && !haveExt.has(extName.toLowerCase())) {
+      await execute('INSERT INTO bc_external_people (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [extName]);
+      await execute(
+        'INSERT INTO bc_production_calendar_people (entry_id, ext_name, created_by) VALUES ($1,$2,$3)',
+        [entry.id, extName, req.user.userId]
+      );
+      haveExt.add(extName.toLowerCase());
+      addedNames.push(extName + ' (външен)');
+    }
+  }
+
+  const warnings = [];
+  // От assignees махаме само тези, които ние сме сложили — останалите са били там и преди.
+  const unassign = new Set(removed.filter((r) => r.person_id && r.bc_added).map((r) => String(r.person_id)));
+  if (addedBc.length || unassign.size) {
+    try {
+      const { token, account } = await basecampAuth(req);
+      const projectId = config.BASECAMP_TEAM_PROJECT_ID;
+      const card = await bc.getCard(token, account, projectId, entry.basecamp_card_id);
+      const before = (card.assignees || []).map((x) => x.id);
+      const ids = before.filter((id) => !unassign.has(String(id)));
+      const ours = [];
+      for (const x of addedBc) {
+        if (ids.some((id) => String(id) === String(x.person.person_id))) continue;
+        ids.push(Number(x.person.person_id));
+        ours.push(x.id);
+      }
+      if (ids.length !== before.length || ours.length) {
+        await bc.updateCard(token, account, projectId, card, { assignee_ids: ids });
+      }
+      if (ours.length) {
+        await execute('UPDATE bc_production_calendar_people SET bc_added = TRUE WHERE id = ANY($1::int[])', [ours]);
+      }
+      if (addedBc.length) {
+        const tags = addedBc.map((x) => team.mentionOf(x.person)).join(', ');
+        const content = '<div>' + tags + ' — ' + (addedBc.length > 1 ? 'назначени сте' : 'назначен(а) си') +
+          ' за това видео в <strong>Производствения календар</strong>: <strong>' +
+          team.escHtml(humanSlot(entry)) + '</strong>.</div>';
+        await bc.createComment(token, account, projectId, entry.basecamp_card_id, content);
+      }
+    } catch (e) {
+      console.error('[bc-calendar people] Basecamp:', e.message);
+      warnings.push('Basecamp не прие промяната: ' + e.message);
+    }
+  }
+
+  if (addedNames.length || removed.length) {
+    syncCalToGCal('update', entry).catch((e) => console.error('[GCal bc]', e.message));
+    const removedNames = [];
+    for (const r of removed) {
+      const p = r.person_id ? await queryOne('SELECT name FROM bc_people WHERE person_id = $1', [r.person_id]) : null;
+      removedNames.push(p ? p.name : (r.ext_name || 'човек'));
+    }
+    const parts = [];
+    if (addedNames.length) parts.push('назначи ' + addedNames.join(', '));
+    if (removedNames.length) parts.push('махна ' + removedNames.join(', '));
+    logAction(req, addedNames.length ? 'assign' : 'unassign', entry, parts.join(' · '));
+  }
+  return { people: await peopleOf(entry.id), warnings };
+}
+
+// POST /api/bc-calendar/:id/people — един човек: { personId } или { name } (влачене)
 router.post('/:id/people', requireAuth, async (req, res) => {
   try {
     await ensureSchema();
     const entry = await queryOne('SELECT * FROM bc_production_calendar WHERE id = $1', [req.params.id]);
     if (!entry) return res.status(404).json({ error: 'Not found' });
-    const personId = req.body && req.body.personId ? String(req.body.personId) : null;
-    const extName = String((req.body && req.body.name) || '').trim().slice(0, 120);
-    if (!personId && !extName) return res.status(400).json({ error: 'personId or name required' });
-
-    let person = null;
-    if (personId) {
-      person = await queryOne('SELECT * FROM bc_people WHERE person_id = $1', [personId]);
-      if (!person) return res.status(400).json({ error: 'Непознат човек от Basecamp' });
-      const dup = await queryOne('SELECT id FROM bc_production_calendar_people WHERE entry_id = $1 AND person_id = $2', [entry.id, personId]);
-      if (dup) return res.json({ people: await peopleOf(entry.id), warnings: [] });
-    } else {
-      const dup = await queryOne('SELECT id FROM bc_production_calendar_people WHERE entry_id = $1 AND LOWER(ext_name) = LOWER($2)', [entry.id, extName]);
-      if (dup) return res.json({ people: await peopleOf(entry.id), warnings: [] });
-      await execute('INSERT INTO bc_external_people (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [extName]);
-    }
-
-    const row = await queryOne(
-      'INSERT INTO bc_production_calendar_people (entry_id, person_id, ext_name, created_by) VALUES ($1,$2,$3,$4) RETURNING id',
-      [entry.id, personId, personId ? null : extName, req.user.userId]
-    );
-
-    const warnings = [];
-    if (person) {
-      try {
-        if (await notifyBasecamp(req, entry, person)) {
-          await execute('UPDATE bc_production_calendar_people SET bc_added = TRUE WHERE id = $1', [row.id]);
-        }
-      } catch (e) {
-        console.error('[bc-calendar people] Basecamp:', e.message);
-        warnings.push('Basecamp не прие промяната: ' + e.message);
-      }
-    }
-    syncCalToGCal('update', entry).catch((e) => console.error('[GCal bc]', e.message));
-    logAction(req, 'assign', entry, 'назначи ' + (person ? person.name : extName + ' (външен)'));
-    res.status(201).json({ people: await peopleOf(entry.id), warnings });
+    const body = req.body || {};
+    if (!body.personId && !String(body.name || '').trim()) return res.status(400).json({ error: 'personId or name required' });
+    res.status(201).json(await applyPeople(req, entry, [{ personId: body.personId, name: body.name }], []));
   } catch (err) {
     console.error('[bc-calendar people post]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// DELETE /api/bc-calendar/:id/people/:assignId — махни човек от видеото
-router.delete('/:id/people/:assignId', requireAuth, async (req, res) => {
+// PUT /api/bc-calendar/:id/people — много хора наведнъж: { add: [{ personId } | { name }], remove: [assignId] }
+router.put('/:id/people', requireAuth, async (req, res) => {
   try {
     await ensureSchema();
     const entry = await queryOne('SELECT * FROM bc_production_calendar WHERE id = $1', [req.params.id]);
     if (!entry) return res.status(404).json({ error: 'Not found' });
-    const row = await queryOne(
-      'DELETE FROM bc_production_calendar_people WHERE id = $1 AND entry_id = $2 RETURNING *',
-      [req.params.assignId, entry.id]
-    );
-    if (!row) return res.status(404).json({ error: 'Not found' });
-    const person = row.person_id ? await queryOne('SELECT * FROM bc_people WHERE person_id = $1', [row.person_id]) : null;
-
-    const warnings = [];
-    // От assignees махаме само ако ние сме го сложили — иначе е бил там и преди.
-    if (row.person_id && row.bc_added) {
-      try {
-        const { token, account } = await getUserAuth(req.user.userId);
-        const projectId = config.BASECAMP_TEAM_PROJECT_ID;
-        const card = await bc.getCard(token, account, projectId, entry.basecamp_card_id);
-        const before = (card.assignees || []).map((a) => a.id);
-        const ids = before.filter((id) => String(id) !== String(row.person_id));
-        if (ids.length !== before.length) await bc.updateCard(token, account, projectId, card, { assignee_ids: ids });
-      } catch (e) {
-        console.error('[bc-calendar people] Basecamp unassign:', e.message);
-        warnings.push('Basecamp не прие промяната: ' + e.message);
-      }
-    }
-    syncCalToGCal('update', entry).catch((e) => console.error('[GCal bc]', e.message));
-    logAction(req, 'unassign', entry, 'махна ' + (person ? person.name : (row.ext_name || 'човек')));
-    res.json({ people: await peopleOf(entry.id), warnings });
+    const body = req.body || {};
+    const add = Array.isArray(body.add) ? body.add.slice(0, 50) : [];
+    const remove = Array.isArray(body.remove) ? body.remove.slice(0, 50) : [];
+    res.json(await applyPeople(req, entry, add, remove));
   } catch (err) {
-    console.error('[bc-calendar people delete]', err.message);
+    console.error('[bc-calendar people put]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
-
-// Човек от Basecamp → assignee на картата + коментар с таг и кога е снимката.
-// Връща true, ако ние сме го добавили за assignee (не е бил вече там).
-async function notifyBasecamp(req, entry, person) {
-  const { token, account } = await getUserAuth(req.user.userId);
-  const projectId = config.BASECAMP_TEAM_PROJECT_ID;
-  const card = await bc.getCard(token, account, projectId, entry.basecamp_card_id);
-  const ids = (card.assignees || []).map((a) => a.id);
-  let added = false;
-  if (!ids.some((id) => String(id) === String(person.person_id))) {
-    await bc.updateCard(token, account, projectId, card, { assignee_ids: ids.concat([Number(person.person_id)]) });
-    added = true;
-  }
-  const content =
-    '<div>' + team.mentionOf(person) + ' — назначен(а) си за това видео в <strong>Производствения календар</strong>: ' +
-    '<strong>' + team.escHtml(humanSlot(entry)) + '</strong>.</div>';
-  await bc.createComment(token, account, projectId, entry.basecamp_card_id, content);
-  return added;
-}
 
 // „четвъртък, 16.10.2026, 10:00 – 12:00"
 function humanSlot(entry) {
