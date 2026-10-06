@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо: назначаване на хора — Производствен календар</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --hover:#243848; --border:#1e3040; --text:#e8ecee; --sec:#8fa3b0; --dim:#566d7a; --accent:#1cb0f6; --ext:#f5a623; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:13px; }
+  header { padding:14px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:15px; }
+  .demo-badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--ext); }
+  .tabs { display:flex; gap:6px; margin-left:auto; }
+  .tab { padding:7px 14px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--sec); cursor:pointer; font:inherit; font-weight:600; }
+  .tab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .explain { max-width:1400px; margin:14px auto 0; padding:12px 16px; background:var(--card); border:1px solid var(--border); border-radius:10px; line-height:1.55; color:var(--sec); }
+  .explain b { color:var(--text); }
+  .wrap { display:flex; max-width:1400px; margin:14px auto 30px; height:calc(100vh - 210px); min-height:560px; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .side { width:260px; border-right:1px solid var(--border); background:#15222a; overflow-y:auto; padding:12px 10px; flex-shrink:0; }
+  .side h3 { font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:var(--dim); margin:10px 4px 6px; }
+  .main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .toolbar { padding:10px 16px; border-bottom:1px solid var(--border); background:var(--card); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .toolbar b { font-size:15px; }
+  .toolbar .hint { margin-left:auto; color:var(--dim); font-size:11px; }
+  .week { flex:1; overflow-y:auto; display:flex; }
+  .times { width:48px; flex-shrink:0; position:relative; }
+  .tl { position:absolute; right:6px; font-size:10px; color:var(--dim); transform:translateY(-50%); }
+  .days { flex:1; display:flex; }
+  .day { flex:1; border-left:1px solid var(--border); position:relative; min-width:0; }
+  .dh { position:sticky; top:0; z-index:5; background:var(--card); text-align:center; padding:6px 0; border-bottom:1px solid var(--border); font-size:11px; color:var(--dim); font-weight:600; text-transform:uppercase; }
+  .dh span { display:block; font-size:18px; color:var(--text); }
+  .grid { position:relative; height:600px; }
+  .hl { position:absolute; left:0; right:0; border-top:1px solid var(--border); }
+  .ev { position:absolute; left:3px; right:3px; border-radius:6px; padding:4px 6px; cursor:pointer; overflow:hidden; transition:box-shadow .1s, opacity .15s; }
+  .ev:hover { box-shadow:0 2px 12px rgba(0,0,0,.5); z-index:3; }
+  .ev.drop { outline:2px dashed #fff; }
+  .ev.faded { opacity:.18; }
+  .ev__t { font-size:11px; font-weight:600; color:#fff; line-height:1.3; }
+  .ev__time { font-size:10px; color:rgba(255,255,255,.85); }
+  .ev__people { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
+  .av { width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; color:#fff; flex-shrink:0; border:1.5px solid rgba(255,255,255,.7); }
+  .av.ext { background:transparent !important; border:1.5px dashed #fff; }
+  .role { font-size:9.5px; background:rgba(0,0,0,.28); color:#fff; padding:1px 5px; border-radius:8px; white-space:nowrap; }
+  .role.ext { border:1px dashed rgba(255,255,255,.8); }
+  .role.empty { background:rgba(0,0,0,.15); color:rgba(255,255,255,.65); }
+  /* popover */
+  .pop { position:fixed; z-index:50; width:300px; background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.6); padding:12px; display:none; }
+  .pop.on { display:block; }
+  .pop h4 { font-size:13px; margin-bottom:2px; }
+  .pop .sub { color:var(--dim); font-size:11px; margin-bottom:10px; }
+  .pop .lbl { font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:var(--dim); margin:10px 0 5px; }
+  .opt { display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:6px; cursor:pointer; }
+  .opt:hover { background:var(--hover); }
+  .opt input { accent-color:var(--accent); }
+  .opt .nm { flex:1; }
+  .opt .tag { font-size:10px; color:var(--dim); }
+  .row { display:flex; gap:6px; }
+  input.txt, select { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:var(--text); font:inherit; outline:none; min-width:0; }
+  input.txt:focus, select:focus { border-color:var(--accent); }
+  .btn { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:6px 10px; font:inherit; font-weight:600; cursor:pointer; }
+  .btn.ghost { background:var(--hover); color:var(--sec); }
+  .chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+  .chip { display:inline-flex; align-items:center; gap:5px; padding:3px 4px 3px 8px; border-radius:12px; background:rgba(245,166,35,.13); color:var(--ext); font-size:12px; border:1px dashed rgba(245,166,35,.5); }
+  .chip button { background:none; border:none; color:inherit; cursor:pointer; font-size:13px; padding:0 3px; }
+  .rolerow { display:grid; grid-template-columns:86px 1fr; gap:6px; align-items:center; margin-bottom:6px; }
+  .rolerow span { color:var(--sec); font-size:12px; }
+  .person { display:flex; align-items:center; gap:8px; padding:6px 8px; margin:2px 0; border-radius:8px; background:var(--hover); border:1px solid var(--border); cursor:grab; user-select:none; }
+  .person:hover { border-color:var(--accent); }
+  .person.sel { border-color:var(--accent); background:rgba(28,176,246,.14); }
+  .person .cnt { margin-left:auto; font-size:10px; color:var(--dim); }
+  .person.isext { border-style:dashed; }
+  .legend { display:flex; gap:14px; color:var(--dim); font-size:11px; align-items:center; }
+  .legend .av { width:16px; height:16px; font-size:8px; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#0d1418; border:1px solid var(--border); padding:8px 14px; border-radius:8px; color:var(--sec); font-size:12px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:60; }
+  .toast.on { opacity:1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Производствен календар — назначаване на хора</h1>
+  <span class="demo-badge">ДЕМО · фиктивни данни · нищо не се записва</span>
+  <div class="tabs">
+    <button class="tab on" data-v="A">Вариант A · Бърз избор</button>
+    <button class="tab" data-v="B">Вариант B · По роли</button>
+    <button class="tab" data-v="C">Вариант C · Панел „Хора"</button>
+  </div>
+</header>
+
+<div class="explain" id="explain"></div>
+
+<div class="wrap">
+  <aside class="side" id="side"></aside>
+  <div class="main">
+    <div class="toolbar">
+      <b>13 – 17 окт 2026</b>
+      <div class="legend">
+        <span><span class="av" style="background:#7b61ff">ВК</span> от Basecamp</span>
+        <span><span class="av ext">ИП</span> външен човек</span>
+      </div>
+      <span class="hint" id="hint"></span>
+    </div>
+    <div class="week" id="week"></div>
+  </div>
+</div>
+
+<div class="pop" id="pop"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- фиктивни данни ----------
+var BC = [ // хора от Basecamp
+  { id: 1, name: 'Венци Калчев', ini: 'ВК', color: '#7b61ff', title: 'Founder' },
+  { id: 2, name: 'Мария Петрова', ini: 'МП', color: '#e0457b', title: 'Оператор' },
+  { id: 3, name: 'Георги Иванов', ini: 'ГИ', color: '#2bb673', title: 'Монтажист' },
+  { id: 4, name: 'Никола Димитров', ini: 'НД', color: '#e8833a', title: 'Оператор' },
+  { id: 5, name: 'Ани Стоянова', ini: 'АС', color: '#3a8ee8', title: 'Сценарист' }
+];
+var ROLES = ['Оператор', 'Звук/светлина', 'Актьор', 'Режисьор'];
+var START = 9, PX = 60; // 9:00, 60px на час
+var DAYS = ['Пон 13', 'Вт 14', 'Ср 15', 'Чет 16', 'Пет 17'];
+function seed() {
+  return [
+    { id: 1, d: 0, s: 10, h: 2,   t: 'Fornetti — Reel „Сутрешна закуска"', c: '#1f7a99', bc: [2, 1], ext: [], roles: { 'Оператор': { bc: 2 }, 'Режисьор': { bc: 1 } } },
+    { id: 2, d: 0, s: 14, h: 1.5, t: 'Дентална клиника — интервю с д-р Петков', c: '#5b4ea8', bc: [4], ext: ['Иван Петков'], roles: { 'Оператор': { bc: 4 }, 'Актьор': { ext: 'Иван Петков' } } },
+    { id: 3, d: 1, s: 11, h: 3,   t: 'Автокъща — тест драйв серия', c: '#a8553a', bc: [], ext: [], roles: {} },
+    { id: 4, d: 2, s: 9.5, h: 2,  t: 'Фитнес — 3 кратки видеа', c: '#1f7a99', bc: [2], ext: ['Деси (модел)'], roles: { 'Оператор': { bc: 2 }, 'Актьор': { ext: 'Деси (модел)' } } },
+    { id: 5, d: 3, s: 13, h: 2.5, t: 'Ресторант — меню снимки + reel', c: '#2f8a5a', bc: [4, 3], ext: [], roles: { 'Оператор': { bc: 4 }, 'Звук/светлина': { bc: 3 } } },
+    { id: 6, d: 4, s: 10, h: 1.5, t: 'Имоти — обиколка на апартамент', c: '#5b4ea8', bc: [], ext: ['Петър (дрон)'], roles: { 'Звук/светлина': { ext: 'Петър (дрон)' } } }
+  ];
+}
+var V = 'A', EV = seed(), openId = null, focusPerson = null;
+var EXT_SAVED = ['Иван Петков', 'Деси (модел)', 'Петър (дрон)']; // запомнени външни хора (за автодовършване)
+
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function bcById(id) { return BC.filter(function (p) { return p.id === id; })[0]; }
+function ini(name) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase(); }
+function fmt(h) { return Math.floor(h) + ':' + (h % 1 ? '30' : '00'); }
+function evById(id) { return EV.filter(function (e) { return e.id === id; })[0]; }
+function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('on'); }, 1800); }
+function avHtml(p) { return '<span class="av" style="background:' + p.color + '" title="' + esc(p.name) + ' (Basecamp)">' + p.ini + '</span>'; }
+function avExt(n) { return '<span class="av ext" title="' + esc(n) + ' (външен)">' + esc(ini(n)) + '</span>'; }
+
+var TEXT = {
+  A: '<b>Вариант A — Бърз избор (най-простият).</b> Клик върху видео в календара → отваря се малко прозорче: отметки за хората от Basecamp + поле „Външен човек", където пишеш име и натискаш Enter. Хората се виждат като кръгчета с инициали върху блока (пунктирано = външен). Външните имена се запомнят и следващия път се предлагат автоматично. <b>Подходящо, ако просто искаш да знаеш „кой е на тази снимка".</b>',
+  B: '<b>Вариант B — По роли.</b> Клик върху видео → за всяка роля (Оператор, Звук/светлина, Актьор, Режисьор) избираш човек от падащ списък — в него са и хората от Basecamp, и запомнените външни, а последната опция е „+ Нов външен човек". На блока се вижда коя роля кой я покрива, а празните роли стоят като „Актьор: ?" — веднага личи какво още не е покрито. <b>Подходящо, ако искаш да разпределяш задачи, а не само имена.</b> Ролите могат да се настройват.',
+  C: '<b>Вариант C — Панел „Хора" (разпределение с влачене).</b> Вляво е списък с всички хора (Basecamp + външни) и колко снимки има всеки тази седмица. <b>Влачиш човек върху видео</b>, за да го назначиш. <b>Клик върху човек</b> = виждаш само неговите снимки (личния му график), останалите избледняват. Клик върху видео премахва хора от него. <b>Подходящо, ако разпределяш цялата седмица наведнъж и искаш да виждаш натоварването.</b>'
+};
+var HINT = { A: 'Кликни върху видео, за да назначиш хора', B: 'Кликни върху видео, за да попълниш ролите', C: 'Влачи човек от панела върху видео · Клик на човек = неговият график' };
+
+// ---------- рендер ----------
+function render() {
+  document.getElementById('explain').innerHTML = TEXT[V];
+  document.getElementById('hint').textContent = HINT[V];
+  renderSide(); renderWeek();
+}
+function renderWeek() {
+  var times = '<div class="times"><div class="dh" style="visibility:hidden">x<span>0</span></div><div class="grid">';
+  for (var h = START; h <= 18; h++) times += '<div class="tl" style="top:' + (h - START) * PX + 'px">' + h + ':00</div>';
+  times += '</div></div>';
+  var cols = DAYS.map(function (dn, di) {
+    var parts = dn.split(' ');
+    var g = '';
+    for (var h = 0; h < 10; h++) g += '<div class="hl" style="top:' + h * PX + 'px"></div>';
+    EV.filter(function (e) { return e.d === di; }).forEach(function (e) { g += evHtml(e); });
+    return '<div class="day"><div class="dh">' + parts[0] + '<span>' + parts[1] + '</span></div><div class="grid">' + g + '</div></div>';
+  }).join('');
+  document.getElementById('week').innerHTML = times + '<div class="days">' + cols + '</div>';
+  bindDrops();
+}
+function peopleHtml(e) {
+  if (V === 'B') {
+    return ROLES.map(function (r) {
+      var a = e.roles[r];
+      if (!a) return '<span class="role empty">' + r + ': ?</span>';
+      if (a.bc) return '<span class="role">' + r + ': ' + esc(bcById(a.bc).name.split(' ')[0]) + '</span>';
+      return '<span class="role ext">' + r + ': ' + esc(a.ext) + '</span>';
+    }).join('');
+  }
+  return e.bc.map(function (id) { return avHtml(bcById(id)); }).join('') + e.ext.map(avExt).join('');
+}
+function evHtml(e) {
+  var faded = V === 'C' && focusPerson && !hasPerson(e, focusPerson);
+  return '<div class="ev' + (faded ? ' faded' : '') + '" data-id="' + e.id + '" style="top:' + (e.s - START) * PX + 'px;height:' + e.h * PX + 'px;background:' + e.c + '" onclick="openPop(event,' + e.id + ')">' +
+    '<div class="ev__t">' + esc(e.t) + '</div><div class="ev__time">' + fmt(e.s) + ' – ' + fmt(e.s + e.h) + '</div>' +
+    '<div class="ev__people">' + peopleHtml(e) + '</div></div>';
+}
+function hasPerson(e, key) { return key.bc ? e.bc.indexOf(key.bc) >= 0 : e.ext.indexOf(key.ext) >= 0; }
+
+function renderSide() {
+  var s = document.getElementById('side');
+  if (V !== 'C') {
+    s.innerHTML = '<h3>Карти за насрочване</h3>' +
+      ['Козметичен салон — before/after', 'Фитнес — интервю с треньор', 'Пекарна — процес на месене'].map(function (t) {
+        return '<div class="person" style="cursor:default;display:block"><div style="font-weight:600;font-size:12px">' + t + '</div><div style="color:var(--dim);font-size:11px;margin-top:3px">Pre-Production</div></div>';
+      }).join('') +
+      '<p style="color:var(--dim);font-size:11px;margin:12px 4px;line-height:1.5">(Този панел е както в момента — вариант A и B не го променят.)</p>';
+    return;
+  }
+  function cnt(key) { return EV.filter(function (e) { return hasPerson(e, key); }).length; }
+  function sel(key) { return focusPerson && (focusPerson.bc ? focusPerson.bc === key.bc : focusPerson.ext === key.ext); }
+  var h = '<h3>Екип (Basecamp)</h3>';
+  BC.forEach(function (p) {
+    var k = { bc: p.id };
+    h += '<div class="person' + (sel(k) ? ' sel' : '') + '" draggable="true" data-bc="' + p.id + '" onclick="focusOn({bc:' + p.id + '})">' + avHtml(p) +
+      '<div><div style="font-weight:600;font-size:12px">' + esc(p.name) + '</div><div style="color:var(--dim);font-size:10px">' + p.title + '</div></div><span class="cnt">' + cnt(k) + ' сним.</span></div>';
+  });
+  h += '<h3>Външни хора</h3>';
+  EXT_SAVED.forEach(function (n) {
+    var k = { ext: n };
+    h += '<div class="person isext' + (sel(k) ? ' sel' : '') + '" draggable="true" data-ext="' + esc(n) + '" onclick="focusOn({ext:this.dataset.ext})">' + avExt(n) +
+      '<div style="font-weight:600;font-size:12px">' + esc(n) + '</div><span class="cnt">' + cnt(k) + ' сним.</span></div>';
+  });
+  h += '<div class="row" style="margin-top:8px"><input class="txt" id="newExtC" placeholder="+ Добави външен човек" onkeydown="if(event.key===\'Enter\')addExtC()"><button class="btn" onclick="addExtC()">+</button></div>';
+  if (focusPerson) h += '<button class="btn ghost" style="width:100%;margin-top:10px" onclick="focusOn(null)">Покажи всички</button>';
+  s.innerHTML = h;
+  s.querySelectorAll('.person[draggable]').forEach(function (el) {
+    el.addEventListener('dragstart', function (ev) { ev.dataTransfer.setData('text/plain', JSON.stringify(el.dataset.bc ? { bc: +el.dataset.bc } : { ext: el.dataset.ext })); });
+  });
+}
+function addExtC() {
+  var i = document.getElementById('newExtC'), n = i.value.trim();
+  if (!n) return;
+  if (EXT_SAVED.indexOf(n) < 0) EXT_SAVED.push(n);
+  renderSide(); toast('„' + n + '" е добавен(а) — влачи го върху видео');
+}
+function focusOn(key) {
+  focusPerson = key && focusPerson && (key.bc ? key.bc === focusPerson.bc : key.ext === focusPerson.ext) ? null : key;
+  render();
+}
+function bindDrops() {
+  if (V !== 'C') return;
+  document.querySelectorAll('.ev').forEach(function (el) {
+    el.addEventListener('dragover', function (ev) { ev.preventDefault(); el.classList.add('drop'); });
+    el.addEventListener('dragleave', function () { el.classList.remove('drop'); });
+    el.addEventListener('drop', function (ev) {
+      ev.preventDefault(); el.classList.remove('drop');
+      var key = JSON.parse(ev.dataTransfer.getData('text/plain') || '{}'), e = evById(+el.dataset.id);
+      if (hasPerson(e, key)) { toast('Вече е назначен(а)'); return; }
+      if (key.bc) e.bc.push(key.bc); else if (key.ext) e.ext.push(key.ext);
+      render(); toast('Назначен(а): ' + (key.bc ? bcById(key.bc).name : key.ext));
+    });
+  });
+}
+
+// ---------- прозорче при клик ----------
+function openPop(ev, id) {
+  ev.stopPropagation();
+  openId = id;
+  var pop = document.getElementById('pop');
+  pop.innerHTML = popHtml(evById(id));
+  pop.classList.add('on');
+  var r = ev.currentTarget.getBoundingClientRect();
+  var left = r.right + 8; if (left + 310 > innerWidth) left = r.left - 308;
+  pop.style.left = Math.max(8, left) + 'px';
+  pop.style.top = Math.max(8, Math.min(r.top, innerHeight - pop.offsetHeight - 8)) + 'px';
+  var f = pop.querySelector('input.txt'); if (f && V === 'A') f.focus();
+}
+function closePop() { document.getElementById('pop').classList.remove('on'); openId = null; }
+document.addEventListener('click', function (ev) { if (!ev.target.closest('#pop')) closePop(); });
+document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closePop(); });
+
+function popHtml(e) {
+  var h = '<h4>' + esc(e.t) + '</h4><div class="sub">' + DAYS[e.d] + ' окт · ' + fmt(e.s) + ' – ' + fmt(e.s + e.h) + '</div>';
+  if (V === 'A') {
+    h += '<div class="lbl">Екип от Basecamp</div>';
+    BC.forEach(function (p) {
+      h += '<label class="opt"><input type="checkbox"' + (e.bc.indexOf(p.id) >= 0 ? ' checked' : '') + ' onchange="toggleBc(' + e.id + ',' + p.id + ',this.checked)">' + avHtml(p) + '<span class="nm">' + esc(p.name) + '</span><span class="tag">' + p.title + '</span></label>';
+    });
+    h += '<div class="lbl">Външни хора (не са в Basecamp)</div>' +
+      '<div class="row"><input class="txt" id="extIn" list="extList" placeholder="Име и Enter…" onkeydown="if(event.key===\'Enter\')addExtA(' + e.id + ')"><button class="btn" onclick="addExtA(' + e.id + ')">+</button></div>' +
+      '<datalist id="extList">' + EXT_SAVED.map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>' +
+      '<div class="chips">' + e.ext.map(function (n, i) { return '<span class="chip">' + esc(n) + '<button title="Махни" onclick="rmExt(' + e.id + ',' + i + ')">×</button></span>'; }).join('') + '</div>';
+  } else if (V === 'B') {
+    h += '<div class="lbl">Роли на снимката</div>';
+    ROLES.forEach(function (r) {
+      var a = e.roles[r] || {}, cur = a.bc ? 'bc:' + a.bc : a.ext ? 'ext:' + a.ext : '';
+      var opts = '<option value="">— никой —</option><optgroup label="Екип (Basecamp)">' +
+        BC.map(function (p) { return '<option value="bc:' + p.id + '"' + (cur === 'bc:' + p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') +
+        '</optgroup><optgroup label="Външни">' +
+        EXT_SAVED.map(function (n) { return '<option value="ext:' + esc(n) + '"' + (cur === 'ext:' + n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') +
+        '</optgroup><option value="new">+ Нов външен човек…</option>';
+      h += '<div class="rolerow"><span>' + r + '</span><select onchange="setRole(' + e.id + ',\'' + r + '\',this)">' + opts + '</select></div>';
+    });
+    h += '<div style="color:var(--dim);font-size:11px;margin-top:6px">Ролите са настройваеми (може да са други или повече).</div>';
+  } else {
+    var any = e.bc.length + e.ext.length;
+    h += '<div class="lbl">Назначени</div>' + (any ? '' : '<div style="color:var(--dim)">Още никой — влачи човек от панела вляво.</div>');
+    e.bc.forEach(function (id, i) { var p = bcById(id); h += '<div class="opt">' + avHtml(p) + '<span class="nm">' + esc(p.name) + '</span><button class="btn ghost" onclick="rmBc(' + e.id + ',' + i + ')">Махни</button></div>'; });
+    e.ext.forEach(function (n, i) { h += '<div class="opt">' + avExt(n) + '<span class="nm">' + esc(n) + ' <span class="tag">външен</span></span><button class="btn ghost" onclick="rmExt(' + e.id + ',' + i + ')">Махни</button></div>'; });
+  }
+  return h;
+}
+function refreshPop() { if (openId) document.getElementById('pop').innerHTML = popHtml(evById(openId)); }
+function toggleBc(eid, pid, on) {
+  var e = evById(eid), i = e.bc.indexOf(pid);
+  if (on && i < 0) e.bc.push(pid); if (!on && i >= 0) e.bc.splice(i, 1);
+  renderWeek();
+}
+function addExtA(eid) {
+  var inp = document.getElementById('extIn'), n = inp.value.trim(), e = evById(eid);
+  if (!n) return;
+  if (e.ext.indexOf(n) < 0) e.ext.push(n);
+  if (EXT_SAVED.indexOf(n) < 0) EXT_SAVED.push(n);
+  renderWeek(); refreshPop();
+  var f = document.getElementById('extIn'); if (f) f.focus();
+}
+function rmExt(eid, i) { evById(eid).ext.splice(i, 1); render(); refreshPop(); }
+function rmBc(eid, i) { evById(eid).bc.splice(i, 1); render(); refreshPop(); }
+function setRole(eid, role, sel) {
+  var e = evById(eid), v = sel.value;
+  if (v === 'new') {
+    var n = (prompt('Име на външния човек:') || '').trim();
+    if (!n) { refreshPop(); return; }
+    if (EXT_SAVED.indexOf(n) < 0) EXT_SAVED.push(n);
+    v = 'ext:' + n;
+  }
+  if (!v) delete e.roles[role];
+  else if (v.indexOf('bc:') === 0) e.roles[role] = { bc: +v.slice(3) };
+  else e.roles[role] = { ext: v.slice(4) };
+  renderWeek(); refreshPop();
+}
+
+document.querySelectorAll('.tab').forEach(function (b) {
+  b.onclick = function () {
+    document.querySelectorAll('.tab').forEach(function (x) { x.classList.toggle('on', x === b); });
+    V = b.dataset.v; focusPerson = null; closePop(); render();
+  };
+});
+var hv = (location.hash || '').replace('#', '').toUpperCase();
+if (TEXT[hv]) { V = hv; document.querySelectorAll('.tab').forEach(function (x) { x.classList.toggle('on', x.dataset.v === V); }); }
+render();
+</script>
+</body>
+</html>
