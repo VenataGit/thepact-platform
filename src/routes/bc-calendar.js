@@ -22,6 +22,7 @@ const {
 const FILMING_OFFSET = parseInt(process.env.BASECAMP_FILMING_OFFSET) || 11; // working days before publish
 const { subtractWorkingDays, workingDaysUntil } = require('../services/workdays');
 const prodSteps = require('../services/steps');
+const team = require('../services/bc-team');
 
 // Filming deadline (срок за снимки) = publish date − FILMING_OFFSET working days (skips weekends + BG holidays).
 function filmingDeadline(dueOn) { return dueOn ? subtractWorkingDays(dueOn, FILMING_OFFSET) : null; }
@@ -79,6 +80,7 @@ router.get('/', requireAuth, async (req, res) => {
       .filter((c) => !scheduledIds.has(String(c.id)))
       .sort((a, b) => { if (!a.deadline && !b.deadline) return 0; if (!a.deadline) return 1; if (!b.deadline) return -1; return a.deadline < b.deadline ? -1 : a.deadline > b.deadline ? 1 : 0; });
 
+    const peopleBy = await entryPeople();
     const entries = rows.map((r) => {
       const card = byId[String(r.basecamp_card_id)];
       return {
@@ -91,6 +93,7 @@ router.get('/', requireAuth, async (req, res) => {
         duration_minutes: r.duration_minutes,
         calendar_id: r.google_calendar_id || null,
         dl_class: card ? card.dl_class : 'dl-none',
+        people: peopleBy[r.id] || [],
       };
     });
 
@@ -126,6 +129,26 @@ function ensureSchema() {
           user_id          INTEGER,
           user_name        TEXT,
           created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`),
+      // Хората, назначени към насрочено видео: от Basecamp (person_id) или външни
+      // (ext_name). bc_added помни дали ние сме ги сложили за assignee на картата —
+      // само тогава ги махаме оттам при отмяна.
+      execute(`
+        CREATE TABLE IF NOT EXISTS bc_production_calendar_people (
+          id         SERIAL PRIMARY KEY,
+          entry_id   INTEGER NOT NULL REFERENCES bc_production_calendar(id) ON DELETE CASCADE,
+          person_id  BIGINT,
+          ext_name   TEXT,
+          bc_added   BOOLEAN NOT NULL DEFAULT FALSE,
+          created_by INTEGER,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`),
+      // Запомнените външни хора (актьори, модели…), които ги няма в Basecamp.
+      execute(`
+        CREATE TABLE IF NOT EXISTS bc_external_people (
+          id         SERIAL PRIMARY KEY,
+          name       TEXT NOT NULL UNIQUE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`),
     ]).catch((err) => {
       schemaReady = null; // да опита пак при следващата заявка
@@ -500,6 +523,180 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
+// ─── назначени хора ───────────────────────────────────────────────────────────
+// Клик на видео в календара → вляво излизат хората. Човек от Basecamp става
+// assignee на картата и получава коментар с таг (кога е снимката); външните
+// хора се помнят по име. И двата вида се пишат в описанието на Google събитието.
+
+// { entry_id: [{ id, kind: 'bc'|'ext', person_id, name, avatar_url }] }
+async function entryPeople(entryId) {
+  await ensureSchema();
+  const rows = await query(
+    `SELECT a.id, a.entry_id, a.person_id, a.ext_name, p.name, p.avatar_url
+     FROM bc_production_calendar_people a
+     LEFT JOIN bc_people p ON p.person_id = a.person_id
+     ${entryId ? 'WHERE a.entry_id = $1' : ''}
+     ORDER BY a.id`,
+    entryId ? [entryId] : []
+  );
+  const out = {};
+  for (const r of rows) {
+    (out[r.entry_id] = out[r.entry_id] || []).push(r.person_id
+      ? { id: r.id, kind: 'bc', person_id: String(r.person_id), name: r.name || 'Човек от Basecamp', avatar_url: r.avatar_url || '' }
+      : { id: r.id, kind: 'ext', name: r.ext_name });
+  }
+  return out;
+}
+
+async function peopleOf(entryId) {
+  return (await entryPeople(entryId))[entryId] || [];
+}
+
+// GET /api/bc-calendar/people — екипът от Basecamp + запомнените външни хора
+router.get('/people', requireAuth, async (req, res) => {
+  try {
+    await ensureSchema();
+    team.ensureFresh().catch(() => {});
+    const bcPeople = await query(
+      "SELECT person_id, name, title, avatar_url FROM bc_people WHERE active = TRUE AND name <> '' ORDER BY name"
+    );
+    const external = await query('SELECT id, name FROM bc_external_people ORDER BY name');
+    res.json({
+      team: bcPeople.map((p) => ({ person_id: String(p.person_id), name: p.name, title: p.title, avatar_url: p.avatar_url })),
+      external,
+    });
+  } catch (err) {
+    console.error('[bc-calendar people]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/bc-calendar/people/external/:id — забрави външен човек (напр. грешно изписан).
+// Назначенията му по видеата остават — там името стои само по себе си.
+router.delete('/people/external/:id', requireAuth, async (req, res) => {
+  try {
+    await ensureSchema();
+    await execute('DELETE FROM bc_external_people WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/bc-calendar/:id/people — { personId } (от Basecamp) или { name } (външен)
+router.post('/:id/people', requireAuth, async (req, res) => {
+  try {
+    await ensureSchema();
+    const entry = await queryOne('SELECT * FROM bc_production_calendar WHERE id = $1', [req.params.id]);
+    if (!entry) return res.status(404).json({ error: 'Not found' });
+    const personId = req.body && req.body.personId ? String(req.body.personId) : null;
+    const extName = String((req.body && req.body.name) || '').trim().slice(0, 120);
+    if (!personId && !extName) return res.status(400).json({ error: 'personId or name required' });
+
+    let person = null;
+    if (personId) {
+      person = await queryOne('SELECT * FROM bc_people WHERE person_id = $1', [personId]);
+      if (!person) return res.status(400).json({ error: 'Непознат човек от Basecamp' });
+      const dup = await queryOne('SELECT id FROM bc_production_calendar_people WHERE entry_id = $1 AND person_id = $2', [entry.id, personId]);
+      if (dup) return res.json({ people: await peopleOf(entry.id), warnings: [] });
+    } else {
+      const dup = await queryOne('SELECT id FROM bc_production_calendar_people WHERE entry_id = $1 AND LOWER(ext_name) = LOWER($2)', [entry.id, extName]);
+      if (dup) return res.json({ people: await peopleOf(entry.id), warnings: [] });
+      await execute('INSERT INTO bc_external_people (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [extName]);
+    }
+
+    const row = await queryOne(
+      'INSERT INTO bc_production_calendar_people (entry_id, person_id, ext_name, created_by) VALUES ($1,$2,$3,$4) RETURNING id',
+      [entry.id, personId, personId ? null : extName, req.user.userId]
+    );
+
+    const warnings = [];
+    if (person) {
+      try {
+        if (await notifyBasecamp(req, entry, person)) {
+          await execute('UPDATE bc_production_calendar_people SET bc_added = TRUE WHERE id = $1', [row.id]);
+        }
+      } catch (e) {
+        console.error('[bc-calendar people] Basecamp:', e.message);
+        warnings.push('Basecamp не прие промяната: ' + e.message);
+      }
+    }
+    syncCalToGCal('update', entry).catch((e) => console.error('[GCal bc]', e.message));
+    logAction(req, 'assign', entry, 'назначи ' + (person ? person.name : extName + ' (външен)'));
+    res.status(201).json({ people: await peopleOf(entry.id), warnings });
+  } catch (err) {
+    console.error('[bc-calendar people post]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/bc-calendar/:id/people/:assignId — махни човек от видеото
+router.delete('/:id/people/:assignId', requireAuth, async (req, res) => {
+  try {
+    await ensureSchema();
+    const entry = await queryOne('SELECT * FROM bc_production_calendar WHERE id = $1', [req.params.id]);
+    if (!entry) return res.status(404).json({ error: 'Not found' });
+    const row = await queryOne(
+      'DELETE FROM bc_production_calendar_people WHERE id = $1 AND entry_id = $2 RETURNING *',
+      [req.params.assignId, entry.id]
+    );
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    const person = row.person_id ? await queryOne('SELECT * FROM bc_people WHERE person_id = $1', [row.person_id]) : null;
+
+    const warnings = [];
+    // От assignees махаме само ако ние сме го сложили — иначе е бил там и преди.
+    if (row.person_id && row.bc_added) {
+      try {
+        const { token, account } = await getUserAuth(req.user.userId);
+        const projectId = config.BASECAMP_TEAM_PROJECT_ID;
+        const card = await bc.getCard(token, account, projectId, entry.basecamp_card_id);
+        const before = (card.assignees || []).map((a) => a.id);
+        const ids = before.filter((id) => String(id) !== String(row.person_id));
+        if (ids.length !== before.length) await bc.updateCard(token, account, projectId, card, { assignee_ids: ids });
+      } catch (e) {
+        console.error('[bc-calendar people] Basecamp unassign:', e.message);
+        warnings.push('Basecamp не прие промяната: ' + e.message);
+      }
+    }
+    syncCalToGCal('update', entry).catch((e) => console.error('[GCal bc]', e.message));
+    logAction(req, 'unassign', entry, 'махна ' + (person ? person.name : (row.ext_name || 'човек')));
+    res.json({ people: await peopleOf(entry.id), warnings });
+  } catch (err) {
+    console.error('[bc-calendar people delete]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Човек от Basecamp → assignee на картата + коментар с таг и кога е снимката.
+// Връща true, ако ние сме го добавили за assignee (не е бил вече там).
+async function notifyBasecamp(req, entry, person) {
+  const { token, account } = await getUserAuth(req.user.userId);
+  const projectId = config.BASECAMP_TEAM_PROJECT_ID;
+  const card = await bc.getCard(token, account, projectId, entry.basecamp_card_id);
+  const ids = (card.assignees || []).map((a) => a.id);
+  let added = false;
+  if (!ids.some((id) => String(id) === String(person.person_id))) {
+    await bc.updateCard(token, account, projectId, card, { assignee_ids: ids.concat([Number(person.person_id)]) });
+    added = true;
+  }
+  const content =
+    '<div>' + team.mentionOf(person) + ' — назначен(а) си за това видео в <strong>Производствения календар</strong>: ' +
+    '<strong>' + team.escHtml(humanSlot(entry)) + '</strong>.</div>';
+  await bc.createComment(token, account, projectId, entry.basecamp_card_id, content);
+  return added;
+}
+
+// „четвъртък, 16.10.2026, 10:00 – 12:00"
+function humanSlot(entry) {
+  const [y, m, d] = dateOnly(entry.scheduled_date).split('-');
+  const dow = new Date(Date.UTC(+y, +m - 1, +d, 12)).getUTCDay();
+  const names = ['неделя', 'понеделник', 'вторник', 'сряда', 'четвъртък', 'петък', 'събота'];
+  const pad = (n) => String(n).padStart(2, '0');
+  const hm = (min) => pad(Math.floor(min / 60)) + ':' + pad(min % 60);
+  const end = entry.start_minute + (entry.duration_minutes || 60);
+  return `${names[dow]}, ${d}.${m}.${y}, ${hm(entry.start_minute)} – ${hm(end)}`;
+}
+
 // Basecamp линк → „smart deep-link" мост на платформата (/go/basecamp/...).
 // Тапнат от Google Calendar, той отваря нативното приложение на телефона (ако е инсталирано)
 // и сайта на десктоп — вместо да дава грешка във вградения браузър на календара.
@@ -516,9 +713,15 @@ async function syncCalToGCal(action, entry) {
     const sH = Math.floor(entry.start_minute / 60), sM = entry.start_minute % 60;
     const endMin = entry.start_minute + (entry.duration_minutes || 60);
     const eH = Math.floor(endMin / 60), eM = endMin % 60;
+    const people = ((await entryPeople(entry.id))[entry.id] || [])
+      .map((p) => (p.kind === 'ext' ? p.name + ' (външен)' : p.name));
+    const description = [
+      people.length ? '👥 Екип: ' + people.join(', ') : '',
+      entry.card_url ? ('📋 Отвори в Basecamp: ' + goLink(entry.card_url)) : '',
+    ].filter(Boolean).join('\n\n');
     const event = {
       title: '🎬 ' + (entry.card_title || ('Карта ' + entry.basecamp_card_id)),
-      description: entry.card_url ? ('📋 Отвори в Basecamp: ' + goLink(entry.card_url)) : '',
+      description,
       starts_at: dateStr + 'T' + pad(sH) + ':' + pad(sM) + ':00',
       ends_at: dateStr + 'T' + pad(eH) + ':' + pad(eM) + ':00',
       all_day: false,
