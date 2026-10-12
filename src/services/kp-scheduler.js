@@ -54,8 +54,9 @@ async function runKpAutoCreate() {
     const cfg = await kpc.loadKpConfig();
     if (!cfg.autoEnabled) return;
 
-    // Get all active clients
-    const clients = await query('SELECT * FROM kp_clients WHERE active = true');
+    // Get all active clients (паузираните — без; виж kpc.ensureKpPausedColumn)
+    await kpc.ensureKpPausedColumn();
+    const clients = await query('SELECT * FROM kp_clients WHERE active = true AND paused = false');
     if (!clients.length) return;
     const todayStr = workdays.ymd(new Date());
 

@@ -46,7 +46,7 @@ async function loadKpAuto(el) {
         '<span>Basecamp не отговори (' + esc(_kpBc.error) + ') — колоната „има ли КП карта" не може да се провери сега.</span>' +
       '</div>';
     }
-    const needsKp = clients.filter(function(c) { return c.has_kp_card === false; });
+    const needsKp = clients.filter(function(c) { return c.has_kp_card === false && !c.paused; });
     if (needsKp.length > 0) {
       warningHtml += '<div class="kp-warning">' +
         '<span>\u26a0\ufe0f</span>' +
@@ -55,7 +55,13 @@ async function loadKpAuto(el) {
     }
 
     var rowsHtml = '';
+    var pausedHeaderDone = false;
     clients.forEach(function(c) {
+      // Паузираните идват най-отдолу (ORDER BY paused) — отделяме ги с ред-заглавие.
+      if (c.paused && !pausedHeaderDone) {
+        pausedHeaderDone = true;
+        rowsHtml += '<tr><td class="kp-td kp-paused-sep" colspan="9">⏸ На пауза — ботът не им пуска КП, данните им стоят</td></tr>';
+      }
       var autoCreateDate = '—';
       if (c.auto_create_date) {
         try {
@@ -69,8 +75,8 @@ async function loadKpAuto(el) {
           }
         } catch(e) { /* invalid date, keep '—' */ }
       }
-      var missingKp = c.has_kp_card === false; // null = Basecamp недостъпен → не е сигнал
-      var rowBg = missingKp ? 'background:rgba(220,120,0,0.08);' : '';
+      var missingKp = c.has_kp_card === false && !c.paused; // null = Basecamp недостъпен → не е сигнал
+      var rowBg = c.paused ? 'opacity:.55;' : (missingKp ? 'background:rgba(220,120,0,0.08);' : '');
       var colName = (_kpBc && _kpBc.columnTitle) || 'Измисляне';
       var nameCell = missingKp
         ? '<td class="kp-td"><strong>' + esc(c.name) + '</strong> <span style="color:#e8a030" title="Няма карта в ' + esc(colName) + '">⚠️</span></td>'
@@ -81,7 +87,10 @@ async function loadKpAuto(el) {
       } else if (c.has_kp_card && c.kp_card_id) {
         cardLinkBtn = '<a class="btn btn-sm btn-ghost" href="#/card/' + c.kp_card_id + '">👁 КП карта</a>';
       }
-      var actionBtn = missingKp
+      var pauseBtn = c.paused
+        ? '<button class="btn btn-sm" onclick="toggleKpPause(' + c.id + ',false)" title="Връща клиента в автоматизацията">▶ Продължи</button>'
+        : '<button class="btn btn-sm" onclick="toggleKpPause(' + c.id + ',true)" title="Пауза — данните остават, но не се пускат нови КП">⏸ Пауза</button>';
+      var actionBtn = c.paused ? '' : missingKp
         ? '<button class="btn btn-sm kp-launch-btn" onclick="createKpCardNow(' + c.id + ',\'' + esc(c.name) + '\')">🚀 Пусни КП</button>'
         : '<button class="btn btn-sm" onclick="createKpCardNow(' + c.id + ',\'' + esc(c.name) + '\')">📋 Нов КП</button>';
       rowsHtml += '<tr style="' + rowBg + '">' +
@@ -96,6 +105,7 @@ async function loadKpAuto(el) {
         '<td class="kp-td" style="display:flex;gap:4px">' +
           '<button class="btn btn-sm" onclick="editKpClientForm(' + c.id + ')">✏️</button>' +
           '<button class="btn btn-sm btn-danger" onclick="deleteKpClientNow(' + c.id + ',\'' + esc(c.name) + '\')">🗑️</button>' +
+          pauseBtn +
           cardLinkBtn +
           actionBtn +
         '</td>' +
@@ -348,6 +358,19 @@ function createKpCardNow(clientId, clientName) {
       }
     } catch (err) { showToast('\u0413\u0440\u0435\u0448\u043a\u0430: ' + err.message, 'error'); }
   });
+}
+
+async function toggleKpPause(clientId, paused) {
+  try {
+    var res = await fetch('/api/kp/clients/' + clientId + '/pause', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ paused: paused })
+    });
+    var data = await res.json();
+    if (!res.ok) return showToast('Грешка: ' + (data.error || 'Неизвестна'), 'error');
+    showToast(paused ? '⏸ Клиентът е на пауза' : '▶ Клиентът продължава', 'success');
+    var el = document.getElementById('pageContent');
+    if (el) await loadKpAuto(el);
+  } catch (err) { showToast('Грешка: ' + err.message, 'error'); }
 }
 
 function deleteKpClientNow(clientId, clientName) {

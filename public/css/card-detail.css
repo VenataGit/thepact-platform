@@ -614,4 +614,5 @@
 .kp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .kp-th { padding: 8px 10px; color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; border-bottom: 2px solid var(--border); text-align: left; white-space: nowrap; }
 .kp-td { padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
+.kp-paused-sep { padding-top: 18px; font-size: 12px; font-weight: 600; color: var(--text-dim); }
 .kp-launch-btn { background: var(--kp-warning-text) !important; color: #000 !important; font-weight: 700 !important; }

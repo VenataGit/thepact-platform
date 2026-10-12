@@ -16,6 +16,19 @@ const agg = require('./bc-aggregate');
 const workdays = require('./workdays');
 const prodSteps = require('./steps');
 
+// ---------- пауза на клиент ----------
+// Венци, 12.10.2026: клиент, с когото се водят преговори, се слага „на пауза" —
+// данните му остават, но ботът не му пуска КП, а в списъка слиза най-отдолу.
+// Колоната се добавя в движение: `db/migrations/` не се прилага при deploy.
+let pausedSchema = null;
+function ensureKpPausedColumn() {
+  if (!pausedSchema) {
+    pausedSchema = execute('ALTER TABLE kp_clients ADD COLUMN IF NOT EXISTS paused BOOLEAN NOT NULL DEFAULT FALSE')
+      .catch((err) => { pausedSchema = null; throw err; });
+  }
+  return pausedSchema;
+}
+
 // ---------- default templates (same text as before the settings existed) ----------
 
 const KP_VIDEO_SECTION_TEMPLATE = `Видео {N} - ХХХ
@@ -508,4 +521,5 @@ module.exports = {
   resolveKpDestination,
   findExistingKpCards,
   createKpForClient,
+  ensureKpPausedColumn,
 };

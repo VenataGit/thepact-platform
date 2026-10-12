@@ -215,7 +215,9 @@ router.get('/client-names', requireAuth, async (req, res) => {
 // Response: { clients: [...], bc: { enabled, boardTitle?, columnTitle?, error? } }
 router.get('/clients', requireAuth, async (req, res) => {
   try {
-    const clients = await query('SELECT * FROM kp_clients WHERE active = true ORDER BY name');
+    // Паузираните слизат най-отдолу, за да не се бъркат с работещите клиенти.
+    await kpc.ensureKpPausedColumn();
+    const clients = await query('SELECT * FROM kp_clients WHERE active = true ORDER BY paused, name');
     const cfg = await kpc.loadKpConfig();
 
     // Кога излиза следващата КП карта (инфо колона) — СЪЩАТА сметка, която ползва и
@@ -328,6 +330,27 @@ router.put('/clients/:id', requireAuth, async (req, res) => {
       [req.user.name || 'Unknown', 'update_client', client.name, JSON.stringify(req.body)]
     );
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/kp/clients/:id/pause { paused: true|false } — пауза/продължаване.
+// Нищо не се трие: паузираният клиент пази всичките си дати и номер на КП, само
+// автоматизацията не му пуска нови планове, докато е на пауза.
+router.post('/clients/:id/pause', requireAuth, async (req, res) => {
+  try {
+    await kpc.ensureKpPausedColumn();
+    const paused = !!(req.body && req.body.paused);
+    const client = await queryOne(
+      'UPDATE kp_clients SET paused = $1, updated_at = NOW() WHERE id = $2 RETURNING *', [paused, req.params.id]
+    );
+    if (!client) return res.status(404).json({ error: 'Not found' });
+    await execute(
+      'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
+      [req.user.name || 'Unknown', paused ? 'pause_client' : 'resume_client', client.name, `id=${req.params.id}`]
+    );
+    res.json({ ok: true, paused });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
