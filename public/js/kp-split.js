@@ -263,7 +263,7 @@ function kpsArchiveHtml(data) {
     out += '<div class="kps-muted">Контент планът ' + (m.already ? 'вече беше в' : 'е преместен в') +
       ' „' + esc(m.column) + '".</div>';
   } else if (m) {
-    out += '<div class="kps-err">Контент планът НЕ отиде в Done: ' + esc(m.error) + ' — премести го ръчно.</div>';
+    out += '<div class="kps-err">Контент планът НЕ отиде в Not now: ' + esc(m.error) + ' — премести го ръчно.</div>';
   }
   return out;
 }

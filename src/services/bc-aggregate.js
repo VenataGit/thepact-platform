@@ -381,7 +381,10 @@ function finalizePlan(plan) {
   }
   let planCard = plan.planCard;
   if (planCard) {
-    const notFinal = /измисл|not\s*now/i.test(planCard.column || '') && !planCard.completed && !planCard.isDoneColumn;
+    // План в Not now, за който вече има видео карти, е разбит („Създай задачи по КП"
+    // го оставя там вместо в Done от 12.10.2026) — значи е финализиран.
+    const splitInNotNow = /not\s*now/i.test(planCard.column || '') && sorted.length > 0;
+    const notFinal = /измисл|not\s*now/i.test(planCard.column || '') && !planCard.completed && !planCard.isDoneColumn && !splitInNotNow;
     planCard = { ...planCard, finalized: !notFinal };
     planCard.planOverdue = !planCard.finalized && !!planCard.dueOn && planCard.overdue;
   }

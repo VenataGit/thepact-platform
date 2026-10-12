@@ -308,6 +308,15 @@ function pickDoneColumn(lists) {
     || null;
 }
 
+// Колоната „Not now" на една card table — type "Kanban::Column::NotNowColumn",
+// заглавието е резерва (същата логика като pickDoneColumn).
+function pickNotNowColumn(lists) {
+  const l = lists || [];
+  return l.find((c) => /NotNowColumn/i.test(c.type || ''))
+    || l.find((c) => /not\s*now/i.test(c.title || ''))
+    || null;
+}
+
 // ---- Docs & Files (vaults) — архивът на контент плановете ----
 // Едно „vault" е една папка. Папките са вложени: подпапките на дадена папка се
 // четат/създават на .../vaults/{id}/vaults.json, а документите в нея — на
@@ -576,6 +585,7 @@ module.exports = {
   updateCard,
   createStep,
   pickDoneColumn,
+  pickNotNowColumn,
   getVaultFolders,
   createVaultFolder,
   getVaultDocuments,

@@ -147,18 +147,20 @@ function todayIso() {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-// Колоната Done на Pre-Production — там отива планът, след като е разбит.
-// Разпознаването живее в services/basecamp.js (pickDoneColumn). Тук освен колоната
+// Колоната Not now на Pre-Production — там отива планът, след като е разбит.
+// Не в Done: Basecamp трие картите в Done след ~месец, а планът трябва да остане
+// за справка; от Not now го местят ръчно, когато решат (Венци, 12.10.2026).
+// Разпознаването живее в services/basecamp.js (pickNotNowColumn). Тук освен колоната
 // връщаме и списъка с всички колони, за да го каже съобщението за грешка, вместо да
-// остане глухо „не намерих Done".
-async function doneColumnOfPre(token, tools) {
+// остане глухо „не намерих Not now".
+async function notNowColumnOfPre(token, tools) {
   const preTool = findTool(tools, /pre[\s-]*produc|предпрод/i);
   if (!preTool) return { column: null, columns: [], board: null };
   const table = (await bc.authedGet(preTool.url, token)).json;
   const lists = table.lists || [];
-  const done = bc.pickDoneColumn(lists);
+  const col = bc.pickNotNowColumn(lists);
   return {
-    column: done ? { id: done.id, title: done.title } : null,
+    column: col ? { id: col.id, title: col.title } : null,
     columns: lists.map((l) => l.title || '?'),
     board: preTool.title || table.title || 'Pre-Production',
   };
@@ -409,7 +411,8 @@ router.post('/create', requireAuth, async (req, res) => {
         errors.push({ title, error: e.message });
       }
     }
-    // --- планът си свърши работата: архивира се и отива в Done (Венци, 22.08.2026) ---
+    // --- планът си свърши работата: архивира се и отива в Not now (Венци, 22.08.2026;
+    // от 12.10.2026 Not now вместо Done, за да не го изтрие Basecamp след месец) ---
     // Условието е „планът е разбит ДОКРАЙ", а не „създадени са нови карти". Разликата
     // има значение при повторно пускане: тогава всички задачи вече съществуват, нищо
     // не се създава — и с предишното условие (created.length) планът си оставаше в
@@ -431,23 +434,23 @@ router.post('/create', requireAuth, async (req, res) => {
         archive = { basecampError: e.message };
       }
       try {
-        const done = await doneColumnOfPre(token, tools);
-        if (!done.column) {
+        const nn = await notNowColumnOfPre(token, tools);
+        if (!nn.column) {
           movedToDone = {
             ok: false,
-            error: 'не намерих колона Done в „' + (done.board || 'Pre-Production') + '"'
-              + (done.columns.length ? ' — колоните са: ' + done.columns.join(', ') : ''),
+            error: 'не намерих колона Not now в „' + (nn.board || 'Pre-Production') + '"'
+              + (nn.columns.length ? ' — колоните са: ' + nn.columns.join(', ') : ''),
           };
-        } else if (String((card.parent && card.parent.id) || '') === String(done.column.id)) {
-          movedToDone = { ok: true, column: done.column.title, already: true };
+        } else if (String((card.parent && card.parent.id) || '') === String(nn.column.id)) {
+          movedToDone = { ok: true, column: nn.column.title, already: true };
         } else {
-          // Без позиция — Basecamp сам решава къде в Done да сложи картата. Подадена
+          // Без позиция — Basecamp сам решава къде в колоната да сложи картата. Подадена
           // 0 връща 400 „Position out of bounds" (позициите се броят от 1).
-          await bc.moveCardToColumn(token, account, projectId, cardId, done.column.id);
-          movedToDone = { ok: true, column: done.column.title };
+          await bc.moveCardToColumn(token, account, projectId, cardId, nn.column.id);
+          movedToDone = { ok: true, column: nn.column.title };
         }
       } catch (e) {
-        console.error('[kp-split] move plan to Done failed:', e.message);
+        console.error('[kp-split] move plan to Not now failed:', e.message);
         movedToDone = { ok: false, error: e.message };
       }
     } else if (errors.length) {
