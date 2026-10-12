@@ -46,16 +46,55 @@ function cardIdOf(raw) {
   return id || null;
 }
 
-// GET /api/task-completions/status?bc_card_id= — маркирал ли Е ТОЗИ човек тази карта.
+// Местене на карта в друг отдел (Pre-Production → Production) я прави НОВ запис
+// в Basecamp, с нов bc_card_id — отметката оставаше на стария номер и „се
+// губеше" (Венци, 12.10.2026). Затова търсим по номер ИЛИ по заглавие (както
+// времето), винаги само за ТОЗИ човек. Заглавието се сравнява без разлика в
+// празните места; под 3 знака не се ползва — твърде общо.
+function titleKey(raw) {
+  // само обикновени интервали/нови редове — точно както в SQL-а долу (Postgres
+  // не смята непрекъсваемия интервал за празно място, JS-овото \s го смята)
+  const t = String(raw || '').replace(/[ \t\r\n]+/g, ' ').replace(/^ | $/g, '').slice(0, 300);
+  return t.length >= 3 ? t : '';
+}
+
+async function findMine(userId, cardId, title) {
+  return queryOne(
+    `SELECT id, bc_card_id, occurred_at FROM task_completions
+      WHERE user_id = $1
+        AND (bc_card_id = $2
+             OR ($3 <> '' AND btrim(regexp_replace(title, E'[ \\t\\r\\n]+', ' ', 'g')) = $3))
+      ORDER BY (bc_card_id = $2) DESC, occurred_at DESC
+      LIMIT 1`,
+    [userId, cardId, titleKey(title)]
+  );
+}
+
+// Намерено по заглавие на нов номер → пренасочваме реда към новата карта, за да
+// е по номер следващия път. Само ако за новия номер още няма ред (UNIQUE).
+async function relink(row, cardId, url) {
+  if (!row || String(row.bc_card_id) === String(cardId)) return;
+  try {
+    await query(
+      `UPDATE task_completions SET bc_card_id = $2, url = COALESCE(NULLIF($3, ''), url)
+        WHERE id = $1
+          AND NOT EXISTS (SELECT 1 FROM task_completions t2
+                           WHERE t2.user_id = task_completions.user_id AND t2.bc_card_id = $2)`,
+      [row.id, cardId, String(url || '').slice(0, 500)]
+    );
+  } catch (err) {
+    console.error('[task-completions relink]', err.message);
+  }
+}
+
+// GET /api/task-completions/status?bc_card_id=&title=&url= — маркирал ли Е ТОЗИ човек тази карта.
 router.get('/status', requireAuth, async (req, res) => {
   try {
     await ensureSchema();
     const cardId = cardIdOf(req.query.bc_card_id);
     if (!cardId) return res.status(400).json({ error: 'bc_card_id е задължителен' });
-    const row = await queryOne(
-      'SELECT occurred_at FROM task_completions WHERE user_id = $1 AND bc_card_id = $2',
-      [req.user.userId, cardId]
-    );
+    const row = await findMine(req.user.userId, cardId, req.query.title);
+    if (row) await relink(row, cardId, req.query.url);
     res.json({ done: !!row, occurredAt: row ? row.occurred_at : null });
   } catch (err) {
     console.error('[task-completions status]', err.message);
@@ -70,10 +109,7 @@ router.post('/toggle', requireAuth, async (req, res) => {
     const cardId = cardIdOf(req.body && req.body.bc_card_id);
     if (!cardId) return res.status(400).json({ error: 'bc_card_id е задължителен' });
 
-    const existing = await queryOne(
-      'SELECT id FROM task_completions WHERE user_id = $1 AND bc_card_id = $2',
-      [req.user.userId, cardId]
-    );
+    const existing = await findMine(req.user.userId, cardId, req.body && req.body.title);
     if (existing) {
       await query('DELETE FROM task_completions WHERE id = $1', [existing.id]);
       return res.json({ done: false });
