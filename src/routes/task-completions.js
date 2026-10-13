@@ -4,8 +4,8 @@
 // е логнат с токена на разширението (requireAuth поддържа Bearer pt_<hash>,
 // виж middleware/auth.js), значи user_id идва направо от заявката.
 //
-// Отдел = позицията на човека в Настройки → Екип и роли (таблица positions,
-// users.position_id) — Венци го поиска изрично така (10.09.2026): „и отдел
+// Отдел = позицията на човека в Настройки → Екип и роли (positions, зададена
+// върху bc_people — виж /report) — Венци го поиска изрично така (10.09.2026): „и отдел
 // (това като знаем кой за кой отдел работи)", а не отдела на картата в
 // момента на клика (една карта минава през няколко отдела).
 //
@@ -147,12 +147,30 @@ router.get('/report', requireAuth, requireAdmin, async (req, res) => {
 
     const [byUser, items] = await Promise.all([
       query(
+        // Позицията се задава в Настройки → Екип и роли ВЪРХУ човека от Basecamp
+        // (bc_people.position_id), не върху профила в платформата — затова се
+        // взима оттам; users.position_id е старото поле и остава само като резерва.
+        // Връзката профил ↔ bc_people НЕ е тривиална (проверено на живо, 13.10.2026):
+        // users.basecamp_user_id е Launchpad id-то от OAuth входа, а bc_people.person_id
+        // е id-то в акаунта — две различни числа за един човек; а имейлите в bc_people
+        // Basecamp ги връща маскирани („k••••@…"). Затова: id → имейл → точно име.
         `SELECT u.id AS user_id, u.name,
                 COALESCE(NULLIF(p.name, ''), '(без позиция)') AS department,
                 COUNT(*)::int AS count
            FROM task_completions t
            JOIN users u ON u.id = t.user_id
-           LEFT JOIN positions p ON p.id = u.position_id
+           LEFT JOIN LATERAL (
+             SELECT bp.position_id FROM bc_people bp
+              WHERE bp.position_id IS NOT NULL
+                AND (bp.person_id = u.basecamp_user_id
+                     OR (bp.email <> '' AND bp.email = LOWER(u.email))
+                     OR LOWER(TRIM(bp.name)) = LOWER(TRIM(u.name)))
+              ORDER BY (bp.person_id = u.basecamp_user_id) DESC NULLS LAST,
+                       (bp.email = LOWER(u.email)) DESC,
+                       bp.active DESC
+              LIMIT 1
+           ) bp ON TRUE
+           LEFT JOIN positions p ON p.id = COALESCE(bp.position_id, u.position_id)
           WHERE t.occurred_at >= $1::date AND t.occurred_at < $2::date + interval '1 day'
           GROUP BY u.id, u.name, p.name
           ORDER BY count DESC, u.name ASC`,
