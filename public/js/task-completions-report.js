@@ -1,4 +1,7 @@
-// ==================== ГОТОВИ ЗАДАЧИ (само за админ) ====================
+// ==================== ГОТОВИ ЗАДАЧИ ====================
+// Админ и мини админ виждат всички; всеки друг вижда САМО своите (13.10.2026 —
+// „всеки да може да си следи колко видеа е направил"). Филтрирането е на
+// сървъра (/api/task-completions/report), тук само се скрива класацията.
 // Отделна страница от „Статистика" — Венци поиска да не се смесва с
 // отчета по клиенти/отдели/хора (10.09.2026 → 15.09.2026: „става голяма
 // мешаница, нищо не мога да разбера... искам този репорт да си бъде на
@@ -44,16 +47,13 @@ function tcFmtWhen(iso) {
 
 async function renderTaskCompletionsReport(el) {
   el.className = 'flush-top';
-  if (!currentUser || currentUser.role !== 'admin') {
-    el.innerHTML = '<div class="home-content-box"><h2>✓ Готови задачи</h2><p>Тази страница е само за администратор.</p></div>';
-    return;
-  }
+  const mine = !currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'mini_admin');
   if (!_tcState.from) Object.assign(_tcState, tcPreset('today'), { filter: null, dept: null });
 
   el.innerHTML = `
     <div class="home-content-box home-content-box--wide tr-page">
       <div class="tr-head">
-        <h2>✓ Готови задачи</h2>
+        <h2>✓ ${mine ? 'Моите готови задачи' : 'Готови задачи'}</h2>
         <div class="tr-presets">
           <button class="tc-preset" data-p="today">Днес</button>
           <button class="tc-preset" data-p="week">Тази седмица</button>
@@ -69,12 +69,12 @@ async function renderTaskCompletionsReport(el) {
         </div>
       </div>
       <p class="tr-dim" style="margin:0 0 12px">
-        Само задачите, които някой САМ е отбелязал с бутона „✓ Готово" в разширението — не автоматично
-        засичане. Данните тръгват от 10.09.2026 нататък.
+        ${mine ? 'Виждаш само своите задачи — тези, които САМ си отбелязал с бутона „✓ Готово" в разширението.' : `Само задачите, които някой САМ е отбелязал с бутона „✓ Готово" в разширението — не автоматично
+        засичане.`} Данните тръгват от 10.09.2026 нататък.
       </p>
       <div class="tr-presets" id="tcDeptFilter" style="margin-bottom:12px"></div>
       <div class="tr-tiles" id="tcTiles"></div>
-      <div class="tr-box"><h3>Класация по човек</h3><div id="tcByUser"></div></div>
+      <div class="tr-box"${mine ? ' style="display:none"' : ''}><h3>Класация по човек</h3><div id="tcByUser"></div></div>
       <div class="tr-box"><h3 id="tcItemsTitle">Готови задачи</h3><div id="tcItems"></div></div>
     </div>`;
 
@@ -123,7 +123,7 @@ function tcDeptOf(userId) {
 function tcRenderDeptFilter() {
   const host = document.getElementById('tcDeptFilter');
   const depts = tcDepartments();
-  if (depts.length < 2) { host.innerHTML = ''; return; } // няма смисъл от филтър с 0-1 отдела
+  if (depts.length < 2 || _tcState.data.mine) { host.innerHTML = ''; return; } // няма смисъл от филтър с 0-1 отдела
   host.innerHTML = '<button class="tc-dept cr-tab tr-preset' + (!_tcState.dept ? ' active' : '') + '" data-d="">Всички отдели</button>' +
     depts.map((d) => '<button class="tc-dept cr-tab tr-preset' + (_tcState.dept === d ? ' active' : '') + '" data-d="' + esc(d) + '">' + esc(d) + '</button>').join('');
   host.querySelectorAll('.tc-dept').forEach((b) => b.addEventListener('click', () => {
@@ -143,10 +143,10 @@ function tcRenderTiles() {
   const byUser = (data.byUser || []).filter((u) => !_tcState.dept || u.department === _tcState.dept);
   const people = byUser.length;
   const total = byUser.reduce((sum, u) => sum + u.count, 0);
-  host.innerHTML = [
+  host.innerHTML = (data.mine ? [['Мои готови задачи за периода', total]] : [
     ['Готови задачи за периода', total],
     ['Хора, отбелязали поне една', people],
-  ].map((x) => '<div class="tr-tile"><div class="tr-tile__num">' + x[1] + '</div><div class="tr-tile__label">' + x[0] + '</div></div>').join('');
+  ]).map((x) => '<div class="tr-tile"><div class="tr-tile__num">' + x[1] + '</div><div class="tr-tile__label">' + x[0] + '</div></div>').join('');
 }
 
 function tcFilterChips() {

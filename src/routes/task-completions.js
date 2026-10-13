@@ -14,7 +14,7 @@
 const express = require('express');
 const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 
 let schemaReady = null;
 function ensureSchema() {
@@ -136,7 +136,9 @@ router.post('/toggle', requireAuth, async (req, res) => {
 
 // GET /api/task-completions/report?from=YYYY-MM-DD&to=YYYY-MM-DD — класация по
 // човек (+ отдел от позицията му) за периода, плюс суровия списък за детайли.
-router.get('/report', requireAuth, requireAdmin, async (req, res) => {
+// Админ и мини админ виждат всички; всеки друг — САМО своите (Венци, 13.10.2026:
+// „всеки да може да си следи колко видеа е направил... да вижда само неговите").
+router.get('/report', requireAuth, async (req, res) => {
   try {
     await ensureSchema();
     const from = String(req.query.from || '').slice(0, 10);
@@ -144,6 +146,9 @@ router.get('/report', requireAuth, requireAdmin, async (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
       return res.status(400).json({ error: 'from/to параметри са задължителни (YYYY-MM-DD)' });
     }
+    const seeAll = req.user.role === 'admin' || req.user.role === 'mini_admin';
+    // $3 = NULL → всички; иначе само редовете на логнатия човек.
+    const onlyUser = seeAll ? null : req.user.userId;
 
     const [byUser, items] = await Promise.all([
       query(
@@ -172,21 +177,23 @@ router.get('/report', requireAuth, requireAdmin, async (req, res) => {
            ) bp ON TRUE
            LEFT JOIN positions p ON p.id = COALESCE(bp.position_id, u.position_id)
           WHERE t.occurred_at >= $1::date AND t.occurred_at < $2::date + interval '1 day'
+            AND ($3::int IS NULL OR t.user_id = $3::int)
           GROUP BY u.id, u.name, p.name
           ORDER BY count DESC, u.name ASC`,
-        [from, to]
+        [from, to, onlyUser]
       ),
       query(
         `SELECT t.user_id, u.name, t.title, t.url, t.occurred_at
            FROM task_completions t
            JOIN users u ON u.id = t.user_id
           WHERE t.occurred_at >= $1::date AND t.occurred_at < $2::date + interval '1 day'
+            AND ($3::int IS NULL OR t.user_id = $3::int)
           ORDER BY t.occurred_at DESC`,
-        [from, to]
+        [from, to, onlyUser]
       ),
     ]);
 
-    res.json({ from, to, byUser, items });
+    res.json({ from, to, byUser, items, mine: !seeAll });
   } catch (err) {
     console.error('[task-completions report]', err.message);
     res.status(500).json({ error: 'Вътрешна грешка' });
