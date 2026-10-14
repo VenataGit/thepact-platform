@@ -8,9 +8,10 @@
 // Данни от бутона „✓ Готово" в The Pact Tools (в прозорчето на таймера) —
 // изричен клик от самия човек, не автоматично засичане.
 //
-// „Кой още е работил" — вариант 2 от демото /demo/done-coworkers.html (избран от
-// Венци): значка „👥 N" на реда разгъва кой друг е цъкнал по същата задача, кога
-// и дали преди/след; в класацията — „сам / с други". Отдел = позицията на човека,
+// „Кой още от отдела е работил" — вариант 2 от демото /demo/done-coworkers.html (избран от
+// Венци): значка „👥 N" на реда разгъва кой друг ОТ СЪЩИЯ ОТДЕЛ е цъкнал по същата
+// задача (14.10.2026: разни отдели по едно видео е нормално, не е застъпване), кога
+// и дали преди/след; в класацията — „сам / с колега". Отдел = позицията на човека,
 // закачена към Pre-Production / Production / Post-Production / Project Management
 // в ⚙ Настройки на тази страница (само за пълен админ).
 
@@ -76,7 +77,7 @@ async function renderTaskCompletionsReport(el) {
       </div>
       <p class="tr-dim" style="margin:0 0 12px">
         ${mine ? 'Виждаш само своите задачи — тези, които САМ си отбелязал с бутона „✓ Готово" в разширението.' : `Само задачите, които някой САМ е отбелязал с бутона „✓ Готово" в разширението — не автоматично
-        засичане.`} „👥" показва кой още е цъкнал „✓ Готово" по същата задача. Данните тръгват от 10.09.2026 нататък.
+        засичане.`} „👥" показва кой още ОТ СЪЩИЯ ОТДЕЛ е цъкнал „✓ Готово" по същата задача (напр. двама монтажисти по едно видео). Данните тръгват от 10.09.2026 нататък.
       </p>
       <div class="tr-presets" id="tcDeptFilter" style="margin-bottom:12px"></div>
       <div class="tr-tiles" id="tcTiles"></div>
@@ -157,8 +158,8 @@ function tcRenderTiles() {
   const people = new Set(items.map((it) => it.user_id)).size;
   const team = items.filter((it) => (it.others || []).length).length;
   host.innerHTML = (data.mine
-    ? [['Мои готови задачи за периода', items.length], ['от тях заедно с други', team]]
-    : [['Готови задачи за периода', items.length], ['Хора, отбелязали поне една', people], ['Отметки по задачи с 2+ души', team]]
+    ? [['Мои готови задачи за периода', items.length], ['от тях с колега от отдела', team]]
+    : [['Готови задачи за периода', items.length], ['Хора, отбелязали поне една', people], ['Застъпвания в отдела (2+ души по задача)', team]]
   ).map((x) => '<div class="tr-tile"><div class="tr-tile__num">' + x[1] + '</div><div class="tr-tile__label">' + x[0] + '</div></div>').join('');
 }
 
@@ -181,11 +182,11 @@ function tcRenderByUser() {
   const rows = ((data && data.byUser) || []).filter(tcVisible);
   const host = document.getElementById('tcByUser');
   host.innerHTML = rows.length
-    ? '<table class="admin-table tr-table"><thead><tr><th>#</th><th>Човек</th><th>Позиция</th><th>Отдел</th><th>Готови задачи</th><th>сам / с други</th></tr></thead><tbody>' +
+    ? '<table class="admin-table tr-table"><thead><tr><th>#</th><th>Човек</th><th>Позиция</th><th>Отдел</th><th>Готови задачи</th><th title="Колко от задачите е правил сам и колко заедно с колега от СЪЩИЯ отдел">сам / с колега</th></tr></thead><tbody>' +
       rows.map((u, i) => '<tr class="tc-user-row' + (_tcState.person === u.user_id ? ' cr-active' : '') + '" data-u="' + u.user_id + '">' +
         '<td>' + (i + 1) + '</td><td><b>' + esc(u.name) + '</b></td>' +
         '<td>' + esc(u.position) + '</td><td>' + esc(u.department) + '</td><td>' + u.count + '</td>' +
-        '<td class="tc-split">' + (u.count - u.team_count) + ' сам · <b>' + u.team_count + ' с други</b></td></tr>').join('') +
+        '<td class="tc-split">' + (u.count - u.team_count) + ' сам · <b>' + u.team_count + ' с колега</b></td></tr>').join('') +
       '</tbody></table>'
     : '<div class="tr-empty">Никой не е отбелязал задача като готова за периода.</div>';
   host.querySelectorAll('.tc-user-row').forEach((row) => row.addEventListener('click', () => {
@@ -205,7 +206,7 @@ function tcRenderItems() {
   const items = all.filter((it) => tcVisible(it) && (!_tcState.person || it.user_id === _tcState.person));
   document.getElementById('tcItemsTitle').innerHTML = 'Готови задачи (' + items.length + ')' + tcFilterChips();
 
-  let html = '<table class="admin-table tr-table"><thead><tr><th>Кога</th><th>Човек</th><th>Отдел</th><th>Задача</th><th title="Кой още е цъкнал „✓ Готово&quot; по същата задача">👥</th></tr></thead><tbody>';
+  let html = '<table class="admin-table tr-table"><thead><tr><th>Кога</th><th>Човек</th><th>Отдел</th><th>Задача</th><th title="Кой още от същия отдел е цъкнал „✓ Готово&quot; по същата задача">👥</th></tr></thead><tbody>';
   items.forEach((it) => {
     const idx = all.indexOf(it);
     const others = it.others || [];
@@ -214,7 +215,7 @@ function tcRenderItems() {
       '<td>' + esc(it.department) + '</td>' +
       '<td>' + (it.url ? '<a href="' + esc(it.url) + '" target="_blank">' + esc(it.title || '') + ' ↗</a>' : esc(it.title || '')) + '</td>' +
       '<td>' + (others.length
-        ? '<button class="tc-cnt' + (open ? ' open' : '') + '" data-i="' + idx + '" title="Кой още е работил по задачата">👥 ' + others.length + '</button>'
+        ? '<button class="tc-cnt' + (open ? ' open' : '') + '" data-i="' + idx + '" title="Кой още от отдела е работил по задачата">👥 ' + others.length + '</button>'
         : '<span class="tr-dim">—</span>') + '</td></tr>';
     if (open) {
       const mineTs = new Date(it.occurred_at).getTime();

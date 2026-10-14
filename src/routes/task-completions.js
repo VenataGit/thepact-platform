@@ -221,10 +221,10 @@ const TITLE_SQL = `btrim(regexp_replace(t.title, E'[ \\t\\r\\n]+', ' ', 'g'))`;
 // Админ и мини админ виждат всички; всеки друг — САМО своите (Венци, 13.10.2026:
 // „всеки да може да си следи колко видеа е направил... да вижда само неговите").
 //
-// „Кой още е работил" (вариант 2 от демото, избран от Венци): към всяка отметка се
-// връщат и ДРУГИТЕ хора, цъкнали „✓ Готово" по същата задача — по номер на картата
-// или по заглавие (както findMine), БЕЗ ограничение по период: монтажистът може да
-// е цъкнал седмица след видеографа и пак е работил по същото видео.
+// „Кой още от отдела е работил" (вариант 2 от демото, избран от Венци): към всяка
+// отметка се връщат ДРУГИТЕ хора от СЪЩИЯ отдел, цъкнали „✓ Готово" по същата
+// задача — по номер на картата или по заглавие (както findMine), БЕЗ ограничение по
+// период: двама монтажисти може да са цъкнали в различни седмици по едно видео.
 router.get('/report', requireAuth, async (req, res) => {
   try {
     await ensureSchema();
@@ -276,13 +276,19 @@ router.get('/report', requireAuth, async (req, res) => {
     const byUser = new Map();
     const outItems = items.map((r) => {
       const seen = new Set([r.user_id]);
-      const others = related
+      const me = person(r.user_id, r.name);
+      // САМО колеги от СЪЩИЯ отдел (Венци, 14.10.2026): „нормално е някой да е заснел
+      // видеото преди то да стигне до монтаж" — разни отдели по едно видео не са
+      // застъпване; интересно е, когато двама монтажисти / двама видеографи / двама
+      // контент криейтъри / двама акаунти са цъкнали по една задача. Хора без отдел
+      // не се броят за „един отдел" помежду си.
+      const others = me.department === NO_DEPT ? [] : related
         .filter((o) => !hidden.has(o.user_id)
           && (String(o.bc_card_id) === String(r.bc_card_id) || (r.tkey && r.tkey.length >= 3 && o.tkey === r.tkey)))
         .sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at))
         .filter((o) => (seen.has(o.user_id) ? false : seen.add(o.user_id)))
-        .map((o) => Object.assign({ user_id: o.user_id, occurred_at: o.occurred_at }, person(o.user_id, o.name)));
-      const me = person(r.user_id, r.name);
+        .map((o) => Object.assign({ user_id: o.user_id, occurred_at: o.occurred_at }, person(o.user_id, o.name)))
+        .filter((o) => o.department === me.department);
 
       const b = byUser.get(r.user_id) || Object.assign({ user_id: r.user_id, count: 0, team_count: 0 }, me);
       b.count += 1;
