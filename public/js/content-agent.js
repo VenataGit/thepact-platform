@@ -9,7 +9,7 @@
 var _ca = { client: null, tab: 'memory', kinds: {}, poll: null, showHidden: false, history: null };
 
 var CA_PLATFORMS = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook', other: 'Друго' };
-var CA_ROLES = { own: 'Собствен', competitor: 'Конкурент', inspiration: 'Вдъхновение' };
+var CA_ROLES = { own: 'Собствен', competitor: 'Конкурент', inspiration: 'Вдъхновение', library: 'Открит' };
 var CA_STATUS = { queued: 'чака', running: 'работи…', done: 'готово', error: 'грешка' };
 var CA_TRIGGER = { mention: 'таг в Basecamp', kp_auto: 'нов КП', manual: 'от платформата' };
 
@@ -167,7 +167,7 @@ async function caLoadClient(id, fromPoll) {
     _ca.kinds = d.kinds || {};
     caRenderClient();
     // Докато върви пускане или обновяване на профили — опресняваме сами.
-    var busy = d.scouting || d.runs.some(function (r) { return r.status === 'queued' || r.status === 'running'; });
+    var busy = d.scouting || d.discovering || d.runs.some(function (r) { return r.status === 'queued' || r.status === 'running'; });
     if (busy) schedule();
   } catch (e) { if (!fromPoll) caBody('<div class="ca-err">' + esc(e.message) + '</div>'); else schedule(); }
 }
@@ -179,7 +179,7 @@ function caRenderClient() {
   var tabs = [
     ['memory', '🧠 Памет (' + d.memory.filter(function (m) { return m.status === 'approved'; }).length + ')' + (pending ? ' · ' + pending + ' чакат' : '')],
     ['profiles', '📱 Профили (' + d.profiles.length + ')'],
-    ['videos', '🔥 Успешни видеа (' + d.outliers.length + ')'],
+    ['videos', '🔥 Успешни видеа (' + (d.outliers.length + (d.library || []).length) + ')'],
     ['runs', '🤖 Пускания (' + d.runs.length + ')'],
   ];
   if (caIsAdmin()) tabs.push(['history', '🕘 История']);
@@ -488,13 +488,57 @@ async function caScout() {
 // ---------- успешни видеа ----------
 
 function caVideosHtml(d) {
+  var html = caDiscoverPanel(d);
+  html += '<div class="ca-panel"><div class="ca-panel__t">От профилите на клиента (собствени, конкуренти, вдъхновение)</div>';
   if (!d.outliers.length) {
-    return '<div class="ca-panel ca-dim">Още няма успешни видеа. Добави профили (раздел „Профили“) и натисни „Обнови видеата“. ' +
-      'Видео е „успешно“, когато има поне 1.5× повече гледания от медианата на собствения си профил (3× интересно, 5× outlier, 10× пробив).</div>';
+    html += '<div class="ca-dim">Още няма. Добави профили (раздел „Профили“) и натисни „Обнови видеата“. ' +
+      'Видео е „успешно“, когато има поне 1.5× повече гледания от медианата на собствения си профил (3× интересно, 5× outlier, 10× пробив).</div></div>';
+  } else {
+    html += caVideoTable(d.outliers) + '</div>';
   }
-  var html = '<div class="ca-panel"><div class="ca-panel__t">Успешни видеа — над нормата на собствения си профил</div>' +
-    '<table class="ca-table"><thead><tr><th>Скор</th><th>Профил</th><th>Видео</th><th>Гледания</th><th>Медиана</th><th>❤</th><th>💬</th><th>↗</th><th>Дата</th></tr></thead><tbody>';
-  d.outliers.forEach(function (v) {
+  html += '<div class="ca-panel"><div class="ca-panel__t">Открити от търсенето (обща библиотека)</div>';
+  html += (d.library && d.library.length) ? caVideoTable(d.library) :
+    '<div class="ca-dim">Още няма. Натисни „Търси нови профили“ горе — след няколко минути тук се появяват успешни видеа от профили, които не сме въвеждали.</div>';
+  return html + '</div>';
+}
+
+// Откривателят: думите за търсене + бутон. Резултатите отиват в общата библиотека.
+function caDiscoverPanel(d) {
+  var s = d.search || {};
+  var t = s.terms || {};
+  var lr = s.last_result || {};
+  var tags = function (arr, pre) { return (arr || []).map(function (x) { return '<span class="ca-tag">' + esc((pre || '') + x) + '</span>'; }).join(' '); };
+  var html = '<div class="ca-panel"><div class="ca-panel__t">🔎 Търсене на нови профили и трендове<span class="ca-spacer"></span>' +
+    '<button class="btn btn-sm" ' + (d.discovering ? 'disabled' : '') + ' onclick="caDiscover(false)">' + (d.discovering ? '⏳ Търся… (няколко минути)' : '🔎 Търси нови профили') + '</button> ' +
+    '<button class="btn btn-ghost btn-sm" ' + (d.discovering ? 'disabled' : '') + ' onclick="caDiscover(true)" title="Агентът измисля нови думи за търсене от паметта на клиента">↻ Нови думи</button></div>' +
+    '<div class="ca-hint">Агентът измисля думи за търсене от паметта и видеата на клиента (български и английски), търси по тях в TikTok, Instagram и YouTube и намира профили с видеа, които са минали много над нормата си. ' +
+    'Всичко влиза в обща библиотека — друг клиент със сходна ниша я ползва директно, без ново търсене. При всяко пускане на агентите първо се ползва наличното, а ново търсене тръгва само (най-много веднъж седмично).</div>';
+  if (t.topics && t.topics.length) {
+    html += '<div class="ca-terms"><div><span class="ca-dim">Ниша:</span> ' + tags(t.topics) + '</div>' +
+      (t.tiktok_hashtags && t.tiktok_hashtags.length ? '<div><span class="ca-dim">TikTok:</span> ' + tags(t.tiktok_hashtags, '#') + '</div>' : '') +
+      (t.instagram_hashtags && t.instagram_hashtags.length ? '<div><span class="ca-dim">Instagram:</span> ' + tags(t.instagram_hashtags, '#') + '</div>' : '') +
+      ((t.youtube_queries_bg || []).length || (t.youtube_queries_en || []).length ? '<div><span class="ca-dim">YouTube:</span> ' + tags((t.youtube_queries_bg || []).concat(t.youtube_queries_en || [])) + '</div>' : '') +
+      '</div>';
+  }
+  html += '<div class="ca-dim ca-small">В библиотеката за тази ниша: ' + caNum(d.library_profiles || 0) + ' профила' +
+    (s.last_discovery_at ? ' · последно търсене: ' + esc(caDate(s.last_discovery_at)) +
+      (lr.found ? ' (нови: TikTok ' + (lr.found.tiktok || 0) + ', Instagram ' + (lr.found.instagram || 0) + ', YouTube ' + (lr.found.youtube || 0) + '; обновени ' + (lr.refreshed || 0) + ')' : '') : ' · още не е търсено') +
+    '</div>' + (lr.errors && lr.errors.length ? '<div class="ca-errline">⚠ ' + lr.errors.map(esc).join('<br>⚠ ') + '</div>' : '');
+  return html + '</div>';
+}
+
+async function caDiscover(newTerms) {
+  try {
+    if (newTerms) showToast('Агентът измисля нови думи за търсене…', 'success', 4000);
+    var r = await caApi('POST', '/clients/' + _ca.client.client.id + '/discover', { new_terms: !!newTerms });
+    showToast(r.running ? 'Търсенето вече върви' : 'Търся нови профили — отнема няколко минути', 'success', 5000);
+    caLoadClient(_ca.client.client.id);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+function caVideoTable(rows) {
+  var html = '<table class="ca-table"><thead><tr><th>Скор</th><th>Профил</th><th>Видео</th><th>Гледания</th><th>Медиана</th><th>❤</th><th>💬</th><th>↗</th><th>Дата</th></tr></thead><tbody>';
+  rows.forEach(function (v) {
     var sc = Number(v.outlier_score);
     var cls = sc >= 10 ? 'ca-score--hot' : sc >= 5 ? 'ca-score--good' : sc >= 3 ? 'ca-score--ok' : '';
     html += '<tr><td><span class="ca-score ' + cls + '">' + sc.toFixed(1) + '×</span></td>' +
@@ -504,7 +548,7 @@ function caVideosHtml(d) {
       '<td>' + caNum(v.likes) + '</td><td>' + caNum(v.comments) + '</td><td>' + caNum(v.shares) + '</td>' +
       '<td>' + esc(v.published_at ? String(v.published_at).slice(0, 10) : '') + '</td></tr>';
   });
-  return html + '</tbody></table></div>';
+  return html + '</tbody></table>';
 }
 
 // ---------- пускания ----------
@@ -600,6 +644,7 @@ async function renderContentSettings(el) {
       '<label>Apify актьор TikTok<input class="ca-input" id="caSAT" value="' + esc(s.ca_actor_tiktok) + '"></label>' +
       '<label>Apify актьор Instagram<input class="ca-input" id="caSAI" value="' + esc(s.ca_actor_instagram) + '"></label>' +
       '<label>Apify актьор Facebook<input class="ca-input" id="caSAF" value="' + esc(s.ca_actor_facebook) + '"></label>' +
+      '<label>Apify актьор Instagram — търсене по хаштаг (Откривателят)<input class="ca-input" id="caSAIH" value="' + esc(s.ca_actor_instagram_hashtag) + '"></label>' +
       '<button class="btn btn-primary btn-sm" onclick="caSaveSettings()">Запази</button></div>');
   } catch (e) { caBody('<div class="ca-err">' + esc(e.message) + '</div>'); }
 }
@@ -611,6 +656,7 @@ async function caSaveSettings() {
       ca_youtube_api_key: document.getElementById('caSYt').value, ca_apify_token: document.getElementById('caSAp').value,
       ca_actor_tiktok: document.getElementById('caSAT').value, ca_actor_instagram: document.getElementById('caSAI').value,
       ca_actor_facebook: document.getElementById('caSAF').value,
+      ca_actor_instagram_hashtag: document.getElementById('caSAIH').value,
     });
     showToast('Запазено', 'success');
     renderContentSettings(document.getElementById('pageContent'));

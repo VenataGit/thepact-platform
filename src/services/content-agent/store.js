@@ -10,7 +10,7 @@ let schemaReady = null;
 function ensureSchema() {
   if (!schemaReady) {
     const dir = path.join(__dirname, '..', '..', '..', 'db', 'migrations');
-    const sql = ['059_content_agent.sql', '060_content_agent_history.sql']
+    const sql = ['059_content_agent.sql', '060_content_agent_history.sql', '061_content_agent_library.sql']
       .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
     schemaReady = execute(sql).catch((e) => { schemaReady = null; throw e; });
   }
@@ -24,7 +24,7 @@ const SETTING_KEYS = [
   'ca_auto_on_kp',       // автоматично пускане при нов КП (default изкл. до теста)
   'ca_apify_token',      // Apify — TikTok / Instagram / Facebook
   'ca_youtube_api_key',  // YouTube Data API v3
-  'ca_actor_tiktok', 'ca_actor_instagram', 'ca_actor_facebook',
+  'ca_actor_tiktok', 'ca_actor_instagram', 'ca_actor_facebook', 'ca_actor_instagram_hashtag',
   'ca_last_comment_at',  // курсор на следенето на коментари
   'ca_bot_sgid',         // attachable_sgid на ThePactAlerts (за разпознаване на тага)
   'ca_hidden_clients',   // JSON масив с id-та на скритите клиенти (крие ги админ)
@@ -34,6 +34,7 @@ const DEFAULT_ACTORS = {
   tiktok: 'clockworks~tiktok-scraper',
   instagram: 'apify~instagram-reel-scraper',
   facebook: 'apify~facebook-reels-scraper',
+  instagram_hashtag: 'apify~instagram-hashtag-scraper', // Откривателят: търсене по хаштаг
 };
 
 function parseIds(v) {
@@ -53,6 +54,7 @@ async function loadSettings() {
       tiktok: s.ca_actor_tiktok || DEFAULT_ACTORS.tiktok,
       instagram: s.ca_actor_instagram || DEFAULT_ACTORS.instagram,
       facebook: s.ca_actor_facebook || DEFAULT_ACTORS.facebook,
+      instagram_hashtag: s.ca_actor_instagram_hashtag || DEFAULT_ACTORS.instagram_hashtag,
     },
     lastCommentAt: s.ca_last_comment_at || null,
     hiddenClients: parseIds(s.ca_hidden_clients),

@@ -16,6 +16,7 @@ const store = require('./store');
 const scout = require('./scout');
 const { STEPS, runStep } = require('./agents');
 const caHistory = require('./history');
+const discover = require('./discover');
 
 const CHUNK = 5;               // по колко видеа наведнъж за кукички/скриптове/humanizer
 const MAX_COMMENT_CHARS = 45000;
@@ -146,7 +147,7 @@ async function loadBasecampContext(run, auth, client) {
 }
 
 function outliersForPrompt(rows) {
-  const roleBg = { own: 'СОБСТВЕН профил на клиента', competitor: 'конкурент', inspiration: 'вдъхновение' };
+  const roleBg = { own: 'СОБСТВЕН профил на клиента', competitor: 'конкурент', inspiration: 'вдъхновение', library: 'открит профил от търсенето в нишата' };
   return rows.map((v) => ({
     platform: v.platform,
     profile: `${v.label || v.handle || ''} (${roleBg[v.role] || v.role})`,
@@ -261,6 +262,33 @@ async function executeRun(runId) {
         key: 'scout', title: 'Скаут (профили)',
         refreshed: res.filter((r) => r.ok).length, errors: res.filter((r) => !r.ok).map((r) => r.error).slice(0, 5),
         outliers: outliers.length,
+      });
+    }
+
+    // 2б) Откривател — първо общата библиотека (наличното от предишни търсения, вкл. за
+    // други клиенти със сходна ниша), а новото търсене тръгва фоново за следващия път.
+    {
+      const cfg = await store.loadSettings();
+      let lib = [];
+      let started = null;
+      let termsNote = '';
+      if (cfg.apifyToken || cfg.youtubeKey) {
+        try {
+          const t = await discover.ensureTerms(client, { usage });
+          termsNote = t.cached ? 'думите за търсене са от базата' : 'нови думи за търсене';
+          lib = await discover.libraryOutliers(client.id);
+          started = await discover.discoverInBackground(client.id);
+        } catch (e) {
+          termsNote = `грешка: ${String(e.message || e).slice(0, 150)}`;
+        }
+      } else {
+        termsNote = 'няма Apify/YouTube ключ';
+      }
+      outliers = outliers.concat(lib);
+      await logStep(runId, {
+        key: 'library', title: 'Откривател (обща библиотека)', outliers: lib.length,
+        errors: termsNote.startsWith('грешка') || termsNote.startsWith('няма') ? [termsNote] : [],
+        note: termsNote + (started && started.started ? ' · ново търсене тръгна фоново' : started && started.recent ? ' · търсено е скоро' : ''),
       });
     }
     ctx.outliers = outliersForPrompt(outliers);

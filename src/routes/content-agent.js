@@ -10,6 +10,7 @@ const scout = require('../services/content-agent/scout');
 const pipeline = require('../services/content-agent/pipeline');
 const { callJson, TEAM, block } = require('../services/content-agent/agents');
 const caHistory = require('../services/content-agent/history');
+const discover = require('../services/content-agent/discover');
 const by = caHistory.userOf;
 
 const PLATFORMS = ['youtube', 'tiktok', 'instagram', 'facebook', 'other'];
@@ -70,15 +71,24 @@ router.get('/clients/:id', async (req, res) => {
     const id = clientId(req);
     const client = await store.getClient(id);
     if (!client) return res.status(404).json({ error: 'Клиентът не е намерен.' });
-    const [profiles, memory, runs, outliers] = await Promise.all([
+    const [profiles, memory, runs, outliers, library, search] = await Promise.all([
       query('SELECT * FROM ca_profiles WHERE client_id = $1 ORDER BY platform, role, label, id', [id]),
       query("SELECT * FROM ca_memory WHERE client_id = $1 ORDER BY (status = 'pending') DESC, kind, created_at DESC", [id]),
       query(`SELECT id, trigger, request, requested_by, status, error, bc_project_id, bc_parent_id, created_at, finished_at,
                     jsonb_array_length(steps) AS step_count, (result->'scripts') IS NOT NULL AS has_result
                FROM ca_runs WHERE client_id = $1 ORDER BY id DESC LIMIT 30`, [id]),
       scout.topOutliers(id, { limit: 40, minScore: 1.5 }),
+      discover.libraryOutliers(id, { limit: 40, minScore: 1.5 }),
+      discover.getSearch(id),
     ]);
-    res.json({ client, profiles, memory, runs, outliers, scouting: scouting.has(id), kinds: store.KIND_LABELS });
+    const libProfiles = search ? await query(
+      'SELECT COUNT(*)::int AS n FROM ca_profiles WHERE client_id = 0 AND active = TRUE AND topics && $1::text[]',
+      [discover.allTopics(search.terms)]) : [{ n: 0 }];
+    res.json({
+      client, profiles, memory, runs, outliers, library, scouting: scouting.has(id), kinds: store.KIND_LABELS,
+      search: search ? { terms: search.terms, terms_updated_at: search.terms_updated_at, last_discovery_at: search.last_discovery_at, last_result: search.last_result } : null,
+      library_profiles: libProfiles[0].n, discovering: discover.isRunning(id),
+    });
   } catch (e) { fail(res, e); }
 });
 
@@ -145,6 +155,19 @@ router.post('/clients/:id/scout', express.json(), async (req, res) => {
   scout.refreshClient(id, { force: !!(req.body && req.body.force) })
     .catch((e) => console.error('[content-agent scout]', e.message))
     .finally(() => scouting.delete(id));
+});
+
+// Откривател: търси нови профили в нишата (BG + EN) → обща библиотека. Фоново.
+router.post('/clients/:id/discover', express.json(), async (req, res) => {
+  try {
+    const cfg = await store.loadSettings();
+    if (!cfg.apifyToken && !cfg.youtubeKey) return res.status(400).json({ error: 'Няма Apify токен и YouTube ключ (Настройки на Content агента).' });
+    const client = await store.getClient(clientId(req));
+    if (!client) return res.status(404).json({ error: 'Клиентът не е намерен.' });
+    // Нови думи за търсене при изрична молба — иначе се ползват запазените (до 30 дни).
+    if (req.body && req.body.new_terms) await discover.ensureTerms(client, { force: true });
+    res.json(await discover.discoverInBackground(client.id, { force: true }));
+  } catch (e) { fail(res, e); }
 });
 
 // ---------- памет ----------
@@ -298,7 +321,7 @@ router.get('/runs/:rid', async (req, res) => {
 
 // ---------- настройки (админ) ----------
 
-const EDITABLE = ['ca_enabled', 'ca_auto_on_kp', 'ca_apify_token', 'ca_youtube_api_key', 'ca_actor_tiktok', 'ca_actor_instagram', 'ca_actor_facebook'];
+const EDITABLE = ['ca_enabled', 'ca_auto_on_kp', 'ca_apify_token', 'ca_youtube_api_key', 'ca_actor_tiktok', 'ca_actor_instagram', 'ca_actor_facebook', 'ca_actor_instagram_hashtag'];
 const SECRET = ['ca_apify_token', 'ca_youtube_api_key'];
 
 router.get('/settings', requireAdmin, async (req, res) => {
@@ -309,6 +332,7 @@ router.get('/settings', requireAdmin, async (req, res) => {
       ca_enabled: s.enabled, ca_auto_on_kp: s.autoOnKp,
       ca_apify_token: mask(s.apifyToken), ca_youtube_api_key: mask(s.youtubeKey),
       ca_actor_tiktok: s.actors.tiktok, ca_actor_instagram: s.actors.instagram, ca_actor_facebook: s.actors.facebook,
+      ca_actor_instagram_hashtag: s.actors.instagram_hashtag,
       defaults: store.DEFAULT_ACTORS,
     });
   } catch (e) { fail(res, e); }

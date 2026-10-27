@@ -237,4 +237,4 @@ async function hasProfiles(clientId) {
   return !!(await queryOne("SELECT 1 FROM ca_profiles WHERE client_id = $1 AND active = TRUE AND platform IN ('youtube','tiktok','instagram','facebook') LIMIT 1", [clientId]));
 }
 
-module.exports = { refreshClient, refreshProfile, topOutliers, hasProfiles, median, mapApifyItem, handleOf, isoDurationSec };
+module.exports = { refreshClient, refreshProfile, topOutliers, hasProfiles, median, mapApifyItem, handleOf, isoDurationSec, runApify, fetchJson };
