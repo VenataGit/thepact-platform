@@ -128,16 +128,36 @@ async function renderContentClient(el, id, tab) {
   await caLoadClient(id);
 }
 
-async function caLoadClient(id) {
+// Пише ли човекът нещо в момента? Тогава автоматичното опресняване НЕ пипа страницата —
+// иначе изтрива отворената редакция и написания текст (така беше до 27.10.2026).
+function caUserBusy() {
+  var body = document.getElementById('caBody');
+  if (!body) return false;
+  if (body.querySelector('[id^="caET"]')) return true; // отворена редакция на запис
+  var a = document.activeElement;
+  if (a && body.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+  var typed = body.querySelectorAll('textarea, input[type="text"], input:not([type])');
+  for (var i = 0; i < typed.length; i++) if (String(typed[i].value || '').trim()) return true;
+  return false;
+}
+
+async function caLoadClient(id, fromPoll) {
+  if (_ca.poll) { clearTimeout(_ca.poll); _ca.poll = null; }
+  var schedule = function () {
+    _ca.poll = setTimeout(function () { if (location.hash.indexOf('#/content/' + id) === 0) caLoadClient(id, true); }, 15000);
+  };
+  // Автоматичното опресняване изчаква, докато човекът пише.
+  if (fromPoll && caUserBusy()) { schedule(); return; }
   try {
     var d = await caApi('GET', '/clients/' + id);
+    if (fromPoll && caUserBusy()) { schedule(); return; } // почнал е да пише, докато чакахме отговора
     _ca.client = d;
     _ca.kinds = d.kinds || {};
     caRenderClient();
     // Докато върви пускане или обновяване на профили — опресняваме сами.
     var busy = d.scouting || d.runs.some(function (r) { return r.status === 'queued' || r.status === 'running'; });
-    if (busy) _ca.poll = setTimeout(function () { if (location.hash.indexOf('#/content/' + id) === 0) caLoadClient(id); }, 15000);
-  } catch (e) { caBody('<div class="ca-err">' + esc(e.message) + '</div>'); }
+    if (busy) schedule();
+  } catch (e) { if (!fromPoll) caBody('<div class="ca-err">' + esc(e.message) + '</div>'); else schedule(); }
 }
 
 function caRenderClient() {
