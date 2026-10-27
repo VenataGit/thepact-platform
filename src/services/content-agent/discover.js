@@ -155,7 +155,9 @@ async function searchTiktok(terms, cfg, known) {
 async function searchInstagram(terms, cfg, known) {
   const tags = (terms.instagram_hashtags || []).slice(0, 6);
   if (!tags.length || !cfg.apifyToken) return [];
-  const items = await scout.runApify(cfg.actors.instagram_hashtag, { hashtags: tags, resultsLimit: 25, resultsType: 'posts' }, cfg.apifyToken);
+  // 'reels', не 'posts': 'posts' връща най-новите публикации (снимки отпреди минути, без
+  // харесвания) — нищо не минава прага. 'reels' дава видеата с гледанията им (videoPlayCount).
+  const items = await scout.runApify(cfg.actors.instagram_hashtag, { hashtags: tags, resultsLimit: 25, resultsType: 'reels' }, cfg.apifyToken);
   const mapped = items.map((it) => ({
     author: it.ownerUsername || (it.owner && it.owner.username) || '',
     label: it.ownerFullName || it.ownerUsername || '',
