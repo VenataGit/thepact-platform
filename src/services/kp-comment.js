@@ -354,7 +354,7 @@ function postKpCommentInBackground(params) {
 }
 
 module.exports = {
-  loadCommentConfig, resolveClientProject, gatherClientContext,
+  loadCommentConfig, resolveClientProject, gatherClientContext, contextToPrompt, contextIsEmpty,
   buildComment, postKpComment, postKpCommentInBackground,
   normName, plainText, bgDate,
 };

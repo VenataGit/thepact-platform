@@ -182,6 +182,7 @@ app.use('/api/agent', require('./routes/agent'));
 app.use('/api/extension', require('./routes/extension-tokens'));
 app.use('/api/time', require('./routes/time'));
 app.use('/api/crm', require('./routes/crm'));
+app.use('/api/content-agent', require('./routes/content-agent'));
 app.use('/api/dev-queue', require('./routes/dev-queue'));
 app.use('/api/dev-chat', require('./routes/dev-chat'));
 app.use('/api/backup', require('./routes/backup'));

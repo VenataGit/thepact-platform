@@ -141,6 +141,7 @@ function populateMore(el) {
       ${isPageOff('premiere') ? '' : `<a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()">Premiere Downgrade</a>`}
       ${isPageOff('board-logic') ? '' : `<a class="nav-dropdown__item" href="#/board-logic" onclick="closeAllDropdowns()">Логика на табло</a>`}
       ${isPageOff('history') ? '' : `<a class="nav-dropdown__item" href="#/history" onclick="closeAllDropdowns()">История</a>`}
+      ${isPageOff('content') ? '' : `<a class="nav-dropdown__item" href="#/content" onclick="closeAllDropdowns()">Content агент</a>`}
       <span id="moreCrmSlot"></span>
     </div>
     <div class="nav-dropdown__section" style="border-top:1px solid var(--border)">

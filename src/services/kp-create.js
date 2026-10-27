@@ -462,6 +462,9 @@ async function createKpForClient({ client, firstPublishDate, cfg, auth, dest, cr
       auth, projectId: d.projectId, cardId: card.id, client,
       kpNumber, firstPublishDate, videoCount, dueOn,
     });
+    // Content агентът (проучване + идеи + скриптове) — само ако е включено
+    // „Автоматично при нов КП" в Настройки → Content агент. Фоново, никога не бламира.
+    require('./content-agent/trigger').onKpCardCreated({ projectId: d.projectId, cardId: card.id, client, kpNumber, videoCount });
     result = { title: card.title || title, url: bc.normalizeAppUrl(card.app_url), cardId: card.id, basecamp: true, board: d.boardTitle, column: d.columnTitle };
   } else {
     result = await createLocalKpCard({ client, kpNumber, contentText, firstPublishDate, cfg, creatorId, title });

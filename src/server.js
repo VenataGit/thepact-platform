@@ -52,6 +52,7 @@ const { initTimeSweeper } = require('./services/time-sweeper');
 const { initDevQueue } = require('./services/dev-queue');
 const { initDevChat } = require('./services/dev-chat');
 const { initCrmReminders } = require('./services/crm-reminders');
+const { initContentAgent } = require('./services/content-agent/trigger');
 setTimeout(() => {
   initCheckInScheduler();
   initEmail();
@@ -70,6 +71,7 @@ setTimeout(() => {
   initDevQueue();
   initDevChat();
   initCrmReminders();
+  initContentAgent();
 }, 2000);
 
 // Auto-cleanup: permanently delete cards that have been in trash for 30+ days

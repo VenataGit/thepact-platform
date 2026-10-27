@@ -7,15 +7,16 @@ const MODEL = process.env.PM_AGENT_MODEL || 'claude-opus-4-8';
 const TIMEOUT_MS = 600_000; // дълбок анализ с thinking може да отнеме минути
 
 // Извиква /v1/messages и връща { text, content, usage, model, stopReason }.
+// `model` (по избор) сменя модела само за тази заявка (ползва го content агентът).
 // `tools` (по избор) включва tool use — content блоковете се връщат сурови,
 // за да може викащият да изпълни tool_use и да продължи цикъла.
-function callClaude({ system, messages, tools, maxTokens = 12000, effort = 'high' }) {
+function callClaude({ system, messages, tools, maxTokens = 12000, effort = 'high', model }) {
   return new Promise((resolve, reject) => {
     if (!config.ANTHROPIC_API_KEY) {
       return reject(new Error('ANTHROPIC_API_KEY не е конфигуриран.'));
     }
     const body = {
-      model: MODEL,
+      model: model || MODEL,
       max_tokens: maxTokens,
       system,
       messages,

@@ -11,6 +11,7 @@ var PAGE_TOGGLES = [
   { id: 'board-logic', label: 'Логика на табло' },
   { id: 'history', label: 'История' },
   { id: 'crm', label: 'CRM' },
+  { id: 'content', label: 'Content агент' },
   { id: 'time-report', label: 'Време' },
   { id: 'client-report', label: 'Статистика' },
   { id: 'task-completions', label: 'Готови задачи' },
@@ -99,6 +100,8 @@ function router() {
     case 'crm':
       if (parts[1] === 'new') return renderCrmNew(el);
       return id ? renderCrmDeal(el, id) : renderCrm(el);
+    // Content агент: клиент / пускане / настройки — всичко е пълна страница.
+    case 'content': return caRoute(el, parts);
     case 'premiere': return renderPremiere(el);
     case 'board-logic': return renderBoardLogic(el);
     case 'time-report': return renderTimeReport(el);
