@@ -25,6 +25,7 @@ const SETTING_KEYS = [
   'ca_actor_tiktok', 'ca_actor_instagram', 'ca_actor_facebook',
   'ca_last_comment_at',  // курсор на следенето на коментари
   'ca_bot_sgid',         // attachable_sgid на ThePactAlerts (за разпознаване на тага)
+  'ca_hidden_clients',   // JSON масив с id-та на скритите клиенти (крие ги админ)
 ];
 
 const DEFAULT_ACTORS = {
@@ -32,6 +33,10 @@ const DEFAULT_ACTORS = {
   instagram: 'apify~instagram-reel-scraper',
   facebook: 'apify~facebook-reels-scraper',
 };
+
+function parseIds(v) {
+  try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a.map(Number).filter(Boolean) : []; } catch { return []; }
+}
 
 async function loadSettings() {
   const rows = await query('SELECT key, value FROM settings WHERE key = ANY($1::text[])', [SETTING_KEYS]);
@@ -48,6 +53,7 @@ async function loadSettings() {
       facebook: s.ca_actor_facebook || DEFAULT_ACTORS.facebook,
     },
     lastCommentAt: s.ca_last_comment_at || null,
+    hiddenClients: parseIds(s.ca_hidden_clients),
     botSgid: s.ca_bot_sgid || '',
   };
 }

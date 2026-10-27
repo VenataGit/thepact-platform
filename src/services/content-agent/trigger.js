@@ -58,7 +58,9 @@ function requestText(content) {
 /** Кой клиент: по проекта → по заглавието на задачата → по текста на коментара. */
 async function resolveClient(projectId, parentTitle, text) {
   await store.ensureSchema();
-  const clients = await query('SELECT id, name, bc_project_id, current_kp_number FROM kp_clients WHERE is_active IS NOT FALSE');
+  const hidden = new Set((await store.loadSettings()).hiddenClients);
+  const clients = (await query('SELECT id, name, bc_project_id, current_kp_number FROM kp_clients WHERE is_active IS NOT FALSE'))
+    .filter((c) => !hidden.has(c.id));
   const byProject = clients.find((c) => c.bc_project_id && String(c.bc_project_id) === String(projectId));
   if (byProject) return byProject;
   const norm = kpComment.normName;

@@ -6,7 +6,7 @@
 //   #/content/12/profiles — директно в раздел
 //   #/content/run/34     — едно пускане: стъпките на агентите и готовите скриптове
 //   #/content/settings   — ключове и вкл./изкл. (само админ)
-var _ca = { client: null, tab: 'memory', kinds: {}, poll: null };
+var _ca = { client: null, tab: 'memory', kinds: {}, poll: null, showHidden: false };
 
 var CA_PLATFORMS = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook', other: 'Друго' };
 var CA_ROLES = { own: 'Собствен', competitor: 'Конкурент', inspiration: 'Вдъхновение' };
@@ -68,6 +68,9 @@ async function renderContentList(el) {
     var html = '<div class="ca-toolbar">' +
       '<input class="ca-input ca-search" id="caSearch" placeholder="Търси клиент…" oninput="caFilterList()">' +
       '<span class="ca-spacer"></span>' +
+      (caIsAdmin() && data.clients.some(function (c) { return c.hidden; })
+        ? '<label class="ca-check ca-check--inline"><input type="checkbox"' + (_ca.showHidden ? ' checked' : '') + ' onchange="caToggleHidden(this.checked)"> Покажи скритите (' +
+          data.clients.filter(function (c) { return c.hidden; }).length + ')</label>' : '') +
       (caIsAdmin() ? '<a class="btn btn-ghost btn-sm" href="#/content/settings">⚙ Настройки</a>' : '') +
       '</div><div class="ca-grid" id="caGrid">';
     // Еднакви имена = дубликат в КП-Автоматизация. Показваме КП номера и кой е живият,
@@ -75,9 +78,12 @@ async function renderContentList(el) {
     var seen = {};
     data.clients.forEach(function (c) { var k = String(c.name).trim().toLowerCase(); seen[k] = (seen[k] || 0) + 1; });
     data.clients.forEach(function (c) {
+      if (c.hidden && !_ca.showHidden) return;
       var dup = seen[String(c.name).trim().toLowerCase()] > 1;
-      html += '<a class="ca-client' + (c.is_active === false ? ' ca-client--off' : '') + '" href="#/content/' + c.id + '" data-name="' + esc(String(c.name).toLowerCase()) + '">' +
-        '<div class="ca-client__n">' + esc(c.name) + '</div>' +
+      html += '<a class="ca-client' + (c.is_active === false || c.hidden ? ' ca-client--off' : '') + '" href="#/content/' + c.id + '" data-name="' + esc(String(c.name).toLowerCase()) + '">' +
+        '<div class="ca-client__n">' + esc(c.name) +
+          (caIsAdmin() ? '<button class="ca-x ca-client__hide" title="' + (c.hidden ? 'Покажи пак' : 'Скрий от списъка') + '" onclick="caHideClient(event,' + c.id + ',' + (c.hidden ? 'false' : 'true') + ')">' + (c.hidden ? 'покажи' : 'скрий') + '</button>' : '') +
+        '</div>' +
         '<div class="ca-client__m">' +
           '<span>🧠 ' + c.memory + '</span>' +
           (c.pending ? '<span class="ca-pill ca-pill--warn">' + c.pending + ' чакат</span>' : '') +
@@ -91,6 +97,20 @@ async function renderContentList(el) {
     html += '</div>';
     caBody(html);
   } catch (e) { caBody('<div class="ca-err">' + esc(e.message) + '</div>'); }
+}
+
+function caToggleHidden(on) {
+  _ca.showHidden = on;
+  renderContentList(document.getElementById('pageContent'));
+}
+
+async function caHideClient(ev, id, hidden) {
+  ev.preventDefault(); ev.stopPropagation();
+  try {
+    await caApi('POST', '/clients/' + id + '/hide', { hidden: hidden });
+    showToast(hidden ? 'Клиентът е скрит (вижда се с Покажи скритите)' : 'Клиентът се вижда пак', 'success');
+    renderContentList(document.getElementById('pageContent'));
+  } catch (e) { showToast(e.message, 'error'); }
 }
 
 function caFilterList() {

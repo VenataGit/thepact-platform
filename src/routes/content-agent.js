@@ -34,7 +34,20 @@ router.get('/clients', async (req, res) => {
               (SELECT MAX(created_at) FROM ca_runs r WHERE r.client_id = c.id) AS last_run
          FROM kp_clients c ORDER BY c.is_active DESC NULLS LAST, c.name`
     );
-    res.json({ clients: rows });
+    const hidden = new Set((await store.loadSettings()).hiddenClients);
+    res.json({ clients: rows.map((c) => ({ ...c, hidden: hidden.has(c.id) })) });
+  } catch (e) { fail(res, e); }
+});
+
+// Скриване на клиент от списъка (неактивни, дубликати) — само админ. Не пипа
+// КП-Автоматизация: клиентът остава там какъвто е, само тук не се показва.
+router.post('/clients/:id/hide', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const id = clientId(req);
+    const set = new Set((await store.loadSettings()).hiddenClients);
+    if (req.body && req.body.hidden === false) set.delete(id); else set.add(id);
+    await store.saveSetting('ca_hidden_clients', JSON.stringify([...set]));
+    res.json({ hidden: set.has(id) });
   } catch (e) { fail(res, e); }
 });
 

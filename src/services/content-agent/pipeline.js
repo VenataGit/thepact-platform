@@ -67,6 +67,14 @@ async function createRun({ clientId, trigger, request = '', requestedBy = '', bc
 // При старт: прекъснатите от рестарт → грешка, чакащите → обратно в опашката.
 async function resumeAfterRestart() {
   await store.ensureSchema();
+  // Всеки deploy рестартира сървъра. Прекъснатото пускане тръгва отначало (до 2 пъти),
+  // за да не се губи заявката; стъпките от прекъснатия опит се изчистват.
+  await execute(
+    `UPDATE ca_runs SET status = 'queued', steps = '[]'::jsonb,
+            result = jsonb_set(COALESCE(result, '{}'::jsonb), '{meta}',
+                               COALESCE(result->'meta', '{}'::jsonb) || jsonb_build_object('restarts', COALESCE((result->'meta'->>'restarts')::int, 0) + 1), true)
+      WHERE status = 'running' AND COALESCE((result->'meta'->>'restarts')::int, 0) < 2`
+  );
   await execute("UPDATE ca_runs SET status = 'error', error = 'Прекъснато от рестарт на сървъра — пусни отново.', finished_at = NOW() WHERE status = 'running'");
   const rows = await query("SELECT id FROM ca_runs WHERE status = 'queued' ORDER BY id");
   rows.forEach((r) => enqueue(r.id));
@@ -188,7 +196,7 @@ async function executeRun(runId) {
     if (!client) throw new Error('клиентът не е намерен');
     if (!config.ANTHROPIC_API_KEY) throw new Error('няма ANTHROPIC_API_KEY');
 
-    if (canComment) {
+    if (canComment && !meta.restarts) {
       await bc.createComment(auth.token, auth.account, run.bc_project_id, run.bc_parent_id,
         `<div>${who ? who + ' ' : ''}🤖 Започвам проучване и идеи за <strong>${esc(client.name)}</strong>. ` +
         `Работят 9 агента, всеки с отделен проверител — ще пиша тук, когато са готови (обикновено 20-40 мин).</div>`)
