@@ -72,7 +72,7 @@ async function renderContentList(el) {
         ? '<label class="ca-check ca-check--inline"><input type="checkbox"' + (_ca.showHidden ? ' checked' : '') + ' onchange="caToggleHidden(this.checked)"> Покажи скритите (' +
           data.clients.filter(function (c) { return c.hidden; }).length + ')</label>' : '') +
       (caIsAdmin() ? '<a class="btn btn-ghost btn-sm" href="#/content/settings">⚙ Настройки</a>' : '') +
-      '</div><div class="ca-grid" id="caGrid">';
+      '</div>' + caDuplicatesHtml(data.duplicates || []) + '<div class="ca-grid" id="caGrid">';
     // Еднакви имена = дубликат в КП-Автоматизация. Показваме КП номера и кой е живият,
     // за да не се пълни паметта на стария ред (агентът при таг избира живия).
     var seen = {};
@@ -97,6 +97,17 @@ async function renderContentList(el) {
     html += '</div>';
     caBody(html);
   } catch (e) { caBody('<div class="ca-err">' + esc(e.message) + '</div>'); }
+}
+
+// Засечени клиенти с еднакви имена в КП-Автоматизация — показва се само настоящият.
+function caDuplicatesHtml(list) {
+  if (!list.length) return '';
+  return '<div class="ca-dupbox"><strong>Засякох ' + list.length + ' клиента, въведени по два пъти в КП-Автоматизация.</strong> ' +
+    'Показвам и ползвам само настоящия (най-високият КП). Всичко, въведено в стария, се мести само в настоящия — нищо не се губи. ' +
+    list.map(function (d) {
+      return esc(d.name) + ': ползва се КП-' + esc(d.canonical.kp || '?') + ', стар ' +
+        d.others.map(function (o) { return 'КП-' + esc(o.kp || '?'); }).join(', ');
+    }).join(' · ') + '</div>';
 }
 
 function caToggleHidden(on) {
@@ -150,6 +161,7 @@ async function caLoadClient(id, fromPoll) {
   if (fromPoll && caUserBusy()) { schedule(); return; }
   try {
     var d = await caApi('GET', '/clients/' + id);
+    if (d.redirect) { location.hash = '#/content/' + d.redirect + (_ca.tab ? '/' + _ca.tab : ''); return; }
     if (fromPoll && caUserBusy()) { schedule(); return; } // почнал е да пише, докато чакахме отговора
     _ca.client = d;
     _ca.kinds = d.kinds || {};

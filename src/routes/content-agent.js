@@ -26,6 +26,7 @@ const clientId = (req) => parseInt(req.params.id, 10);
 
 router.get('/clients', async (req, res) => {
   try {
+    const groups = await store.mergeDuplicates();
     const rows = await query(
       `SELECT c.id, c.name, c.is_active, c.current_kp_number, c.next_kp_date, (c.bc_project_id IS NOT NULL) AS linked,
               (SELECT COUNT(*) FROM ca_memory m WHERE m.client_id = c.id AND m.status = 'approved')::int AS memory,
@@ -35,7 +36,12 @@ router.get('/clients', async (req, res) => {
          FROM kp_clients c ORDER BY c.is_active DESC NULLS LAST, c.name`
     );
     const hidden = new Set((await store.loadSettings()).hiddenClients);
-    res.json({ clients: rows.map((c) => ({ ...c, hidden: hidden.has(c.id) })) });
+    res.json({
+      // Дубликатите (еднакво име) не се показват — само настоящият клиент.
+      clients: rows.filter((c) => groups.canonicalOf[c.id] === undefined || groups.canonicalOf[c.id] === c.id)
+        .map((c) => ({ ...c, hidden: hidden.has(c.id) })),
+      duplicates: groups.duplicates,
+    });
   } catch (e) { fail(res, e); }
 });
 
@@ -55,6 +61,10 @@ const scouting = new Set(); // клиенти, чиито профили се о
 
 router.get('/clients/:id', async (req, res) => {
   try {
+    const groups = await store.mergeDuplicates();
+    // Стар линк към дубликат → към настоящия клиент със същото име.
+    const canon = groups.canonicalOf[clientId(req)];
+    if (canon && canon !== clientId(req)) return res.json({ redirect: canon });
     const id = clientId(req);
     const client = await store.getClient(id);
     if (!client) return res.status(404).json({ error: 'Клиентът не е намерен.' });

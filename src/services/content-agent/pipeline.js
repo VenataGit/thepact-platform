@@ -52,6 +52,8 @@ async function drain() {
 /** Ново пускане. Връща id или null, ако коментарът-заявка вече е обработен. */
 async function createRun({ clientId, trigger, request = '', requestedBy = '', bcProjectId = null, bcParentId = null, bcCommentId = null, requester = null, kpNumber = null, parentType = '' }) {
   await store.ensureSchema();
+  const canon = (await store.clientGroups()).canonicalOf[clientId];
+  if (canon) clientId = canon; // дубликат с еднакво име → настоящият клиент
   const row = await queryOne(
     `INSERT INTO ca_runs (client_id, trigger, request, requested_by, bc_project_id, bc_parent_id, bc_comment_id, steps, result)
      VALUES ($1,$2,$3,$4,$5,$6,$7,'[]'::jsonb,$8)

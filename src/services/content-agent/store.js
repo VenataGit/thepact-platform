@@ -72,6 +72,67 @@ async function getClient(id) {
   return queryOne('SELECT id, name, videos_per_month, current_kp_number, bc_project_id, is_active FROM kp_clients WHERE id = $1', [id]);
 }
 
+// ---------- дублирани клиенти ----------
+// В КП-Автоматизация един и същ клиент понякога е въведен два пъти (през юли 2026
+// клиентите са създадени наново, старите редове от април останаха). За агента един
+// клиент = едно име: от редовете с еднакво име „настоящ" е този, който не е скрит,
+// свързан е с Basecamp проект, има най-висок КП, най-късна дата за следващ КП, най-нов.
+// Останалите са дубликати: не се показват, а всичко, въведено в тях, се мести в
+// настоящия (само смяна на client_id — нищо не се трие).
+function nameKey(name) {
+  return String(name || '').toLowerCase().replace(/[„“"'']/g, '').replace(/[^a-zа-я0-9]+/gi, ' ').trim();
+}
+
+async function clientGroups() {
+  const [rows, cfg] = await Promise.all([
+    query('SELECT id, name, bc_project_id, current_kp_number, next_kp_date, is_active FROM kp_clients'),
+    loadSettings(),
+  ]);
+  const hidden = new Set(cfg.hiddenClients);
+  const groups = {};
+  for (const r of rows) {
+    const k = nameKey(r.name);
+    if (k) (groups[k] = groups[k] || []).push(r);
+  }
+  const canonicalOf = {};   // id → id на настоящия
+  const duplicates = [];    // [{ name, canonical, others: [{id, kp}] }]
+  for (const list of Object.values(groups)) {
+    list.sort((a, b) =>
+      ((hidden.has(a.id) ? 1 : 0) - (hidden.has(b.id) ? 1 : 0)) ||
+      ((a.is_active === false ? 1 : 0) - (b.is_active === false ? 1 : 0)) ||
+      ((b.bc_project_id ? 1 : 0) - (a.bc_project_id ? 1 : 0)) ||
+      ((Number(b.current_kp_number) || 0) - (Number(a.current_kp_number) || 0)) ||
+      (new Date(b.next_kp_date || 0) - new Date(a.next_kp_date || 0)) ||
+      (b.id - a.id));
+    const main = list[0];
+    for (const r of list) canonicalOf[r.id] = main.id;
+    if (list.length > 1) {
+      duplicates.push({
+        name: main.name, canonical: { id: main.id, kp: main.current_kp_number },
+        others: list.slice(1).map((r) => ({ id: r.id, kp: r.current_kp_number })),
+      });
+    }
+  }
+  return { canonicalOf, duplicates };
+}
+
+/** Мести паметта/профилите/видеата/пусканията от дубликатите в настоящия клиент. */
+async function mergeDuplicates(groups) {
+  await ensureSchema();
+  const g = groups || await clientGroups();
+  let moved = 0;
+  for (const d of g.duplicates) {
+    for (const o of d.others) {
+      for (const t of ['ca_memory', 'ca_profiles', 'ca_videos', 'ca_runs']) {
+        const r = await query(`UPDATE ${t} SET client_id = $1 WHERE client_id = $2 RETURNING 1`, [d.canonical.id, o.id]);
+        moved += r.length;
+      }
+    }
+  }
+  if (moved) console.log(`[content-agent] дубликати: преместени ${moved} записа в настоящите клиенти`);
+  return { ...g, moved };
+}
+
 // ---------- паметта като текст за агентите ----------
 
 const KIND_LABELS = {
@@ -133,7 +194,7 @@ async function recentIdeaTitles(clientId, limit = 60) {
 }
 
 module.exports = {
-  ensureSchema, loadSettings, saveSetting, getClient,
+  ensureSchema, loadSettings, saveSetting, getClient, clientGroups, mergeDuplicates, nameKey,
   memoryText, profilesText, recentIdeaTitles,
   KIND_LABELS, KINDS, DEFAULT_ACTORS, SETTING_KEYS,
 };

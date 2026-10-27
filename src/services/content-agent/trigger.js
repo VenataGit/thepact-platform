@@ -62,7 +62,10 @@ async function resolveClient(projectId, parentTitle, text) {
   const clients = (await query('SELECT id, name, bc_project_id, current_kp_number FROM kp_clients WHERE is_active IS NOT FALSE'))
     .filter((c) => !hidden.has(c.id));
   const byProject = clients.find((c) => c.bc_project_id && String(c.bc_project_id) === String(projectId));
-  if (byProject) return byProject;
+  if (byProject) {
+    const canon = (await store.clientGroups()).canonicalOf[byProject.id];
+    return canon && canon !== byProject.id ? (await store.getClient(canon)) || byProject : byProject;
+  }
   const norm = kpComment.normName;
   const find = (hay) => {
     const h = ` ${norm(hay)} `;
@@ -74,7 +77,11 @@ async function resolveClient(projectId, parentTitle, text) {
       || ((Number(b.current_kp_number) || 0) - (Number(a.current_kp_number) || 0)));
     return hits[0] || null;
   };
-  return find(parentTitle) || find(text) || null;
+  const hit = find(parentTitle) || find(text) || null;
+  if (!hit) return null;
+  // Дубликат с еднакво име → настоящият клиент (там е паметта).
+  const canon = (await store.clientGroups()).canonicalOf[hit.id];
+  return canon && canon !== hit.id ? (await store.getClient(canon)) || hit : hit;
 }
 
 async function pollOnce() {
