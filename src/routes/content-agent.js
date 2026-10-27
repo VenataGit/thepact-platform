@@ -27,7 +27,7 @@ const clientId = (req) => parseInt(req.params.id, 10);
 router.get('/clients', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT c.id, c.name, c.is_active,
+      `SELECT c.id, c.name, c.is_active, c.current_kp_number, c.next_kp_date, (c.bc_project_id IS NOT NULL) AS linked,
               (SELECT COUNT(*) FROM ca_memory m WHERE m.client_id = c.id AND m.status = 'approved')::int AS memory,
               (SELECT COUNT(*) FROM ca_memory m WHERE m.client_id = c.id AND m.status = 'pending')::int AS pending,
               (SELECT COUNT(*) FROM ca_profiles p WHERE p.client_id = c.id AND p.active)::int AS profiles,

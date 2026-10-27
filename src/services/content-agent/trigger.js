@@ -58,14 +58,18 @@ function requestText(content) {
 /** Кой клиент: по проекта → по заглавието на задачата → по текста на коментара. */
 async function resolveClient(projectId, parentTitle, text) {
   await store.ensureSchema();
-  const clients = await query('SELECT id, name, bc_project_id FROM kp_clients WHERE is_active IS NOT FALSE');
+  const clients = await query('SELECT id, name, bc_project_id, current_kp_number FROM kp_clients WHERE is_active IS NOT FALSE');
   const byProject = clients.find((c) => c.bc_project_id && String(c.bc_project_id) === String(projectId));
   if (byProject) return byProject;
   const norm = kpComment.normName;
   const find = (hay) => {
     const h = ` ${norm(hay)} `;
     const hits = clients.filter((c) => norm(c.name) && h.includes(` ${norm(c.name)} `));
-    hits.sort((a, b) => norm(b.name).length - norm(a.name).length);
+    // По-дългото име печели („Aula.bg" пред „Aula"). При еднакви имена (дубликат в
+    // КП-Автоматизация) — живият клиент: свързан с Basecamp проект, после по-високият КП.
+    hits.sort((a, b) => (norm(b.name).length - norm(a.name).length)
+      || ((b.bc_project_id ? 1 : 0) - (a.bc_project_id ? 1 : 0))
+      || ((Number(b.current_kp_number) || 0) - (Number(a.current_kp_number) || 0)));
     return hits[0] || null;
   };
   return find(parentTitle) || find(text) || null;

@@ -70,7 +70,12 @@ async function renderContentList(el) {
       '<span class="ca-spacer"></span>' +
       (caIsAdmin() ? '<a class="btn btn-ghost btn-sm" href="#/content/settings">⚙ Настройки</a>' : '') +
       '</div><div class="ca-grid" id="caGrid">';
+    // Еднакви имена = дубликат в КП-Автоматизация. Показваме КП номера и кой е живият,
+    // за да не се пълни паметта на стария ред (агентът при таг избира живия).
+    var seen = {};
+    data.clients.forEach(function (c) { var k = String(c.name).trim().toLowerCase(); seen[k] = (seen[k] || 0) + 1; });
     data.clients.forEach(function (c) {
+      var dup = seen[String(c.name).trim().toLowerCase()] > 1;
       html += '<a class="ca-client' + (c.is_active === false ? ' ca-client--off' : '') + '" href="#/content/' + c.id + '" data-name="' + esc(String(c.name).toLowerCase()) + '">' +
         '<div class="ca-client__n">' + esc(c.name) + '</div>' +
         '<div class="ca-client__m">' +
@@ -78,7 +83,9 @@ async function renderContentList(el) {
           (c.pending ? '<span class="ca-pill ca-pill--warn">' + c.pending + ' чакат</span>' : '') +
           '<span>📱 ' + c.profiles + '</span>' +
         '</div>' +
-        '<div class="ca-client__s">' + (c.last_run ? 'последно: ' + esc(caDate(c.last_run)) : 'още не е пускан') + '</div>' +
+        '<div class="ca-client__s">' + (c.current_kp_number ? 'КП-' + esc(c.current_kp_number) + ' · ' : '') +
+          (c.last_run ? 'последно: ' + esc(caDate(c.last_run)) : 'още не е пускан') + '</div>' +
+        (dup ? '<div class="ca-client__dup">' + (c.linked ? '✓ този ползва агентът (свързан с Basecamp)' : '⚠ дубликат в КП-Автоматизация — не пълни този') + '</div>' : '') +
       '</a>';
     });
     html += '</div>';
