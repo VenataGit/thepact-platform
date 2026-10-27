@@ -6,7 +6,7 @@
 //   #/content/12/profiles — директно в раздел
 //   #/content/run/34     — едно пускане: стъпките на агентите и готовите скриптове
 //   #/content/settings   — ключове и вкл./изкл. (само админ)
-var _ca = { client: null, tab: 'memory', kinds: {}, poll: null, showHidden: false };
+var _ca = { client: null, tab: 'memory', kinds: {}, poll: null, showHidden: false, history: null };
 
 var CA_PLATFORMS = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook', other: 'Друго' };
 var CA_ROLES = { own: 'Собствен', competitor: 'Конкурент', inspiration: 'Вдъхновение' };
@@ -182,6 +182,7 @@ function caRenderClient() {
     ['videos', '🔥 Успешни видеа (' + d.outliers.length + ')'],
     ['runs', '🤖 Пускания (' + d.runs.length + ')'],
   ];
+  if (caIsAdmin()) tabs.push(['history', '🕘 История']);
   var html = '<div class="ca-chead"><div class="ca-chead__n">' + esc(c.name) + '</div>' +
     '<div class="ca-tabs">' + tabs.map(function (t) {
       return '<button class="ca-tab' + (_ca.tab === t[0] ? ' ca-tab--on' : '') + '" onclick="caTab(\'' + t[0] + '\')">' + t[1] + '</button>';
@@ -189,8 +190,10 @@ function caRenderClient() {
   if (_ca.tab === 'profiles') html += caProfilesHtml(d);
   else if (_ca.tab === 'videos') html += caVideosHtml(d);
   else if (_ca.tab === 'runs') html += caRunsHtml(d);
+  else if (_ca.tab === 'history' && caIsAdmin()) html += '<div id="caHistory"><div class="ca-dim">Зареждам историята…</div></div>';
   else html += caMemoryHtml(d);
   caBody(html);
+  if (_ca.tab === 'history' && caIsAdmin()) caLoadHistory();
 }
 
 function caTab(t) {
@@ -215,17 +218,22 @@ function caMemoryHtml(d) {
   // лява колона — паметта
   html += '<div>';
   if (pending.length) {
-    html += '<div class="ca-panel ca-panel--warn"><div class="ca-panel__t">Чакат одобрение (' + pending.length + ')' +
-      '<span class="ca-spacer"></span><button class="btn btn-sm" onclick="caBulk(\'approved\')">✓ Одобри всички</button> ' +
-      '<button class="btn btn-ghost btn-sm" onclick="caBulk(\'rejected\')">✗ Откажи всички</button></div>' +
-      '<div class="ca-hint">Това агентът го е научил сам (от коментар в Basecamp или от импорт). Докато не го одобриш, НЕ се ползва. ✓ = влиза в паметта, ✗ = изхвърля се. Може първо да го поправиш.</div>' +
-      pending.map(caMemItem).join('') + '</div>';
+    var pOpen = caIsOpen('pending');
+    html += '<div class="ca-panel ca-panel--warn' + (pOpen ? '' : ' ca-panel--closed') + '"><div class="ca-panel__t ca-fold" onclick="caFold(\'pending\')">' +
+      '<span class="ca-fold__a">' + (pOpen ? '▾' : '▸') + '</span>Чакат одобрение (' + pending.length + ')' +
+      '<span class="ca-spacer"></span><button class="btn btn-sm" onclick="event.stopPropagation();caBulk(\'approved\')">✓ Одобри всички</button> ' +
+      '<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();caBulk(\'rejected\')">✗ Откажи всички</button></div>' +
+      (pOpen ? '<div class="ca-hint">Това агентът го е научил сам (от коментар в Basecamp или от импорт). Докато не го одобриш, НЕ се ползва. ✓ = влиза в паметта, ✗ = изхвърля се. Може първо да го поправиш.</div>' +
+        pending.map(caMemItem).join('') : '') + '</div>';
   }
   var kinds = Object.keys(_ca.kinds);
   kinds.forEach(function (k) {
     var items = approved.filter(function (m) { return m.kind === k; });
     if (!items.length) return;
-    html += '<div class="ca-panel"><div class="ca-panel__t">' + esc(_ca.kinds[k]) + ' (' + items.length + ')</div>' + items.map(caMemItem).join('') + '</div>';
+    var open = caIsOpen(k);
+    html += '<div class="ca-panel' + (open ? '' : ' ca-panel--closed') + '"><div class="ca-panel__t ca-fold" onclick="caFold(\'' + k + '\')">' +
+      '<span class="ca-fold__a">' + (open ? '▾' : '▸') + '</span>' + esc(_ca.kinds[k]) + ' (' + items.length + ')</div>' +
+      (open ? items.map(caMemItem).join('') : '') + '</div>';
   });
   if (!approved.length && !pending.length) html += '<div class="ca-panel ca-dim">Паметта е празна. Добави неща вдясно или импортирай карта/проучване/стари скриптове.</div>';
   html += '</div>';
@@ -244,6 +252,19 @@ function caMemoryHtml(d) {
     caRunPanel() +
   '</div></div>';
   return html;
+}
+
+// Категориите в паметта са свити по подразбиране (вижда се само заглавието и броят).
+// Кое е отворено се помни в браузъра.
+function caOpenMap() {
+  try { return JSON.parse(localStorage.getItem('ca_open_kinds') || '{}') || {}; } catch (e) { return {}; }
+}
+function caIsOpen(k) { return !!caOpenMap()[k]; }
+function caFold(k) {
+  var m = caOpenMap();
+  m[k] = !m[k];
+  try { localStorage.setItem('ca_open_kinds', JSON.stringify(m)); } catch (e) {}
+  caRenderClient();
 }
 
 function caMemItem(m) {
@@ -323,6 +344,57 @@ async function caImport() {
     showToast('Добавени ' + r.added + ' записа — чакат одобрение', 'success', 5000);
     caLoadClient(_ca.client.client.id);
   } catch (e) { showToast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Импортирай'; }
+}
+
+// ---------- история (само админ) ----------
+
+var CA_ACTIONS = { create: 'добави', update: 'редактира', status: 'смени статуса', delete: 'изтри', restore: 'върна' };
+var CA_MSTATUS = { approved: 'одобрено', pending: 'чака одобрение', rejected: 'отказано' };
+
+async function caLoadHistory() {
+  var box = document.getElementById('caHistory');
+  try {
+    var r = await caApi('GET', '/clients/' + _ca.client.client.id + '/history');
+    _ca.history = r.history;
+    if (!box) return;
+    if (!r.history.length) { box.innerHTML = '<div class="ca-panel ca-dim">Още няма промени в историята. Записва се всичко от днес нататък.</div>'; return; }
+    box.innerHTML = '<div class="ca-panel"><div class="ca-hint">Всяка промяна по паметта и профилите: кой, кога, какво е било преди и какво стана. ' +
+      '„Върни“ връща записа както е бил ПРЕДИ тази промяна (изтрит се появява пак, редактиран се връща към стария текст, добавен се маха). Самото връщане също се пази тук.</div>' +
+      r.history.map(caHistItem).join('') + '</div>';
+  } catch (e) { if (box) box.innerHTML = '<div class="ca-err">' + esc(e.message) + '</div>'; }
+}
+
+function caHistDesc(entity, row) {
+  if (!row) return '<span class="ca-dim">(няма)</span>';
+  if (entity === 'profile') {
+    return esc((CA_PLATFORMS[row.platform] || row.platform) + ' · ' + (CA_ROLES[row.role] || row.role) + ' · ' + (row.label || row.handle || row.url || '')) +
+      (row.active === false ? ' <em>(спрян)</em>' : '');
+  }
+  return '<strong>' + esc(_ca.kinds[row.kind] || row.kind) + '</strong> · <em>' + esc(CA_MSTATUS[row.status] || row.status) + '</em><br>' +
+    esc(String(row.text || '')).replace(/\n/g, '<br>');
+}
+
+function caHistItem(h) {
+  var what = h.entity === 'profile' ? 'профил' : 'запис в паметта';
+  var head = '<strong>' + esc(h.by_name || 'неизвестен') + '</strong> ' + esc(CA_ACTIONS[h.action] || h.action) + ' ' + what +
+    ' <span class="ca-dim">· ' + esc(caDate(h.created_at)) + '</span>';
+  var body;
+  if (h.action === 'create') body = '<div class="ca-hist__a">' + caHistDesc(h.entity, h.after) + '</div>';
+  else if (h.action === 'delete') body = '<div class="ca-hist__b">' + caHistDesc(h.entity, h.before) + '</div>';
+  else body = '<div class="ca-hist__b"><span class="ca-dim">Беше:</span> ' + caHistDesc(h.entity, h.before) + '</div>' +
+    '<div class="ca-hist__a"><span class="ca-dim">Стана:</span> ' + caHistDesc(h.entity, h.after) + '</div>';
+  var label = !h.before ? '↩ Махни добавеното' : '↩ Върни както беше преди';
+  return '<div class="ca-hist"><div class="ca-hist__h">' + head + '<span class="ca-spacer"></span>' +
+    '<button class="btn btn-ghost btn-sm" onclick="caRestore(' + h.id + ',' + (h.before ? 'false' : 'true') + ')">' + label + '</button></div>' + body + '</div>';
+}
+
+async function caRestore(hid, removes) {
+  if (!confirm(removes ? 'Да махна ли този запис (връщане към преди добавянето)?' : 'Да върна ли записа както е бил преди тази промяна?')) return;
+  try {
+    await caApi('POST', '/history/' + hid + '/restore');
+    showToast('Върнато', 'success');
+    caLoadClient(_ca.client.client.id);
+  } catch (e) { showToast(e.message, 'error'); }
 }
 
 // ---------- пускане от платформата ----------

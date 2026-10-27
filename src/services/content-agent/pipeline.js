@@ -15,6 +15,7 @@ const kpComment = require('../kp-comment');
 const store = require('./store');
 const scout = require('./scout');
 const { STEPS, runStep } = require('./agents');
+const caHistory = require('./history');
 
 const CHUNK = 5;               // по колко видеа наведнъж за кукички/скриптове/humanizer
 const MAX_COMMENT_CHARS = 45000;
@@ -240,10 +241,13 @@ async function executeRun(runId) {
           `INSERT INTO ca_memory (client_id, kind, text, source, status, created_by)
            SELECT $1,$2,$3,$4,'pending','Content агент'
             WHERE NOT EXISTS (SELECT 1 FROM ca_memory WHERE client_id = $1 AND lower(text) = lower($3))
-           RETURNING id, kind, text`,
+           RETURNING *`,
           [client.id, it.kind, String(it.text).trim().slice(0, 2000), `Basecamp: ${(it.evidence || '').slice(0, 300)}`]
         );
-        if (row) learned.push(row);
+        if (row) {
+          learned.push({ id: row.id, kind: row.kind, text: row.text });
+          await caHistory.log('memory', 'create', null, row, { name: 'Content агент' });
+        }
       }
       await record('learn', STEPS.learn.title, reviews, { learned: learned.length });
     }

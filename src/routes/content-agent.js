@@ -9,6 +9,8 @@ const store = require('../services/content-agent/store');
 const scout = require('../services/content-agent/scout');
 const pipeline = require('../services/content-agent/pipeline');
 const { callJson, TEAM, block } = require('../services/content-agent/agents');
+const caHistory = require('../services/content-agent/history');
+const by = caHistory.userOf;
 
 const PLATFORMS = ['youtube', 'tiktok', 'instagram', 'facebook', 'other'];
 const ROLES = ['own', 'competitor', 'inspiration'];
@@ -103,6 +105,7 @@ router.post('/clients/:id/profiles', express.json(), async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [clientId(req), f.platform, f.url, f.handle, f.label, f.role, who(req)]
     );
+    await caHistory.log('profile', 'create', null, row, by(req));
     res.json(row);
   } catch (e) { fail(res, e, e.status || 500); }
 });
@@ -110,12 +113,14 @@ router.post('/clients/:id/profiles', express.json(), async (req, res) => {
 router.put('/profiles/:pid', express.json(), async (req, res) => {
   try {
     const f = profileFields(req.body || {});
+    const before = await queryOne('SELECT * FROM ca_profiles WHERE id = $1', [parseInt(req.params.pid, 10)]);
     const row = await queryOne(
       `UPDATE ca_profiles SET platform = $2, url = $3, handle = $4, label = $5, role = $6, active = $7
         WHERE id = $1 RETURNING *`,
       [parseInt(req.params.pid, 10), f.platform, f.url, f.handle, f.label, f.role, req.body.active !== false]
     );
     if (!row) return res.status(404).json({ error: 'Профилът не е намерен.' });
+    await caHistory.log('profile', 'update', before, row, by(req));
     res.json(row);
   } catch (e) { fail(res, e, e.status || 500); }
 });
@@ -123,8 +128,10 @@ router.put('/profiles/:pid', express.json(), async (req, res) => {
 router.delete('/profiles/:pid', async (req, res) => {
   try {
     const pid = parseInt(req.params.pid, 10);
+    const before = await queryOne('SELECT * FROM ca_profiles WHERE id = $1', [pid]);
     await execute('DELETE FROM ca_videos WHERE profile_id = $1', [pid]);
     await execute('DELETE FROM ca_profiles WHERE id = $1', [pid]);
+    if (before) await caHistory.log('profile', 'delete', before, null, by(req));
     res.json({ ok: true });
   } catch (e) { fail(res, e); }
 });
@@ -152,6 +159,7 @@ router.post('/clients/:id/memory', express.json(), async (req, res) => {
        VALUES ($1,$2,$3,$4,'approved',$5,$5) RETURNING *`,
       [clientId(req), kind, text.slice(0, 20000), String(req.body.source || 'Ръчно').slice(0, 300), who(req)]
     );
+    await caHistory.log('memory', 'create', null, row, by(req));
     res.json(row);
   } catch (e) { fail(res, e); }
 });
@@ -170,13 +178,17 @@ router.put('/memory/:mid', express.json(), async (req, res) => {
         WHERE id = $1 RETURNING *`,
       [cur.id, kind, text, status, cur.status, who(req)]
     );
+    const onlyStatus = status !== cur.status && text === cur.text && kind === cur.kind;
+    await caHistory.log('memory', onlyStatus ? 'status' : 'update', cur, row, by(req));
     res.json(row);
   } catch (e) { fail(res, e); }
 });
 
 router.delete('/memory/:mid', async (req, res) => {
   try {
+    const before = await queryOne('SELECT * FROM ca_memory WHERE id = $1', [parseInt(req.params.mid, 10)]);
     await execute('DELETE FROM ca_memory WHERE id = $1', [parseInt(req.params.mid, 10)]);
+    if (before) await caHistory.log('memory', 'delete', before, null, by(req));
     res.json({ ok: true });
   } catch (e) { fail(res, e); }
 });
@@ -211,10 +223,10 @@ router.post('/clients/:id/import', express.json({ limit: '3mb' }), async (req, r
         `INSERT INTO ca_memory (client_id, kind, text, source, status, created_by)
          SELECT $1,$2,$3,$4,'pending',$5
           WHERE NOT EXISTS (SELECT 1 FROM ca_memory WHERE client_id = $1 AND lower(text) = lower($3))
-         RETURNING id`,
+         RETURNING *`,
         [id, it.kind, String(it.text).trim().slice(0, 5000), `Импорт: ${filename}`, who(req)]
       );
-      if (r) added++;
+      if (r) { added++; await caHistory.log('memory', 'create', null, r, by(req)); }
     }
     res.json({ added });
   } catch (e) { fail(res, e); }
@@ -224,13 +236,31 @@ router.post('/clients/:id/import', express.json({ limit: '3mb' }), async (req, r
 router.post('/clients/:id/memory/bulk', express.json(), async (req, res) => {
   try {
     const status = req.body.status === 'rejected' ? 'rejected' : 'approved';
+    const before = await query("SELECT * FROM ca_memory WHERE client_id = $1 AND status = 'pending'", [clientId(req)]);
     const r = await query(
       `UPDATE ca_memory SET status = $2, reviewed_by = $3, updated_at = NOW()
-        WHERE client_id = $1 AND status = 'pending' RETURNING id`,
+        WHERE client_id = $1 AND status = 'pending' RETURNING *`,
       [clientId(req), status, who(req)]
     );
+    const prev = {};
+    for (const b of before) prev[b.id] = b;
+    for (const row of r) await caHistory.log('memory', 'status', prev[row.id] || null, row, by(req));
     res.json({ updated: r.length });
   } catch (e) { fail(res, e); }
+});
+
+// ---------- история на промените (само админ) ----------
+
+router.get('/clients/:id/history', requireAdmin, async (req, res) => {
+  try {
+    res.json({ history: await caHistory.list(clientId(req)) });
+  } catch (e) { fail(res, e); }
+});
+
+router.post('/history/:hid/restore', requireAdmin, async (req, res) => {
+  try {
+    res.json(await caHistory.restore(parseInt(req.params.hid, 10), by(req)));
+  } catch (e) { fail(res, e, e.status || 500); }
 });
 
 // ---------- пускания ----------

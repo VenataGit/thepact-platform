@@ -9,7 +9,9 @@ const { query, queryOne, execute } = require('../../db/pool');
 let schemaReady = null;
 function ensureSchema() {
   if (!schemaReady) {
-    const sql = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'db', 'migrations', '059_content_agent.sql'), 'utf8');
+    const dir = path.join(__dirname, '..', '..', '..', 'db', 'migrations');
+    const sql = ['059_content_agent.sql', '060_content_agent_history.sql']
+      .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
     schemaReady = execute(sql).catch((e) => { schemaReady = null; throw e; });
   }
   return schemaReady;

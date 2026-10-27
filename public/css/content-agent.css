@@ -42,6 +42,17 @@
 .ca-client:hover .ca-client__hide { opacity: 1; }
 .ca-check--inline { margin: 0 !important; font-size: 12px !important; color: var(--text-secondary) !important; }
 .ca-dupbox { background: var(--yellow-dim); border: 1px solid rgba(234, 179, 8, .3); border-radius: var(--radius); padding: 8px 12px; margin-bottom: 12px; font-size: 12.5px; line-height: 1.5; color: var(--text); }
+.ca-fold { cursor: pointer; user-select: none; margin-bottom: 10px; }
+.ca-fold:hover { color: var(--accent); }
+.ca-fold__a { display: inline-block; width: 14px; color: var(--text-dim); }
+.ca-panel--closed { padding-top: 11px; padding-bottom: 11px; }
+.ca-panel--closed .ca-fold { margin-bottom: 0; }
+.ca-hist { border-top: 1px solid var(--border); padding: 10px 0; }
+.ca-hist:first-of-type { border-top: none; }
+.ca-hist__h { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 6px; }
+.ca-hist__b, .ca-hist__a { font-size: 12.5px; padding: 6px 10px; border-radius: 6px; margin-top: 4px; }
+.ca-hist__b { background: var(--red-dim); }
+.ca-hist__a { background: var(--green-dim); }
 .ca-client__dup { font-size: 11.5px; color: var(--yellow); margin-top: 4px; font-weight: 600; }
 
 .ca-pill { display: inline-block; border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
