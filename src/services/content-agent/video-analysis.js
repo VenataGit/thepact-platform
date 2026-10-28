@@ -66,7 +66,8 @@ function transcribe(file) {
 async function download(v, dir) {
   await run(YTDLP, [
     '-q', '--no-warnings', '--no-playlist', '--impersonate', 'chrome',
-    '-f', 'b[height<=720]/bv*[height<=720]+ba/b', '--max-filesize', '80M',
+    // Първо картина + звук слети (Instagram дава отделни потоци — иначе остава без звук).
+    '-f', 'bv*[height<=720]+ba/b[height<=720]/b', '--merge-output-format', 'mp4', '--max-filesize', '80M',
     '-o', path.join(dir, 'v.%(ext)s'), v.url,
   ], 180_000);
   const f = fs.readdirSync(dir).find((n) => n.startsWith('v.'));
@@ -77,6 +78,13 @@ async function download(v, dir) {
 async function duration(file) {
   const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', file], 30_000);
   return Number(stdout.trim()) || 0;
+}
+
+async function hasAudio(file) {
+  try {
+    const { stdout } = await run('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', file], 30_000);
+    return stdout.trim().length > 0;
+  } catch { return false; }
 }
 
 async function sceneCuts(file) {
@@ -192,7 +200,8 @@ async function analyzeOne(v, usage = {}) {
       meta.cuts = await sceneCuts(file);
       frameList = await frames(file, dir, meta.duration || 30);
       const mp3 = path.join(dir, 'a.mp3');
-      try {
+      if (!(await hasAudio(file))) meta.transcript = '';
+      else try {
         await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', file, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '48k', '-y', mp3], 60_000);
         const tr = await transcribe(mp3);
         meta.transcript = tr.text;
