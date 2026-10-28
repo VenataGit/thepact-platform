@@ -47,12 +47,15 @@ function attachmentIdxs(sectionText) {
 // Редовете на една секция → елементи за описанието: обикновените редове стават inline
 // части (services/bc-html.js — escape + оцветените заглавия), а placeholder-ите за медия
 // стават самостоятелни <bc-attachment> елементи (attachMap: idx -> tag HTML, '' когато
-// медията не е могла да се пренесе — тогава редът просто отпада).
-function sectionItems(sectionText, attachMap) {
+// медията не е могла да се пренесе — тогава редът просто отпада). Таблиците/списъците
+// (placeholder "B<idx>", виж kp-plan.js) се връщат като суровия си HTML, 1:1 от плана.
+function sectionItems(sectionText, attachMap, blocks) {
   if (!sectionText) return [];
   const out = [];
   for (const raw of sectionText.split('\n')) {
     const t = raw.trim();
+    const bm = t.match(/^B(\d+)$/);
+    if (bm && blocks && blocks[bm[1]]) { out.push({ attachment: blocks[bm[1]] }); continue; }
     const pm = t.match(/^A(\d+)$/);
     if (pm) {
       const tag = attachMap[pm[1]];
@@ -80,15 +83,17 @@ function itemsToHtml(items) {
 }
 
 function snippetOf(sectionText) {
-  return sectionText.split('\n').filter((l) => !/^A\d+$/.test(l.trim())).slice(1).join(' ').trim().slice(0, 180);
+  return sectionText.split('\n').filter((l) => !/^[AB]\d+$/.test(l.trim())).slice(1).join(' ').trim().slice(0, 180);
 }
 
 // Целият текст, който ще влезе в описанието на новата карта — точно както го
 // сглобява /create, само че в четим вид: placeholder-ите за медия стават
 // „📎 име-на-файла", а блокът с локациите се показва на мястото си.
 // Ползва се от бутона „Преглед" в модала (Венци, 21.08.2026).
-function previewBody(sectionText, attachments, title) {
+function previewBody(sectionText, attachments, title, blocks) {
   const named = (text) => String(text || '').split('\n').map((l) => {
+    const bm = l.trim().match(/^B(\d+)$/);
+    if (bm && blocks && blocks[bm[1]]) return kpPlan.rawBlockText(blocks[bm[1]]);
     const m = l.trim().match(/^A(\d+)$/);
     if (!m) return l;
     const a = attachments[parseInt(m[1], 10)];
@@ -233,7 +238,7 @@ router.post('/preview', requireAuth, async (req, res) => {
     const projectId = config.BASECAMP_TEAM_PROJECT_ID;
     const card = await bc.getCard(token, account, projectId, cardId);
     const prefix = planPrefix(card.title);
-    let { sections, attachments, header } = parsePlan(planHtml(card));
+    let { sections, attachments, blocks, header } = parsePlan(planHtml(card));
     const truncated = sections.length > MAX_VIDEOS;
     if (truncated) sections = sections.slice(0, MAX_VIDEOS);
 
@@ -265,7 +270,7 @@ router.post('/preview', requireAuth, async (req, res) => {
         publishDate,
         mediaCount: attachmentIdxs(s.sectionText).length,
         snippet: snippetOf(s.sectionText),
-        body: previewBody(s.sectionText, attachments, cardTitle),
+        body: previewBody(s.sectionText, attachments, cardTitle, blocks),
         steps: stepsFor(publishDate),
         existingCardUrl: existing ? bc.normalizeAppUrl(existing.app_url) : null,
       };
@@ -301,7 +306,7 @@ router.post('/create', requireAuth, async (req, res) => {
 
     const card = await bc.getCard(token, account, projectId, cardId);
     const prefix = planPrefix(card.title);
-    let { sections, attachments, header } = parsePlan(planHtml(card));
+    let { sections, attachments, blocks, header } = parsePlan(planHtml(card));
     if (!sections.length) return res.status(400).json({ error: 'Няма разпознати „Видео N - …" секции в плана.' });
     const truncated = sections.length > MAX_VIDEOS;
     if (truncated) sections = sections.slice(0, MAX_VIDEOS);
@@ -389,9 +394,9 @@ router.post('/create', requireAuth, async (req, res) => {
         // редове, преди „Описание:" (services/folder-paths.js).
         const split = fp.splitForLocation(s.sectionText);
         const content = itemsToHtml(bch.join([
-          sectionItems(split.before, attachMap),
+          sectionItems(split.before, attachMap, blocks),
           fp.locationLines(title),
-          sectionItems(split.after, attachMap),
+          sectionItems(split.after, attachMap, blocks),
         ]));
         const newCard = await bc.createCard(token, account, projectId, target.id, { title, content, due_on: publishDate || undefined });
         // Папките ги прави агентът в офиса — тук само записваме заявката (никога не хвърля).

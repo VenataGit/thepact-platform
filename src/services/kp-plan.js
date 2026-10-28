@@ -64,12 +64,70 @@ function htmlToText(html) {
     .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 }
 
-// Returns { sections:[{videoNumber,title,sectionText}], attachments:[{href,...}], header }.
+// Таблици, списъци, цитати и код блокове се пренасят 1:1 като суров HTML (Венци,
+// 28.10.2026: „таблицата не се пренася, а се пуска като текст и вътре е разбъркано").
+// Новият редактор на Basecamp (Lexxy) пише таблицата като
+// <figure class="lexxy-content__table-wrapper"><table>…</table></figure>, а
+// tag-stripper-ът в htmlToText я сплескваше до клетка-по-ред. Затова такъв блок се вади
+// като самостоятелен placeholder ред ("B<idx>"), точно като прикачените файлове, и
+// kp-split го връща на мястото му непроменен.
+// Блок, в който стои заглавие „Видео N - …" или датата за публикуване, НЕ се вади —
+// парсването на секциите и датите трябва да го вижда като текст.
+const RAW_OPEN_RE = /<(figure|table|ul|ol|blockquote|pre)\b[^>]*>/gi;
+
+// Краят на балансирания елемент `tag`, започващ на `from` (вложени еднакви тагове
+// се броят). -1, ако не е затворен.
+function closingEnd(html, tag, from) {
+  const re = new RegExp('<(/?)' + tag + '\\b[^>]*>', 'gi');
+  re.lastIndex = from;
+  let depth = 0, m;
+  while ((m = re.exec(html))) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return m.index + m[0].length;
+  }
+  return -1;
+}
+
+function extractRawBlocks(html, blocks) {
+  const src = String(html || '');
+  let out = '', last = 0, m;
+  RAW_OPEN_RE.lastIndex = 0;
+  while ((m = RAW_OPEN_RE.exec(src))) {
+    const tag = m[1].toLowerCase();
+    const end = closingEnd(src, tag, m.index);
+    if (end < 0) continue;
+    const chunk = src.slice(m.index, end);
+    // <figure> е само обвивка — вадим я само ако носи таблица (снимките идват като bc-attachment).
+    const keep = (tag !== 'figure' || /<table\b/i.test(chunk))
+      && !/Видео\s+\d+\s*[-–—]/.test(chunk) && !/Дата\s+(?:на|за)\s+публикуване/i.test(chunk);
+    if (!keep) continue;
+    out += src.slice(last, m.index) + '\nB' + blocks.length + '\n';
+    blocks.push(chunk);
+    last = end;
+    RAW_OPEN_RE.lastIndex = end;
+  }
+  return out + src.slice(last);
+}
+
+// Четим текст на суров блок — за прегледа в модала (таблицата ред по ред, „ | " между клетките).
+function rawBlockText(html) {
+  return htmlToText(String(html || '')
+    .replace(/<\/t[dh]>\s*(?=<t[dh]\b)/gi, ' | ')
+    .replace(/<\/tr>/gi, '\n')
+    .replace(/<li\b[^>]*>/gi, '• ')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/(?:td|th|p)>/gi, ''))
+    .split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
+}
+
+// Returns { sections:[{videoNumber,title,sectionText}], attachments:[{href,...}], blocks:[html], header }.
 // `header` = редовете ПРЕДИ първата „Видео N" секция (там стои списъкът с датите
 // за публикуване, който parsePlanDates чете).
 function parsePlan(html) {
   const attachments = [];
-  const withPlaceholders = (html || '').replace(ATTACH_RE, (m) => {
+  const blocks = [];
+  // Първо суровите блокове: прикачен файл ВЪТРЕ в таблица си остава в нея.
+  const withPlaceholders = extractRawBlocks(html, blocks).replace(ATTACH_RE, (m) => {
     const i = attachments.length;
     attachments.push(parseAttachment(m));
     return '\nA' + i + '\n';
@@ -94,7 +152,7 @@ function parsePlan(html) {
     else { headerLines.push(raw); }
   }
   if (cur) sections.push({ ...cur, sectionText: curLines.join('\n') });
-  return { sections, attachments, header: headerLines.join('\n') };
+  return { sections, attachments, blocks, header:headerLines.join('\n') };
 }
 
 // "Дата на/за публикуване - DD.MM.YYYY" → YYYY-MM-DD.
@@ -238,7 +296,7 @@ function setPublishDateInText(text, iso) {
 }
 
 module.exports = {
-  parsePlan, parsePublishDate, planHtml, htmlToText,
+  parsePlan, parsePublishDate, planHtml, htmlToText, rawBlockText,
   parsePlanDates, isoToBg, allDates,
   setPublishDateInHtml, setPublishDateInText,
 };
