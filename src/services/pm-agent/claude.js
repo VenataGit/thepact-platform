@@ -13,7 +13,7 @@ const TIMEOUT_MS = 600_000; // дълбок анализ с thinking може д
 function callClaude({ system, messages, tools, maxTokens = 12000, effort = 'high', model }) {
   return new Promise((resolve, reject) => {
     if (!config.ANTHROPIC_API_KEY) {
-      return reject(new Error('ANTHROPIC_API_KEY не е конфигуриран.'));
+      return reject(new Error('Платеното Claude API е изключено (Венци, 28.10.2026) — тази функция засега не работи без него.'));
     }
     const body = {
       model: model || MODEL,

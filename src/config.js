@@ -20,7 +20,12 @@ module.exports = {
   BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS) || 12,
   BOARD_ORDER: ['Pre-Production', 'Production', 'Post-Production', 'Акаунт Мениджмънт', 'Задачи'],
   DEPLOY_SECRET: process.env.DEPLOY_SECRET || null,
-  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || null,
+  // Платеното Claude API (токени на употреба) е ЗАБРАНЕНО по решение на Венци (28.10.2026):
+  // всичко трябва да върви през абонамента (OAuth), както dev опашката на PC-то. Ключът в
+  // .env остава, но кодът не го вижда → всички AI функции минават на резервния си режим или
+  // казват, че са изключени. Включва се отново САМО с изрично съгласие на Венци.
+  PAID_CLAUDE_API_ALLOWED: false,
+  ANTHROPIC_API_KEY: null,
   // Basecamp OAuth ("Connect with Basecamp" login)
   BASECAMP_CLIENT_ID: process.env.BASECAMP_CLIENT_ID || null,
   BASECAMP_CLIENT_SECRET: process.env.BASECAMP_CLIENT_SECRET || null,

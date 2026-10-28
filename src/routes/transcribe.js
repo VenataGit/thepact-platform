@@ -85,7 +85,7 @@ router.post('/', requireAuth, upload.single('audio'), (req, res) => {
 // Returns: { text, model, input_tokens, output_tokens }
 router.post('/summary', requireAuth, express.json({ limit: '1mb' }), (req, res) => {
   if (!config.ANTHROPIC_API_KEY) {
-    return res.status(503).json({ error: 'Claude API ключ не е конфигуриран (ANTHROPIC_API_KEY в .env).' });
+    return res.status(503).json({ error: 'Платеното Claude API е изключено (Венци, 28.10.2026) — тази функция засега не работи без него.' });
   }
   const text = (req.body && typeof req.body.text === 'string') ? req.body.text.trim() : '';
   if (!text) return res.status(400).json({ error: 'липсва текст' });

@@ -206,7 +206,7 @@ async function executeRun(runId) {
 
   try {
     if (!client) throw new Error('клиентът не е намерен');
-    if (!config.ANTHROPIC_API_KEY) throw new Error('няма ANTHROPIC_API_KEY');
+    if (!config.ANTHROPIC_API_KEY) throw new Error('Платеното Claude API е изключено (Венци, 28.10.2026) — тази функция засега не работи без него');
 
     if (canComment && !meta.restarts) {
       await bc.createComment(auth.token, auth.account, run.bc_project_id, run.bc_parent_id,
