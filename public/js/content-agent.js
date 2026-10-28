@@ -182,7 +182,7 @@ async function caLoadClient(id, fromPoll) {
     _ca.kinds = d.kinds || {};
     caRenderClient();
     // Докато върви пускане или обновяване на профили — опресняваме сами.
-    var busy = d.scouting || d.discovering || d.runs.some(function (r) { return r.status === 'queued' || r.status === 'running'; });
+    var busy = d.scouting || d.discovering || d.analyzing || d.runs.some(function (r) { return r.status === 'queued' || r.status === 'running'; });
     if (busy) schedule();
   } catch (e) { if (!fromPoll) caBody('<div class="ca-err">' + esc(e.message) + '</div>'); else schedule(); }
 }
@@ -525,7 +525,8 @@ function caDiscoverPanel(d) {
   var tags = function (arr, pre) { return (arr || []).map(function (x) { return '<span class="ca-tag">' + esc((pre || '') + x) + '</span>'; }).join(' '); };
   var html = '<div class="ca-panel"><div class="ca-panel__t">🔎 Търсене на нови профили и трендове<span class="ca-spacer"></span>' +
     '<button class="btn btn-sm" ' + (d.discovering ? 'disabled' : '') + ' onclick="caDiscover(false)">' + (d.discovering ? '⏳ Търся… (няколко минути)' : '🔎 Търси нови профили') + '</button> ' +
-    '<button class="btn btn-ghost btn-sm" ' + (d.discovering ? 'disabled' : '') + ' onclick="caDiscover(true)" title="Агентът измисля нови думи за търсене от паметта на клиента">↻ Нови думи</button></div>' +
+    '<button class="btn btn-ghost btn-sm" ' + (d.discovering ? 'disabled' : '') + ' onclick="caDiscover(true)" title="Агентът измисля нови думи за търсене от паметта на клиента">↻ Нови думи</button> ' +
+    '<button class="btn btn-ghost btn-sm" ' + (d.analyzing ? 'disabled' : '') + ' onclick="caAnalyzeVideos()" title="Сваля най-успешните видеа, транскрибира ги и гледа кадрите от първите секунди">' + (d.analyzing ? '⏳ Анализирам видеата…' : '🎬 Анализирай видеата') + '</button></div>' +
     '<div class="ca-hint">Агентът измисля думи за търсене от паметта и видеата на клиента (български и английски), търси по тях в TikTok, Instagram и YouTube и намира профили с видеа, които са минали много над нормата си. ' +
     'Всичко влиза в обща библиотека — друг клиент със сходна ниша я ползва директно, без ново търсене. При всяко пускане на агентите първо се ползва наличното, а ново търсене тръгва само (най-много веднъж седмично).</div>';
   if (t.topics && t.topics.length) {
@@ -551,6 +552,31 @@ async function caDiscover(newTerms) {
   } catch (e) { showToast(e.message, 'error'); }
 }
 
+// Анализът на самото видео — под описанието: кукичката (казано / кадър / текст), защо работи.
+function caAnalysisHtml(v) {
+  var a = v.analysis;
+  if (!a) return v.analysis_error ? '<div class="ca-va ca-dim">🎬 не се анализира: ' + esc(v.analysis_error) + '</div>' : '';
+  var h = a.hook || {};
+  var partial = a.meta && a.meta.partial;
+  return '<details class="ca-va"><summary>🎬 ' + (partial ? 'Частичен анализ' : 'Анализ на видеото') +
+    (h.archetype ? ' · ' + esc(h.archetype) : '') + (a.format ? ' · ' + esc(a.format) : '') + '</summary>' +
+    (h.spoken ? '<div><strong>Казано:</strong> ' + esc(h.spoken) + '</div>' : '') +
+    (h.visual ? '<div><strong>Първи кадър:</strong> ' + esc(h.visual) + '</div>' : '') +
+    (h.on_screen ? '<div><strong>Текст на екрана:</strong> ' + esc(h.on_screen) + '</div>' : '') +
+    (a.why_it_works ? '<div><strong>Защо работи:</strong> ' + esc(a.why_it_works) + '</div>' : '') +
+    (a.transferable && a.transferable.length ? '<div><strong>Пренасяме:</strong> ' + a.transferable.map(esc).join(' · ') + '</div>' : '') +
+    (a.meta ? '<div class="ca-dim">' + (a.meta.duration ? a.meta.duration + ' сек · ' : '') + (a.meta.scene_cuts != null ? a.meta.scene_cuts + ' смени на кадъра' : '') + '</div>' : '') +
+    '</details>';
+}
+
+async function caAnalyzeVideos() {
+  try {
+    var r = await caApi('POST', '/clients/' + _ca.client.client.id + '/analyze');
+    showToast(r.running ? 'Анализът вече върви' : 'Анализирам видеата едно по едно — по 1-3 мин на видео', 'success', 5000);
+    caLoadClient(_ca.client.client.id);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
 function caVideoTable(rows) {
   var html = '<table class="ca-table"><thead><tr><th>Скор</th><th>Профил</th><th>Видео</th><th>Гледания</th><th>Медиана</th><th>❤</th><th>💬</th><th>↗</th><th>Дата</th></tr></thead><tbody>';
   rows.forEach(function (v) {
@@ -558,7 +584,7 @@ function caVideoTable(rows) {
     var cls = sc >= 10 ? 'ca-score--hot' : sc >= 5 ? 'ca-score--good' : sc >= 3 ? 'ca-score--ok' : '';
     html += '<tr><td><span class="ca-score ' + cls + '">' + sc.toFixed(1) + '×</span></td>' +
       '<td>' + esc(CA_PLATFORMS[v.platform] || v.platform) + '<br><span class="ca-dim">' + esc(v.label || v.handle || '') + ' · ' + esc(CA_ROLES[v.role] || '') + '</span></td>' +
-      '<td class="ca-cap"><a href="' + esc(v.url) + '" target="_blank" rel="noopener">' + esc(String(v.caption || 'видео').slice(0, 140)) + '</a></td>' +
+      '<td class="ca-cap"><a href="' + esc(v.url) + '" target="_blank" rel="noopener">' + esc(String(v.caption || 'видео').slice(0, 140)) + '</a>' + caAnalysisHtml(v) + '</td>' +
       '<td>' + caNum(v.views) + '</td><td>' + caNum(v.profile_median == null ? null : Math.round(v.profile_median)) + '</td>' +
       '<td>' + caNum(v.likes) + '</td><td>' + caNum(v.comments) + '</td><td>' + caNum(v.shares) + '</td>' +
       '<td>' + esc(v.published_at ? String(v.published_at).slice(0, 10) : '') + '</td></tr>';

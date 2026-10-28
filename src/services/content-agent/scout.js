@@ -222,7 +222,7 @@ async function refreshClient(clientId, { force = false } = {}) {
 async function topOutliers(clientId, { limit = 25, minScore = 2, days = 365 } = {}) {
   await store.ensureSchema();
   return query(
-    `SELECT v.platform, v.url, v.caption, v.views, v.likes, v.comments, v.shares, v.saves, v.duration_sec,
+    `SELECT v.id, v.analysis, v.transcript, v.analysis_error, v.platform, v.url, v.caption, v.views, v.likes, v.comments, v.shares, v.saves, v.duration_sec,
             v.published_at, v.outlier_score, p.label, p.handle, p.role, (p.stats->>'median') AS profile_median
        FROM ca_videos v JOIN ca_profiles p ON p.id = v.profile_id
       WHERE v.client_id = $1 AND p.active = TRUE AND v.outlier_score >= $2

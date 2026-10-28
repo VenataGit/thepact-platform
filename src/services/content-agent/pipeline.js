@@ -17,6 +17,7 @@ const scout = require('./scout');
 const { STEPS, runStep } = require('./agents');
 const caHistory = require('./history');
 const discover = require('./discover');
+const videoAnalysis = require('./video-analysis');
 
 const CHUNK = 5;               // по колко видеа наведнъж за кукички/скриптове/humanizer
 const MAX_COMMENT_CHARS = 45000;
@@ -158,6 +159,13 @@ function outliersForPrompt(rows) {
     shares: v.shares == null ? null : Number(v.shares), saves: v.saves == null ? null : Number(v.saves),
     duration_sec: v.duration_sec, published: v.published_at ? new Date(v.published_at).toISOString().slice(0, 10) : null,
     caption: String(v.caption || '').slice(0, 600),
+    // Анализът на самото видео (кукичка, структура, защо работи) — ако го има.
+    video_analysis: v.analysis ? {
+      hook: v.analysis.hook, format: v.analysis.format, structure: v.analysis.structure,
+      pacing: v.analysis.pacing, emotion: v.analysis.emotion, why_it_works: v.analysis.why_it_works,
+      transferable: v.analysis.transferable, partial: !!(v.analysis.meta && v.analysis.meta.partial),
+    } : null,
+    transcript: v.transcript ? String(v.transcript).slice(0, 700) : null,
   }));
 }
 
@@ -290,6 +298,22 @@ async function executeRun(runId) {
         errors: termsNote.startsWith('грешка') || termsNote.startsWith('няма') ? [termsNote] : [],
         note: termsNote + (started && started.started ? ' · ново търсене тръгна фоново' : started && started.recent ? ' · търсено е скоро' : ''),
       });
+    }
+
+    // 2в) Анализ на самите видеа — топ успешните без анализ (сваляне → транскрипт → кадри →
+    // Анализатор на видео + проверител). С таван на времето; останалите продължават фоново.
+    {
+      const va = await videoAnalysis.analyzeTop(client.id, { limit: 6, budgetMs: 8 * 60_000, usage })
+        .catch((e) => ({ analyzed: 0, failed: 0, errors: [e.message] }));
+      await logStep(runId, {
+        key: 'video', title: 'Анализ на видеата (кадри + транскрипт)',
+        count: va.analyzed, errors: (va.errors || []).slice(0, 4),
+      });
+      videoAnalysis.analyzeInBackground(client.id);
+      // Наново, за да влязат току-що анализираните.
+      const fresh = await scout.topOutliers(client.id).catch(() => []);
+      const freshLib = await discover.libraryOutliers(client.id).catch(() => []);
+      if (fresh.length || freshLib.length) outliers = fresh.concat(freshLib);
     }
     ctx.outliers = outliersForPrompt(outliers);
 

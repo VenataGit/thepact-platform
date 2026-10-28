@@ -10,7 +10,7 @@ let schemaReady = null;
 function ensureSchema() {
   if (!schemaReady) {
     const dir = path.join(__dirname, '..', '..', '..', 'db', 'migrations');
-    const sql = ['059_content_agent.sql', '060_content_agent_history.sql', '061_content_agent_library.sql']
+    const sql = ['059_content_agent.sql', '060_content_agent_history.sql', '061_content_agent_library.sql', '062_content_agent_video_analysis.sql']
       .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
     schemaReady = execute(sql).catch((e) => { schemaReady = null; throw e; });
   }

@@ -80,7 +80,7 @@ async function libraryOutliers(clientId, { limit = 20, minScore = 2, days = 180 
   const topics = allTopics(row && row.terms);
   if (!topics.length) return [];
   return query(
-    `SELECT v.platform, v.url, v.caption, v.views, v.likes, v.comments, v.shares, v.saves, v.duration_sec,
+    `SELECT v.id, v.analysis, v.transcript, v.analysis_error, v.platform, v.url, v.caption, v.views, v.likes, v.comments, v.shares, v.saves, v.duration_sec,
             v.published_at, v.outlier_score, p.label, p.handle, p.role, p.lang, (p.stats->>'median') AS profile_median
        FROM ca_videos v JOIN ca_profiles p ON p.id = v.profile_id
       WHERE p.client_id = 0 AND p.active = TRUE AND p.topics && $1::text[] AND v.outlier_score >= $2
@@ -245,6 +245,8 @@ async function discover(clientId, { force = false, usage } = {}) {
       [clientId, JSON.stringify(result)]
     );
     console.log(`[content-agent discover] ${client.name}: нови ${JSON.stringify(found)}, обновени ${refreshed}` + (errors.length ? `, грешки ${errors.length}` : ''));
+    // Новите успешни видеа се анализират фоново (сваляне, транскрипт, кадри).
+    require('./video-analysis').analyzeInBackground(clientId);
     return result;
   } finally {
     running.delete(clientId);

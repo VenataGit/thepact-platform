@@ -11,6 +11,7 @@ const pipeline = require('../services/content-agent/pipeline');
 const { callJson, TEAM, block } = require('../services/content-agent/agents');
 const caHistory = require('../services/content-agent/history');
 const discover = require('../services/content-agent/discover');
+const videoAnalysis = require('../services/content-agent/video-analysis');
 const by = caHistory.userOf;
 
 const PLATFORMS = ['youtube', 'tiktok', 'instagram', 'facebook', 'other'];
@@ -87,7 +88,7 @@ router.get('/clients/:id', async (req, res) => {
     res.json({
       client, profiles, memory, runs, outliers, library, scouting: scouting.has(id), kinds: store.KIND_LABELS,
       search: search ? { terms: search.terms, terms_updated_at: search.terms_updated_at, last_discovery_at: search.last_discovery_at, last_result: search.last_result } : null,
-      library_profiles: libProfiles[0].n, discovering: discover.isRunning(id),
+      library_profiles: libProfiles[0].n, discovering: discover.isRunning(id), analyzing: videoAnalysis.isBusy(id),
     });
   } catch (e) { fail(res, e); }
 });
@@ -154,7 +155,15 @@ router.post('/clients/:id/scout', express.json(), async (req, res) => {
   res.json({ started: true });
   scout.refreshClient(id, { force: !!(req.body && req.body.force) })
     .catch((e) => console.error('[content-agent scout]', e.message))
-    .finally(() => scouting.delete(id));
+    .finally(() => { scouting.delete(id); videoAnalysis.analyzeInBackground(id); });
+});
+
+// Анализ на самите видеа (сваляне, транскрипт, кадри) — фоново, едно по едно.
+router.post('/clients/:id/analyze', async (req, res) => {
+  const id = clientId(req);
+  if (videoAnalysis.isBusy(id)) return res.json({ started: false, running: true });
+  videoAnalysis.analyzeInBackground(id);
+  res.json({ started: true });
 });
 
 // Откривател: търси нови профили в нишата (BG + EN) → обща библиотека. Фоново.
