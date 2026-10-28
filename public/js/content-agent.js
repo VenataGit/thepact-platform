@@ -609,6 +609,7 @@ async function renderContentRun(el, rid) {
         html += '<div class="ca-panel ca-script"><div class="ca-panel__t">Видео ' + esc(s.n) + ': ' + esc(s.title || '') +
           ' <span class="ca-dim">' + esc([s.type, s.duration_sec ? '~' + s.duration_sec + ' сек' : ''].filter(Boolean).join(' · ')) + '</span></div>' +
           (hook ? '<div><strong>Кукичка:</strong> ' + esc(hook) + '</div>' : '') +
+          (s.hook_on_screen ? '<div><strong>Текст на екрана:</strong> ' + esc(s.hook_on_screen) + '</div>' : '') +
           '<pre class="ca-pre">/Участници във видеото - ' + esc(s.participants || '') + '/\n/Локация - ' + esc(s.location || '') + '/\n/Необходими продукти-ресурси - ' + esc(s.resources || '') + '/\n\n' + esc(s.body || '') +
           (s.caption ? '\n\nОписание (Caption): ' + esc(s.caption) : '') + '</pre>' +
           (s.human_input ? '<div class="ca-hint">Човек да допълни: ' + esc(s.human_input) + '</div>' : '') +

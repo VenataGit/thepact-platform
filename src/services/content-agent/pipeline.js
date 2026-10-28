@@ -347,7 +347,12 @@ async function executeRun(runId) {
       const s = scripts[idea.n] || {};
       return { ...s, n: idea.n, title: s.title || idea.title, type: s.type || idea.type,
         reference_url: s.reference_url || idea.reference_url || '', human_input: s.human_input || idea.human_input || '',
-        hook_options: (hooks[idea.n] && hooks[idea.n].options) || [] };
+        hook_options: (hooks[idea.n] && hooks[idea.n].options) || [],
+        hook_on_screen: (() => {
+          const h = hooks[idea.n];
+          const o = h && Array.isArray(h.options) ? (h.options[Number(h.best) || 0] || h.options[0]) : null;
+          return (o && o.on_screen) || '';
+        })() };
     });
 
     // 9) Главен редактор.
@@ -397,6 +402,7 @@ function scriptHtml(s) {
   head.push(`<strong>Видео ${esc(s.n)}: ${esc(s.title || '')}</strong>` +
     (s.type || s.duration_sec ? ` <em>(${esc([s.type, s.duration_sec ? `~${s.duration_sec} сек` : ''].filter(Boolean).join(' · '))})</em>` : ''));
   if (s.hook) head.push(`<strong>Кукичка:</strong> ${esc(typeof s.hook === 'string' ? s.hook : s.hook.text || '')}`);
+  if (s.hook_on_screen) head.push(`<strong>Текст на екрана:</strong> ${esc(s.hook_on_screen)}`);
   head.push('');
   head.push(`/Участници във видеото - ${esc(s.participants || '')}/`);
   head.push(`/Локация - ${esc(s.location || '')}/`);
