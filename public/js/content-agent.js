@@ -100,9 +100,24 @@ async function renderContentList(el) {
 }
 
 // Засечени клиенти с еднакви имена в КП-Автоматизация — показва се само настоящият.
+// „✕" скрива лентата в този браузър. Помни се КОИ дубликати са били показани —
+// появи ли се нов (друг клиент или друг стар ред), лентата излиза пак.
+function caDupSignature(list) {
+  return list.map(function (d) { return d.canonical.id + ':' + d.others.map(function (o) { return o.id; }).join('+'); }).sort().join(',');
+}
+function caDismissDup() {
+  try { localStorage.setItem('ca_dup_dismissed', _ca.dupSig || ''); } catch (e) {}
+  var b = document.querySelector('.ca-dupbox');
+  if (b) b.remove();
+}
+
 function caDuplicatesHtml(list) {
   if (!list.length) return '';
-  return '<div class="ca-dupbox"><strong>Засякох ' + list.length + ' клиента, въведени по два пъти в КП-Автоматизация.</strong> ' +
+  _ca.dupSig = caDupSignature(list);
+  var seen = '';
+  try { seen = localStorage.getItem('ca_dup_dismissed') || ''; } catch (e) {}
+  if (seen && seen === _ca.dupSig) return '';
+  return '<div class="ca-dupbox"><button class="ca-dupbox__x" title="Скрий — ще излезе пак само ако има нов дубликат" onclick="caDismissDup()">✕</button><strong>Засякох ' + list.length + ' клиента, въведени по два пъти в КП-Автоматизация.</strong> ' +
     'Показвам и ползвам само настоящия (най-високият КП). Всичко, въведено в стария, се мести само в настоящия — нищо не се губи. ' +
     list.map(function (d) {
       return esc(d.name) + ': ползва се КП-' + esc(d.canonical.kp || '?') + ', стар ' +

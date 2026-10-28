@@ -41,6 +41,8 @@
 .ca-client__hide { margin-left: auto; font-size: 11px; font-weight: 500; opacity: .6; }
 .ca-client:hover .ca-client__hide { opacity: 1; }
 .ca-check--inline { margin: 0 !important; font-size: 12px !important; color: var(--text-secondary) !important; }
+.ca-dupbox__x { float: right; background: none; border: none; color: var(--text-secondary); font-size: 14px; cursor: pointer; padding: 0 0 0 10px; line-height: 1; }
+.ca-dupbox__x:hover { color: var(--text); }
 .ca-dupbox { background: var(--yellow-dim); border: 1px solid rgba(234, 179, 8, .3); border-radius: var(--radius); padding: 8px 12px; margin-bottom: 12px; font-size: 12.5px; line-height: 1.5; color: var(--text); }
 .ca-fold { cursor: pointer; user-select: none; margin-bottom: 10px; }
 .ca-fold:hover { color: var(--accent); }
