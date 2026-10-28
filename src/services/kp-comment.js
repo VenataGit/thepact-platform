@@ -196,7 +196,6 @@ const AI_SYSTEM = `Ти си асистент на българска видео
 
 // Пита Claude какво трябва да се направи по плана. Връща HTML (<ul>…) или null.
 async function aiSummary(ctx, clientName, lookbackDays) {
-  if (!config.ANTHROPIC_API_KEY) return null;
   const prompt = contextToPrompt(ctx, clientName, lookbackDays);
   const r = await callClaude({
     system: AI_SYSTEM,

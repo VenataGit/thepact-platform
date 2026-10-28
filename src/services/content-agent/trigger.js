@@ -141,7 +141,7 @@ function onKpCardCreated({ projectId, cardId, client, kpNumber, videoCount }) {
   setImmediate(async () => {
     try {
       const cfg = await store.loadSettings();
-      if (!cfg.autoOnKp || !config.ANTHROPIC_API_KEY) return;
+      if (!cfg.autoOnKp) return;
       const id = await pipeline.createRun({
         clientId: client.id, trigger: 'kp_auto', requestedBy: 'Нов КП',
         request: videoCount ? `Нов контент план КП-${kpNumber}: ${videoCount} видеа.` : '',

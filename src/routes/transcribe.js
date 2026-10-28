@@ -84,9 +84,6 @@ router.post('/', requireAuth, upload.single('audio'), (req, res) => {
 // Body: { text: string }
 // Returns: { text, model, input_tokens, output_tokens }
 router.post('/summary', requireAuth, express.json({ limit: '1mb' }), (req, res) => {
-  if (!config.ANTHROPIC_API_KEY) {
-    return res.status(503).json({ error: 'Платеното Claude API е изключено (Венци, 28.10.2026) — тази функция засега не работи без него.' });
-  }
   const text = (req.body && typeof req.body.text === 'string') ? req.body.text.trim() : '';
   if (!text) return res.status(400).json({ error: 'липсва текст' });
   if (text.length > MAX_SUMMARY_CHARS) {
@@ -107,6 +104,16 @@ router.post('/summary', requireAuth, express.json({ limit: '1mb' }), (req, res) 
     '',
     'Формат на отговора: само подреденият текст в Markdown. Без увод тип "Ето подредената версия:". Без обяснения.'
   ].join('\n');
+
+  // Без платеното API (Венци, 28.10.2026) → през абонамента на компютъра (AI опашката).
+  if (!config.PAID_CLAUDE_API_ALLOWED || !config.ANTHROPIC_API_KEY) {
+    return require('../services/ai-queue').run({
+      system: systemPrompt, messages: [{ role: 'user', content: text }], effort: 'low', model: CLAUDE_MODEL, kind: 'dictation',
+    }).then((r) => res.json({
+      text: (r.text || '').trim(), model: r.model || CLAUDE_MODEL,
+      input_tokens: r.usage && r.usage.input_tokens, output_tokens: r.usage && r.usage.output_tokens,
+    })).catch((e) => { if (!res.headersSent) res.status(503).json({ error: e.message }); });
+  }
 
   const payload = JSON.stringify({
     model: CLAUDE_MODEL,

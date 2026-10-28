@@ -12,8 +12,12 @@ const TIMEOUT_MS = 600_000; // дълбок анализ с thinking може д
 // за да може викащият да изпълни tool_use и да продължи цикъла.
 function callClaude({ system, messages, tools, maxTokens = 12000, effort = 'high', model }) {
   return new Promise((resolve, reject) => {
-    if (!config.ANTHROPIC_API_KEY) {
-      return reject(new Error('Платеното Claude API е изключено (Венци, 28.10.2026) — тази функция засега не работи без него.'));
+    // Без платеното API (решение на Венци, 28.10.2026) → през абонамента на компютъра.
+    if (!config.PAID_CLAUDE_API_ALLOWED || !config.ANTHROPIC_API_KEY) {
+      if (Array.isArray(tools) && tools.length) {
+        return reject(new Error('Тази функция ползва инструменти (tool use) и засега не работи през абонамента.'));
+      }
+      return resolve(require('../ai-queue').run({ system, messages, effort, model: model || MODEL }));
     }
     const body = {
       model: model || MODEL,
