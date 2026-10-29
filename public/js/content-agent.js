@@ -182,7 +182,7 @@ async function caLoadClient(id, fromPoll) {
     _ca.kinds = d.kinds || {};
     caRenderClient();
     // Докато върви пускане или обновяване на профили — опресняваме сами.
-    var busy = d.scouting || d.discovering || d.analyzing || d.runs.some(function (r) { return r.status === 'queued' || r.status === 'running'; });
+    var busy = d.scouting || d.discovering || d.analyzing || (d.imports || []).some(function (i) { return /uploaded|processing|importing/.test(i.status); }) || d.runs.some(function (r) { return r.status === 'queued' || r.status === 'running'; });
     if (busy) schedule();
   } catch (e) { if (!fromPoll) caBody('<div class="ca-err">' + esc(e.message) + '</div>'); else schedule(); }
 }
@@ -260,10 +260,12 @@ function caMemoryHtml(d) {
       '<textarea class="ca-input ca-textarea" id="caMemText" rows="4" placeholder="напр. Не харесва шеги за възрастта. / Говори на „ти“, кратко и с хумор."></textarea>' +
       '<button class="btn btn-primary btn-sm" onclick="caAddMem()">Запази</button></div>' +
     '<div class="ca-panel"><div class="ca-panel__t">Импорт</div>' +
-      '<div class="ca-hint">Постави текст или избери файл (.md, .txt, .csv): карта на клиента, research, стари скриптове, бележки от среща. Агентът го разбива на отделни записи, които чакат одобрение. За Word — копирай текста и го постави.</div>' +
-      '<input type="file" id="caImpFile" accept=".md,.txt,.csv,.json,.html" class="ca-input" onchange="caReadFile(this)">' +
+      '<div class="ca-hint">Качи файл или постави текст: карта на клиента, research, стари скриптове, бележки от среща, PDF, Word, Excel, PowerPoint, снимки, <strong>видео и аудио</strong> (среща, интервю, гласово съобщение). Файлът се пази на компютъра в офиса, видеото и аудиото се транскрибират там. Агентът разбива съдържанието на отделни записи, които чакат одобрение.</div>' +
+      '<input type="file" id="caImpFile" class="ca-input" onchange="caPickFile(this)">' +
+      '<div id="caUpProg" class="ca-dim ca-small"></div>' +
       '<textarea class="ca-input ca-textarea" id="caImpText" rows="6" placeholder="…или постави текста тук"></textarea>' +
-      '<button class="btn btn-primary btn-sm" id="caImpBtn" onclick="caImport()">Импортирай</button></div>' +
+      '<button class="btn btn-primary btn-sm" id="caImpBtn" onclick="caImport()">Импортирай текста</button>' +
+      caImportsHtml(d.imports || []) + '</div>' +
     caRunPanel() +
   '</div></div>';
   return html;
@@ -338,6 +340,51 @@ async function caDelMem(id) {
   if (!confirm('Да изтрия ли записа от паметта?')) return;
   try { await caApi('DELETE', '/memory/' + id); caLoadClient(_ca.client.client.id); }
   catch (e) { showToast(e.message, 'error'); }
+}
+
+// Малки текстови файлове се четат направо в браузъра; всичко друго (PDF, Word, видео…)
+// се качва и го обработва компютърът в офиса.
+var CA_TEXT_EXT = /\.(md|txt|csv|json|html?)$/i;
+function caPickFile(input) {
+  var f = input.files && input.files[0];
+  if (!f) return;
+  if (CA_TEXT_EXT.test(f.name) && f.size < 2 * 1024 * 1024) return caReadFile(input);
+  caUpload(f);
+  input.value = '';
+}
+
+function caUpload(f) {
+  var prog = document.getElementById('caUpProg');
+  var xhr = new XMLHttpRequest();
+  var fd = new FormData();
+  fd.append('file', f, f.name);
+  xhr.open('POST', '/api/content-agent/clients/' + _ca.client.client.id + '/upload');
+  xhr.upload.onprogress = function (e) {
+    if (prog && e.lengthComputable) prog.textContent = 'Качвам „' + f.name + '“… ' + Math.round(e.loaded / e.total * 100) + '%';
+  };
+  xhr.onload = function () {
+    if (prog) prog.textContent = '';
+    var data = {};
+    try { data = JSON.parse(xhr.responseText); } catch (e) {}
+    if (xhr.status >= 200 && xhr.status < 300) {
+      showToast('Качено. Компютърът в офиса го обработва — записите ще се появят в „Чакат одобрение“.', 'success', 6000);
+      caLoadClient(_ca.client.client.id);
+    } else showToast(data.error || ('Грешка ' + xhr.status), 'error');
+  };
+  xhr.onerror = function () { if (prog) prog.textContent = ''; showToast('Качването прекъсна', 'error'); };
+  xhr.send(fd);
+}
+
+var CA_IMP_STATUS = { uploaded: 'чака компютъра', processing: 'компютърът го обработва', importing: 'прави записи', done: 'готово', error: 'грешка' };
+function caImportsHtml(list) {
+  if (!list.length) return '';
+  return '<div class="ca-imports"><div class="ca-dim ca-small">Качени файлове:</div>' + list.map(function (i) {
+    var mb = i.size ? ' · ' + (i.size / 1048576).toFixed(i.size > 10485760 ? 0 : 1) + ' MB' : '';
+    return '<div class="ca-imp"><span class="ca-st ca-st--' + (i.status === 'done' ? 'done' : i.status === 'error' ? 'error' : 'running') + '">' + esc(CA_IMP_STATUS[i.status] || i.status) + '</span> ' +
+      esc(i.filename) + '<span class="ca-dim">' + mb + (i.status === 'done' ? ' · ' + i.added + ' записа' : '') + '</span>' +
+      (i.error ? '<div class="ca-errline">⚠ ' + esc(i.error) + '</div>' : '') +
+      (i.pc_path ? '<div class="ca-dim ca-small" title="Къде е запазен на компютъра в офиса">💾 ' + esc(i.pc_path) + '</div>' : '') + '</div>';
+  }).join('') + '</div>';
 }
 
 function caReadFile(input) {

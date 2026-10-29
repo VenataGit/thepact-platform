@@ -29,6 +29,31 @@ router.post('/heartbeat', async (req, res) => {
   }
 });
 
+// Качени файлове за паметта на клиентите (Content агент): компютърът ги дърпа, пази при
+// себе си, вади текста (PDF/Word/…/Whisper) и го връща — services/content-agent/imports.js.
+const caImports = require('../services/content-agent/imports');
+
+router.get('/imports/next', async (req, res) => {
+  try { res.json({ item: (await caImports.claimNext()) || null }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/imports/:id/file', async (req, res) => {
+  try {
+    const f = await caImports.fileFor(parseInt(req.params.id, 10));
+    if (!f) return res.status(404).json({ error: 'няма такъв файл' });
+    res.sendFile(f.tmp_path);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/imports/:id/done', express.json({ limit: '20mb' }), async (req, res) => {
+  try {
+    const r = await caImports.complete(parseInt(req.params.id, 10), req.body || {});
+    if (!r) return res.status(409).json({ error: 'файлът не е в обработка' });
+    res.json({ ok: true, ...r });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/next', async (req, res) => {
   try { res.json({ job: (await aq.claimNext({ peek: !!req.query.peek })) || null }); }
   catch (e) { res.status(500).json({ error: e.message }); }

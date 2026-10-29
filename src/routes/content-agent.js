@@ -8,9 +8,11 @@ const { query, queryOne, execute } = require('../db/pool');
 const store = require('../services/content-agent/store');
 const scout = require('../services/content-agent/scout');
 const pipeline = require('../services/content-agent/pipeline');
-const { callJson, TEAM, block } = require('../services/content-agent/agents');
 const caHistory = require('../services/content-agent/history');
 const discover = require('../services/content-agent/discover');
+const imports = require('../services/content-agent/imports');
+const multer = require('multer');
+const fs = require('fs');
 const videoAnalysis = require('../services/content-agent/video-analysis');
 const by = caHistory.userOf;
 
@@ -72,7 +74,7 @@ router.get('/clients/:id', async (req, res) => {
     const id = clientId(req);
     const client = await store.getClient(id);
     if (!client) return res.status(404).json({ error: 'Клиентът не е намерен.' });
-    const [profiles, memory, runs, outliers, library, search] = await Promise.all([
+    const [profiles, memory, runs, outliers, library, search, importsList] = await Promise.all([
       query('SELECT * FROM ca_profiles WHERE client_id = $1 ORDER BY platform, role, label, id', [id]),
       query("SELECT * FROM ca_memory WHERE client_id = $1 ORDER BY (status = 'pending') DESC, kind, created_at DESC", [id]),
       query(`SELECT id, trigger, request, requested_by, status, error, bc_project_id, bc_parent_id, created_at, finished_at,
@@ -81,12 +83,13 @@ router.get('/clients/:id', async (req, res) => {
       scout.topOutliers(id, { limit: 40, minScore: 1.5 }),
       discover.libraryOutliers(id, { limit: 40, minScore: 1.5 }),
       discover.getSearch(id),
+      imports.listForClient(id),
     ]);
     const libProfiles = search ? await query(
       'SELECT COUNT(*)::int AS n FROM ca_profiles WHERE client_id = 0 AND active = TRUE AND topics && $1::text[]',
       [discover.allTopics(search.terms)]) : [{ n: 0 }];
     res.json({
-      client, profiles, memory, runs, outliers, library, scouting: scouting.has(id), kinds: store.KIND_LABELS,
+      client, profiles, memory, runs, outliers, library, imports: importsList, scouting: scouting.has(id), kinds: store.KIND_LABELS,
       search: search ? { terms: search.terms, terms_updated_at: search.terms_updated_at, last_discovery_at: search.last_discovery_at, last_result: search.last_result } : null,
       library_profiles: libProfiles[0].n, discovering: discover.isRunning(id), analyzing: videoAnalysis.isBusy(id),
     });
@@ -225,42 +228,36 @@ router.delete('/memory/:mid', async (req, res) => {
   } catch (e) { fail(res, e); }
 });
 
-// Импорт: поставен текст / файл (карта на клиента, research, стари скриптове,
-// бележки от среща) → AI го разбива на отделни записи → чакат одобрение.
-const IMPORT_SYSTEM = `${TEAM}
-
-Ти си ПАЗИТЕЛЯТ НА ПАМЕТТА. Получаваш документ за клиент (карта, проучване, стари скриптове, бележки от среща, коментари). Разбий го на отделни кратки записи за паметта на клиента.
-Видове: profile (факт за бизнеса, продукти, аудитория, цели), like (харесва), dislike (не харесва), rule (правило/забрана), voice (как говори — цитат или описание на гласа), past_video (видео, което сме правили — заглавие, идея, как се е представило), note (друго полезно).
-Всеки запис е самостоятелен и разбираем без документа. Не измисляй нищо. Пропусни организационни неща (фактури, логистика, срещи), освен ако не казват нещо за съдържанието. Минали скриптове: по един past_video запис на видео (заглавие + идея в 1-2 изречения), а характерни реплики → voice.
-Отговори с JSON: {"items": [{"kind": "...", "text": "..."}]}`;
-
+// Импорт на поставен текст / малък текстов файл → записи в паметта (чакат одобрение).
+// Логиката е обща с качените файлове: services/content-agent/imports.js#importText.
 router.post('/clients/:id/import', express.json({ limit: '3mb' }), async (req, res) => {
   try {
     const id = clientId(req);
-    const client = await store.getClient(id);
-    if (!client) return res.status(404).json({ error: 'Клиентът не е намерен.' });
     const text = String(req.body.text || '').trim();
     const filename = String(req.body.filename || 'поставен текст').slice(0, 200);
     if (text.length < 20) return res.status(400).json({ error: 'Текстът е твърде кратък.' });
-    const existing = await store.memoryText(id);
-    const out = await callJson({
-      system: IMPORT_SYSTEM,
-      user: [block('клиент', client.name), block('вече_в_паметта', existing), block('документ', text.slice(0, 200000))].join('\n\n'),
-      effort: 'low', maxTokens: 20000,
-    });
-    let added = 0;
-    for (const it of (out.items || []).slice(0, 300)) {
-      if (!it || !store.KINDS.includes(it.kind) || !String(it.text || '').trim()) continue;
-      const r = await queryOne(
-        `INSERT INTO ca_memory (client_id, kind, text, source, status, created_by)
-         SELECT $1,$2,$3,$4,'pending',$5
-          WHERE NOT EXISTS (SELECT 1 FROM ca_memory WHERE client_id = $1 AND lower(text) = lower($3))
-         RETURNING *`,
-        [id, it.kind, String(it.text).trim().slice(0, 5000), `Импорт: ${filename}`, who(req)]
-      );
-      if (r) { added++; await caHistory.log('memory', 'create', null, r, by(req)); }
-    }
-    res.json({ added });
+    res.json({ added: await imports.importText({ clientId: id, text, filename, by: by(req) }) });
+  } catch (e) { fail(res, e); }
+});
+
+// Качване на файл (PDF, Word, Excel, PowerPoint, видео, аудио, снимка…). Обработва го
+// компютърът в офиса — пази го при себе си, вади текста/транскрипта и го връща.
+const uploadFile = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, imports.ensureDir()),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+  }),
+  limits: { fileSize: 4 * 1024 * 1024 * 1024, files: 1 },
+});
+router.post('/clients/:id/upload', uploadFile.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Няма файл.' });
+    // multer чете името като latin1 — връщаме кирилицата.
+    req.file.originalname = Buffer.from(req.file.originalname || '', 'latin1').toString('utf8');
+    const client = await store.getClient(clientId(req));
+    if (!client) { fs.rmSync(req.file.path, { force: true }); return res.status(404).json({ error: 'Клиентът не е намерен.' }); }
+    const row = await imports.createImport({ clientId: client.id, file: req.file, by: by(req) });
+    res.json({ id: row.id });
   } catch (e) { fail(res, e); }
 });
 
