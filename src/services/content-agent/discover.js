@@ -60,7 +60,9 @@ async function ensureTerms(client, { force = false, usage } = {}) {
   };
   const { output, reviews } = await runStep('search', ctx, null, usage);
   const terms = {
-    topics: uniq(output.topics, 15),
+    // Новите думи се ДОБАВЯТ към старите: библиотеката се свързва с клиента по тях —
+    // ако старите изчезнат, намереното досега спира да „пасва" на клиента.
+    topics: uniq([...(output.topics || []), ...((row && row.terms && row.terms.topics) || [])], 40),
     tiktok_hashtags: uniq(output.tiktok_hashtags, 10).map((t) => t.replace(/\s+/g, '')),
     instagram_hashtags: uniq(output.instagram_hashtags, 10).map((t) => t.replace(/\s+/g, '')),
     youtube_queries_bg: (output.youtube_queries_bg || []).map(String).filter(Boolean).slice(0, 5),
