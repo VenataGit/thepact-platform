@@ -4,7 +4,8 @@
 // обратно: AI агентът там (ai-agent/worker.js, Task Scheduler всяка минута) чука на
 // POST /api/ai-queue/heartbeat при всяко пускане, независимо дали е зает. Тук на 5 мин
 // гледаме кога е било последното чукане: над 15 мин тишина → таг на Венци в Campfire
-// на личния му проект. Едно съобщение при спиране и едно при възстановяване — без спам.
+// на личния му проект. Докато не работи — сигнал на всеки 15 мин, най-много 3 пъти (Венци,
+// 29.10.2026); после тишина. Като тръгне пак — едно „работи" и пак само при проблем.
 // Ако компютърът чука, но не намира claude.exe, това също е повреда.
 //
 // Без AI, без токени: една заявка в минута + една SQL проверка на 5 мин.
@@ -15,6 +16,8 @@ const { getServiceAuth } = require('./basecamp-token');
 const { mentionOf } = require('./bc-team');
 
 const STALE_MIN = 15;
+const MAX_ALERTS = 3;        // най-много толкова сигнала за едно спиране
+const REPEAT_MIN = 15;       // интервал между повторните сигнали
 const TZ = 'Europe/Sofia';
 
 const getSetting = async (key) => (await queryOne('SELECT value FROM settings WHERE key = $1', [key]))?.value ?? null;
@@ -55,14 +58,18 @@ async function check() {
     : (info.claudeOk === false
       ? '🔴 Компютърът в офиса работи, но не намира Claude Code (claude.exe) — AI функциите и dev опашката не вървят.'
       : null);
-  const alerted = (await getSetting('pc_watch_alerted')) === 'true';
-  if (problem && !alerted) {
-    await notify(problem);
-    await saveSetting('pc_watch_alerted', 'true');
-    console.warn('[pc-watch] сигнал:', problem);
-  } else if (!problem && alerted) {
+  const sent = parseInt(await getSetting('pc_watch_alerts'), 10) || 0;
+  if (problem) {
+    if (sent >= MAX_ALERTS) return;
+    const lastAlert = await getSetting('pc_watch_last_alert');
+    if (sent && lastAlert && Date.now() - new Date(lastAlert).getTime() < (REPEAT_MIN - 1) * 60000) return;
+    await notify(`${problem} (сигнал ${sent + 1} от ${MAX_ALERTS})`);
+    await saveSetting('pc_watch_alerts', sent + 1);
+    await saveSetting('pc_watch_last_alert', new Date().toISOString());
+    console.warn(`[pc-watch] сигнал ${sent + 1}/${MAX_ALERTS}:`, problem);
+  } else if (sent) {
     await notify('🟢 Компютърът в офиса пак работи — всичко е наред.');
-    await saveSetting('pc_watch_alerted', 'false');
+    await saveSetting('pc_watch_alerts', 0);
     console.log('[pc-watch] възстановен');
   }
 }
