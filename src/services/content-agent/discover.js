@@ -320,4 +320,4 @@ async function discoverInBackground(clientId, { force = false } = {}) {
 
 const isRunning = (clientId) => running.has(clientId);
 
-module.exports = { ensureTerms, libraryOutliers, discover, discoverInBackground, isRunning, getSearch, allTopics, pickAuthors };
+module.exports = { ensureTerms, libraryOutliers, discover, discoverInBackground, isRunning, getSearch, allTopics, pickAuthors, filterRelevant, upsertLibraryProfile };

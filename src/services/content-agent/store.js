@@ -10,7 +10,7 @@ let schemaReady = null;
 function ensureSchema() {
   if (!schemaReady) {
     const dir = path.join(__dirname, '..', '..', '..', 'db', 'migrations');
-    const sql = ['059_content_agent.sql', '060_content_agent_history.sql', '061_content_agent_library.sql', '062_content_agent_video_analysis.sql', '063_content_agent_imports.sql', '064_content_agent_spend.sql']
+    const sql = ['059_content_agent.sql', '060_content_agent_history.sql', '061_content_agent_library.sql', '062_content_agent_video_analysis.sql', '063_content_agent_imports.sql', '064_content_agent_spend.sql', '065_content_agent_nightly.sql']
       .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
     schemaReady = execute(sql).catch((e) => { schemaReady = null; throw e; });
   }
@@ -29,6 +29,7 @@ const SETTING_KEYS = [
   'ca_bot_sgid',         // attachable_sgid на ThePactAlerts (за разпознаване на тага)
   'ca_hidden_clients',   // JSON масив с id-та на скритите клиенти (крие ги админ)
   'ca_apify_budget_usd', // лимит за Apify на клиент в долари (по подразбиране 5)
+  'ca_nightly_enabled',  // нощното YouTube търсене в 01:00 (по подразбиране вкл.)
 ];
 
 const DEFAULT_ACTORS = {
@@ -60,6 +61,7 @@ async function loadSettings() {
     lastCommentAt: s.ca_last_comment_at || null,
     hiddenClients: parseIds(s.ca_hidden_clients),
     apifyBudget: Number(s.ca_apify_budget_usd) > 0 ? Number(s.ca_apify_budget_usd) : 5,
+    nightlyEnabled: s.ca_nightly_enabled !== 'false',
     botSgid: s.ca_bot_sgid || '',
   };
 }

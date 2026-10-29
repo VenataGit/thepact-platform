@@ -28,6 +28,7 @@ function initContentAgent() {
       pollOnce().catch((e) => console.error('[content-agent] poll:', e.message));
     }, { timezone: 'Europe/Sofia' });
     console.log('  Content Agent: active (every minute)');
+    require('./nightly').initNightly(); // нощното YouTube търсене в 01:00
   } catch (e) {
     console.log('  Content Agent: skipped —', e.message);
   }

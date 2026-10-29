@@ -588,12 +588,23 @@ function caDiscoverPanel(d) {
   html += '<div class="ca-small ca-spend">Apify за този клиент: <strong>$' + Number(ap.usd || 0).toFixed(2) + '</strong> от $' + Number(ap.budget || 5).toFixed(2) +
     (Number(ap.usd || 0) >= Number(ap.budget || 5) - 0.05 ? ' <span class="ca-pill ca-pill--warn">лимитът е изчерпан — TikTok/Instagram спират, YouTube продължава</span>' : '') +
     ' · в библиотеката за тази ниша: ' + caNum(lv.n || 0) + ' видеа (' + caNum(lv.analyzed || 0) + ' анализирани)</div>';
+  var nt = s.nightly;
+  html += '<div class="ca-dim ca-small">🌙 Нощно YouTube търсене (всяка нощ в 01:00, безплатно): ' +
+    (nt && nt.at ? esc(caDate(nt.at)) + ' · +' + caNum(nt.new_outliers || 0) + ' успешни от +' + caNum(nt.new_videos || 0) + ' нови видеа, ' + caNum(nt.new_channels || 0) + ' нови канала, ' + caNum(nt.searches || 0) + ' търсения' : 'още не е минало') +
+    (caIsAdmin() ? ' <button class="ca-x" title="Пусни нощното търсене сега само за този клиент" onclick="caNightNow()">▶ сега</button>' : '') + '</div>';
   html += '<div class="ca-dim ca-small">Профили в библиотеката за тази ниша: ' + caNum(d.library_profiles || 0) +
     (s.last_discovery_at ? ' · последно търсене: ' + esc(caDate(s.last_discovery_at)) +
       (lr.found ? ' (нови: TikTok ' + (lr.found.tiktok || 0) + ', Instagram ' + (lr.found.instagram || 0) + ', YouTube ' + (lr.found.youtube || 0) + '; обновени ' + (lr.refreshed || 0) +
         (lr.apify_usd != null ? '; струваше $' + Number(lr.apify_usd).toFixed(2) : '') + ')' : '') : ' · още не е търсено') +
     '</div>' + (lr.errors && lr.errors.length ? '<div class="ca-errline">⚠ ' + lr.errors.map(esc).join('<br>⚠ ') + '</div>' : '');
   return html + '</div>';
+}
+
+async function caNightNow() {
+  try {
+    var r = await caApi('POST', '/nightly/run', { client: _ca.client.client.id });
+    showToast(r.running ? 'Нощното търсене вече върви' : 'YouTube търсенето тръгна — няколко минути', 'success', 5000);
+  } catch (e) { showToast(e.message, 'error'); }
 }
 
 async function caDiscover(newTerms) {
@@ -734,6 +745,7 @@ async function renderContentSettings(el) {
     caBody('<div class="ca-panel ca-form">' +
       '<label class="ca-check"><input type="checkbox" id="caSEn"' + (s.ca_enabled ? ' checked' : '') + '> Следи таговете в Basecamp (ThePactAlerts или #идеи в коментар)</label>' +
       '<label class="ca-check"><input type="checkbox" id="caSAuto"' + (s.ca_auto_on_kp ? ' checked' : '') + '> Пускай автоматично при всеки нов контент план (КП-Автоматизация)</label>' +
+      '<label class="ca-check"><input type="checkbox" id="caSNight"' + (s.ca_nightly_enabled ? ' checked' : '') + '> Нощно YouTube търсене в 01:00 за всички активни клиенти (безплатно, цел ≥ 10 нови успешни видеа на клиент)</label>' +
       '<label>YouTube Data API ключ<input class="ca-input" id="caSYt" value="' + esc(s.ca_youtube_api_key) + '" placeholder="AIza…"></label>' +
       '<label>Apify токен (TikTok, Instagram, Facebook)<input class="ca-input" id="caSAp" value="' + esc(s.ca_apify_token) + '" placeholder="apify_api_…"></label>' +
       '<label>Apify актьор TikTok<input class="ca-input" id="caSAT" value="' + esc(s.ca_actor_tiktok) + '"></label>' +
@@ -749,6 +761,7 @@ async function caSaveSettings() {
   try {
     await caApi('PUT', '/settings', {
       ca_enabled: document.getElementById('caSEn').checked, ca_auto_on_kp: document.getElementById('caSAuto').checked,
+      ca_nightly_enabled: document.getElementById('caSNight').checked,
       ca_youtube_api_key: document.getElementById('caSYt').value, ca_apify_token: document.getElementById('caSAp').value,
       ca_actor_tiktok: document.getElementById('caSAT').value, ca_actor_instagram: document.getElementById('caSAI').value,
       ca_actor_facebook: document.getElementById('caSAF').value,

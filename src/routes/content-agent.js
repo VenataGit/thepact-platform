@@ -90,7 +90,8 @@ router.get('/clients/:id', async (req, res) => {
       [discover.allTopics(search.terms)]) : [{ n: 0 }];
     res.json({
       client, profiles, memory, runs, outliers, library, imports: importsList, scouting: scouting.has(id), kinds: store.KIND_LABELS,
-      search: search ? { terms: search.terms, terms_updated_at: search.terms_updated_at, last_discovery_at: search.last_discovery_at, last_result: search.last_result } : null,
+      search: search ? { terms: search.terms, terms_updated_at: search.terms_updated_at, last_discovery_at: search.last_discovery_at, last_result: search.last_result,
+        nightly: search.nightly ? { at: search.nightly.at, searches: search.nightly.searches, new_channels: search.nightly.new_channels, new_videos: search.nightly.new_videos, new_outliers: search.nightly.new_outliers, errors: search.nightly.errors } : null } : null,
       library_profiles: libProfiles[0].n, discovering: discover.isRunning(id), analyzing: videoAnalysis.isBusy(id),
       library_videos: search ? (await query(
         `SELECT COUNT(*)::int AS n, COUNT(v.analysis)::int AS analyzed FROM ca_videos v JOIN ca_profiles p ON p.id = v.profile_id
@@ -331,8 +332,17 @@ router.get('/runs/:rid', async (req, res) => {
 
 // ---------- настройки (админ) ----------
 
-const EDITABLE = ['ca_enabled', 'ca_auto_on_kp', 'ca_apify_token', 'ca_youtube_api_key', 'ca_actor_tiktok', 'ca_actor_instagram', 'ca_actor_facebook', 'ca_actor_instagram_hashtag', 'ca_apify_budget_usd'];
+const EDITABLE = ['ca_enabled', 'ca_auto_on_kp', 'ca_apify_token', 'ca_youtube_api_key', 'ca_actor_tiktok', 'ca_actor_instagram', 'ca_actor_facebook', 'ca_actor_instagram_hashtag', 'ca_apify_budget_usd', 'ca_nightly_enabled'];
 const SECRET = ['ca_apify_token', 'ca_youtube_api_key'];
+
+// Нощното YouTube търсене — ръчно пускане (само админ), фоново. С ?client=ID — само за един клиент.
+router.post('/nightly/run', requireAdmin, express.json(), async (req, res) => {
+  const nightly = require('../services/content-agent/nightly');
+  if (nightly.isRunning()) return res.json({ started: false, running: true });
+  const only = req.body && req.body.client ? [parseInt(req.body.client, 10)] : undefined;
+  nightly.runNight({ only }).catch((e) => console.error('[content-agent nightly]', e.message));
+  res.json({ started: true });
+});
 
 router.get('/settings', requireAdmin, async (req, res) => {
   try {
@@ -344,6 +354,7 @@ router.get('/settings', requireAdmin, async (req, res) => {
       ca_actor_tiktok: s.actors.tiktok, ca_actor_instagram: s.actors.instagram, ca_actor_facebook: s.actors.facebook,
       ca_actor_instagram_hashtag: s.actors.instagram_hashtag,
       ca_apify_budget_usd: s.apifyBudget,
+      ca_nightly_enabled: s.nightlyEnabled,
       defaults: store.DEFAULT_ACTORS,
     });
   } catch (e) { fail(res, e); }
