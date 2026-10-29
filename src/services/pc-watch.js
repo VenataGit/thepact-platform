@@ -9,7 +9,6 @@
 //
 // Без AI, без токени: една заявка в минута + една SQL проверка на 5 мин.
 const cron = require('node-cron');
-const config = require('../config');
 const { queryOne, execute } = require('../db/pool');
 const bc = require('./basecamp');
 const { getServiceAuth } = require('./basecamp-token');
@@ -37,7 +36,9 @@ function fmt(d) {
 async function notify(html) {
   const project = parseInt(await getSetting('dev_chat_bc_project')) || 47742842; // личният проект на Венци
   const chat = parseInt(await getSetting('dev_chat_bc_chat')) || 10005689776;
-  const person = await queryOne('SELECT name, attachable_sgid FROM bc_people WHERE LOWER(email) = $1 LIMIT 1', [config.ADMIN_EMAILS[0]]);
+  // Имейлите в bc_people идват маскирани от Basecamp → търсим по person ID (Венци = 45460211).
+  const personId = parseInt(await getSetting('pc_watch_bc_person')) || 45460211;
+  const person = await queryOne('SELECT name, attachable_sgid FROM bc_people WHERE person_id = $1 LIMIT 1', [personId]);
   const auth = await getServiceAuth();
   await bc.createCampfireLine(auth.token, auth.account, project, chat, `${mentionOf(person, 'Венци')} ${html}`);
 }
