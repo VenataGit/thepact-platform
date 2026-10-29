@@ -36,7 +36,9 @@ async function loadCfg() {
   const s = {};
   for (const r of rows) s[r.key] = r.value;
   return {
-    enabled: s.dev_chat_enabled !== 'false',                    // default включено
+    // По подразбиране ИЗКЛЮЧЕНО (29.10.2026): Венци запази този чат САМО за сигналите
+    // „компютърът не работи" (services/pc-watch.js). Включва се с dev_chat_enabled = 'true'.
+    enabled: s.dev_chat_enabled === 'true',
     project: parseInt(s.dev_chat_bc_project) || 47742842,       // личният проект на Венци
     chat: parseInt(s.dev_chat_bc_chat) || 10005689776,          // Campfire чатът в него
     ownerEmail: (s.dev_chat_owner_email || '').toLowerCase(),   // празно = всеки не-бот ред
