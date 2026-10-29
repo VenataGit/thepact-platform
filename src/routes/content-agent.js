@@ -92,6 +92,10 @@ router.get('/clients/:id', async (req, res) => {
       client, profiles, memory, runs, outliers, library, imports: importsList, scouting: scouting.has(id), kinds: store.KIND_LABELS,
       search: search ? { terms: search.terms, terms_updated_at: search.terms_updated_at, last_discovery_at: search.last_discovery_at, last_result: search.last_result } : null,
       library_profiles: libProfiles[0].n, discovering: discover.isRunning(id), analyzing: videoAnalysis.isBusy(id),
+      library_videos: search ? (await query(
+        `SELECT COUNT(*)::int AS n, COUNT(v.analysis)::int AS analyzed FROM ca_videos v JOIN ca_profiles p ON p.id = v.profile_id
+          WHERE p.client_id = 0 AND p.active = TRUE AND p.topics && $1::text[]`, [discover.allTopics(search.terms)]))[0] : { n: 0, analyzed: 0 },
+      apify: { ...(await store.apifySpent(id)), budget: (await store.loadSettings()).apifyBudget },
     });
   } catch (e) { fail(res, e); }
 });
@@ -327,7 +331,7 @@ router.get('/runs/:rid', async (req, res) => {
 
 // ---------- настройки (админ) ----------
 
-const EDITABLE = ['ca_enabled', 'ca_auto_on_kp', 'ca_apify_token', 'ca_youtube_api_key', 'ca_actor_tiktok', 'ca_actor_instagram', 'ca_actor_facebook', 'ca_actor_instagram_hashtag'];
+const EDITABLE = ['ca_enabled', 'ca_auto_on_kp', 'ca_apify_token', 'ca_youtube_api_key', 'ca_actor_tiktok', 'ca_actor_instagram', 'ca_actor_facebook', 'ca_actor_instagram_hashtag', 'ca_apify_budget_usd'];
 const SECRET = ['ca_apify_token', 'ca_youtube_api_key'];
 
 router.get('/settings', requireAdmin, async (req, res) => {
@@ -339,6 +343,7 @@ router.get('/settings', requireAdmin, async (req, res) => {
       ca_apify_token: mask(s.apifyToken), ca_youtube_api_key: mask(s.youtubeKey),
       ca_actor_tiktok: s.actors.tiktok, ca_actor_instagram: s.actors.instagram, ca_actor_facebook: s.actors.facebook,
       ca_actor_instagram_hashtag: s.actors.instagram_hashtag,
+      ca_apify_budget_usd: s.apifyBudget,
       defaults: store.DEFAULT_ACTORS,
     });
   } catch (e) { fail(res, e); }

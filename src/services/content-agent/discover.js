@@ -18,8 +18,12 @@ const { runStep } = require('./agents');
 const TERMS_MAX_AGE_DAYS = 30;
 const DISCOVERY_EVERY_DAYS = 7;
 const LIBRARY_REFRESH_DAYS = 7;
-const PER_PLATFORM = 6;          // нови профили от платформа при едно търсене
-const MAX_REFRESH = 15;          // колко библиотечни профила се дърпат наведнъж
+// Мащаб на едно търсене (Венци 29.10.2026: колкото се може повече, в рамките на лимита
+// за Apify на клиента — ca_apify_budget_usd, по подразбиране $5). YouTube е безплатен.
+const CANDIDATES = 40;           // кандидати от платформа преди Пазача на нишата
+const KEEP_APIFY = 15;           // TikTok / Instagram: профили за проучване след пресяването
+const KEEP_YOUTUBE = 20;         // YouTube: безплатно → повече
+const MAX_REFRESH = 40;          // библиотечни профили за дърпане при едно търсене
 const SEARCH_DAYS = 90;          // YouTube: видеа от последните 90 дни
 
 const running = new Set();
@@ -57,10 +61,10 @@ async function ensureTerms(client, { force = false, usage } = {}) {
   const { output, reviews } = await runStep('search', ctx, null, usage);
   const terms = {
     topics: uniq(output.topics, 15),
-    tiktok_hashtags: uniq(output.tiktok_hashtags, 6).map((t) => t.replace(/\s+/g, '')),
-    instagram_hashtags: uniq(output.instagram_hashtags, 6).map((t) => t.replace(/\s+/g, '')),
-    youtube_queries_bg: (output.youtube_queries_bg || []).map(String).filter(Boolean).slice(0, 3),
-    youtube_queries_en: (output.youtube_queries_en || []).map(String).filter(Boolean).slice(0, 3),
+    tiktok_hashtags: uniq(output.tiktok_hashtags, 10).map((t) => t.replace(/\s+/g, '')),
+    instagram_hashtags: uniq(output.instagram_hashtags, 10).map((t) => t.replace(/\s+/g, '')),
+    youtube_queries_bg: (output.youtube_queries_bg || []).map(String).filter(Boolean).slice(0, 5),
+    youtube_queries_en: (output.youtube_queries_en || []).map(String).filter(Boolean).slice(0, 5),
     why: String(output.why || '').slice(0, 500),
     review_score: (reviews[reviews.length - 1] || {}).score || null,
   };
@@ -126,46 +130,51 @@ function pickAuthors(items, known, platform) {
     if (!it.author || it.views == null) continue;
     const key = it.author.toLowerCase();
     if (known.has(`${platform}:${key}`)) continue;
-    const a = by[key] = by[key] || { author: it.author, label: it.label || it.author, best: 0, fans: it.fans || 0, n: 0 };
+    const a = by[key] = by[key] || { author: it.author, label: it.label || it.author, best: 0, fans: it.fans || 0, n: 0, samples: [] };
     a.best = Math.max(a.best, it.views);
     a.n += 1;
+    if (it.caption && a.samples.length < 2) a.samples.push(String(it.caption).slice(0, 160));
   }
   // По-силно: много гледания спрямо последователите (малък профил с вайръл видео).
   return Object.values(by)
     .filter((a) => a.best >= 5000)
     .sort((x, y) => (y.best / Math.max(y.fans || 0, 1000)) - (x.best / Math.max(x.fans || 0, 1000)))
-    .slice(0, PER_PLATFORM);
+    .slice(0, CANDIDATES);
 }
 
-async function searchTiktok(terms, cfg, known) {
-  const tags = (terms.tiktok_hashtags || []).slice(0, 6);
+async function searchTiktok(terms, cfg, known, ctx) {
+  const tags = (terms.tiktok_hashtags || []).slice(0, 10);
   if (!tags.length || !cfg.apifyToken) return [];
   const items = await scout.runApify(cfg.actors.tiktok, {
-    hashtags: tags, resultsPerPage: 25, shouldDownloadVideos: false, shouldDownloadCovers: false, shouldDownloadSubtitles: false,
-  }, cfg.apifyToken);
+    hashtags: tags, resultsPerPage: 30, shouldDownloadVideos: false, shouldDownloadCovers: false, shouldDownloadSubtitles: false,
+  }, cfg.apifyToken, { ...ctx, maxItems: tags.length * 30 });
   const mapped = items.map((it) => {
     const am = it.authorMeta || {};
-    return { author: am.name || it['authorMeta.name'] || '', label: am.nickName || am.name || '', fans: Number(am.fans) || 0, views: Number(it.playCount) || null };
+    return { author: am.name || it['authorMeta.name'] || '', label: am.nickName || am.name || '', fans: Number(am.fans) || 0, views: Number(it.playCount) || null, caption: it.text || '' };
   });
   return pickAuthors(mapped, known, 'tiktok').map((a) => ({
     platform: 'tiktok', handle: a.author, url: `https://www.tiktok.com/@${a.author}`, label: a.label, lang: '',
+    best: a.best, fans: a.fans, samples: a.samples,
   }));
 }
 
-async function searchInstagram(terms, cfg, known) {
-  const tags = (terms.instagram_hashtags || []).slice(0, 6);
+async function searchInstagram(terms, cfg, known, ctx) {
+  const tags = (terms.instagram_hashtags || []).slice(0, 10);
   if (!tags.length || !cfg.apifyToken) return [];
   // 'reels', не 'posts': 'posts' връща най-новите публикации (снимки отпреди минути, без
   // харесвания) — нищо не минава прага. 'reels' дава видеата с гледанията им (videoPlayCount).
-  const items = await scout.runApify(cfg.actors.instagram_hashtag, { hashtags: tags, resultsLimit: 25, resultsType: 'reels' }, cfg.apifyToken);
+  const items = await scout.runApify(cfg.actors.instagram_hashtag, { hashtags: tags, resultsLimit: 30, resultsType: 'reels' },
+    cfg.apifyToken, { ...ctx, maxItems: tags.length * 30 });
   const mapped = items.map((it) => ({
     author: it.ownerUsername || (it.owner && it.owner.username) || '',
     label: it.ownerFullName || it.ownerUsername || '',
     fans: 0,
     views: Number(it.videoPlayCount || it.videoViewCount || it.likesCount) || null,
+    caption: it.caption || '',
   }));
   return pickAuthors(mapped, known, 'instagram').map((a) => ({
     platform: 'instagram', handle: a.author, url: `https://www.instagram.com/${a.author}/`, label: a.label, lang: '',
+    best: a.best, fans: a.fans, samples: a.samples,
   }));
 }
 
@@ -179,7 +188,7 @@ async function searchYoutube(terms, cfg, known) {
   ];
   const channels = {};
   for (const { q, lang } of queries) {
-    const s = await scout.fetchJson(`${base}/search?part=snippet&type=video&videoDuration=short&order=viewCount&maxResults=25` +
+    const s = await scout.fetchJson(`${base}/search?part=snippet&type=video&videoDuration=short&order=viewCount&maxResults=50` +
       `&publishedAfter=${encodeURIComponent(after)}&relevanceLanguage=${lang}&q=${encodeURIComponent(q)}&key=${cfg.youtubeKey}`);
     const ids = (s.items || []).map((i) => i.id && i.id.videoId).filter(Boolean);
     if (!ids.length) continue;
@@ -187,12 +196,35 @@ async function searchYoutube(terms, cfg, known) {
     for (const v of (vs.items || [])) {
       const id = v.snippet.channelId;
       if (!id || known.has(`youtube:${id.toLowerCase()}`)) continue;
-      const c = channels[id] = channels[id] || { id, label: v.snippet.channelTitle, best: 0, lang };
+      const c = channels[id] = channels[id] || { id, label: v.snippet.channelTitle, best: 0, lang, samples: [] };
       c.best = Math.max(c.best, Number(v.statistics.viewCount) || 0);
+      if (c.samples.length < 2) c.samples.push(String(v.snippet.title || '').slice(0, 160));
     }
   }
-  return Object.values(channels).filter((c) => c.best >= 5000).sort((a, b) => b.best - a.best).slice(0, PER_PLATFORM)
-    .map((c) => ({ platform: 'youtube', handle: c.id, url: `https://www.youtube.com/channel/${c.id}`, label: c.label, lang: c.lang }));
+  return Object.values(channels).filter((c) => c.best >= 5000).sort((a, b) => b.best - a.best).slice(0, CANDIDATES)
+    .map((c) => ({ platform: 'youtube', handle: c.id, url: `https://www.youtube.com/channel/${c.id}`, label: c.label, lang: c.lang,
+      best: c.best, fans: 0, samples: c.samples }));
+}
+
+// ---------- Пазачът на нишата ----------
+
+/** Оставя само профилите, които наистина пасват на клиента (агент + проверител). */
+async function filterRelevant(client, terms, cands, usage) {
+  if (!cands.length) return [];
+  const ctx = {
+    client, terms: { topics: terms.topics, why: terms.why },
+    memory: (await store.memoryText(client.id)).slice(0, 12000),
+    candidates: cands.map((c) => ({ platform: c.platform, handle: c.handle, label: c.label, best_views: c.best, followers: c.fans || null, examples: c.samples || [] })),
+  };
+  try {
+    const { output } = await runStep('relevance', ctx, null, usage);
+    const keep = new Map((output.keep || []).map((k, i) => [`${k.platform}:${String(k.handle).toLowerCase()}`, i]));
+    return cands.filter((c) => keep.has(`${c.platform}:${String(c.handle).toLowerCase()}`))
+      .sort((a, b) => keep.get(`${a.platform}:${String(a.handle).toLowerCase()}`) - keep.get(`${b.platform}:${String(b.handle).toLowerCase()}`));
+  } catch (e) {
+    console.warn('[content-agent discover] Пазачът на нишата:', e.message);
+    return cands; // без пресяване, но не спираме търсенето
+  }
 }
 
 // ---------- самото откриване ----------
@@ -211,12 +243,15 @@ async function discover(clientId, { force = false, usage } = {}) {
     const known = await knownHandles(clientId);
     const found = { tiktok: 0, instagram: 0, youtube: 0 };
     const errors = [];
+    const spentBefore = (await store.apifySpent(clientId)).usd;
+    const ctx = { clientId, source: 'discover' };
 
-    const searches = [['tiktok', searchTiktok], ['instagram', searchInstagram], ['youtube', searchYoutube]];
-    for (const [name, fn] of searches) {
+    const searches = [['tiktok', searchTiktok, KEEP_APIFY], ['instagram', searchInstagram, KEEP_APIFY], ['youtube', searchYoutube, KEEP_YOUTUBE]];
+    for (const [name, fn, keepN] of searches) {
       try {
-        const cands = await fn(terms, cfg, known);
-        for (const c of cands) {
+        const cands = await fn(terms, cfg, known, ctx);
+        const kept = (await filterRelevant(client, terms, cands, usage)).slice(0, keepN);
+        for (const c of kept) {
           const { isNew } = await upsertLibraryProfile({ ...c, topics });
           if (isNew) found[name] += 1;
         }
@@ -233,12 +268,22 @@ async function discover(clientId, { force = false, usage } = {}) {
       [topics, String(LIBRARY_REFRESH_DAYS), MAX_REFRESH]
     );
     let refreshed = 0;
+    let budgetHit = false;
     for (const p of stale) {
-      const r = await scout.refreshProfile(p, cfg);
-      if (r.ok) refreshed += 1; else errors.push(`${p.platform} ${p.handle}: ${r.error}`);
+      // YouTube е безплатен — върви и когато лимитът за Apify е изчерпан.
+      if (budgetHit && p.platform !== 'youtube') continue;
+      const r = await scout.refreshProfile(p, cfg, { clientId, source: 'library' });
+      if (r.ok) refreshed += 1;
+      else if (r.budget) budgetHit = true;
+      else errors.push(`${p.platform} ${p.handle}: ${r.error}`);
     }
 
-    const result = { at: new Date().toISOString(), found, refreshed, errors: errors.slice(0, 10) };
+    const spent = await store.apifySpent(clientId);
+    const result = {
+      at: new Date().toISOString(), found, refreshed, errors: errors.slice(0, 10),
+      apify_usd: Math.round((spent.usd - spentBefore) * 100) / 100, apify_total_usd: Math.round(spent.usd * 100) / 100,
+      apify_budget_usd: cfg.apifyBudget, budget_hit: budgetHit || errors.some((e) => /лимитът/.test(e)),
+    };
     await execute(
       `INSERT INTO ca_search (client_id, last_discovery_at, last_result) VALUES ($1, NOW(), $2)
        ON CONFLICT (client_id) DO UPDATE SET last_discovery_at = NOW(), last_result = $2`,

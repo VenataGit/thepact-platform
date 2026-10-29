@@ -110,17 +110,52 @@ async function fetchYoutube(p, key) {
 
 // ---------- Apify (TikTok / Instagram / Facebook) ----------
 
-async function runApify(actor, input, token) {
+// Лимитът за клиента е достигнат — различаваме го от обикновена грешка.
+class BudgetError extends Error {}
+
+/**
+ * Пуска Apify актьор и връща резултатите. Минава през runs API (не run-sync), за да
+ * знаем ТОЧНАТА цена (usageTotalUsd) и да я запишем към клиента (ca_spend).
+ * ctx: { clientId, source, maxItems } — при clientId се спазва лимитът на клиента
+ * (ca_apify_budget_usd): ако е изчерпан, не се пуска; иначе Apify получава остатъка
+ * като таван (maxTotalChargeUsd).
+ */
+async function runApify(actor, input, token, ctx = {}) {
   if (!token) throw new Error('няма Apify токен (Настройки на Content агента)');
   const id = String(actor || '').trim().replace('/', '~');
   if (!/^[\w.-]+~[\w.-]+$/.test(id)) throw new Error(`невалиден Apify актьор „${actor}"`);
-  const url = `https://api.apify.com/v2/acts/${id}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=280`;
-  const items = await fetchJson(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  }, 300_000);
-  return Array.isArray(items) ? items : [];
+  const T = encodeURIComponent(token);
+  const q = new URLSearchParams({ waitForFinish: '60' });
+  if (ctx.clientId != null) {
+    const left = await store.apifyRemaining(ctx.clientId);
+    if (left < 0.05) throw new BudgetError('лимитът за Apify за този клиент е изчерпан');
+    q.set('maxTotalChargeUsd', left.toFixed(2));
+  }
+  if (ctx.maxItems) q.set('maxItems', String(ctx.maxItems));
+  let run = (await fetchJson(`https://api.apify.com/v2/acts/${id}/runs?token=${T}&${q}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  }, 120_000)).data;
+  const started = Date.now();
+  const DONE = ['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'];
+  while (!DONE.includes(run.status)) {
+    if (Date.now() - started > 12 * 60_000) {
+      await fetchJson(`https://api.apify.com/v2/actor-runs/${run.id}/abort?token=${T}`, { method: 'POST' }).catch(() => {});
+      throw new Error('Apify: пускането не приключи за 12 мин');
+    }
+    run = (await fetchJson(`https://api.apify.com/v2/actor-runs/${run.id}?token=${T}&waitForFinish=60`, {}, 120_000)).data;
+  }
+  const items = await fetchJson(`https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?token=${T}&clean=1&format=json`, {}, 180_000);
+  // Цената понякога се досмята секунди след края.
+  if (run.usageTotalUsd == null) {
+    run = (await fetchJson(`https://api.apify.com/v2/actor-runs/${run.id}?token=${T}`, {}, 60_000).catch(() => ({ data: run }))).data;
+  }
+  const list = Array.isArray(items) ? items : [];
+  await execute(
+    'INSERT INTO ca_spend (client_id, source, actor, run_id, usd, items) VALUES ($1,$2,$3,$4,$5,$6)',
+    [ctx.clientId == null ? null : ctx.clientId, ctx.source || '', id, run.id || '', Number(run.usageTotalUsd) || 0, list.length]
+  ).catch((e) => console.warn('[content-agent apify] разходът не се записа:', e.message));
+  if (run.status !== 'SUCCEEDED' && !list.length) throw new Error(`Apify: ${run.status}`);
+  return list;
 }
 
 // Актьорите връщат различни имена на полетата — взимаме първото налично.
@@ -157,10 +192,10 @@ function apifyInput(platform, p) {
 
 // ---------- обновяване ----------
 
-async function fetchProfile(p, cfg) {
+async function fetchProfile(p, cfg, ctx) {
   if (p.platform === 'youtube') return fetchYoutube(p, cfg.youtubeKey);
   if (['tiktok', 'instagram', 'facebook'].includes(p.platform)) {
-    const items = await runApify(cfg.actors[p.platform], apifyInput(p.platform, p), cfg.apifyToken);
+    const items = await runApify(cfg.actors[p.platform], apifyInput(p.platform, p), cfg.apifyToken, { ...ctx, maxItems: PER_PROFILE });
     return items.map(mapApifyItem).filter((v) => v && v.views != null).slice(0, PER_PROFILE);
   }
   throw new Error('тази платформа не се проучва автоматично');
@@ -178,9 +213,9 @@ async function rescoreProfile(profileId) {
   return { median: median(all), count: all.length };
 }
 
-async function refreshProfile(p, cfg) {
+async function refreshProfile(p, cfg, ctx = {}) {
   try {
-    const videos = await fetchProfile(p, cfg);
+    const videos = await fetchProfile(p, cfg, ctx);
     for (const v of videos) {
       await execute(
         `INSERT INTO ca_videos (profile_id, client_id, platform, video_id, url, caption, duration_sec, views, likes, comments, shares, saves, published_at, fetched_at)
@@ -198,6 +233,8 @@ async function refreshProfile(p, cfg) {
     await execute('UPDATE ca_profiles SET stats = $2, last_scraped_at = NOW() WHERE id = $1', [p.id, JSON.stringify(stats)]);
     return { id: p.id, ok: true, ...stats };
   } catch (e) {
+    // Изчерпан лимит не е грешка на профила — не я записваме в него.
+    if (e instanceof BudgetError) return { id: p.id, ok: false, budget: true, error: e.message };
     const stats = { ...(p.stats || {}), error: String(e.message || e).slice(0, 300) };
     await execute('UPDATE ca_profiles SET stats = $2 WHERE id = $1', [p.id, JSON.stringify(stats)]);
     return { id: p.id, ok: false, error: stats.error };
@@ -214,7 +251,11 @@ async function refreshClient(clientId, { force = false } = {}) {
     [clientId, force, String(MAX_AGE_HOURS)]
   );
   const results = [];
-  for (const p of profiles) results.push(await refreshProfile(p, cfg));
+  for (const p of profiles) {
+    const r = await refreshProfile(p, cfg, { clientId, source: 'profiles' });
+    results.push(r);
+    if (r.budget) break;
+  }
   return results;
 }
 
@@ -237,4 +278,4 @@ async function hasProfiles(clientId) {
   return !!(await queryOne("SELECT 1 FROM ca_profiles WHERE client_id = $1 AND active = TRUE AND platform IN ('youtube','tiktok','instagram','facebook') LIMIT 1", [clientId]));
 }
 
-module.exports = { refreshClient, refreshProfile, topOutliers, hasProfiles, median, mapApifyItem, handleOf, isoDurationSec, runApify, fetchJson };
+module.exports = { refreshClient, refreshProfile, topOutliers, hasProfiles, median, mapApifyItem, handleOf, isoDurationSec, runApify, fetchJson, BudgetError };

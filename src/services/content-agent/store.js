@@ -10,7 +10,7 @@ let schemaReady = null;
 function ensureSchema() {
   if (!schemaReady) {
     const dir = path.join(__dirname, '..', '..', '..', 'db', 'migrations');
-    const sql = ['059_content_agent.sql', '060_content_agent_history.sql', '061_content_agent_library.sql', '062_content_agent_video_analysis.sql', '063_content_agent_imports.sql']
+    const sql = ['059_content_agent.sql', '060_content_agent_history.sql', '061_content_agent_library.sql', '062_content_agent_video_analysis.sql', '063_content_agent_imports.sql', '064_content_agent_spend.sql']
       .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
     schemaReady = execute(sql).catch((e) => { schemaReady = null; throw e; });
   }
@@ -28,6 +28,7 @@ const SETTING_KEYS = [
   'ca_last_comment_at',  // курсор на следенето на коментари
   'ca_bot_sgid',         // attachable_sgid на ThePactAlerts (за разпознаване на тага)
   'ca_hidden_clients',   // JSON масив с id-та на скритите клиенти (крие ги админ)
+  'ca_apify_budget_usd', // лимит за Apify на клиент в долари (по подразбиране 5)
 ];
 
 const DEFAULT_ACTORS = {
@@ -58,6 +59,7 @@ async function loadSettings() {
     },
     lastCommentAt: s.ca_last_comment_at || null,
     hiddenClients: parseIds(s.ca_hidden_clients),
+    apifyBudget: Number(s.ca_apify_budget_usd) > 0 ? Number(s.ca_apify_budget_usd) : 5,
     botSgid: s.ca_bot_sgid || '',
   };
 }
@@ -74,6 +76,20 @@ function saveSetting(key, value) {
 
 async function getClient(id) {
   return queryOne('SELECT id, name, videos_per_month, current_kp_number, bc_project_id, is_active FROM kp_clients WHERE id = $1', [id]);
+}
+
+// ---------- разход в Apify ----------
+
+async function apifySpent(clientId) {
+  await ensureSchema();
+  const r = await queryOne('SELECT COALESCE(SUM(usd), 0) AS usd, COUNT(*)::int AS runs FROM ca_spend WHERE client_id = $1', [clientId]);
+  return { usd: Number(r.usd) || 0, runs: r.runs };
+}
+
+/** Колко още може да се похарчи за клиента (в долари). */
+async function apifyRemaining(clientId) {
+  const [cfg, spent] = await Promise.all([loadSettings(), apifySpent(clientId)]);
+  return Math.max(0, cfg.apifyBudget - spent.usd);
 }
 
 // ---------- дублирани клиенти ----------
@@ -198,7 +214,7 @@ async function recentIdeaTitles(clientId, limit = 60) {
 }
 
 module.exports = {
-  ensureSchema, loadSettings, saveSetting, getClient, clientGroups, mergeDuplicates, nameKey,
+  ensureSchema, loadSettings, saveSetting, getClient, clientGroups, mergeDuplicates, nameKey, apifySpent, apifyRemaining,
   memoryText, profilesText, recentIdeaTitles,
   KIND_LABELS, KINDS, DEFAULT_ACTORS, SETTING_KEYS,
 };

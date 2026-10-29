@@ -583,9 +583,15 @@ function caDiscoverPanel(d) {
       ((t.youtube_queries_bg || []).length || (t.youtube_queries_en || []).length ? '<div><span class="ca-dim">YouTube:</span> ' + tags((t.youtube_queries_bg || []).concat(t.youtube_queries_en || [])) + '</div>' : '') +
       '</div>';
   }
-  html += '<div class="ca-dim ca-small">В библиотеката за тази ниша: ' + caNum(d.library_profiles || 0) + ' профила' +
+  var ap = d.apify || {};
+  var lv = d.library_videos || {};
+  html += '<div class="ca-small ca-spend">Apify за този клиент: <strong>$' + Number(ap.usd || 0).toFixed(2) + '</strong> от $' + Number(ap.budget || 5).toFixed(2) +
+    (Number(ap.usd || 0) >= Number(ap.budget || 5) - 0.05 ? ' <span class="ca-pill ca-pill--warn">лимитът е изчерпан — TikTok/Instagram спират, YouTube продължава</span>' : '') +
+    ' · в библиотеката за тази ниша: ' + caNum(lv.n || 0) + ' видеа (' + caNum(lv.analyzed || 0) + ' анализирани)</div>';
+  html += '<div class="ca-dim ca-small">Профили в библиотеката за тази ниша: ' + caNum(d.library_profiles || 0) +
     (s.last_discovery_at ? ' · последно търсене: ' + esc(caDate(s.last_discovery_at)) +
-      (lr.found ? ' (нови: TikTok ' + (lr.found.tiktok || 0) + ', Instagram ' + (lr.found.instagram || 0) + ', YouTube ' + (lr.found.youtube || 0) + '; обновени ' + (lr.refreshed || 0) + ')' : '') : ' · още не е търсено') +
+      (lr.found ? ' (нови: TikTok ' + (lr.found.tiktok || 0) + ', Instagram ' + (lr.found.instagram || 0) + ', YouTube ' + (lr.found.youtube || 0) + '; обновени ' + (lr.refreshed || 0) +
+        (lr.apify_usd != null ? '; струваше $' + Number(lr.apify_usd).toFixed(2) : '') + ')' : '') : ' · още не е търсено') +
     '</div>' + (lr.errors && lr.errors.length ? '<div class="ca-errline">⚠ ' + lr.errors.map(esc).join('<br>⚠ ') + '</div>' : '');
   return html + '</div>';
 }
@@ -734,6 +740,7 @@ async function renderContentSettings(el) {
       '<label>Apify актьор Instagram<input class="ca-input" id="caSAI" value="' + esc(s.ca_actor_instagram) + '"></label>' +
       '<label>Apify актьор Facebook<input class="ca-input" id="caSAF" value="' + esc(s.ca_actor_facebook) + '"></label>' +
       '<label>Apify актьор Instagram — търсене по хаштаг (Откривателят)<input class="ca-input" id="caSAIH" value="' + esc(s.ca_actor_instagram_hashtag) + '"></label>' +
+      '<label>Лимит за Apify на клиент (долари, общо)<input class="ca-input" id="caSBud" type="number" min="0" step="0.5" value="' + esc(s.ca_apify_budget_usd) + '"></label>' +
       '<button class="btn btn-primary btn-sm" onclick="caSaveSettings()">Запази</button></div>');
   } catch (e) { caBody('<div class="ca-err">' + esc(e.message) + '</div>'); }
 }
@@ -746,6 +753,7 @@ async function caSaveSettings() {
       ca_actor_tiktok: document.getElementById('caSAT').value, ca_actor_instagram: document.getElementById('caSAI').value,
       ca_actor_facebook: document.getElementById('caSAF').value,
       ca_actor_instagram_hashtag: document.getElementById('caSAIH').value,
+      ca_apify_budget_usd: document.getElementById('caSBud').value,
     });
     showToast('Запазено', 'success');
     renderContentSettings(document.getElementById('pageContent'));

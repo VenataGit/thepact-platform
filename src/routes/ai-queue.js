@@ -33,6 +33,15 @@ router.post('/heartbeat', async (req, res) => {
 // себе си, вади текста (PDF/Word/…/Whisper) и го връща — services/content-agent/imports.js.
 const caImports = require('../services/content-agent/imports');
 
+// Огледалото на базата с видеа на компютъра (sync_db.py → SQLite) — промените на части.
+router.get('/library/export', async (req, res) => {
+  try {
+    res.json(await require('../services/content-agent/library-export').exportChanges({
+      since: req.query.since || null, afterId: req.query.after_id || 0, limit: req.query.limit || 500,
+    }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/imports/next', async (req, res) => {
   try { res.json({ item: (await caImports.claimNext()) || null }); }
   catch (e) { res.status(500).json({ error: e.message }); }
