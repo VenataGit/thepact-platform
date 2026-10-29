@@ -19,6 +19,16 @@ router.use((req, res, next) => {
   next();
 });
 
+// Пулсът на компютъра (всяка минута, дори когато агентът е зает) — services/pc-watch.js.
+router.post('/heartbeat', async (req, res) => {
+  try {
+    await require('../services/pc-watch').recordHeartbeat(req.body || {});
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/next', async (req, res) => {
   try { res.json({ job: (await aq.claimNext({ peek: !!req.query.peek })) || null }); }
   catch (e) { res.status(500).json({ error: e.message }); }
