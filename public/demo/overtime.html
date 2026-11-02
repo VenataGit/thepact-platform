@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо: Overtime на видеографите</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; --blue:#7fc8ff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:13.5px; }
+  button, input, select, textarea { font:inherit; }
+  header { padding:12px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:14px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:20; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .vtabs { display:flex; gap:6px; margin-left:auto; flex-wrap:wrap; }
+  .vtab { padding:7px 14px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--sec); cursor:pointer; font-weight:600; }
+  .vtab.on { background:var(--green); border-color:var(--green); color:#fff; }
+  .explain { max-width:1180px; margin:14px auto 0; padding:12px 16px; background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; line-height:1.55; color:var(--sec); }
+  .explain b { color:var(--text); }
+  .page { max-width:1180px; margin:14px auto 40px; background:var(--panel); border-radius:15px; padding:22px 25px; }
+  .head { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
+  .head h2 { font-size:20px; }
+  .dim { color:var(--sec); font-size:12.5px; }
+  .pbtn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); color:var(--text); border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px; }
+  .pbtn:hover { background:rgba(255,255,255,.12); }
+  .pbtn.on, .pbtn.primary { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+  .pbtn.small { padding:3px 9px; font-size:12px; }
+  .pbtn.red { border-color:rgba(229,83,75,.5); color:#ff8f88; }
+  .pbtn.ok { border-color:rgba(70,163,116,.6); color:#8fd8b0; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:12px 0 14px; }
+  .tile { background:rgba(255,255,255,.05); border-radius:12px; padding:14px 16px; text-align:center; }
+  .tile b { display:block; font-size:22px; }
+  .tile span { font-size:12px; color:var(--sec); }
+  .box { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:12px; padding:14px 16px; margin-bottom:14px; }
+  .box h3 { font-size:14px; margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-weight:600; color:var(--sec); font-size:12px; padding:7px 8px; border-bottom:1px solid rgba(255,255,255,.08); }
+  td { padding:8px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:top; }
+  td.num, th.num { text-align:right; white-space:nowrap; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:820px) { .grid2 { grid-template-columns:1fr; } }
+  label.f { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--sec); margin-bottom:10px; }
+  input, select, textarea { background:var(--bg); color:var(--text); border:1px solid rgba(255,255,255,.15); border-radius:7px; padding:7px 9px; font-size:13px; }
+  textarea { resize:vertical; min-height:64px; }
+  .row { display:flex; gap:10px; }
+  .row > * { flex:1; }
+  .calc { border-radius:12px; padding:14px 16px; background:rgba(245,166,35,.08); border:1px solid rgba(245,166,35,.3); }
+  .calc .big { font-size:28px; font-weight:700; color:var(--amber); }
+  .calc.zero { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }
+  .calc.zero .big { color:var(--sec); }
+  .calc ul { margin:8px 0 0 18px; color:var(--sec); line-height:1.6; }
+  .warn { color:#ff8f88; font-size:12.5px; margin-top:6px; }
+  .st { font-size:11.5px; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  .st.pending { background:rgba(245,166,35,.15); color:var(--amber); }
+  .st.approved { background:rgba(70,163,116,.18); color:#8fd8b0; }
+  .st.rejected { background:rgba(229,83,75,.15); color:#ff8f88; }
+  .tag { font-size:11.5px; padding:2px 8px; border-radius:999px; background:rgba(127,200,255,.12); color:var(--blue); white-space:nowrap; }
+  .wk { font-size:11.5px; padding:2px 7px; border-radius:999px; background:rgba(229,83,75,.15); color:#ff8f88; white-space:nowrap; }
+  .note { color:var(--sec); font-size:12.5px; margin-top:3px; }
+  .empty { color:var(--sec); padding:6px 2px; }
+  /* вариант 2 — календар */
+  .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .cal .dn { text-align:center; color:var(--sec); font-size:12px; padding:4px 0; }
+  .day { min-height:86px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:9px; padding:6px; cursor:pointer; display:flex; flex-direction:column; gap:3px; }
+  .day:hover { background:var(--hover); }
+  .day.off { background:rgba(229,83,75,.06); }
+  .day.out { opacity:.3; cursor:default; }
+  .day.sel { border-color:var(--green); box-shadow:0 0 0 1px var(--green) inset; }
+  .day .d { font-size:12px; color:var(--sec); display:flex; justify-content:space-between; }
+  .day .h { font-size:11.5px; padding:1px 6px; border-radius:6px; background:rgba(245,166,35,.18); color:var(--amber); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .layout2 { display:grid; grid-template-columns:1fr 340px; gap:14px; }
+  @media (max-width:900px) { .layout2 { grid-template-columns:1fr; } }
+  /* вариант 3 — линия на деня */
+  .bar { position:relative; height:46px; border-radius:9px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); overflow:hidden; margin:8px 0 4px; }
+  .bar .seg { position:absolute; top:0; bottom:0; }
+  .bar .work { background:repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0 6px,rgba(255,255,255,.03) 6px 12px); }
+  .bar .lunch { background:rgba(255,255,255,.1); }
+  .bar .ot { background:rgba(245,166,35,.75); }
+  .bar .reg { background:rgba(70,163,116,.6); }
+  .ticks { position:relative; height:16px; font-size:10.5px; color:var(--dim); }
+  .ticks span { position:absolute; transform:translateX(-50%); }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--sec); margin-top:6px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:-2px; margin-right:5px; }
+  input[type=range] { width:100%; padding:0; }
+  .wkgroup h4 { font-size:13px; margin:12px 0 6px; display:flex; justify-content:space-between; color:var(--sec); }
+  .mini { position:relative; height:8px; border-radius:4px; background:rgba(255,255,255,.06); margin-top:5px; overflow:hidden; }
+  .mini .seg { position:absolute; top:0; bottom:0; }
+  /* вариант 4 — телефон */
+  .phone { width:360px; max-width:100%; margin:0 auto; background:var(--card); border:1px solid var(--border); border-radius:28px; padding:22px 18px; }
+  .phone h3 { font-size:16px; margin-bottom:4px; }
+  .bigbtn { width:100%; border:none; border-radius:16px; padding:22px; font-size:18px; font-weight:700; cursor:pointer; color:#fff; background:var(--green); margin:14px 0 8px; }
+  .bigbtn.stop { background:var(--red); }
+  .timer { text-align:center; font-size:40px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--amber); margin-top:10px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .chip { font-size:12.5px; padding:6px 11px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); cursor:pointer; }
+  .chip.on { background:var(--green); border-color:var(--green); color:#fff; }
+  .card { background:rgba(255,255,255,.04); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
+  /* вариант 5 */
+  .filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:6px; }
+  .hbar { height:8px; background:var(--amber); border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⏱ Overtime на видеографите</h1>
+  <span class="badge">ДЕМО — измислени данни, нищо не се записва</span>
+  <div class="vtabs">
+    <button class="vtab" data-v="1">1 · Форма</button>
+    <button class="vtab" data-v="2">2 · Календар</button>
+    <button class="vtab" data-v="3">3 · Линия на деня</button>
+    <button class="vtab" data-v="4">4 · Старт/Стоп (телефон)</button>
+    <button class="vtab" data-v="5">5 · Отчет за админ</button>
+  </div>
+</header>
+<div class="explain" id="explain"></div>
+<div class="page" id="page"></div>
+
+<script>
+// ───────── Правила ─────────
+// Работно време: 10:00–19:00 в делничен ден (вкл. 1 ч обяд → 8 ч работа).
+// Overtime = всичко ИЗВЪН 10:00–19:00 в делничен ден; в събота, неделя и официален празник — целият интервал.
+// „До" по-малко от „От" = минава през полунощ (напр. 20:00 → 02:00 = 6 ч).
+const WORK_FROM = 10 * 60, WORK_TO = 19 * 60;
+const HOLIDAYS = { // официални почивни дни 2026
+  '2026-01-01': 'Нова година', '2026-03-03': 'Освобождението', '2026-04-10': 'Разпети петък', '2026-04-13': 'Великден',
+  '2026-05-01': 'Ден на труда', '2026-05-06': 'Гергьовден', '2026-05-25': '24 май (почивен)', '2026-09-07': 'Съединението (почивен)',
+  '2026-09-22': 'Независимостта', '2026-12-24': 'Бъдни вечер', '2026-12-25': 'Коледа', '2026-12-26': 'Коледа'
+};
+const TODAY = '2026-11-02';
+
+const people = [
+  { id: 1, name: 'Иво П.' }, { id: 2, name: 'Мира С.' }, { id: 3, name: 'Ники Г.' }, { id: 4, name: 'Дани И.' }
+];
+const ME = 1;
+const clients = ['Клиент А', 'Клиент Б', 'Клиент В', 'Клиент Г', 'Клиент Д', 'Вътрешно (The Pact)'];
+const kinds = ['Снимки', 'Пътуване', 'Събитие', 'Монтаж', 'Техника / подготовка', 'Друго'];
+
+let nextId = 100;
+const E = (p, date, from, to, client, kind, note, status) => ({ id: nextId++, p, date, from, to, client, kind, note, status: status || 'approved' });
+const entries = [
+  E(1, '2026-10-03', '09:00', '14:00', 'Клиент А', 'Снимки', 'Събота — снимки в обекта, докато е затворен за клиенти. 3 видеа от КП-4.'),
+  E(1, '2026-10-08', '19:00', '22:30', 'Клиент В', 'Събитие', 'Вечерно събитие — откриване, репортаж + интервюта.'),
+  E(1, '2026-10-15', '07:00', '10:00', 'Клиент Б', 'Пътуване', 'Пътуване до Пловдив за снимачния ден.'),
+  E(1, '2026-10-15', '19:00', '21:30', 'Клиент Б', 'Пътуване', 'Връщане от Пловдив.'),
+  E(1, '2026-10-24', '20:00', '01:00', 'Клиент Г', 'Събитие', 'Нощно парти — заснемане за рийлс.'),
+  E(1, '2026-10-29', '18:00', '20:30', 'Вътрешно (The Pact)', 'Техника / подготовка', 'Зареждане на батерии, форматиране, пакетиране за утре.', 'pending'),
+  E(2, '2026-10-04', '10:00', '16:00', 'Клиент Д', 'Снимки', 'Неделя — снимки на ресторанта при пълна зала.'),
+  E(2, '2026-10-16', '19:00', '21:00', 'Клиент А', 'Снимки', 'Залез — външни кадри.'),
+  E(2, '2026-10-30', '19:00', '23:00', 'Клиент В', 'Събитие', 'Хелоуин събитие.', 'pending'),
+  E(3, '2026-10-10', '08:00', '18:00', 'Клиент Б', 'Снимки', 'Събота — голям снимачен ден, 6 видеа.'),
+  E(3, '2026-10-21', '06:30', '10:00', 'Клиент Г', 'Снимки', 'Изгрев — дрон кадри.', 'rejected'),
+  E(3, '2026-10-27', '19:00', '20:00', 'Клиент Д', 'Монтаж', 'Спешна корекция по видео 3.', 'pending'),
+  E(4, '2026-10-11', '11:00', '15:00', 'Клиент Г', 'Снимки', 'Неделя — турнир.'),
+  E(4, '2026-10-22', '19:30', '22:00', 'Клиент А', 'Събитие', 'Дегустация.'),
+  E(1, '2026-11-01', '12:00', '17:00', 'Клиент В', 'Снимки', 'Неделя — снимки в мола.', 'pending')
+];
+
+// ───────── Сметката ─────────
+const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0); };
+const pad = (n) => String(n).padStart(2, '0');
+const hhmm = (m) => pad(Math.floor((m % 1440) / 60)) + ':' + pad(m % 60);
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseD = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return ymd(d); };
+const DOW = ['неделя', 'понеделник', 'вторник', 'сряда', 'четвъртък', 'петък', 'събота'];
+const dayOff = (s) => { const w = parseD(s).getDay(); return HOLIDAYS[s] || (w === 0 || w === 6 ? (w === 0 ? 'неделя' : 'събота') : null); };
+const fmtDate = (s) => { const d = parseD(s); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' (' + DOW[d.getDay()].slice(0, 3) + ')'; };
+const fmtH = (m) => { if (!m) return '0 ч'; const h = Math.floor(m / 60), mm = m % 60; return (h ? h + ' ч' : '') + (h && mm ? ' ' : '') + (mm ? mm + ' мин' : ''); };
+const decH = (m) => (m / 60).toFixed(m % 60 ? 2 : 0).replace('.', ',').replace(/,?0+$/, (x) => x.startsWith(',') ? '' : x);
+
+// Връща { total, ot, parts:[{from,to,ot,label}], nextDay, error }
+function calc(date, from, to) {
+  if (!date || !from || !to) return { error: 'Попълни дата, от и до.' };
+  const a = toMin(from); let b = toMin(to);
+  if (a === b) return { error: '„От" и „До" са еднакви.' };
+  const nextDay = b < a; if (nextDay) b += 1440;
+  const parts = [];
+  // обхождаме по денонощия (интервалът може да мине в следващия ден)
+  for (let base = 0; base < b; base += 1440) {
+    const day = addDays(date, base / 1440);
+    const s = Math.max(a, base), e = Math.min(b, base + 1440);
+    if (e <= s) continue;
+    const off = dayOff(day);
+    if (off) { parts.push({ from: s, to: e, ot: true, label: 'почивен ден (' + off + ')' }); continue; }
+    const ws = base + WORK_FROM, we = base + WORK_TO;
+    if (s < ws) parts.push({ from: s, to: Math.min(e, ws), ot: true, label: 'преди работно време' });
+    if (e > ws && s < we) parts.push({ from: Math.max(s, ws), to: Math.min(e, we), ot: false, label: 'редовно работно време' });
+    if (e > we) parts.push({ from: Math.max(s, we), to: e, ot: true, label: 'след работно време' });
+  }
+  const real = parts.filter((p) => p.to > p.from);
+  const ot = real.filter((p) => p.ot).reduce((s, p) => s + p.to - p.from, 0);
+  return { total: b - a, ot, parts: real, nextDay };
+}
+const otOf = (e) => calc(e.date, e.from, e.to).ot || 0;
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const P = (id) => people.find((p) => p.id === id);
+const STATUS = { pending: 'чака одобрение', approved: 'одобрен', rejected: 'отказан' };
+const stBadge = (s) => '<span class="st ' + s + '">' + STATUS[s] + '</span>';
+const opts = (arr, sel) => arr.map((x) => '<option' + (x === sel ? ' selected' : '') + '>' + esc(x) + '</option>').join('');
+const $ = (id) => document.getElementById(id);
+
+function calcHtml(r) {
+  if (r.error) return '<div class="calc zero"><div class="dim">' + esc(r.error) + '</div></div>';
+  const li = r.parts.map((p) => '<li>' + hhmm(p.from) + '–' + hhmm(p.to) + ' · ' + fmtH(p.to - p.from) + ' — ' +
+    (p.ot ? '<b style="color:var(--amber)">overtime</b>, ' : '<span>не се брои</span>, ') + p.label + '</li>').join('');
+  return '<div class="calc' + (r.ot ? '' : ' zero') + '"><div class="dim">Overtime</div><div class="big">' + fmtH(r.ot) + '</div>' +
+    '<div class="dim">Общо ' + fmtH(r.total) + (r.nextDay ? ' · минава през полунощ' : '') + '</div><ul>' + li + '</ul>' +
+    (r.parts.some((p) => !p.ot) ? '<div class="warn">Част от времето е в редовното работно време (10:00–19:00) и не се брои.</div>' : '') +
+    '</div>';
+}
+
+// Обща форма (ползва се във варианти 1, 2 и 3)
+function formHtml(prefix, f) {
+  return '<label class="f">Дата<input type="date" id="' + prefix + 'date" value="' + f.date + '"></label>' +
+    '<div class="row"><label class="f">От<input type="time" id="' + prefix + 'from" value="' + f.from + '"></label>' +
+    '<label class="f">До<input type="time" id="' + prefix + 'to" value="' + f.to + '"></label></div>' +
+    '<div class="row"><label class="f">За кой клиент<select id="' + prefix + 'client">' + opts(clients, f.client) + '</select></label>' +
+    '<label class="f">Какво<select id="' + prefix + 'kind">' + opts(kinds, f.kind) + '</select></label></div>' +
+    '<label class="f">Подробности (какво точно, къде, с кого)<textarea id="' + prefix + 'note" placeholder="напр. Вечерно събитие — репортаж + 3 интервюта">' + esc(f.note || '') + '</textarea></label>';
+}
+const readForm = (prefix) => ({ date: $(prefix + 'date').value, from: $(prefix + 'from').value, to: $(prefix + 'to').value,
+  client: $(prefix + 'client').value, kind: $(prefix + 'kind').value, note: $(prefix + 'note').value.trim() });
+function addEntry(f, p) {
+  const r = calc(f.date, f.from, f.to);
+  if (r.error) { alert(r.error); return false; }
+  if (!r.ot) { alert('Този интервал е изцяло в работно време — няма overtime.'); return false; }
+  if (!f.note) { alert('Напиши накратко какво си правил.'); return false; }
+  entries.push({ id: nextId++, p: p || ME, ...f, status: 'pending' });
+  return true;
+}
+const sumOt = (list) => list.reduce((s, e) => s + otOf(e), 0);
+const inMonth = (e, ym) => e.date.slice(0, 7) === ym;
+const MONTHS = ['януари', 'февруари', 'март', 'април', 'май', 'юни', 'юли', 'август', 'септември', 'октомври', 'ноември', 'декември'];
+const monthName = (ym) => MONTHS[Number(ym.slice(5)) - 1] + ' ' + ym.slice(0, 4);
+
+function entryRows(list, withPerson, actions) {
+  if (!list.length) return '<div class="empty">Няма записи.</div>';
+  return '<table><tr><th>Дата</th>' + (withPerson ? '<th>Видеограф</th>' : '') + '<th>От–до</th><th>За кого / какво</th><th class="num">Overtime</th><th>Статус</th>' + (actions ? '<th></th>' : '') + '</tr>' +
+    list.slice().sort((a, b) => (b.date + b.from).localeCompare(a.date + a.from)).map((e) => {
+      const off = dayOff(e.date);
+      return '<tr><td style="white-space:nowrap">' + fmtDate(e.date) + (off ? '<br><span class="wk">' + esc(off) + '</span>' : '') + '</td>' +
+        (withPerson ? '<td>' + esc(P(e.p).name) + '</td>' : '') +
+        '<td style="white-space:nowrap">' + e.from + '–' + e.to + (toMin(e.to) < toMin(e.from) ? ' <span class="dim">(+1 ден)</span>' : '') + '</td>' +
+        '<td><b>' + esc(e.client) + '</b> <span class="tag">' + esc(e.kind) + '</span><div class="note">' + esc(e.note) + '</div></td>' +
+        '<td class="num"><b>' + fmtH(otOf(e)) + '</b></td><td>' + stBadge(e.status) + '</td>' +
+        (actions ? '<td style="white-space:nowrap">' + actions(e) + '</td>' : '') + '</tr>';
+    }).join('') + '</table>';
+}
+
+// ───────── Състояние ─────────
+const st = {
+  v: Number(new URLSearchParams(location.search).get('v')) || 1,
+  month: '2026-10', selDay: '2026-10-29', team: false,
+  f3: { date: TODAY, from: 19 * 60, to: 22 * 60 + 30 },
+  run: null, runElapsed: 0, stopped: null,
+  admMonth: '2026-10', admPerson: 0, admStatus: ''
+};
+if (![1, 2, 3, 4, 5].includes(st.v)) st.v = 1;
+
+const EXPLAIN = {
+  1: '<b>Вариант 1 — проста форма.</b> Видеографът попълва дата, от–до, за кой клиент, какво (снимки/пътуване/събитие…) и няколко думи. Вдясно <b>веднага</b> се смята колко е overtime-ът: времето в 10:00–19:00 в делник не се брои, а в събота, неделя и празник се брои всичко. Отдолу е неговият списък за месеца с общо часове. Най-бързо за правене.',
+  2: '<b>Вариант 2 — календар.</b> Месечен календар, почивните дни са оцветени. Цъкаш ден → вдясно излизат записите за този ден и форма за нов запис (датата е попълнена). Всеки ден показва колко часа overtime има. С „👥 Целия екип" се вижда кой кога е работил извънредно.',
+  3: '<b>Вариант 3 — линия на деня.</b> Избираш часовете с плъзгачи или с готовите бутони (сутрешни снимки, вечерно събитие, цял почивен ден). Лентата показва целия ден: райето е работното време, <span style="color:var(--amber)">оранжевото</span> е overtime, <span style="color:#8fd8b0">зеленото</span> е частта, която пада в работно време и не се брои. Отдолу записите са групирани по седмици.',
+  4: '<b>Вариант 4 — Старт/Стоп от телефона.</b> На терена видеографът натиска <b>„▶ Започвам overtime"</b>, когато започне, и <b>„■ Приключих"</b>, когато свърши. Часовете се попълват сами (могат да се поправят), остава само да избере клиент, какво и да напише 1–2 изречения. В демото таймерът тече ускорено (1 сек = 10 мин), за да се види сметката.',
+  5: '<b>Вариант 5 — отчет и одобрение за админ.</b> Какво вижда Венци: общо часове за месеца, кой колко, по клиенти, и списък с всички записи с бутони <b>✓ Одобри / ✕ Откажи</b>. Записите влизат като „чака одобрение". Има и <b>⬇ CSV</b> за счетоводството. Може да се комбинира с всеки от вариантите 1–4 (те са за видеографа, този е за админа).'
+};
+
+function render() {
+  document.querySelectorAll('.vtab').forEach((b) => b.classList.toggle('on', Number(b.dataset.v) === st.v));
+  $('explain').innerHTML = EXPLAIN[st.v];
+  ({ 1: v1, 2: v2, 3: v3, 4: v4, 5: v5 })[st.v]();
+}
+
+// ───────── Вариант 1 ─────────
+function v1() {
+  const mine = entries.filter((e) => e.p === ME && inMonth(e, st.month));
+  $('page').innerHTML =
+    '<div class="head"><h2>⏱ Моят overtime</h2><span class="dim">' + esc(P(ME).name) + ' · Видеограф</span></div>' +
+    '<div class="grid2"><div class="box"><h3>+ Нов overtime</h3>' + formHtml('a', { date: TODAY, from: '19:00', to: '22:00', client: clients[0], kind: 'Снимки' }) +
+    '<button class="pbtn primary" id="aSave">Запиши</button></div>' +
+    '<div><div id="aCalc"></div><p class="dim" style="margin-top:10px;line-height:1.5">Работно време: делник 10:00–19:00 (8 ч + 1 ч обяд). Пример: 18:00–21:00 → 2 ч overtime. Ако „До" е по-рано от „От" (20:00 → 02:00), значи е минало полунощ.</p></div></div>' +
+    '<div class="head" style="margin-top:6px"><h3 style="font-size:15px">Моите записи</h3>' + monthBtns('month') + '</div>' +
+    '<div class="tiles"><div class="tile"><b>' + fmtH(sumOt(mine)) + '</b><span>overtime за ' + monthName(st.month) + '</span></div>' +
+    '<div class="tile"><b>' + mine.length + '</b><span>записа</span></div>' +
+    '<div class="tile"><b>' + fmtH(sumOt(mine.filter((e) => e.status === 'approved'))) + '</b><span>одобрени</span></div>' +
+    '<div class="tile"><b>' + mine.filter((e) => e.status === 'pending').length + '</b><span>чакат одобрение</span></div></div>' +
+    '<div class="box">' + entryRows(mine, false, (e) => e.status === 'pending' ? '<button class="pbtn small red" data-del="' + e.id + '">Изтрий</button>' : '') + '</div>';
+  const upd = () => { $('aCalc').innerHTML = calcHtml(calc($('adate').value, $('afrom').value, $('ato').value)); };
+  ['adate', 'afrom', 'ato'].forEach((id) => $(id).oninput = upd); upd();
+  $('aSave').onclick = () => { const f = readForm('a'); if (addEntry(f)) { st.month = f.date.slice(0, 7); render(); } };
+  bindMonth('month'); bindDel();
+}
+function monthBtns(key) {
+  return '<div style="display:flex;gap:6px">' + ['2026-10', '2026-11'].map((m) => '<button class="pbtn' + (st[key] === m ? ' on' : '') + '" data-m="' + m + '" data-k="' + key + '">' + monthName(m) + '</button>').join('') + '</div>';
+}
+function bindMonth() { document.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => { st[b.dataset.k] = b.dataset.m; render(); }); }
+function bindDel() { document.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => { const i = entries.findIndex((e) => e.id === Number(b.dataset.del)); if (i >= 0) entries.splice(i, 1); render(); }); }
+
+// ───────── Вариант 2 ─────────
+function v2() {
+  const [y, m] = st.month.split('-').map(Number);
+  const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
+  const lead = (first.getDay() + 6) % 7; // понеделник първи
+  const pool = entries.filter((e) => st.team || e.p === ME);
+  let cells = ['Пон', 'Вто', 'Сря', 'Чет', 'Пет', 'Съб', 'Нед'].map((d) => '<div class="dn">' + d + '</div>').join('');
+  for (let i = 0; i < lead; i++) cells += '<div class="day out"></div>';
+  for (let d = 1; d <= days; d++) {
+    const ds = st.month + '-' + pad(d), list = pool.filter((e) => e.date === ds), off = dayOff(ds);
+    cells += '<div class="day' + (off ? ' off' : '') + (ds === st.selDay ? ' sel' : '') + '" data-day="' + ds + '"><div class="d"><b>' + d + '</b>' + (HOLIDAYS[ds] ? '<span title="' + esc(HOLIDAYS[ds]) + '">🎉</span>' : '') + '</div>' +
+      list.map((e) => '<div class="h" title="' + esc(e.client + ' — ' + e.note) + '">' + (st.team ? esc(P(e.p).name.split(' ')[0]) + ' ' : '') + fmtH(otOf(e)) + '</div>').join('') + '</div>';
+  }
+  const dayList = pool.filter((e) => e.date === st.selDay);
+  const mine = entries.filter((e) => e.p === ME && inMonth(e, st.month));
+  $('page').innerHTML =
+    '<div class="head"><h2>📅 Overtime календар</h2>' + monthBtns('month') +
+    '<button class="pbtn' + (st.team ? ' on' : '') + '" id="bTeam" style="margin-left:auto">👥 Целия екип</button></div>' +
+    '<p class="dim" style="margin-bottom:10px">Моят overtime за ' + monthName(st.month) + ': <b style="color:var(--amber)">' + fmtH(sumOt(mine)) + '</b> в ' + mine.length + ' записа. Червеникавите дни са почивни — там се брои целият интервал.</p>' +
+    '<div class="layout2"><div class="cal">' + cells + '</div>' +
+    '<div class="box"><h3>' + fmtDate(st.selDay) + (dayOff(st.selDay) ? ' <span class="wk">' + esc(dayOff(st.selDay)) + '</span>' : '') + '</h3>' +
+    (dayList.length ? dayList.map((e) => '<div class="card"><b>' + e.from + '–' + e.to + '</b> · <b style="color:var(--amber)">' + fmtH(otOf(e)) + '</b> ' + stBadge(e.status) +
+      (st.team ? '<div class="dim">' + esc(P(e.p).name) + '</div>' : '') + '<div><b>' + esc(e.client) + '</b> <span class="tag">' + esc(e.kind) + '</span></div><div class="note">' + esc(e.note) + '</div></div>').join('') : '<div class="empty">Няма overtime този ден.</div>') +
+    '<h3 style="margin-top:14px">+ Добави за този ден</h3>' + formHtml('b', { date: st.selDay, from: '19:00', to: '21:00', client: clients[0], kind: 'Снимки' }) +
+    '<div id="bCalc" style="margin-bottom:10px"></div><button class="pbtn primary" id="bSave">Запиши</button></div></div>';
+  document.querySelectorAll('[data-day]').forEach((c) => c.onclick = () => { st.selDay = c.dataset.day; render(); });
+  const upd = () => { const r = calc($('bdate').value, $('bfrom').value, $('bto').value); $('bCalc').innerHTML = r.error ? '' : '<b style="color:var(--amber)">= ' + fmtH(r.ot) + ' overtime</b>' + (r.parts.some((p) => !p.ot) ? ' <span class="dim">(частта в 10:00–19:00 не се брои)</span>' : ''); };
+  ['bdate', 'bfrom', 'bto'].forEach((id) => $(id).oninput = upd); upd();
+  $('bSave').onclick = () => { const f = readForm('b'); if (addEntry(f)) { st.selDay = f.date; st.month = f.date.slice(0, 7); render(); } };
+  $('bTeam').onclick = () => { st.team = !st.team; render(); };
+  bindMonth();
+}
+
+// ───────── Вариант 3 ─────────
+const pct = (m) => (m / 1440 * 100).toFixed(3) + '%';
+function barHtml(date, a, b, big) {
+  // показва 00:00–24:00 на избрания ден (ако мине полунощ — само до 24:00 се рисува, останалото е отбелязано)
+  const off = dayOff(date);
+  let h = '';
+  if (!off) h += '<div class="seg work" style="left:' + pct(WORK_FROM) + ';width:' + pct(WORK_TO - WORK_FROM) + '"></div>';
+  const r = calc(date, hhmm(a), hhmm(b));
+  (r.parts || []).forEach((p) => { const s = Math.min(p.from, 1440), e = Math.min(p.to, 1440); if (e > s) h += '<div class="seg ' + (p.ot ? 'ot' : 'reg') + '" style="left:' + pct(s) + ';width:' + pct(e - s) + '"></div>'; });
+  return '<div class="' + (big ? 'bar' : 'mini') + '">' + h + '</div>';
+}
+function v3() {
+  const f = st.f3, a = f.from, b = f.to;
+  const r = calc(f.date, hhmm(a), hhmm(b));
+  const ticks = [0, 3, 6, 9, 10, 12, 15, 18, 19, 21, 24].map((hh) => '<span style="left:' + pct(hh * 60) + '">' + pad(hh) + '</span>').join('');
+  const mine = entries.filter((e) => e.p === ME && inMonth(e, st.month)).sort((x, y) => (y.date + y.from).localeCompare(x.date + x.from));
+  const weeks = {};
+  mine.forEach((e) => { const d = parseD(e.date); const mon = addDays(e.date, -((d.getDay() + 6) % 7)); (weeks[mon] = weeks[mon] || []).push(e); });
+  $('page').innerHTML =
+    '<div class="head"><h2>⏱ Нов overtime</h2><span class="dim">' + esc(P(ME).name) + '</span></div>' +
+    '<div class="box"><div class="row" style="align-items:flex-end;flex-wrap:wrap"><label class="f" style="flex:0 0 170px">Дата<input type="date" id="cdate" value="' + f.date + '"></label>' +
+    '<div style="flex:1 1 400px;display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">' +
+      '<button class="pbtn" data-pre="07:00-10:00">🌅 Сутрешни снимки 07–10</button><button class="pbtn" data-pre="19:00-22:00">🌙 Вечерно събитие 19–22</button>' +
+      '<button class="pbtn" data-pre="19:00-02:00">🎉 До след полунощ 19–02</button><button class="pbtn" data-pre="10:00-19:00">📆 Цял ден (почивен)</button></div></div>' +
+    '<div class="row"><label class="f">От: <b id="cfl" style="color:var(--text);font-size:15px">' + hhmm(a) + '</b><input type="range" id="cfrom" min="0" max="1425" step="15" value="' + a + '"></label>' +
+    '<label class="f">До: <b id="ctl" style="color:var(--text);font-size:15px">' + hhmm(b) + (b < a ? ' (+1 ден)' : '') + '</b><input type="range" id="cto" min="0" max="1440" step="15" value="' + b + '"></label></div>' +
+    barHtml(f.date, a, b % 1440, true) + '<div class="ticks">' + ticks + '</div>' +
+    '<div class="legend"><span><i style="background:repeating-linear-gradient(45deg,rgba(255,255,255,.2) 0 3px,transparent 3px 6px)"></i>работно време 10–19</span><span><i style="background:rgba(245,166,35,.75)"></i>overtime</span><span><i style="background:rgba(70,163,116,.6)"></i>в работно време (не се брои)</span>' + (r.nextDay ? '<span>➜ продължава след полунощ</span>' : '') + '</div>' +
+    '<div style="margin:12px 0;font-size:16px">' + (r.error ? '<span class="dim">' + r.error + '</span>' : '= <b style="color:var(--amber);font-size:22px">' + fmtH(r.ot) + '</b> overtime <span class="dim">(' + decH(r.ot) + ' ч)</span>' + (dayOff(f.date) ? ' <span class="wk">' + esc(dayOff(f.date)) + ' — броят се всички часове</span>' : '')) + '</div>' +
+    '<div class="row"><label class="f">За кой клиент<select id="cclient">' + opts(clients) + '</select></label><label class="f">Какво<select id="ckind">' + opts(kinds) + '</select></label></div>' +
+    '<label class="f">Подробности<textarea id="cnote" placeholder="напр. Вечерно събитие — репортаж + 3 интервюта"></textarea></label>' +
+    '<button class="pbtn primary" id="cSave">Запиши</button></div>' +
+    '<div class="head"><h3 style="font-size:15px">Моите записи по седмици</h3>' + monthBtns('month') + '<span class="dim" style="margin-left:auto">Общо: <b style="color:var(--amber)">' + fmtH(sumOt(mine)) + '</b></span></div>' +
+    '<div class="box wkgroup">' + (Object.keys(weeks).length ? Object.keys(weeks).sort().reverse().map((w) =>
+      '<h4><span>Седмица ' + fmtDate(w).slice(0, 5) + ' – ' + fmtDate(addDays(w, 6)).slice(0, 5) + '</span><span>' + fmtH(sumOt(weeks[w])) + '</span></h4>' +
+      weeks[w].map((e) => '<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><b>' + fmtDate(e.date) + '</b><span>' + e.from + '–' + e.to + '</span><b style="color:var(--amber)">' + fmtH(otOf(e)) + '</b><b>' + esc(e.client) + '</b><span class="tag">' + esc(e.kind) + '</span>' + stBadge(e.status) + '</div>' +
+        barHtml(e.date, toMin(e.from), toMin(e.to), false) + '<div class="note">' + esc(e.note) + '</div></div>').join('')).join('') : '<div class="empty">Няма записи.</div>') + '</div>';
+  $('cdate').oninput = (ev) => { st.f3.date = ev.target.value || TODAY; render(); };
+  $('cfrom').oninput = (ev) => { st.f3.from = Number(ev.target.value); render(); };
+  $('cto').oninput = (ev) => { st.f3.to = Number(ev.target.value) % 1440; render(); };
+  document.querySelectorAll('[data-pre]').forEach((btn) => btn.onclick = () => { const [x, y] = btn.dataset.pre.split('-'); st.f3.from = toMin(x); st.f3.to = toMin(y); render(); });
+  $('cSave').onclick = () => {
+    const ff = { date: f.date, from: hhmm(a), to: hhmm(b), client: $('cclient').value, kind: $('ckind').value, note: $('cnote').value.trim() };
+    if (addEntry(ff)) { st.month = ff.date.slice(0, 7); render(); }
+  };
+  bindMonth();
+}
+
+// ───────── Вариант 4 ─────────
+let tick = null;
+function v4() {
+  const recent = entries.filter((e) => e.p === ME).sort((x, y) => (y.date + y.from).localeCompare(x.date + x.from)).slice(0, 4);
+  let body;
+  if (st.stopped) {
+    const s = st.stopped;
+    body = '<h3>Готово! Попълни подробностите</h3><p class="dim">Часовете са попълнени автоматично — поправи ги, ако трябва.</p>' +
+      '<div style="margin-top:12px"></div><label class="f">Дата<input type="date" id="ddate" value="' + s.date + '"></label>' +
+      '<div class="row"><label class="f">От<input type="time" id="dfrom" value="' + s.from + '"></label><label class="f">До<input type="time" id="dto" value="' + s.to + '"></label></div>' +
+      '<div id="dCalc" style="margin-bottom:12px"></div>' +
+      '<div class="dim" style="margin-bottom:5px">За кой клиент</div><div class="chips" id="dcl">' + clients.map((c, i) => '<span class="chip' + (i === 0 ? ' on' : '') + '">' + esc(c) + '</span>').join('') + '</div>' +
+      '<div class="dim" style="margin-bottom:5px">Какво</div><div class="chips" id="dkd">' + kinds.map((c, i) => '<span class="chip' + (i === 0 ? ' on' : '') + '">' + esc(c) + '</span>').join('') + '</div>' +
+      '<label class="f">Подробности<textarea id="dnote" placeholder="1–2 изречения: какво снима, къде, с кого"></textarea></label>' +
+      '<button class="bigbtn" id="dSave" style="padding:16px;font-size:16px">✓ Изпрати</button><button class="pbtn" id="dCancel" style="width:100%">Откажи</button>';
+  } else if (st.run) {
+    body = '<h3>⏺ Overtime тече</h3><p class="dim">Започнат в ' + st.run.from + ' на ' + fmtDate(st.run.date) + '</p>' +
+      '<div class="timer" id="dTimer"></div><div class="dim" style="text-align:center" id="dNow"></div>' +
+      '<button class="bigbtn stop" id="dStop">■ Приключих</button>';
+  } else {
+    body = '<h3>Здрасти, ' + esc(P(ME).name.split(' ')[0]) + ' 👋</h3><p class="dim">Работиш извън 10:00–19:00 или в почивен ден? Натисни, когато започнеш.</p>' +
+      '<label class="f" style="margin-top:12px">Сценарий за демото<select id="dScen"><option value="2026-11-02|19:00">Понеделник, 19:00 (след работа)</option><option value="2026-11-07|09:00">Събота, 09:00 (почивен ден)</option><option value="2026-11-03|22:00">Вторник, 22:00 (през полунощ)</option></select></label>' +
+      '<button class="bigbtn" id="dStart">▶ Започвам overtime</button>' +
+      '<p class="dim" style="text-align:center">или <a href="#" id="dManual" style="color:var(--blue)">въведи ръчно минал overtime</a></p>';
+  }
+  $('page').innerHTML = '<div class="phone">' + body + '<div style="margin-top:18px" class="dim">Последни</div>' +
+    recent.map((e) => '<div class="card"><div style="display:flex;justify-content:space-between"><b>' + fmtDate(e.date) + '</b><b style="color:var(--amber)">' + fmtH(otOf(e)) + '</b></div><div class="dim">' + e.from + '–' + e.to + ' · ' + esc(e.client) + ' · ' + esc(e.kind) + '</div><div style="margin-top:4px">' + stBadge(e.status) + '</div></div>').join('') + '</div>';
+  clearInterval(tick);
+  if (st.run) {
+    const show = () => { const m = st.runElapsed; $('dTimer').textContent = pad(Math.floor(m / 60)) + ':' + pad(m % 60); const now = toMin(st.run.from) + m; $('dNow').textContent = 'сега е ' + hhmm(now) + (now >= 1440 ? ' (следващия ден)' : '') + ' · overtime до момента: ' + fmtH(calc(st.run.date, st.run.from, hhmm(now)).ot || 0); };
+    show(); tick = setInterval(() => { st.runElapsed += 10; show(); }, 1000);
+    $('dStop').onclick = () => { clearInterval(tick); st.stopped = { date: st.run.date, from: st.run.from, to: hhmm(toMin(st.run.from) + Math.max(st.runElapsed, 15)) }; st.run = null; render(); };
+  } else if (st.stopped) {
+    const upd = () => { const r = calc($('ddate').value, $('dfrom').value, $('dto').value); $('dCalc').innerHTML = r.error ? '' : '<span style="font-size:18px">= <b style="color:var(--amber)">' + fmtH(r.ot) + '</b> overtime</span>' + (r.parts.some((p) => !p.ot) ? '<div class="dim">частта в 10:00–19:00 не се брои</div>' : ''); };
+    ['ddate', 'dfrom', 'dto'].forEach((id) => $(id).oninput = upd); upd();
+    ['dcl', 'dkd'].forEach((id) => $(id).querySelectorAll('.chip').forEach((c) => c.onclick = () => { $(id).querySelectorAll('.chip').forEach((x) => x.classList.remove('on')); c.classList.add('on'); }));
+    $('dSave').onclick = () => {
+      const f = { date: $('ddate').value, from: $('dfrom').value, to: $('dto').value, client: $('dcl').querySelector('.on').textContent, kind: $('dkd').querySelector('.on').textContent, note: $('dnote').value.trim() };
+      if (addEntry(f)) { st.stopped = null; render(); }
+    };
+    $('dCancel').onclick = () => { st.stopped = null; render(); };
+  } else {
+    $('dStart').onclick = () => { const [date, from] = $('dScen').value.split('|'); st.run = { date, from }; st.runElapsed = 0; render(); };
+    $('dManual').onclick = (ev) => { ev.preventDefault(); st.stopped = { date: TODAY, from: '19:00', to: '21:00' }; render(); };
+  }
+}
+
+// ───────── Вариант 5 ─────────
+function v5() {
+  const list = entries.filter((e) => inMonth(e, st.admMonth) && (!st.admPerson || e.p === st.admPerson) && (!st.admStatus || e.status === st.admStatus));
+  const monthAll = entries.filter((e) => inMonth(e, st.admMonth) && e.status !== 'rejected');
+  const perP = people.map((p) => { const l = monthAll.filter((e) => e.p === p.id); return { p, l, ot: sumOt(l), off: sumOt(l.filter((e) => dayOff(e.date))), appr: sumOt(l.filter((e) => e.status === 'approved')) }; });
+  const perC = clients.map((c) => ({ c, ot: sumOt(monthAll.filter((e) => e.client === c)) })).filter((x) => x.ot).sort((x, y) => y.ot - x.ot);
+  const maxC = Math.max(1, ...perC.map((x) => x.ot));
+  const pend = entries.filter((e) => inMonth(e, st.admMonth) && e.status === 'pending').length;
+  $('page').innerHTML =
+    '<div class="head"><h2>⏱ Overtime — отчет</h2>' + monthBtns('admMonth') + '<button class="pbtn" id="eCsv" style="margin-left:auto">⬇ CSV</button></div>' +
+    '<div class="tiles"><div class="tile"><b>' + fmtH(sumOt(monthAll)) + '</b><span>общо overtime (без отказаните)</span></div>' +
+    '<div class="tile"><b>' + fmtH(sumOt(monthAll.filter((e) => e.status === 'approved'))) + '</b><span>одобрени</span></div>' +
+    '<div class="tile"><b style="color:var(--amber)">' + pend + '</b><span>чакат одобрение</span></div>' +
+    '<div class="tile"><b>' + fmtH(sumOt(monthAll.filter((e) => dayOff(e.date)))) + '</b><span>от тях в почивни дни</span></div></div>' +
+    '<div class="grid2"><div class="box"><h3>По видеограф</h3><table><tr><th>Видеограф</th><th class="num">Записи</th><th class="num">Overtime</th><th class="num">в почивни дни</th><th class="num">одобрени</th></tr>' +
+      perP.map((x) => '<tr><td><a href="#" data-pp="' + x.p.id + '" style="color:var(--blue);text-decoration:none">' + esc(x.p.name) + '</a></td><td class="num">' + x.l.length + '</td><td class="num"><b>' + fmtH(x.ot) + '</b></td><td class="num">' + fmtH(x.off) + '</td><td class="num">' + fmtH(x.appr) + '</td></tr>').join('') + '</table></div>' +
+    '<div class="box"><h3>По клиент</h3>' + (perC.length ? perC.map((x) => '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between"><span>' + esc(x.c) + '</span><b>' + fmtH(x.ot) + '</b></div><div class="hbar" style="width:' + (x.ot / maxC * 100) + '%"></div></div>').join('') : '<div class="empty">Няма.</div>') + '</div></div>' +
+    '<div class="box"><h3>Всички записи</h3><div class="filters"><select id="eP"><option value="0">Всички видеографи</option>' + people.map((p) => '<option value="' + p.id + '"' + (st.admPerson === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') + '</select>' +
+    '<select id="eS"><option value="">Всички статуси</option>' + Object.keys(STATUS).map((k) => '<option value="' + k + '"' + (st.admStatus === k ? ' selected' : '') + '>' + STATUS[k] + '</option>').join('') + '</select>' +
+    '<span class="dim">Общо в списъка: <b>' + fmtH(sumOt(list)) + '</b></span></div>' +
+    entryRows(list, true, (e) => (e.status !== 'approved' ? '<button class="pbtn small ok" data-ap="' + e.id + '">✓ Одобри</button> ' : '') + (e.status !== 'rejected' ? '<button class="pbtn small red" data-rj="' + e.id + '">✕ Откажи</button>' : '')) + '</div>';
+  bindMonth();
+  $('eP').onchange = (ev) => { st.admPerson = Number(ev.target.value); render(); };
+  $('eS').onchange = (ev) => { st.admStatus = ev.target.value; render(); };
+  document.querySelectorAll('[data-pp]').forEach((a) => a.onclick = (ev) => { ev.preventDefault(); st.admPerson = Number(a.dataset.pp); render(); });
+  document.querySelectorAll('[data-ap]').forEach((b) => b.onclick = () => { entries.find((e) => e.id === Number(b.dataset.ap)).status = 'approved'; render(); });
+  document.querySelectorAll('[data-rj]').forEach((b) => b.onclick = () => { entries.find((e) => e.id === Number(b.dataset.rj)).status = 'rejected'; render(); });
+  $('eCsv').onclick = () => {
+    const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
+    const rows = [['Дата', 'Видеограф', 'От', 'До', 'Overtime (ч)', 'Почивен ден', 'Клиент', 'Какво', 'Подробности', 'Статус']]
+      .concat(list.map((e) => [e.date, P(e.p).name, e.from, e.to, decH(otOf(e)), dayOff(e.date) ? 'да' : 'не', e.client, e.kind, e.note, STATUS[e.status]]));
+    const blob = new Blob(['﻿' + rows.map((r) => r.map(q).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'overtime-' + st.admMonth + '.csv'; a.click();
+  };
+}
+
+document.querySelectorAll('.vtab').forEach((b) => b.onclick = () => {
+  st.v = Number(b.dataset.v); clearInterval(tick);
+  history.replaceState(null, '', '?v=' + st.v);
+  render();
+});
+render();
+</script>
+</body>
+</html>
