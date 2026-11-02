@@ -54,6 +54,7 @@ const { initDevChat } = require('./services/dev-chat');
 const { initCrmReminders } = require('./services/crm-reminders');
 const { initContentAgent } = require('./services/content-agent/trigger');
 const { initPcWatch } = require('./services/pc-watch');
+const { initOvertimeDigest } = require('./services/overtime-digest');
 setTimeout(() => {
   initCheckInScheduler();
   initEmail();
@@ -74,6 +75,7 @@ setTimeout(() => {
   initCrmReminders();
   initContentAgent();
   initPcWatch();
+  initOvertimeDigest();
 }, 2000);
 
 // Auto-cleanup: permanently delete cards that have been in trash for 30+ days

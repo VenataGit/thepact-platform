@@ -201,4 +201,6 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
+// дневното обобщение (services/overtime-digest.js) ползва същата схема
+router.ensureSchema = ensureSchema;
 module.exports = router;
