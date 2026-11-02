@@ -53,9 +53,22 @@ describe('GET /api/overtime', () => {
     const call = mockDb.query.mock.calls.find((c) => /FROM overtime_entries o/.test(c[0]) && /work_date BETWEEN/.test(c[0]));
     expect(call[1][2]).toBe(MEMBER_USER.id);
   });
-  it('админ — всички (null) и списък с хора', async () => {
+  it('обикновен човек със scope=all — пак само своите', async () => {
+    const res = await request(app).get('/api/overtime?scope=all').set('Cookie', member);
+    expect(res.body.scope).toBe('mine');
+    const call = mockDb.query.mock.calls.find((c) => /work_date BETWEEN/.test(c[0]));
+    expect(call[1][2]).toBe(MEMBER_USER.id);
+  });
+  it('админ без scope — само своите', async () => {
     const res = await request(app).get('/api/overtime').set('Cookie', admin);
     expect(res.body.admin).toBe(true);
+    expect(res.body.scope).toBe('mine');
+    const call = mockDb.query.mock.calls.find((c) => /work_date BETWEEN/.test(c[0]));
+    expect(call[1][2]).toBe(ADMIN_USER.id);
+  });
+  it('админ изглед (scope=all) — всички (null) и списък с хора', async () => {
+    const res = await request(app).get('/api/overtime?scope=all').set('Cookie', admin);
+    expect(res.body.scope).toBe('all');
     const call = mockDb.query.mock.calls.find((c) => /work_date BETWEEN/.test(c[0]));
     expect(call[1][2]).toBeNull();
     expect(mockDb.query.mock.calls.some((c) => /SELECT DISTINCT u.id/.test(c[0]))).toBe(true);
@@ -102,5 +115,31 @@ describe('DELETE /api/overtime/:id', () => {
   it('редакция няма', async () => {
     const res = await request(app).put('/api/overtime/7').set('Cookie', member).send({});
     expect(res.status).toBe(404);
+  });
+});
+
+describe('бележки на админа', () => {
+  it('обикновен човек → 403 за четене и писане', async () => {
+    expect((await request(app).get('/api/overtime/notes').set('Cookie', member)).status).toBe(403);
+    expect((await request(app).post('/api/overtime/notes').set('Cookie', member).send({ text: 'x' })).status).toBe(403);
+    expect((await request(app).delete('/api/overtime/notes/1').set('Cookie', member)).status).toBe(403);
+  });
+  it('админ записва бележка за човек', async () => {
+    mockDb.queryOne.mockResolvedValueOnce({ id: 3 });
+    const res = await request(app).post('/api/overtime/notes').set('Cookie', admin)
+      .send({ about_user_id: 2, date: '2026-10-09', text: '  дойде в 13:00  ' });
+    expect(res.status).toBe(200);
+    const [sql, p] = mockDb.queryOne.mock.calls[0];
+    expect(sql).toMatch(/INSERT INTO overtime_admin_notes/);
+    expect(p).toEqual([ADMIN_USER.id, 2, '2026-10-09', 'дойде в 13:00']);
+  });
+  it('празна бележка → 400', async () => {
+    const res = await request(app).post('/api/overtime/notes').set('Cookie', admin).send({ text: ' ' });
+    expect(res.status).toBe(400);
+  });
+  it('филтър по човек', async () => {
+    await request(app).get('/api/overtime/notes?user=2').set('Cookie', admin);
+    const call = mockDb.query.mock.calls.find((c) => /FROM overtime_admin_notes/.test(c[0]));
+    expect(call[1]).toEqual([2]);
   });
 });

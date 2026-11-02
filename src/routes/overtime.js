@@ -1,5 +1,7 @@
 // Overtime (извънреден труд) — Венци, 02.11.2026, избра вариант 1 от /demo/overtime.html.
-//  • Всеки вижда САМО своите записи; всички хора и историята им вижда само админ (role = admin).
+//  • Всеки вижда САМО своите записи; всички хора и историята им вижда само админ (role = admin),
+//    и то само в админ изгледа (?scope=all, бутон „🔒 Админ" на страницата) — 02.11.2026 (2).
+//  • Бележки на админа (/notes) — само за админ: напр. „дойде 3 ч по-късно след overtime-а".
 //  • Без одобрение — записът влиза веднага.
 //  • Без редакция: човек може само да изтрие свой запис (ако е объркал) и да го въведе пак.
 //  • Пази се и КОГА е добавен записът (created_at) — показва се като дата.
@@ -8,7 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { calc } = require('../../public/js/overtime-calc');
 
 const KINDS = ['Снимки', 'Пътуване', 'Събитие', 'Монтаж', 'Техника / подготовка', 'Друго'];
@@ -36,6 +38,16 @@ function ensureSchema() {
       .then(() => execute(
         'CREATE INDEX IF NOT EXISTS idx_overtime_user_date ON overtime_entries (user_id, work_date DESC)'
       ))
+      .then(() => execute(`
+        CREATE TABLE IF NOT EXISTS overtime_admin_notes (
+          id            BIGSERIAL PRIMARY KEY,
+          author_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          about_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          note_date     DATE NOT NULL,
+          text          TEXT NOT NULL,
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          deleted_at    TIMESTAMPTZ
+        )`))
       .catch((err) => { schemaReady = null; throw err; });
   }
   return schemaReady;
@@ -45,15 +57,17 @@ const isAdmin = (req) => req.user && req.user.role === 'admin';
 const sofiaToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Sofia' }).format(new Date());
 const validDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 
-// GET /api/overtime?from=YYYY-MM-DD&to=YYYY-MM-DD[&user=ID]
-// Не-админ: винаги само своите (user се игнорира). Админ: всички или един човек.
+// GET /api/overtime?from=YYYY-MM-DD&to=YYYY-MM-DD[&scope=all&user=ID]
+// По подразбиране — само своите (и за админ). scope=all → всички или един човек,
+// но само за админ; на всеки друг scope/user се игнорират.
 router.get('/', requireAuth, async (req, res) => {
   try {
     await ensureSchema();
     const from = validDate(req.query.from) ? req.query.from : '2000-01-01';
     const to = validDate(req.query.to) ? req.query.to : '2100-01-01';
     const admin = isAdmin(req);
-    const onlyUser = admin ? (parseInt(req.query.user, 10) || null) : req.user.userId;
+    const all = admin && req.query.scope === 'all';
+    const onlyUser = all ? (parseInt(req.query.user, 10) || null) : req.user.userId;
     const rows = await query(
       `SELECT o.id, o.user_id, u.name, to_char(o.work_date, 'YYYY-MM-DD') AS work_date, o.time_from, o.time_to,
               o.total_minutes, o.ot_minutes, o.client, o.kind, o.note, o.comp, o.created_at
@@ -66,11 +80,11 @@ router.get('/', requireAuth, async (req, res) => {
       [from, to, onlyUser]
     );
     // Списъкът с хора за филтъра (само за админ) — всички, които някога са въвели overtime.
-    const people = admin ? await query(
+    const people = all ? await query(
       `SELECT DISTINCT u.id, u.name FROM overtime_entries o JOIN users u ON u.id = o.user_id
         WHERE o.deleted_at IS NULL ORDER BY u.name`
     ) : [];
-    res.json({ admin, entries: rows, people, kinds: KINDS });
+    res.json({ admin, scope: all ? 'all' : 'mine', entries: rows, people, kinds: KINDS });
   } catch (err) {
     console.error('[overtime] list', err.message);
     res.status(500).json({ error: 'Грешка при зареждане' });
@@ -107,6 +121,65 @@ router.post('/', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[overtime] create', err.message);
     res.status(500).json({ error: 'Грешка при запис' });
+  }
+});
+
+// ---------- Бележки на админа (само role = admin) ----------
+// GET /api/overtime/notes[?user=ID] — всички бележки или само за един човек.
+router.get('/notes', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await ensureSchema();
+    const user = parseInt(req.query.user, 10) || null;
+    const rows = await query(
+      `SELECT n.id, n.about_user_id, a.name AS about_name, n.author_id, w.name AS author_name,
+              to_char(n.note_date, 'YYYY-MM-DD') AS note_date, n.text, n.created_at
+         FROM overtime_admin_notes n
+         LEFT JOIN users a ON a.id = n.about_user_id
+         LEFT JOIN users w ON w.id = n.author_id
+        WHERE n.deleted_at IS NULL AND ($1::int IS NULL OR n.about_user_id = $1::int)
+        ORDER BY n.note_date DESC, n.id DESC
+        LIMIT 500`,
+      [user]
+    );
+    res.json({ notes: rows });
+  } catch (err) {
+    console.error('[overtime] notes list', err.message);
+    res.status(500).json({ error: 'Грешка при зареждане' });
+  }
+});
+
+// POST /api/overtime/notes { about_user_id?, date, text }
+router.post('/notes', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await ensureSchema();
+    const b = req.body || {};
+    const date = validDate(b.date) ? b.date : sofiaToday();
+    const text = String(b.text || '').trim().slice(0, 4000);
+    const about = parseInt(b.about_user_id, 10) || null;
+    if (!text) return res.status(400).json({ error: 'Напиши бележката.' });
+    const row = await queryOne(
+      `INSERT INTO overtime_admin_notes (author_id, about_user_id, note_date, text)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [req.user.userId, about, date, text]
+    );
+    res.json({ ok: true, id: row.id });
+  } catch (err) {
+    console.error('[overtime] notes create', err.message);
+    res.status(500).json({ error: 'Грешка при запис' });
+  }
+});
+
+// DELETE /api/overtime/notes/:id — меко триене.
+router.delete('/notes/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await ensureSchema();
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'Невалидна бележка' });
+    await execute('UPDATE overtime_admin_notes SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL', [id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[overtime] notes delete', err.message);
+    res.status(500).json({ error: 'Грешка при триене' });
   }
 });
 

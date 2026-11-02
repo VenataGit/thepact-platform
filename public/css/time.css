@@ -257,3 +257,7 @@ tr.tc-inactive td { opacity: 0.6; }
 .ot-del { background: none; border: 1px solid rgba(229, 83, 75, 0.45); color: #ff8f88; border-radius: 7px; padding: 3px 9px; font-size: 12px; cursor: pointer; }
 .ot-del:hover { background: rgba(229, 83, 75, 0.12); }
 @media (max-width: 700px) { .ot-table { display: block; overflow-x: auto; } }
+.ot-switch { margin-left: auto; text-decoration: none; }
+.ot-note-item { border-top: 1px solid rgba(255, 255, 255, 0.06); padding: 8px 2px; }
+.ot-note-item__head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ot-note-item__head .ot-del { margin-left: auto; }

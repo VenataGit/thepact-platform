@@ -108,7 +108,7 @@ function router() {
     case 'time-report': return renderTimeReport(el);
     case 'client-report': return renderClientReport(el);
     case 'task-completions': return renderTaskCompletionsReport(el);
-    case 'overtime': return renderOvertime(el);
+    case 'overtime': return renderOvertime(el, parts[1] || null);
     default: return renderDashboard(el);
   }
 }

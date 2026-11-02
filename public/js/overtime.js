@@ -4,8 +4,11 @@
 // е на сървъра — /api/overtime). Без одобрение, без редакция — само изтриване на
 // свой запис. „Добавено на" = кога е въведен записът. За всеки запис човекът избира
 // плащане или почивка. Сметката: public/js/overtime-calc.js (обща със сървъра).
+// 02.11.2026 (2): #/overtime е „Моят overtime" за ВСЕКИ (и за админ). Всички служители
+// се виждат само в #/overtime/admin — бутон „🔒 Админ" само за role = admin. Там са и
+// бележките на админа (напр. „дойде 3 ч по-късно след overtime-а").
 
-let _otState = { range: 'month', user: 0, data: null, clients: null };
+let _otState = { range: 'month', user: 0, data: null, clients: null, adminView: false };
 
 function otFmtH(m) {
   m = Number(m) || 0;
@@ -31,15 +34,23 @@ function otRange(kind) {
 const OT_KINDS = ['Снимки', 'Пътуване', 'Събитие', 'Монтаж', 'Техника / подготовка', 'Друго'];
 const OT_COMP = { pay: '💰 Плащане', rest: '🏖 Почивка' };
 
-async function renderOvertime(el) {
+function otIsAdmin() { return !!currentUser && currentUser.role === 'admin'; }
+
+async function renderOvertime(el, sub) {
   el.className = 'flush-top';
   const today = otDateStr(new Date());
+  if (sub === 'admin' && !otIsAdmin()) { location.hash = '#/overtime'; return; }
+  const adminView = sub === 'admin';
+  if (adminView !== _otState.adminView) { _otState.adminView = adminView; _otState.user = 0; }
+  const people = ((typeof allUsers !== 'undefined' && allUsers) || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'bg'));
   el.innerHTML = `
     <div class="home-content-box home-content-box--wide tr-page ot-page">
       <div class="tr-head">
-        <h2 id="otTitle">⏱ Overtime</h2>
+        <h2 id="otTitle">${adminView ? '🔒 Overtime — всички служители' : '⏱ Моят overtime'}</h2>
+        ${adminView ? '<a class="tr-csv ot-switch" href="#/overtime">← Моят overtime</a>'
+          : (otIsAdmin() ? '<a class="tr-csv ot-switch" href="#/overtime/admin" title="Записите на всички служители + бележки (само за админ)">🔒 Админ</a>' : '')}
       </div>
-      <div class="ot-form-grid">
+      <div class="ot-form-grid"${adminView ? ' style="display:none"' : ''}>
         <div class="tr-box">
           <h3>+ Нов overtime</h3>
           <label class="ot-f">Дата<input type="date" id="otDate" value="${today}" max="${today}"></label>
@@ -79,12 +90,23 @@ async function renderOvertime(el) {
       <div class="tr-tiles" id="otTiles"></div>
       <div class="tr-box" id="otPeopleBox" style="display:none"><h3>По човек</h3><div id="otPeople"></div></div>
       <div class="tr-box"><div id="otList"><div class="tr-empty">Зареждане…</div></div></div>
+      ${adminView ? `<div class="tr-box ot-notes">
+        <h3>📝 Бележки на админа <span class="tr-dim" style="font-weight:400">— виждат се само от админи</span></h3>
+        <div class="ot-row">
+          <label class="ot-f" style="flex:0 0 160px">Дата<input type="date" id="otnDate" value="${today}"></label>
+          <label class="ot-f">За кого<select id="otnUser"><option value="">— общо —</option>${people.map((p) => '<option value="' + p.id + '">' + esc(p.name) + '</option>').join('')}</select></label>
+        </div>
+        <label class="ot-f">Бележка<textarea id="otnText" maxlength="4000" placeholder="напр. Дойде в 13:00 вместо 10:00 след overtime-а от предния ден — не е отбелязал по-късното идване"></textarea></label>
+        <button class="tr-apply" id="otnSave">Запиши бележка</button>
+        <div id="otnList" style="margin-top:12px"></div>
+      </div>` : ''}
     </div>`;
 
   const upd = () => otRenderCalc();
   ['otDate', 'otFrom', 'otTo'].forEach((id) => document.getElementById(id).addEventListener('input', upd));
   upd();
   document.getElementById('otSave').addEventListener('click', otSave);
+  if (adminView) document.getElementById('otnSave').addEventListener('click', otSaveNote);
   el.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => { _otState.range = b.dataset.r; otLoad(); }));
   document.getElementById('otUser').addEventListener('change', (e) => { _otState.user = Number(e.target.value) || 0; otLoad(); });
   otLoadClients();
@@ -123,19 +145,55 @@ async function otLoad() {
   const q = new URLSearchParams();
   if (from) q.set('from', from);
   if (to) q.set('to', to);
-  if (_otState.user) q.set('user', _otState.user);
+  if (_otState.adminView) { q.set('scope', 'all'); if (_otState.user) q.set('user', _otState.user); }
   document.querySelectorAll('.ot-page [data-r]').forEach((b) => b.classList.toggle('active', b.dataset.r === _otState.range));
   const r = await fetch('/api/overtime?' + q.toString());
   const list = document.getElementById('otList');
   if (!r.ok) { if (list) list.innerHTML = '<div class="tr-empty">Грешка при зареждане.</div>'; return; }
   _otState.data = await r.json();
   otRenderAll();
+  if (_otState.adminView) otLoadNotes();
+}
+
+async function otLoadNotes() {
+  const box = document.getElementById('otnList');
+  if (!box) return;
+  const r = await fetch('/api/overtime/notes' + (_otState.user ? '?user=' + _otState.user : ''));
+  if (!r.ok) { box.innerHTML = '<div class="tr-empty">Грешка при зареждане на бележките.</div>'; return; }
+  const notes = (await r.json()).notes || [];
+  const sel = document.getElementById('otnUser');
+  if (sel && _otState.user) sel.value = String(_otState.user);
+  if (!notes.length) { box.innerHTML = '<div class="tr-empty">Няма бележки' + (_otState.user ? ' за този човек' : '') + '.</div>'; return; }
+  box.innerHTML = notes.map((n) => '<div class="ot-note-item"><div class="ot-note-item__head"><b>' + otFmtDate(n.note_date) + '</b>' +
+    '<span class="ot-tag">' + esc(n.about_name || 'общо') + '</span>' +
+    '<span class="tr-dim">записал: ' + esc(n.author_name || '—') + ', ' + new Date(n.created_at).toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</span>' +
+    '<button class="ot-del" data-ndel="' + n.id + '">Изтрий</button></div><div class="ot-note">' + esc(n.text) + '</div></div>').join('');
+  box.querySelectorAll('[data-ndel]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Да изтрия ли бележката?')) return;
+    const x = await fetch('/api/overtime/notes/' + b.dataset.ndel, { method: 'DELETE' });
+    if (!x.ok) { showToast('Грешка при триене', 'error'); return; }
+    otLoadNotes();
+  }));
+}
+
+async function otSaveNote() {
+  const btn = document.getElementById('otnSave');
+  const body = { date: document.getElementById('otnDate').value, about_user_id: Number(document.getElementById('otnUser').value) || null, text: document.getElementById('otnText').value.trim() };
+  if (!body.text) { showToast('Напиши бележката.', 'error'); return; }
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/overtime/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { showToast(d.error || 'Грешка при запис', 'error'); return; }
+    document.getElementById('otnText').value = '';
+    showToast('Бележката е записана', 'success');
+    otLoadNotes();
+  } finally { btn.disabled = false; }
 }
 
 function otRenderAll() {
   const d = _otState.data; if (!d) return;
-  const admin = !!d.admin;
-  document.getElementById('otTitle').textContent = admin ? '⏱ Overtime' : '⏱ Моят overtime';
+  const admin = d.scope === 'all'; // админ изглед — сървърът връща 'all' само на админ
   document.getElementById('otListTitle').textContent = admin ? (_otState.user ? 'Записи на човека' : 'Записи на всички') : 'Моите записи';
 
   const sel = document.getElementById('otUser');
