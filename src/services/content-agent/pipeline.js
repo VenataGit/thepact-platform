@@ -29,8 +29,12 @@ const plain = (html, max) => kpComment.plainText(html, max);
 
 // ---------- опашка ----------
 
+// До PARALLEL пускания едновременно. Стъпките в едно пускане викат Claude една
+// по една, а компютърът (ai-agent, concurrency 2) поема по 2 заявки наведнъж —
+// така второто пускане ползва свободния слот, вместо да чака цялото първо.
+const PARALLEL = 2;
 const queue = [];
-let busy = false;
+let active = 0;
 
 function enqueue(runId) {
   if (!queue.includes(runId)) queue.push(runId);
@@ -38,16 +42,17 @@ function enqueue(runId) {
 }
 
 async function drain() {
-  if (busy) return;
+  if (active >= PARALLEL) return;
   const id = queue.shift();
   if (!id) return;
-  busy = true;
+  active += 1;
+  setImmediate(drain); // има ли още свободен слот
   try {
     await executeRun(id);
   } catch (e) {
     console.error(`[content-agent] пускане ${id}:`, e.message);
   } finally {
-    busy = false;
+    active -= 1;
     setImmediate(drain);
   }
 }
