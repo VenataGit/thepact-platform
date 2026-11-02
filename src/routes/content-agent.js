@@ -324,7 +324,10 @@ router.post('/clients/:id/run', express.json({ limit: '1mb' }), async (req, res)
 
 router.get('/runs/:rid', async (req, res) => {
   try {
-    const run = await queryOne('SELECT * FROM ca_runs WHERE id = $1', [parseInt(req.params.rid, 10)]);
+    const run = await queryOne(
+      'SELECT r.*, c.name AS client_name FROM ca_runs r LEFT JOIN kp_clients c ON c.id = r.client_id WHERE r.id = $1',
+      [parseInt(req.params.rid, 10)]
+    );
     if (!run) return res.status(404).json({ error: 'Пускането не е намерено.' });
     res.json(run);
   } catch (e) { fail(res, e); }

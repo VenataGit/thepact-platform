@@ -660,12 +660,13 @@ function caVideoTable(rows) {
 
 function caRunsHtml(d) {
   if (!d.runs.length) return '<div class="ca-cols"><div class="ca-panel ca-dim">Още няма пускания.</div><div class="ca-side">' + caRunPanel() + '</div></div>';
-  var html = '<div class="ca-cols"><div class="ca-panel"><table class="ca-table"><thead><tr><th>#</th><th>Кога</th><th>Как</th><th>Кой</th><th>Заявка</th><th>Статус</th></tr></thead><tbody>';
+  var html = '<div class="ca-cols"><div class="ca-panel"><table class="ca-table"><thead><tr><th>#</th><th>Кога</th><th>Как</th><th>Кой</th><th>Заявка</th><th>Статус</th><th>Файл</th></tr></thead><tbody>';
   d.runs.forEach(function (r) {
     html += '<tr class="ca-click" onclick="location.hash=\'#/content/run/' + r.id + '\'"><td>' + r.id + '</td><td>' + esc(caDate(r.created_at)) + '</td>' +
       '<td>' + esc(CA_TRIGGER[r.trigger] || r.trigger) + '</td><td>' + esc(r.requested_by || '') + '</td>' +
       '<td class="ca-cap">' + esc(String(r.request || '').slice(0, 120)) + '</td>' +
-      '<td><span class="ca-st ca-st--' + r.status + '">' + esc(CA_STATUS[r.status] || r.status) + '</span></td></tr>';
+      '<td><span class="ca-st ca-st--' + r.status + '">' + esc(CA_STATUS[r.status] || r.status) + '</span></td>' +
+      '<td onclick="event.stopPropagation()">' + (r.has_result ? caExportSelect(r.id) : '') + '</td></tr>';
   });
   return html + '</tbody></table></div><div class="ca-side">' + caRunPanel() + '</div></div>';
 }
@@ -682,6 +683,7 @@ async function renderContentRun(el, rid) {
       esc(CA_TRIGGER[r.trigger] || r.trigger) + (r.requested_by ? ' · ' + esc(r.requested_by) : '') + ' · ' + esc(caDate(r.created_at)) +
       (r.usage && r.usage.calls ? ' · ' + r.usage.calls + ' AI заявки' : '') +
       (r.bc_project_id && r.bc_parent_id ? ' · <a href="https://3.basecamp.com/5750544/buckets/' + r.bc_project_id + '/recordings/' + r.bc_parent_id + '" target="_blank" rel="noopener">задачата в Basecamp</a>' : '') +
+      (res.scripts && res.scripts.length ? ' <span class="ca-spacer"></span>' + caExportSelect(r.id) : '') +
       '</div>' + (r.request ? '<div class="ca-req">' + esc(r.request).replace(/\n/g, '<br>') + '</div>' : '') +
       (r.error ? '<div class="ca-err">' + esc(r.error) + '</div>' : '') + '</div>';
 
@@ -715,6 +717,161 @@ async function renderContentRun(el, rid) {
       _ca.poll = setTimeout(function () { if (location.hash === '#/content/run/' + rid) renderContentRun(el, rid); }, 15000);
     }
   } catch (e) { caBody('<div class="ca-err">' + esc(e.message) + '</div>'); }
+}
+
+// ---------- „Запази като файл" ----------
+// Всичко от пускането (бриф, какво работи, скриптове с кукички, наученото) като файл —
+// за архив или за прикачване към друг агент. Прави се изцяло в браузъра:
+//   PDF  — през печата на браузъра („Запази като PDF")
+//   Word — .doc (HTML, който Word отваря директно)
+//   Markdown — .md (най-удобно за друг AI агент)
+//   Текст — .txt;  JSON — всички данни на пускането
+var CA_EXPORT_FORMATS = [['pdf', 'PDF'], ['doc', 'Word (.doc)'], ['md', 'Markdown (.md) — за друг агент'], ['txt', 'Текст (.txt)'], ['json', 'JSON — всички данни']];
+
+function caExportSelect(rid) {
+  return '<select class="ca-input ca-export" title="Запази цялото пускане като файл" onchange="caExportRun(' + rid + ', this.value); this.value = \'\'">' +
+    '<option value="">⬇ Запази като файл…</option>' +
+    CA_EXPORT_FORMATS.map(function (f) { return '<option value="' + f[0] + '">' + esc(f[1]) + '</option>'; }).join('') + '</select>';
+}
+
+async function caExportRun(rid, fmt) {
+  if (!fmt) return;
+  try {
+    var r = await caApi('GET', '/runs/' + rid);
+    if (!r.result || !r.result.scripts) { showToast('Това пускане няма готов резултат', 'error'); return; }
+    var base = caExportName(r);
+    if (fmt === 'json') return caDownload(base + '.json', JSON.stringify({
+      run: { id: r.id, client: r.client_name, trigger: r.trigger, requested_by: r.requested_by, request: r.request, created_at: r.created_at, finished_at: r.finished_at },
+      result: r.result, steps: r.steps,
+    }, null, 2), 'application/json');
+    if (fmt === 'md') return caDownload(base + '.md', caRunMarkdown(r), 'text/markdown');
+    if (fmt === 'txt') return caDownload(base + '.txt', caMdToText(caRunMarkdown(r)), 'text/plain');
+    var html = caRunHtml(r);
+    if (fmt === 'doc') {
+      return caDownload(base + '.doc', '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>' + esc(base) + '</title>' + caExportCss() + '</head><body>' + html + '</body></html>', 'application/msword');
+    }
+    // PDF — нов прозорец с документа и печат (в диалога: „Запази като PDF").
+    var w = window.open('', '_blank');
+    if (!w) { showToast('Браузърът спря прозореца — разреши изскачащите прозорци', 'error'); return; }
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(base) + '</title>' + caExportCss() + '</head><body>' + html +
+      '<script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script></body></html>');
+    w.document.close();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+function caExportName(r) {
+  var d = String(r.created_at || '').slice(0, 10);
+  return ('Content-агент_' + (r.client_name || 'клиент') + '_пускане-' + r.id + '_' + d).replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, '-');
+}
+
+function caDownload(name, content, type) {
+  var blob = new Blob(['\ufeff' + content], { type: type + ';charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+function caHookText(s) { return typeof s.hook === 'string' ? s.hook : (s.hook && s.hook.text) || ''; }
+function caList(a) { return (Array.isArray(a) ? a : (a ? [a] : [])).filter(Boolean); }
+
+// Един източник — Markdown; текстът и HTML-ът се правят от същите данни.
+function caRunMarkdown(r) {
+  var res = r.result || {};
+  var b = res.brief || {};
+  var L = [];
+  L.push('# Content агент — ' + (r.client_name || 'клиент') + ' · пускане #' + r.id);
+  L.push('');
+  L.push('- Дата: ' + caDate(r.created_at) + (r.requested_by ? ' · Пуснато от: ' + r.requested_by : '') + ' · Начин: ' + (CA_TRIGGER[r.trigger] || r.trigger));
+  if (r.request) { L.push(''); L.push('**Заявка:**'); L.push(''); L.push('> ' + String(r.request).replace(/\n/g, '\n> ')); }
+  if (res.intro) { L.push(''); L.push('## От главния редактор'); L.push(''); L.push(res.intro); }
+  if (caList(res.to_check).length) { L.push(''); L.push('**Провери преди да продължиш:**'); caList(res.to_check).forEach(function (x) { L.push('- ' + x); }); }
+  if (b.summary || caList(b.goals).length) {
+    L.push(''); L.push('## Бриф'); L.push('');
+    if (b.summary) L.push(b.summary);
+    if (caList(b.goals).length) { L.push(''); L.push('**Цели:**'); caList(b.goals).forEach(function (x) { L.push('- ' + x); }); }
+    if (caList(b.must_include).length) { L.push(''); L.push('**Задължително:**'); caList(b.must_include).forEach(function (x) { L.push('- ' + x); }); }
+    if (caList(b.avoid).length) { L.push(''); L.push('**Да се избягва:**'); caList(b.avoid).forEach(function (x) { L.push('- ' + x); }); }
+    if (b.tone) { L.push(''); L.push('**Тон:** ' + b.tone); }
+    if (caList(b.genre_mix).length) L.push('**Жанров микс:** ' + caList(b.genre_mix).map(function (g) { return (g.type || '') + ' ×' + (g.count || ''); }).join(', '));
+  }
+  var rs = res.research || {};
+  if (caList(rs.patterns).length) {
+    L.push(''); L.push('## Какво работи (успешни видеа)'); L.push('');
+    if (rs.summary) { L.push(rs.summary); L.push(''); }
+    caList(rs.patterns).forEach(function (p) {
+      L.push('- **' + (p.name || '') + '** — ' + (p.how_for_client || p.why_it_works || '') + (caList(p.evidence).length ? ' (' + caList(p.evidence).join(', ') + ')' : ''));
+    });
+  }
+  L.push(''); L.push('## Скриптове');
+  (res.scripts || []).forEach(function (s) {
+    L.push(''); L.push('### Видео ' + s.n + ': ' + (s.title || ''));
+    var meta = [s.type, s.duration_sec ? '~' + s.duration_sec + ' сек' : ''].filter(Boolean).join(' · ');
+    if (meta) L.push('*' + meta + '*');
+    L.push('');
+    if (caHookText(s)) L.push('**Кукичка:** ' + caHookText(s));
+    if (s.hook_on_screen) L.push('**Текст на екрана:** ' + s.hook_on_screen);
+    L.push('');
+    L.push('```');
+    L.push('/Участници във видеото - ' + (s.participants || '') + '/');
+    L.push('/Локация - ' + (s.location || '') + '/');
+    L.push('/Необходими продукти-ресурси - ' + (s.resources || '') + '/');
+    L.push('');
+    L.push(String(s.body || ''));
+    if (s.caption) { L.push(''); L.push('Описание (Caption): ' + s.caption); }
+    L.push('```');
+    var alt = caList(s.hook_options).map(function (o) { return o && o.text; }).filter(function (t) { return t && t !== caHookText(s); });
+    if (alt.length) L.push('**Други кукички:** ' + alt.join(' | '));
+    if (s.human_input) L.push('**Човек да допълни:** ' + s.human_input);
+    if (s.reference_url) L.push('**Референция:** ' + s.reference_url);
+  });
+  if (caList(res.learned).length) {
+    L.push(''); L.push('## Научено за клиента (чака одобрение)'); L.push('');
+    caList(res.learned).forEach(function (m) { L.push('- ' + (m.text || '')); });
+  }
+  L.push(''); L.push('---'); L.push('Генерирано от Content агента на thepact.pro.');
+  return L.join('\n');
+}
+
+function caMdToText(md) {
+  return md.replace(/^#{1,6}\s+/gm, '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/(^|\s)\*([^*\n]+)\*/g, '$1$2')
+    .replace(/^```$/gm, '').replace(/^> /gm, '  ').replace(/^---$/gm, '').replace(/\n{3,}/g, '\n\n');
+}
+
+function caRunHtml(r) {
+  // Markdown → прост HTML (само това, което ползваме горе).
+  var md = caRunMarkdown(r).split('\n');
+  var out = [], inCode = false, inList = false;
+  var inline = function (t) {
+    return esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(^|\s)\*([^*]+)\*/g, '$1<em>$2</em>')
+      .replace(/(https?:\/\/[^\s<)]+)/g, '<a href="$1">$1</a>');
+  };
+  md.forEach(function (line) {
+    if (line === '```') { if (inCode) { out.push('</pre>'); inCode = false; } else { if (inList) { out.push('</ul>'); inList = false; } out.push('<pre>'); inCode = true; } return; }
+    if (inCode) { out.push(esc(line)); return; }
+    var isLi = /^- /.test(line);
+    if (inList && !isLi) { out.push('</ul>'); inList = false; }
+    if (/^### /.test(line)) out.push('<h3>' + inline(line.slice(4)) + '</h3>');
+    else if (/^## /.test(line)) out.push('<h2>' + inline(line.slice(3)) + '</h2>');
+    else if (/^# /.test(line)) out.push('<h1>' + inline(line.slice(2)) + '</h1>');
+    else if (isLi) { if (!inList) { out.push('<ul>'); inList = true; } out.push('<li>' + inline(line.slice(2)) + '</li>'); }
+    else if (/^> /.test(line)) out.push('<blockquote>' + inline(line.slice(2)) + '</blockquote>');
+    else if (line === '---') out.push('<hr>');
+    else if (line.trim()) out.push('<p>' + inline(line) + '</p>');
+  });
+  if (inList) out.push('</ul>');
+  if (inCode) out.push('</pre>');
+  return out.join('\n').replace(/<\/pre>\n/g, '</pre>').replace(/<pre>\n/g, '<pre>');
+}
+
+function caExportCss() {
+  return '<style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.45;color:#111;max-width:820px;margin:24px auto;padding:0 16px}' +
+    'h1{font-size:18pt;margin:0 0 8px}h2{font-size:14pt;margin:22px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}' +
+    'h3{font-size:12pt;margin:18px 0 4px;page-break-after:avoid}pre{white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:11pt;background:#f4f4f4;padding:8px 10px;border-radius:4px}' +
+    'blockquote{margin:6px 0;padding-left:10px;border-left:3px solid #ccc;color:#333}a{color:#1a5fb4}ul{margin:4px 0 4px 18px;padding:0}' +
+    '@media print{body{margin:0}h3,pre{page-break-inside:avoid}}</style>';
 }
 
 function caStepsHtml(steps) {

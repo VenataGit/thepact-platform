@@ -64,6 +64,8 @@
 .ca-imports { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
 .ca-imp { font-size: 12px; padding: 4px 0; word-break: break-word; }
 .ca-spend { margin: 4px 0 2px; color: var(--text-secondary); }
+.ca-export { width: auto; display: inline-block; margin: 0; padding: 3px 6px; font-size: 12px; }
+.ca-runmeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ca-client__dup { font-size: 11.5px; color: var(--yellow); margin-top: 4px; font-weight: 600; }
 
 .ca-pill { display: inline-block; border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
