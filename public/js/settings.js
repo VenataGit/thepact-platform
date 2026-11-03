@@ -200,13 +200,33 @@ function sgSectionHiddenClients(host) {
       '<div class="sg-section__hdr">🚫 Скрити клиенти</div>' +
       '<div class="sg-section__desc">Скрито тук име изчезва от филтъра „Клиент" на Dashboard-а, „Клиент — график" и от страницата „Клиенти" — навсякъде в платформата. Премахването е ръчно, точно оттук — но щом за скрит клиент излезе НОВА карта в Basecamp, той сам се маха от списъка и се показва пак, без да чакаме „Покажи отново".</div>' +
       '<div class="sg-hidden-add">' +
-        '<input class="input" type="text" id="sgHiddenInput" list="clientNamesList" autocomplete="off" placeholder="Име на клиент за скриване…" onkeydown="if(event.key===\'Enter\')sgAddHiddenClient()">' +
+        // Венци, 03.11.2026: истинско падащо меню с ВСИЧКИ нескрити клиенти; скритият
+        // изчезва оттук веднага, а „Покажи отново" го връща обратно в менюто.
+        '<select class="input" id="sgHiddenInput"><option value="">Зареждане на клиентите…</option></select>' +
         '<button class="btn btn-sm" onclick="sgAddHiddenClient()">Скрий</button>' +
       '</div>' +
       '<div id="sgHiddenList"><div class="ga-loading">Зареждане…</div></div>' +
     '</div>';
-  if (typeof ensureClientNames === 'function') ensureClientNames(); // за автодовършването
   sgHiddenClientsLoad();
+  sgHiddenSelectRefresh();
+}
+
+// Пълни менюто с клиентите, които НЕ са скрити (client-names вече ги изключва; тук
+// филтрираме и по локалния списък, за да няма разминаване докато сървърът отговори).
+function sgHiddenSelectRefresh() {
+  if (typeof ensureClientNames !== 'function') return;
+  ensureClientNames().then(sgHiddenSelectRender);
+}
+
+function sgHiddenSelectRender() {
+  var sel = document.getElementById('sgHiddenInput');
+  if (!sel || sel.tagName !== 'SELECT') return;
+  var hiddenKeys = (_sgHidden || []).map(normClientName);
+  var names = (_clientNames || []).filter(function (n) {
+    return hiddenKeys.indexOf(normClientName(n.name)) === -1;
+  });
+  sel.innerHTML = '<option value="">' + (names.length ? 'Избери клиент за скриване…' : 'Няма клиенти за скриване') + '</option>' +
+    names.map(function (n) { return '<option value="' + esc(n.name) + '">' + esc(n.name) + '</option>'; }).join('');
 }
 
 async function sgHiddenClientsLoad() {
@@ -239,6 +259,7 @@ function sgHiddenClientsInvalidate() {
   // Останалата платформа кешира имената за сесията — форсираме ново дърпане.
   _clientNames = null; _clientNamesPromise = null;
   if (typeof dashInvalidateVocab === 'function') dashInvalidateVocab();
+  sgHiddenSelectRefresh(); // менюто да се обнови — скритият изчезва, показаният се връща
 }
 
 function sgAddHiddenClient() {
@@ -253,6 +274,7 @@ function sgAddHiddenClient() {
   }).then(function (data) {
     _sgHidden = data.hidden || [];
     sgHiddenClientsRender();
+    sgHiddenSelectRender(); // веднага, без да чака новото дърпане
     sgHiddenClientsInvalidate();
     if (input) input.value = '';
     showToast('Скрито ✓', 'success');
