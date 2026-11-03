@@ -8,12 +8,25 @@ const cardEditors = new Map(); // cardId -> { userId, userName, since }
 function setupWebSocket(server) {
   wss = new WebSocketServer({ server, path: '/ws' });
 
-  wss.on('connection', (ws, req) => {
+  wss.on('connection', async (ws, req) => {
+    // Чужд сайт не може да отвори сокет с бисквитката на влязъл човек (Origin ≠ нашия хост).
+    const origin = req.headers.origin;
+    if (origin) {
+      let oh = '';
+      try { oh = new URL(origin).host; } catch { /* невалиден */ }
+      if (oh !== req.headers.host) { ws.close(4003, 'Forbidden origin'); return; }
+    }
     const user = verifyFromCookieHeader(req.headers.cookie);
     if (!user) {
       ws.close(4001, 'Unauthorized');
       return;
     }
+    // Деактивиран човек не получава събития, дори токенът му още да е валиден.
+    try {
+      const { queryOne } = require('../db/pool');
+      const row = await queryOne('SELECT is_active FROM users WHERE id = $1', [user.userId]);
+      if (!row || row.is_active === false) { ws.close(4001, 'Unauthorized'); return; }
+    } catch { ws.close(1011, 'Auth check failed'); return; }
 
     ws.userId = user.userId;
     ws.userName = user.name;

@@ -42,7 +42,7 @@ async function toggleCardOptionsMenu(e, cardId, cardTitle) {
   var reminderIds = [];
   try { reminderIds = await (await fetch('/api/notifications/reminders')).json(); } catch {}
   var hasReminder = reminderIds.includes(cardId);
-  var safeTitle = cardTitle.replace(/'/g, "\\'");
+  var safeTitle = jsq(cardTitle);
 
   var menu = document.createElement('div');
   menu.className = 'bc-options-menu';
@@ -52,8 +52,8 @@ async function toggleCardOptionsMenu(e, cardId, cardTitle) {
     '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();copyCardLink(' + cardId + ')">\ud83d\udccb Копирай линк</button>' +
     '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();archiveCard(' + cardId + ')">\ud83d\udce6 Архивирай</button>' +
     '<button class="bc-options-menu__item bc-options-menu__item--danger" onclick="document.querySelector(\'.bc-options-menu\').remove();trashCard(' + cardId + ')">\ud83d\uddd1\ufe0f В кошчето</button>' +
-    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();toggleBookmark(\'card\',' + cardId + ',\'' + safeTitle + '\')">\ud83d\udd16 Отметка</button>' +
-    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();toggleCardReminder(' + cardId + ',\'' + safeTitle + '\')"><img src="/img/icon-bookmark.png" alt="" width="14" height="14" style="vertical-align:-2px"> ' + (hasReminder ? 'Махни от Не забравяй' : 'Не забравяй') + '</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();toggleBookmark(\'card\',' + cardId + ',' + safeTitle + ')">\ud83d\udd16 Отметка</button>' +
+    '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();toggleCardReminder(' + cardId + ',' + safeTitle + ')"><img src="/img/icon-bookmark.png" alt="" width="14" height="14" style="vertical-align:-2px"> ' + (hasReminder ? 'Махни от Не забравяй' : 'Не забравяй') + '</button>' +
     '<div class="bc-options-menu__sep"></div>' +
     '<div class="bc-options-menu__heading">История</div>' +
     '<button class="bc-options-menu__item" onclick="document.querySelector(\'.bc-options-menu\').remove();showCardHistory(' + cardId + ')">\ud83d\udd50 История на промените</button>' +

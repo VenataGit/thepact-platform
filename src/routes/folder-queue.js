@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const config = require('../config');
+const { keyMatches } = require('../middleware/machine-key');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const fq = require('../services/folder-queue');
 
@@ -20,7 +21,7 @@ router.get('/recent', requireAuth, requireAdmin, async (req, res) => {
 
 router.use((req, res, next) => {
   if (!config.DEV_QUEUE_SECRET) return res.status(503).json({ error: 'folder queue not configured' });
-  if (req.get('x-dev-queue-key') !== config.DEV_QUEUE_SECRET) return res.status(403).json({ error: 'forbidden' });
+  if (!keyMatches(req.get('x-dev-queue-key'), config.FOLDER_QUEUE_SECRET || config.DEV_QUEUE_SECRET)) return res.status(403).json({ error: 'forbidden' });
   next();
 });
 

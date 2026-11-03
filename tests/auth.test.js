@@ -112,8 +112,7 @@ describe('GET /auth/status', () => {
 
   it('returns authenticated user with valid cookie', async () => {
     const cookie = getAuthCookie(ADMIN_USER);
-    // requireAuth's async is_active check fires first and consumes one queued value.
-    mockDb.queryOne.mockResolvedValueOnce({ is_active: true });
+    // (Живата проверка на роля/активност в requireAuth е изключена в тестовете — виж auth-live.test.js.)
     // queryOne for the /auth/status SELECT (LEFT JOIN positions, added in 035_positions.sql).
     mockDb.queryOne.mockResolvedValueOnce({
       id: ADMIN_USER.id,

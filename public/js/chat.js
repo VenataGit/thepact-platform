@@ -84,7 +84,7 @@ function pingsShowSuggestions() {
   var selectedIds = _chatSelectedUsers.map(function(u){return u.id});
   var html = allUsers.filter(function(u){return u.id!==currentUser.id && selectedIds.indexOf(u.id)===-1}).map(function(u){
     var av = u.avatar_url ? '<img src="'+u.avatar_url+'" class="chat-av-img">' : '<div class="chat-av-initials" style="background:'+_chatColor(u.id)+'">'+initials(u.name)+'</div>';
-    return '<div class="pings-dd__sug-item" onmousedown="pingsSelectUser('+u.id+',\''+esc(u.name).replace(/'/g,"\\'")+'\')">'+av+'<span>'+esc(u.name)+'</span></div>';
+    return '<div class="pings-dd__sug-item" onmousedown="pingsSelectUser('+u.id+','+jsq(u.name)+')">'+av+'<span>'+esc(u.name)+'</span></div>';
   }).join('');
   el.innerHTML = html;
   el.style.display = html ? 'block' : 'none';
@@ -99,7 +99,7 @@ function pingsFilterUsers() {
   });
   el.innerHTML = filtered.map(function(u){
     var av = u.avatar_url ? '<img src="'+u.avatar_url+'" class="chat-av-img">' : '<div class="chat-av-initials" style="background:'+_chatColor(u.id)+'">'+initials(u.name)+'</div>';
-    return '<div class="pings-dd__sug-item" onmousedown="pingsSelectUser('+u.id+',\''+esc(u.name).replace(/'/g,"\\'")+'\')">'+av+'<span>'+esc(u.name)+'</span></div>';
+    return '<div class="pings-dd__sug-item" onmousedown="pingsSelectUser('+u.id+','+jsq(u.name)+')">'+av+'<span>'+esc(u.name)+'</span></div>';
   }).join('');
   el.style.display = filtered.length ? 'block' : 'none';
 }
@@ -187,7 +187,7 @@ function chatNewFromSidebar() {
     '<div class="pings-dd__suggestions" id="newChatSuggestions" style="position:relative;max-height:200px;overflow-y:auto;display:block">'+
       allUsers.filter(function(u){return u.id!==currentUser.id}).map(function(u){
         var av = u.avatar_url ? '<img src="'+u.avatar_url+'" class="chat-av-img">' : '<div class="chat-av-initials" style="background:'+_chatColor(u.id)+'">'+initials(u.name)+'</div>';
-        return '<div class="pings-dd__sug-item" data-uid="'+u.id+'" data-uname="'+esc(u.name)+'" onclick="newChatToggleUser(this,'+u.id+',\''+esc(u.name).replace(/'/g,"\\'")+'\')">'+av+'<span>'+esc(u.name)+'</span></div>';
+        return '<div class="pings-dd__sug-item" data-uid="'+u.id+'" data-uname="'+esc(u.name)+'" onclick="newChatToggleUser(this,'+u.id+','+jsq(u.name)+')">'+av+'<span>'+esc(u.name)+'</span></div>';
       }).join('')+
     '</div>'+
     '<div class="confirm-modal-actions"><button class="btn btn-primary" id="newChatOk">Започни чат</button><button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">Откажи</button></div>'+
@@ -799,7 +799,7 @@ async function chatGroupSettings(channelId) {
       '<div id="chatGrpMembers">'+members.map(function(m){
         var av = m.avatar_url ? '<img src="'+m.avatar_url+'" style="width:32px;height:32px;border-radius:50%;object-fit:cover">' : '<div class="chat-av-initials" style="background:'+_chatColor(m.id)+';width:32px;height:32px;font-size:11px">'+initials(m.name)+'</div>';
         return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0">'+ av +'<span style="flex:1;font-size:14px">'+esc(m.name)+(m.id===ch.created_by?' <span style="color:var(--text-dim);font-size:11px">(създател)</span>':'')+'</span>'+
-        (m.id!==currentUser.id && m.id!==ch.created_by ? '<button class="btn btn-sm" style="color:var(--red);font-size:11px" onclick="chatRemoveMember('+channelId+','+m.id+',\''+esc(m.name).replace(/'/g,"\\'")+'\')">Премахни</button>' : '')+
+        (m.id!==currentUser.id && m.id!==ch.created_by ? '<button class="btn btn-sm" style="color:var(--red);font-size:11px" onclick="chatRemoveMember('+channelId+','+m.id+','+jsq(m.name)+')">Премахни</button>' : '')+
         '</div>';
       }).join('')+'</div>'+
       '<div style="margin-top:8px"><input id="chatAddMemberInput" class="confirm-modal-input" placeholder="Добави човек..." oninput="chatAddMemberFilter()" style="margin-bottom:4px">'+

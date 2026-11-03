@@ -5,6 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const config = require('../config');
+const { keyMatches } = require('../middleware/machine-key');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const aq = require('../services/ai-queue');
 
@@ -15,7 +16,7 @@ router.get('/status', requireAuth, requireAdmin, async (req, res) => {
 
 router.use((req, res, next) => {
   if (!config.DEV_QUEUE_SECRET) return res.status(503).json({ error: 'ai queue not configured' });
-  if (req.get('x-dev-queue-key') !== config.DEV_QUEUE_SECRET) return res.status(403).json({ error: 'forbidden' });
+  if (!keyMatches(req.get('x-dev-queue-key'), config.AI_QUEUE_SECRET || config.DEV_QUEUE_SECRET)) return res.status(403).json({ error: 'forbidden' });
   next();
 });
 

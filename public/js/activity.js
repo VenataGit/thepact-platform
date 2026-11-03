@@ -63,7 +63,7 @@ async function renderActivity(el) {
       <div style="display:flex;justify-content:center;gap:8px;margin-bottom:24px;flex-wrap:wrap">
         <button class="btn btn-sm activity-filter-btn active" style="background:var(--accent-dim);color:var(--accent);border-color:var(--accent)" onclick="filterActivity('all',this)">\u0412\u0441\u0438\u0447\u043a\u043e</button>
         <button class="btn btn-sm activity-filter-btn" onclick="filterActivity('mine',this)">\ud83d\udc64 \u041c\u043e\u0438\u0442\u0435</button>
-        ${[...new Set(items.filter(a=>a.board_title).map(a=>a.board_title))].slice(0,5).map(b=>`<button class="btn btn-sm activity-filter-btn" onclick="filterActivity('${b.replace(/'/g,'')}',this)">${esc(b)}</button>`).join('')}
+        ${[...new Set(items.filter(a=>a.board_title).map(a=>a.board_title))].slice(0,5).map(b=>`<button class="btn btn-sm activity-filter-btn" onclick="filterActivity(${jsq(b)},this)">${esc(b)}</button>`).join('')}
       </div>
       <div id="activityList" style="max-width:700px;margin:0 auto">
         ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма активност все още</div>':

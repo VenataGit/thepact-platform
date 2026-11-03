@@ -11,15 +11,16 @@
 const express = require('express');
 const router = express.Router();
 const config = require('../config');
-const { requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { keyMatches } = require('../middleware/machine-key');
 const backup = require('../services/bc-backup');
 
 // Ключ в хедъра → пуска се веднага; иначе се минава през нормалния админ логин.
 function keyOrAdmin(req, res, next) {
   const key = req.get('x-dev-queue-key');
-  if (config.DEV_QUEUE_SECRET && key === config.DEV_QUEUE_SECRET) return next();
+  if (key && keyMatches(key, config.BACKUP_SECRET || config.DEV_QUEUE_SECRET)) return next();
   if (key) return res.status(403).json({ error: 'forbidden' });
-  return requireAdmin(req, res, next);
+  return requireAuth(req, res, () => requireAdmin(req, res, next));
 }
 
 // GET /api/backup/basecamp[?format=json][&comments=0][&fresh=1]

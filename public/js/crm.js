@@ -675,7 +675,7 @@ function crmRenderAccess(data) {
       '<td>' + esc(a.granted_by_name || '—') + '</td>' +
       '<td>' + (a.can_grant ? 'да' : 'не') + '</td>' +
       '<td>' + formatDate(String(a.granted_at).slice(0, 10)) + '</td>' +
-      '<td>' + (canRevoke ? '<button class="btn btn-ghost btn-sm" onclick="crmRevoke(' + a.user_id + ',\'' + esc(a.name).replace(/'/g, '') + '\')">Отнеми</button>' : '<span class="crm-dim">—</span>') + '</td>' +
+      '<td>' + (canRevoke ? '<button class="btn btn-ghost btn-sm" onclick="crmRevoke(' + a.user_id + ',' + jsq(a.name) + ')">Отнеми</button>' : '<span class="crm-dim">—</span>') + '</td>' +
     '</tr>';
   }).join('') || '<tr><td colspan="5" class="crm-dim">Още никой освен пълните админи.</td></tr>';
 

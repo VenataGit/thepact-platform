@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const { query, queryOne, execute } = require('../db/pool');
-const { requireAuth, requireAdmin, requireMiniAdmin, invalidateUserCache } = require('../middleware/auth');
+const { requireAuth, requireAdmin, requireMiniAdmin, invalidateUserCache, refreshUserCache } = require('../middleware/auth');
 const { disconnectUser } = require('../ws/broadcast');
 const config = require('../config');
 
@@ -45,6 +45,9 @@ router.post('/', requireAuth, requireMiniAdmin, async (req, res) => {
     if (!email || !password || !name) return res.status(400).json({ error: 'email, password, name required' });
     const validRoles = ['admin', 'mini_admin', 'moderator', 'member'];
     const userRole = validRoles.includes(role) ? role : 'member';
+    if (req.user.role !== 'admin' && (userRole === 'admin' || userRole === 'mini_admin')) {
+      return res.status(403).json({ error: 'Само админ може да създава админи' });
+    }
 
     const existing = await queryOne('SELECT id FROM users WHERE email = $1', [email]);
     if (existing) return res.status(409).json({ error: 'Email already exists' });
@@ -86,6 +89,7 @@ router.put('/:id/role', requireAuth, requireMiniAdmin, async (req, res) => {
       [role, req.params.id]
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
+    refreshUserCache(user.id); // новата роля важи от следващата заявка
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -112,6 +116,7 @@ router.put('/:id/active', requireAuth, requireMiniAdmin, async (req, res) => {
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    if (is_active) refreshUserCache(userId);
     // If deactivating: kick them out immediately
     if (!is_active) {
       invalidateUserCache(userId);

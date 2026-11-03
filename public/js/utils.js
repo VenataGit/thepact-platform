@@ -4,10 +4,56 @@
 
 function initials(name) { return name?.split(' ').map(n => n[0]).join('').substring(0, 2) || '?'; }
 function _avColor(n) { return _avColors[(n||'').length % _avColors.length]; }
-function _avInner(name, url) { return url ? '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">' : initials(name); }
+function _avInner(name, url) { return url && safeUrl(url) ? '<img src="'+safeUrl(url)+'" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">' : esc(initials(name)); }
 function _findAvatar(name) { var u = (allUsers||[]).find(function(x){return x.name===name}); return u ? u.avatar_url : null; }
 
-function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s) { if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// Стойност като JS аргумент в inline handler (onclick="f(' + jsq(x) + ')"). esc() НЕ стига там:
+// браузърът декодира &#39; обратно в ' преди да пусне JS-а. JSON.stringify прави валиден JS низ,
+// а esc() го прави безопасен за атрибута (" → &quot;, което браузърът връща в " за JS-а).
+function jsq(s) { return esc(JSON.stringify(s == null ? '' : String(s))); }
+
+// Безопасен URL за src/href: само http(s), относителни пътища и data:image. Всичко друго → ''.
+function safeUrl(u) {
+  if (!u) return '';
+  var s = String(u).trim();
+  if (/^(https?:)?\/\//i.test(s) || /^\/(?!\/)/.test(s) || /^data:image\/(png|jpe?g|gif|webp);/i.test(s)) return esc(s);
+  return '';
+}
+
+// Чистене на „богат" HTML (бележки на карти, коментари, съобщения) преди innerHTML.
+// Allowlist на тагове; маха on* атрибутите и javascript:/vbscript:/data: адресите.
+var _SAFE_TAGS = new Set(('a,abbr,b,bc-attachment,blockquote,br,code,del,div,em,figcaption,figure,h1,h2,h3,h4,h5,h6,hr,i,img,' +
+  'li,ol,p,pre,s,small,span,strike,strong,sub,sup,table,tbody,td,th,thead,tr,u,ul,mark,action-text-attachment,video,source,audio').split(','));
+var _DROP_WITH_CONTENT = new Set(['script', 'style', 'iframe', 'object', 'embed', 'template', 'noscript', 'svg', 'math', 'form', 'textarea', 'select', 'button', 'input', 'link', 'meta', 'base', 'frame', 'frameset']);
+var _URL_ATTRS = new Set(['href', 'src', 'xlink:href', 'action', 'formaction', 'poster', 'background', 'srcset', 'data-trix-attachment', 'url', 'sgid']);
+function safeHtml(html) {
+  if (!html) return '';
+  var tpl = document.createElement('template');
+  tpl.innerHTML = String(html);
+  (function walk(node) {
+    Array.prototype.slice.call(node.childNodes).forEach(function (el) {
+      if (el.nodeType === 8) { el.remove(); return; }            // коментари
+      if (el.nodeType !== 1) return;
+      var tag = el.tagName.toLowerCase();
+      if (_DROP_WITH_CONTENT.has(tag)) { el.remove(); return; }
+      if (!_SAFE_TAGS.has(tag)) {                                    // непознат таг → оставяме само съдържанието
+        walk(el);
+        while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
+        el.remove(); return;
+      }
+      Array.prototype.slice.call(el.attributes).forEach(function (a) {
+        var n = a.name.toLowerCase(), v = a.value.replace(/[\u0000-\u0020]/g, '').toLowerCase();
+        if (n.indexOf('on') === 0 || n === 'style' && /expression|url\s*\(|javascript:/i.test(a.value) || n === 'srcdoc') { el.removeAttribute(a.name); return; }
+        if ((_URL_ATTRS.has(n) || n === 'href' || n === 'src') && /^(javascript|vbscript|data):/.test(v) && !(n === 'src' && /^data:image\/(png|jpe?g|gif|webp);/.test(v))) el.removeAttribute(a.name);
+      });
+      if (tag === 'a') { el.setAttribute('rel', 'noopener noreferrer'); if (el.getAttribute('target')) el.setAttribute('target', '_blank'); }
+      walk(el);
+    });
+  })(tpl.content);
+  return tpl.innerHTML;
+}
 
 // ==================== ПОЗНАТИ ИМЕНА НА КЛИЕНТИ ====================
 // Един общ списък за всички полета „Клиент": добавените в КП-Автоматизация плюс

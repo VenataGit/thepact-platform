@@ -51,6 +51,13 @@ module.exports = {
   // Shared secret for the Dev Queue watcher on Ventsi's PC (header X-Dev-Queue-Key).
   // Unset = the /api/dev-queue endpoints are disabled entirely.
   DEV_QUEUE_SECRET: process.env.DEV_QUEUE_SECRET || null,
+  // По желание — отделен ключ за всяка машинна опашка (ако не е зададен, важи DEV_QUEUE_SECRET).
+  DEV_CHAT_SECRET: process.env.DEV_CHAT_SECRET || null,
+  AI_QUEUE_SECRET: process.env.AI_QUEUE_SECRET || null,
+  FOLDER_QUEUE_SECRET: process.env.FOLDER_QUEUE_SECRET || null,
+  BACKUP_SECRET: process.env.BACKUP_SECRET || null,
+  // Ключ за криптиране на Basecamp токените в базата (ако липсва — извлича се от JWT_SECRET).
+  TOKEN_ENC_KEY: process.env.TOKEN_ENC_KEY || null,
   // (Тестовият предпазител BASECAMP_DATESYNC_CARD_IDS отпадна на 21.08.2026 — авто-синхронът
   // на датите работи за целия проект Video Production. Спира се от самия Basecamp: Video
   // Production → ⚙ → Webhooks → изключване на адреса /webhooks/basecamp/…)

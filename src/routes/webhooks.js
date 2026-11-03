@@ -4,11 +4,12 @@
 const express = require('express');
 const router = express.Router();
 const config = require('../config');
+const { keyMatches } = require('../middleware/machine-key');
 const { syncCardDates } = require('../services/bc-date-sync');
 const sheetAlerts = require('../services/sheet-alerts');
 
 router.post('/basecamp/:secret', (req, res) => {
-  if (!config.BASECAMP_WEBHOOK_SECRET || req.params.secret !== config.BASECAMP_WEBHOOK_SECRET) {
+  if (!keyMatches(req.params.secret, config.BASECAMP_WEBHOOK_SECRET)) {
     return res.status(403).json({ error: 'forbidden' });
   }
   res.status(200).json({ ok: true }); // acknowledge immediately; do the work async
@@ -39,7 +40,7 @@ router.post('/sheet/:secret', async (req, res) => {
     console.error('[webhook sheet] config:', e.message);
     return res.status(500).json({ error: 'config' });
   }
-  if (!cfg.secret || req.params.secret !== cfg.secret) {
+  if (!keyMatches(req.params.secret, cfg.secret)) {
     return res.status(403).json({ error: 'forbidden' });
   }
   res.status(200).json({ ok: true });

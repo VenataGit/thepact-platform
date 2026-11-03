@@ -34,8 +34,8 @@ async function renderVault(el, folderId) {
               ? `<div class="vault-icon" style="position:relative">${getFileIcon(f.mime_type)}<span class="vault-play-badge">&#9654;</span></div>`
               : `<span class="vault-icon">${getFileIcon(f.mime_type)}</span>`;
           const clickAttr = canPreview
-            ? `onclick="openVaultPreview(${f.id},'${esc(f.original_name).replace(/'/g,"\\'")}','${f.storage_path}','${f.mime_type}')" style="cursor:pointer"`
-            : `onclick="window.open('${f.storage_path}','_blank')" style="cursor:pointer"`;
+            ? `onclick="openVaultPreview(${f.id},${jsq(f.original_name)},${jsq(f.storage_path)},${jsq(f.mime_type)})" style="cursor:pointer"`
+            : `onclick="window.open(${jsq(f.storage_path)},'_blank')" style="cursor:pointer"`;
           return `<div class="vault-item file" style="position:relative" ${clickAttr}>
           ${thumbHtml}
           <span class="vault-name">${esc(f.original_name)}</span>
@@ -170,8 +170,8 @@ async function renderDocs(el, boardId, folderId) {
                 ? '<div class="vault-icon" style="position:relative">' + getFileIcon(f.mime_type) + '<span class="vault-play-badge">&#9654;</span></div>'
                 : '<span class="vault-icon">' + getFileIcon(f.mime_type) + '</span>';
             var clickAttr = canPreview
-              ? 'onclick="openVaultPreview(' + f.id + ',\'' + esc(f.original_name).replace(/'/g, "\\'") + '\',\'' + f.storage_path + '\',\'' + f.mime_type + '\')" style="cursor:pointer"'
-              : 'onclick="window.open(\'' + f.storage_path + '\',\'_blank\')" style="cursor:pointer"';
+              ? 'onclick="openVaultPreview(' + f.id + ',' + jsq(f.original_name) + ',' + jsq(f.storage_path) + ',' + jsq(f.mime_type) + ')" style="cursor:pointer"'
+              : 'onclick="window.open(' + jsq(f.storage_path) + ',\'_blank\')" style="cursor:pointer"';
             return '<div class="vault-item file" style="position:relative" ' + clickAttr + '>' +
               thumbHtml +
               '<span class="vault-name">' + esc(f.original_name) + '</span>' +

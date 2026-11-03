@@ -91,8 +91,8 @@ async function loadKpAuto(el) {
         ? '<button class="btn btn-sm" onclick="toggleKpPause(' + c.id + ',false)" title="Връща клиента в автоматизацията">▶ Продължи</button>'
         : '<button class="btn btn-sm" onclick="toggleKpPause(' + c.id + ',true)" title="Пауза — данните остават, но не се пускат нови КП">⏸ Пауза</button>';
       var actionBtn = c.paused ? '' : missingKp
-        ? '<button class="btn btn-sm kp-launch-btn" onclick="createKpCardNow(' + c.id + ',\'' + esc(c.name) + '\')">🚀 Пусни КП</button>'
-        : '<button class="btn btn-sm" onclick="createKpCardNow(' + c.id + ',\'' + esc(c.name) + '\')">📋 Нов КП</button>';
+        ? '<button class="btn btn-sm kp-launch-btn" onclick="createKpCardNow(' + c.id + ',' + jsq(c.name) + ')">🚀 Пусни КП</button>'
+        : '<button class="btn btn-sm" onclick="createKpCardNow(' + c.id + ',' + jsq(c.name) + ')">📋 Нов КП</button>';
       rowsHtml += '<tr style="' + rowBg + '">' +
         nameCell +
         '<td class="kp-td">' + (c.videos_per_month || 10) + '</td>' +
@@ -104,7 +104,7 @@ async function loadKpAuto(el) {
         '<td class="kp-td">' + autoCreateDate + '</td>' +
         '<td class="kp-td" style="display:flex;gap:4px">' +
           '<button class="btn btn-sm" onclick="editKpClientForm(' + c.id + ')">✏️</button>' +
-          '<button class="btn btn-sm btn-danger" onclick="deleteKpClientNow(' + c.id + ',\'' + esc(c.name) + '\')">🗑️</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="deleteKpClientNow(' + c.id + ',' + jsq(c.name) + ')">🗑️</button>' +
           pauseBtn +
           cardLinkBtn +
           actionBtn +

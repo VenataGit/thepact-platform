@@ -10,6 +10,7 @@ const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
 const config = require('../config');
+const { encryptToken } = require('../services/token-crypto');
 const { queryOne, execute } = require('../db/pool');
 const jwt = require('jsonwebtoken');
 const { signToken, setTokenCookie, requireAuth, requireAdmin } = require('../middleware/auth');
@@ -66,7 +67,7 @@ router.get('/basecamp/callback', async (req, res) => {
     '<!doctype html><meta charset="utf-8"><title>ThePactAlerts</title>' +
     '<body style="font-family:system-ui,sans-serif;background:#1a2730;color:#e8ecee;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center">' +
     '<div style="max-width:420px;padding:24px"><div style="font-size:44px">' + (ok ? '✅' : '⚠️') + '</div>' +
-    '<h2 style="color:' + (ok ? '#46a374' : '#ef4444') + ';font-weight:600">' + msg + '</h2>' +
+    '<h2 style="color:' + (ok ? '#46a374' : '#ef4444') + ';font-weight:600">' + String(msg).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])) + '</h2>' +
     '<p style="color:#8fa3b0">Можеш да затвориш този таб.</p></div>'
   );
   const failMsgs = { denied: 'Отказахте достъпа до Basecamp.', nocode: 'Връзката с Basecamp прекъсна.', state: 'Сесията изтече — опитай пак.', identity: 'Не успяхме да прочетем данните от Basecamp.', noaccount: 'Този профил няма достъп до Basecamp акаунта на The Pact.', error: 'Грешка при свързване с Basecamp.' };
@@ -125,7 +126,7 @@ router.get('/basecamp/callback', async (req, res) => {
            account_id = EXCLUDED.account_id, access_token = EXCLUDED.access_token,
            refresh_token = COALESCE(EXCLUDED.refresh_token, basecamp_service_account.refresh_token),
            expires_at = EXCLUDED.expires_at, connected_by = EXCLUDED.connected_by, updated_at = NOW()`,
-        [bcUserId, name, email, accountId, tokens.access_token, tokens.refresh_token || null, expiresAt, connectedBy]
+        [bcUserId, name, email, accountId, encryptToken(tokens.access_token), encryptToken(tokens.refresh_token) || null, expiresAt, connectedBy]
       );
       console.log(`[basecamp] service account connected as ${email} (person ${bcUserId})`);
       return servicePage(true, `ThePactAlerts е свързан успешно! (${email})`);
@@ -211,7 +212,7 @@ router.get('/basecamp/callback', async (req, res) => {
          expires_at = EXCLUDED.expires_at,
          basecamp_account_id = EXCLUDED.basecamp_account_id,
          updated_at = NOW()`,
-      [user.id, tokens.access_token, tokens.refresh_token || null, expiresAt, accountId]
+      [user.id, encryptToken(tokens.access_token), encryptToken(tokens.refresh_token) || null, expiresAt, accountId]
     );
 
     await execute('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);

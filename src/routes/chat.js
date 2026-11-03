@@ -3,6 +3,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const { attachmentFilter, safeStorageFilename } = require('../utils/upload-validator');
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { broadcast, sendToUser } = require('../ws/broadcast');
@@ -14,12 +15,10 @@ if (!fs.existsSync(CHAT_UPLOADS_DIR)) fs.mkdirSync(CHAT_UPLOADS_DIR, { recursive
 
 const storage = multer.diskStorage({
   destination: CHAT_UPLOADS_DIR,
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  }
+  filename: (req, file, cb) => cb(null, safeStorageFilename(file.originalname)),
 });
-const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } }); // 25MB
+// Същият филтър като при прикачените файлове — иначе .html/.svg в чата се сервираше като страница (XSS)
+const upload = multer({ storage, fileFilter: attachmentFilter, limits: { fileSize: 25 * 1024 * 1024 } }); // 25MB
 
 // GET /api/chat/channels — list user's channels with unread counts
 router.get('/channels', requireAuth, async (req, res) => {

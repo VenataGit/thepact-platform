@@ -361,9 +361,9 @@ function safeRich(html) {
   return String(html || '')
     .replace(/<\s*(script|style|iframe|object|embed)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
     .replace(/<\s*(script|style|iframe|object|embed)\b[^>]*>/gi, '')
-    .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
-    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '')
-    .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, '')
+    .replace(/(?<=[\s\/\"'])on[a-z]+\s*=\s*"[^"]*"/gi, '')
+    .replace(/(?<=[\s\/\"'])on[a-z]+\s*=\s*'[^']*'/gi, '')
+    .replace(/(?<=[\s\/\"'])on[a-z]+\s*=\s*[^\s>]+/gi, '')
     .replace(/javascript:/gi, 'javascript-blocked:');
 }
 

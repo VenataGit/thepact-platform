@@ -114,13 +114,18 @@ router.get('/files/:id/preview', requireAuth, async (req, res) => {
     const file = await queryOne('SELECT * FROM vault_files WHERE id = $1', [req.params.id]);
     if (!file) return res.status(404).json({ error: 'File not found' });
 
-    const mime = (file.mime_type || '').toLowerCase();
+    // Типът идва от разширението (MIME-ът е подаден от качващия и не е надежден);
+    // SVG/HTML никога inline — иначе скрипт в „картинка" се пуска от нашия домейн.
+    const INLINE_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.pdf': 'application/pdf' };
+    const inlineType = INLINE_TYPES[path.extname(file.original_name || file.filename || '').toLowerCase()];
 
     // Images and PDFs: serve inline
-    if (mime.startsWith('image/') || mime === 'application/pdf') {
+    if (inlineType) {
       const fullPath = path.join(__dirname, '..', '..', file.storage_path);
       if (!fs.existsSync(fullPath)) return res.status(404).json({ error: 'File missing from disk' });
-      res.setHeader('Content-Type', file.mime_type);
+      res.setHeader('Content-Type', inlineType);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (inlineType !== 'application/pdf') res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
       res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.original_name)}"`);
       return fs.createReadStream(fullPath).pipe(res);
     }
@@ -135,6 +140,12 @@ router.get('/files/:id/preview', requireAuth, async (req, res) => {
 // DELETE /api/vault/files/:id
 router.delete('/files/:id', requireAuth, async (req, res) => {
   try {
+    const own = await queryOne('SELECT uploaded_by FROM vault_files WHERE id = $1', [req.params.id]);
+    if (!own) return res.status(404).json({ error: 'File not found' });
+    const r = req.user.role;
+    if (own.uploaded_by !== req.user.userId && r !== 'admin' && r !== 'mini_admin' && r !== 'moderator') {
+      return res.status(403).json({ error: 'Можеш да триеш само файлове, които ти си качил' });
+    }
     const file = await queryOne('DELETE FROM vault_files WHERE id = $1 RETURNING *', [req.params.id]);
     if (!file) return res.status(404).json({ error: 'File not found' });
     // Delete actual file

@@ -322,9 +322,9 @@
       html += '</div></div>';
     });
 
-    // Fallback: if no video sections parsed, just render as HTML
+    // Няма текст (само тагове) → нищо; суровият HTML не се вмъква (XSS)
     if (sections.length === 0 && introLines.length === 0) {
-      html = htmlContent;
+      html = '';
     }
 
     return html;

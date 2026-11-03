@@ -153,7 +153,7 @@ async function renderCardPage(el, cardId) {
         '';
     } else {
       if (card.content && card.content.replace(/<[^>]*>/g, '').trim()) {
-        notesHtml = '<div class="rich-content">' + card.content + '</div>';
+        notesHtml = '<div class="rich-content">' + safeHtml(card.content) + '</div>';
       } else {
         notesHtml = '<span class="bc-field__placeholder">Добави бележки\u2026</span>';
       }
@@ -241,8 +241,8 @@ async function renderCardPage(el, cardId) {
           '<div class="bc-comment-body">' +
           '<div class="bc-comment-meta"><strong>' + esc(c.user_name) + '</strong></div>' +
           (c.reply_to_id && c.parent_user_name ? '<div class="bc-reply-preview" onclick="scrollToComment(' + c.reply_to_id + ')" title="Премини към оригиналния коментар"><span class="bc-reply-preview__author">↩ ' + esc(c.parent_user_name) + ':</span> <span class="bc-reply-preview__text">' + esc((c.parent_content||'').replace(/<[^>]*>/g,'').slice(0,120)) + ((c.parent_content||'').replace(/<[^>]*>/g,'').length>120?'…':'') + '</span></div>' : '') +
-          '<div class="bc-comment-text">' + (c.content || '').replace(/\n/g, '<br>') + '</div>' +
-          '<button class="bc-reply-btn" onclick="replyToComment(' + cardId + ',' + c.id + ',\'' + esc(c.user_name) + '\')">\u21a9 Отговори</button>' +
+          '<div class="bc-comment-text">' + safeHtml((c.content || '').replace(/\n/g, '<br>')) + '</div>' +
+          '<button class="bc-reply-btn" onclick="replyToComment(' + cardId + ',' + c.id + ',' + jsq(c.user_name) + ')">\u21a9 Отговори</button>' +
           '</div>' +
           '<div class="bc-comment-dots">' +
           '<button class="bc-comment-dots-btn" onclick="toggleCommentMenu(event,' + cardId + ',' + c.id + ',' + isOwn + ',' + isPinned + ')">\u22ef</button>' +
@@ -268,7 +268,7 @@ async function renderCardPage(el, cardId) {
             '\u041e\u0442\u043a\u0430\u0447\u0438</button>' +
         '</div>' +
         '<div class="bc-pinned-sidebar__body" id="pinnedSidebarBody">' +
-          '<div class="bc-pinned-sidebar__content">' + (pc.content || '').replace(/\n/g, '<br>') + '</div>' +
+          '<div class="bc-pinned-sidebar__content">' + safeHtml((pc.content || '').replace(/\n/g, '<br>')) + '</div>' +
           '<div class="bc-pinned-sidebar__meta">\u2014 ' + esc(pc.user_name) + ', ' + timeAgo(pc.created_at) + '</div>' +
         '</div>' +
         '</div>';
@@ -283,7 +283,6 @@ async function renderCardPage(el, cardId) {
     var wrapperStart = '';
     var wrapperEnd = pinnedSidebarHtml || '';
 
-    var titleEsc = esc(card.title).replace(/'/g, "\\'");
 
     // Populate editing presence from API response (only if it's someone else)
     if (card.editing_by && currentUser && card.editing_by.userId !== currentUser.id) {

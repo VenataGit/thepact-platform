@@ -96,7 +96,7 @@ async function renderMsgPage(el, msgId) {
     if (msg.content) {
       // If content has HTML tags use as-is, otherwise convert newlines
       if (/<[a-z][\s\S]*>/i.test(msg.content)) {
-        contentHtml = msg.content;
+        contentHtml = safeHtml(msg.content);
       } else {
         contentHtml = esc(msg.content).replace(/\n/g, '<br>');
       }
@@ -110,7 +110,7 @@ async function renderMsgPage(el, msgId) {
         ? '<button class="msgboard-comment__action" onclick="msgEditComment(' + msg.id + ',' + c.id + ')" title="Редактирай">✏️</button>' +
           '<button class="msgboard-comment__action msgboard-comment__action--del" onclick="msgDeleteComment(' + msg.id + ',' + c.id + ')" title="Изтрий">&times;</button>'
         : '';
-      var cContent = /<[a-z][\s\S]*>/i.test(c.content) ? c.content : esc(c.content).replace(/\n/g, '<br>');
+      var cContent = /<[a-z][\s\S]*>/i.test(c.content) ? safeHtml(c.content) : esc(c.content).replace(/\n/g, '<br>');
       var editedTag = c.updated_at && c.updated_at !== c.created_at ? '<span class="msgboard-comment__edited">(редактирано)</span>' : '';
       return '<div class="msgboard-comment" id="msgComment_' + c.id + '">' +
         '<div class="msgboard-comment__avatar" style="background:' + _avatarColor(c.user_name) + '">' + cInit + '</div>' +
@@ -218,7 +218,7 @@ async function msgEditPost(msgId) {
       '<p class="confirm-modal-msg" style="margin-bottom:16px">Редактирай съобщение</p>' +
       '<input class="confirm-modal-input" id="msgEditTitle" placeholder="Заглавие\u2026" value="' + esc(msg.title).replace(/"/g, '&quot;') + '" style="margin-bottom:10px">' +
       '<div class="msgboard-modal-editor" style="margin-bottom:10px">' +
-        '<input id="msgEditContent" type="hidden" value="' + (msg.content || '').replace(/"/g, '&quot;') + '">' +
+        '<input id="msgEditContent" type="hidden" value="' + esc(msg.content || '') + '">' +
         '<trix-editor input="msgEditContent" class="trix-dark" placeholder="Съдържание\u2026"></trix-editor>' +
       '</div>' +
       '<div class="confirm-modal-actions">' +
@@ -302,7 +302,7 @@ async function msgEditComment(msgId, commentId) {
     var editId = 'msgCommentEdit_' + commentId;
     contentEl.innerHTML =
       '<div class="msgboard-comment-editor" style="margin-top:6px">' +
-        '<input id="' + editId + '" type="hidden" value="' + (comment.content || '').replace(/"/g, '&quot;') + '">' +
+        '<input id="' + editId + '" type="hidden" value="' + esc(comment.content || '') + '">' +
         '<trix-editor input="' + editId + '" class="trix-dark" placeholder="Редактирай коментар\u2026"></trix-editor>' +
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:8px">' +

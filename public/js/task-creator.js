@@ -168,8 +168,8 @@ function tcrSingleForm(d) {
 function tcrDateField(key, label, note) {
   return '<label class="tcr-field"><span class="tcr-label">' + esc(label) + '</span>' +
     '<span class="tcr-daterow">' +
-      '<input type="date" class="tcr-input" id="tcrDate_' + esc(key) + '" onchange="tcrDateChanged(\'' + esc(key) + '\')">' +
-      '<button type="button" class="tcr-recalc" title="Преизчисли останалите дати по тази" onclick="tcrRecalc(\'' + esc(key) + '\')">↻</button>' +
+      '<input type="date" class="tcr-input" id="tcrDate_' + esc(key) + '" onchange="tcrDateChanged(' + jsq(key) + ')">' +
+      '<button type="button" class="tcr-recalc" title="Преизчисли останалите дати по тази" onclick="tcrRecalc(' + jsq(key) + ')">↻</button>' +
     '</span>' +
     '<span class="tcr-note">' + esc(note) + '</span></label>';
 }

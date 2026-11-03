@@ -516,7 +516,7 @@ function setupCardPageToolbar(card, col, editing) {
   dotsBtn2.className = 'btn btn-sm btn-ghost bc-card-options__dots';
   dotsBtn2.title = 'Опции';
   dotsBtn2.innerHTML = '⋯';
-  dotsBtn2.onclick = function(e) { toggleCardOptionsMenu(e, card.id, esc(card.title).replace(/'/g, "\\'")); };
+  dotsBtn2.onclick = function(e) { toggleCardOptionsMenu(e, card.id, card.title || ''); };
   rightGroup.appendChild(dotsBtn2);
   toolbar.appendChild(rightGroup);
 }

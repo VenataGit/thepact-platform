@@ -8,6 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const config = require('../config');
+const { keyMatches } = require('../middleware/machine-key');
 const { queryOne } = require('../db/pool');
 const bc = require('../services/basecamp');
 const { getServiceAuth } = require('../services/basecamp-token');
@@ -15,7 +16,7 @@ const dc = require('../services/dev-chat');
 
 router.use((req, res, next) => {
   if (!config.DEV_QUEUE_SECRET) return res.status(503).json({ error: 'dev chat not configured' });
-  if (req.get('x-dev-queue-key') !== config.DEV_QUEUE_SECRET) return res.status(403).json({ error: 'forbidden' });
+  if (!keyMatches(req.get('x-dev-queue-key'), config.DEV_CHAT_SECRET || config.DEV_QUEUE_SECRET)) return res.status(403).json({ error: 'forbidden' });
   next();
 });
 

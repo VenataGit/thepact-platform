@@ -5,6 +5,7 @@
 const { queryOne, execute } = require('../db/pool');
 const bc = require('./basecamp');
 const config = require('../config');
+const { encryptToken, decryptToken } = require('./token-crypto');
 
 // Every call goes to The Pact's Basecamp account. Rows stored before 31.07.2026 could hold
 // another account the person belongs to (they were logged in with the first account on their
@@ -16,14 +17,14 @@ function accountFor(stored) {
 // Refresh the access token if it is expired / about to expire. Returns a usable token.
 // `table`/`idCol` are fixed literals (never user input), so the interpolation is safe.
 async function refreshIfNeeded(row, table, idCol, idVal) {
-  let token = row.access_token;
+  let token = decryptToken(row.access_token);
   const exp = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   if (exp && exp < Date.now() + 60_000 && row.refresh_token) {
     try {
-      const t = await bc.refreshAccessToken(row.refresh_token);
+      const t = await bc.refreshAccessToken(decryptToken(row.refresh_token));
       token = t.access_token;
       const expiresAt = t.expires_in ? new Date(Date.now() + t.expires_in * 1000) : null;
-      await execute(`UPDATE ${table} SET access_token = $1, expires_at = $2, updated_at = NOW() WHERE ${idCol} = $3`, [token, expiresAt, idVal]);
+      await execute(`UPDATE ${table} SET access_token = $1, expires_at = $2, updated_at = NOW() WHERE ${idCol} = $3`, [encryptToken(token), expiresAt, idVal]);
     } catch { /* keep the existing token if refresh fails */ }
   }
   return token;

@@ -44,7 +44,7 @@ router.get('/basecamp/*', (req, res) => {
   const webUrl = WEB_HOST + safePath;
   const appUrl = APP_HOST + safePath;
 
-  const payload = JSON.stringify({ web: webUrl, app: appUrl });
+  const payload = JSON.stringify({ web: webUrl, app: appUrl }).replace(/</g, '\\u003c'); // без </script> пробив
 
   res.set('Cache-Control', 'no-store');
   res.type('html').send(`<!DOCTYPE html>
@@ -155,6 +155,7 @@ const SHARE_NAME = 'Production';
 function parseFolder(raw) {
   const p = String(raw == null ? '' : raw).trim().replace(/\//g, '\\').replace(/\\+$/, '');
   if (!p || p.length > 400 || p.indexOf('..') !== -1) return null;
+  if (/[<>"]/.test(p)) return null; // невалидни в имена на папки в Windows; пазят от XSS
 
   const uncPrefix = '\\\\' + SHARE_HOST + '\\' + SHARE_NAME + '\\';
   let rel = null;
@@ -182,7 +183,7 @@ router.get('/folder', (req, res) => {
       + '<p>Невалиден път. Очаква се папка от вътрешния сървър (<code>Z:\\…</code>).</p></body>');
   }
 
-  const payload = JSON.stringify(f);
+  const payload = JSON.stringify(f).replace(/</g, '\\u003c'); // без </script> пробив (XSS)
   res.type('html').send(`<!DOCTYPE html>
 <html lang="bg">
 <head>

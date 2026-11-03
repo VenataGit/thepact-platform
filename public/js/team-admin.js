@@ -109,7 +109,7 @@ function tmRender() {
         '<td>' + (p.people_count || 0) + '</td>' +
         '<td><input type="checkbox" style="accent-color:var(--accent);width:16px;height:16px"' +
           (p.kp_responsible ? ' checked' : '') + ' onchange="tmTogglePositionKp(' + p.id + ', this.checked)"></td>' +
-        '<td><button class="ga-btn ga-btn--del" onclick="tmDeletePosition(' + p.id + ', \'' + esc(p.name).replace(/'/g, "\\'") + '\')">✕</button></td>' +
+        '<td><button class="ga-btn ga-btn--del" onclick="tmDeletePosition(' + p.id + ', ' + jsq(p.name) + ')">✕</button></td>' +
       '</tr>';
     });
     html += '</tbody></table></div>';
@@ -144,7 +144,7 @@ function tmRender() {
         '<td class="tm-mail">' + esc(a.note || '—') + '</td>' +
         '<td class="tm-mail">' + esc(a.added_by_name || '—') + ' <span class="ga-dim">· ' + esc(tmDateTime(a.created_at)) + '</span></td>' +
         '<td>' + used + '</td>' +
-        '<td><button class="ga-btn ga-btn--del" onclick="tmDeleteApproved(' + a.id + ', \'' + esc(a.email).replace(/'/g, "\\'") + '\')">✕</button></td>' +
+        '<td><button class="ga-btn ga-btn--del" onclick="tmDeleteApproved(' + a.id + ', ' + jsq(a.email) + ')">✕</button></td>' +
       '</tr>';
     });
     html += '</tbody></table></div>';
@@ -170,7 +170,7 @@ function tmRender() {
     var isMe = String(u.id) === String(_tm.myUserId);
     var del = (isMe || u.role === 'admin')
       ? '<span class="ga-dim" title="' + (isMe ? 'Собственият ти профил' : 'Първо смени ролята') + '">—</span>'
-      : '<button class="ga-btn ga-btn--del" onclick="tmDeleteUser(' + u.id + ', \'' + esc(u.name || u.email).replace(/'/g, "\\'") + '\')">🗑</button>';
+      : '<button class="ga-btn ga-btn--del" onclick="tmDeleteUser(' + u.id + ', ' + jsq(u.name || u.email) + ')">🗑</button>';
     // Собствената роля не се пипа оттук — иначе човек може да се самозаключи.
     var roleCell = isMe
       ? '<span class="tm-mail">' + esc(u.role || '') + '</span>'

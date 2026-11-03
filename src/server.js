@@ -37,6 +37,9 @@ server.listen(config.PORT, () => {
 // WebSocket
 setupWebSocket(server);
 
+// Basecamp токените в базата → криптирани (еднократно за старите записи; после само при запис)
+require('./services/token-crypto').encryptExistingTokens().catch((e) => console.error('[token-crypto]', e.message));
+
 // Init services (non-blocking, safe to fail if tables don't exist yet)
 const { initCheckInScheduler } = require('./services/checkin-scheduler');
 const { initEmail } = require('./services/email');

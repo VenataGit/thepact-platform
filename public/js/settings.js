@@ -1280,7 +1280,7 @@ function gaRender() {
       '<div class="ga-map__hdr">Съответствия на имейли <span class="ga-dim">— само когато Google имейлът е различен от Basecamp имейла</span></div>';
   d.personMap.forEach(function (m) {
     html += '<div class="ga-map__row"><code>' + esc(m.google_email) + '</code> → ' + esc(m.person_name || ('#' + m.bc_person_id)) +
-      ' <button class="ga-btn ga-btn--del" onclick="gaDelMap(\'' + esc(m.google_email).replace(/'/g, "\\'") + '\')">✕</button></div>';
+      ' <button class="ga-btn ga-btn--del" onclick="gaDelMap(' + jsq(m.google_email) + ')">✕</button></div>';
   });
   html += '<div class="ga-row">' +
       '<input type="text" class="ga-input" id="gaMapEmail" placeholder="google имейл">' +

@@ -81,9 +81,11 @@ function attachmentFilter(req, file, cb) {
     return cb(new Error('Този тип файл не е разрешен (изпълним/скрипт): ' + ext));
   }
 
-  // Accept if extension is in whitelist OR mime type starts with safe prefix
-  const extOk = !ext || ATTACHMENT_EXTENSIONS.has(ext);
-  const mimeOk = ALLOWED_MIME_PREFIXES.some(prefix => (file.mimetype || '').startsWith(prefix));
+  // Има ли разширение — ТО решава (MIME-ът се подава от качващия и не е надежден:
+  // „x.xml" с MIME image/png минаваше и после се сервираше като документ от нашия домейн).
+  // Без разширение — проверяваме MIME-а.
+  const extOk = ext ? ATTACHMENT_EXTENSIONS.has(ext) : false;
+  const mimeOk = !ext && ALLOWED_MIME_PREFIXES.some(prefix => (file.mimetype || '').startsWith(prefix));
 
   if (!extOk && !mimeOk) {
     return cb(new Error('Този тип файл не е разрешен: ' + (ext || file.mimetype || 'unknown')));
@@ -113,7 +115,8 @@ function avatarFilter(req, file, cb) {
  * Returns a safe filename — never the original.
  */
 function safeStorageFilename(originalName) {
-  const ext = path.extname(originalName || '').toLowerCase().slice(0, 16);
+  const e = path.extname(originalName || '').toLowerCase();
+  const ext = ATTACHMENT_EXTENSIONS.has(e) ? e : ''; // само разрешени разширения стигат до диска
   const random = Math.random().toString(36).slice(2, 10);
   return `${Date.now()}-${random}${ext}`;
 }

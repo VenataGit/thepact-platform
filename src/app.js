@@ -28,7 +28,46 @@ if (config.IS_PRODUCTION) {
 }
 
 // Security
-app.use(helmet({ contentSecurityPolicy: false }));
+// CSP: скриптове само от нас + Trix (unpkg). 'unsafe-inline' остава, защото интерфейсът
+// е изграден с inline onclick; основната защита срещу XSS е екранирането/чистенето на HTML.
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com', 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      mediaSrc: ["'self'", 'blob:', 'https:'],
+      connectSrc: ["'self'", 'wss:', 'https://unpkg.com'],
+      frameSrc: ["'self'"],
+      workerSrc: ["'self'"],
+      manifestSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
+    },
+  },
+}));
+
+// 5xx отговори: вътрешните детайли (SQL, пътища, мрежови грешки) не стигат до браузъра —
+// пишат се в лога, а клиентът получава общо съобщение. Нормалните съобщения остават.
+const INTERNAL_ERR = /relation |column |syntax error|violates|duplicate key|null value|invalid input syntax|ECONN|ETIMEDOUT|ENOTFOUND|EADDR|ENOENT|EACCES|[\\/](opt|home|root|usr|var)[\\/]|node_modules|\bat [\w.<>]+ \(|pg_|password|secret/i;
+app.use((req, res, next) => {
+  const json = res.json.bind(res);
+  res.json = (body) => {
+    if (res.statusCode >= 500 && body && typeof body.error === 'string' && INTERNAL_ERR.test(body.error)) {
+      console.error('[5xx]', req.method, req.originalUrl, body.error);
+      body = { ...body, error: 'Вътрешна грешка на сървъра' };
+      delete body.stack; delete body.output; delete body.tried;
+    }
+    return json(body);
+  };
+  next();
+});
 
 // Body parsing
 app.use(express.json({ limit: '5mb' }));
@@ -101,33 +140,34 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), {
 }));
 
 // Deploy endpoint (no auth needed, uses secret)
-app.post('/deploy', (req, res) => {
-  const secret = req.query.secret || req.body?.secret;
-  if (!config.DEPLOY_SECRET || secret !== config.DEPLOY_SECRET) {
-    return res.status(403).json({ error: 'Invalid secret' });
-  }
-  const { execSync } = require('child_process');
+// Тайната САМО в хедър X-Deploy-Secret (в ?secret= оставаше в логовете на Nginx); без execSync,
+// за да не замръзва сървърът. Нормалният deploy е cron-ът на VPS-а — този адрес е резервен.
+const { keyMatches } = require('./middleware/machine-key');
+const deployAuth = (req) => keyMatches(req.get('x-deploy-secret'), config.DEPLOY_SECRET);
+const runCmd = (cmd, args, opts) => new Promise((resolve, reject) => {
+  require('child_process').execFile(cmd, args, opts, (err, stdout, stderr) => (err ? reject(Object.assign(err, { stdout })) : resolve(String(stdout))));
+});
+app.post('/deploy', async (req, res) => {
+  if (!deployAuth(req)) return res.status(403).json({ error: 'Invalid secret' });
   try {
-    const gitOut = execSync('git pull origin main --ff-only', { cwd: path.join(__dirname, '..'), timeout: 30000 }).toString();
-    const pm2Out = execSync('pm2 restart thepact-v2', { timeout: 15000 }).toString();
-    res.json({ ok: true, git: gitOut.trim(), pm2: pm2Out.trim() });
+    const gitOut = await runCmd('git', ['pull', 'origin', 'main', '--ff-only'], { cwd: path.join(__dirname, '..'), timeout: 30000 });
+    res.json({ ok: true, git: gitOut.trim(), pm2: 'restarting' });
+    setTimeout(() => require('child_process').execFile('pm2', ['restart', 'thepact-v2'], () => {}), 500);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[deploy]', err.message);
+    res.status(500).json({ error: 'deploy failed' });
   }
 });
 
 // Run migrations endpoint (uses deploy secret)
 app.post('/migrate', async (req, res) => {
-  const secret = req.query.secret || req.body?.secret;
-  if (!config.DEPLOY_SECRET || secret !== config.DEPLOY_SECRET) {
-    return res.status(403).json({ error: 'Invalid secret' });
-  }
-  const { execSync } = require('child_process');
+  if (!deployAuth(req)) return res.status(403).json({ error: 'Invalid secret' });
   try {
-    const out = execSync('node scripts/run-new-migrations.js', { cwd: path.join(__dirname, '..'), timeout: 60000, env: { ...process.env, DATABASE_URL: config.DATABASE_URL } }).toString();
+    const out = await runCmd(process.execPath, ['scripts/run-new-migrations.js'], { cwd: path.join(__dirname, '..'), timeout: 60000, env: { ...process.env, DATABASE_URL: config.DATABASE_URL } });
     res.json({ ok: true, output: out.trim() });
   } catch (err) {
-    res.status(500).json({ error: err.message, output: err.stdout?.toString() || '' });
+    console.error('[migrate]', err.message);
+    res.status(500).json({ error: 'migrate failed', output: String(err.stdout || '') });
   }
 });
 
@@ -196,14 +236,10 @@ app.get('/api/users/online', require('./middleware/auth').requireAuth, (req, res
 
 // Serve login page if not authenticated (check for JWT cookie)
 app.get('/', (req, res) => {
-  const jwt = require('jsonwebtoken');
-  const token = req.cookies?.__pact_jwt;
-  try {
-    if (token) jwt.verify(token, config.JWT_SECRET);
-    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
-  } catch {
-    res.sendFile(path.join(__dirname, '..', 'public', 'login.html'));
-  }
+  // Без бисквитка → index.html (той сам праща към входа); с невалидна/изтекла сесия → login.
+  const { verifyFromCookieHeader } = require('./middleware/auth');
+  const valid = !req.cookies?.__pact_jwt || !!verifyFromCookieHeader(req.headers.cookie);
+  res.sendFile(path.join(__dirname, '..', 'public', valid ? 'index.html' : 'login.html'));
 });
 
 // Serve presentation page (standalone, no SPA wrapper)
