@@ -19,6 +19,73 @@ function headers(extra = {}) {
   return { 'User-Agent': config.BASECAMP_USER_AGENT, Accept: 'application/json', ...extra };
 }
 
+// ---- Обща врата за всички API заявки към Basecamp (стабилност, 04.11.2026) ----
+// Преди: без таймаут, без изчакване при 429 — PM агентът изчерпваше лимита на Basecamp
+// (96% от грешките в лога) и с него страдаха таблото и автоматизациите (лимитът е общ за
+// сървъра). Сега: темпо под лимита, фоновите задачи (bc.background) отстъпват на хората,
+// при 429 всички изчакват колкото каже Basecamp (Retry-After) и заявката се повтаря.
+const { AsyncLocalStorage } = require('async_hooks');
+const lane = new AsyncLocalStorage();
+const WINDOW_MS = 10_000;
+const MAX_PER_WINDOW = 40;        // Basecamp: ~50 заявки / 10 сек — оставяме резерв
+const MAX_BG_PER_WINDOW = 20;     // фоновите (PM агент и т.н.) — най-много половината
+const MAX_INFLIGHT = 8;
+const starts = [];                // { t, bg }
+let inflight = 0;
+let pausedUntil = 0;              // общо изчакване след 429
+const bcStats = { requests: 0, r429: 0, timeouts: 0, retries: 0, since: new Date().toISOString() };
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Пуска заявки в рамките на десетсекундния прозорец. Фоновите имат по-нисък таван,
+// за да остава място за това, което хората отварят в момента.
+async function acquireSlot(bg) {
+  for (;;) {
+    const now = Date.now();
+    while (starts.length && now - starts[0].t > WINDOW_MS) starts.shift();
+    const bgCount = starts.reduce((n, x) => n + (x.bg ? 1 : 0), 0);
+    const ok = now >= pausedUntil && inflight < MAX_INFLIGHT && starts.length < MAX_PER_WINDOW && (!bg || bgCount < MAX_BG_PER_WINDOW);
+    if (ok) { starts.push({ t: now, bg }); inflight++; return; }
+    const waitWin = starts.length ? WINDOW_MS - (now - starts[0].t) + 5 : 50;
+    await sleep(Math.max(50, Math.min(pausedUntil > now ? pausedUntil - now : waitWin, bg ? 1000 : 250)));
+  }
+}
+
+// fetch с таймаут + повторение. 429 значи „не е обработено" → безопасно да се повтори
+// дори при POST. Мрежова грешка/5xx се повтаря само при GET (POST може вече да е минал).
+async function bcFetch(url, opts = {}, { timeoutMs = 30_000, tries = 4 } = {}) {
+  const bg = lane.getStore() === 'background';
+  const method = (opts.method || 'GET').toUpperCase();
+  for (let attempt = 1; ; attempt++) {
+    await acquireSlot(bg);
+    let r;
+    try {
+      bcStats.requests++;
+      r = await fetch(url, { ...opts, signal: AbortSignal.timeout(timeoutMs) });
+    } catch (err) {
+      if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) bcStats.timeouts++;
+      if (method === 'GET' && attempt < 2) { bcStats.retries++; await sleep(2000); continue; }
+      throw err;
+    } finally {
+      inflight--;
+    }
+    if (r.status === 429 && attempt < tries) {
+      bcStats.r429++; bcStats.retries++;
+      const ra = parseInt(r.headers.get('Retry-After'), 10);
+      const waitMs = (Number.isFinite(ra) && ra > 0 ? ra * 1000 : 5000 * attempt) + Math.floor(Math.random() * 500);
+      pausedUntil = Math.max(pausedUntil, Date.now() + waitMs);
+      await sleep(waitMs);
+      continue;
+    }
+    if (r.status === 429) bcStats.r429++;
+    if (r.status >= 500 && method === 'GET' && attempt < 2) { bcStats.retries++; await sleep(2000); continue; }
+    return r;
+  }
+}
+
+// Изпълнява fn като фонова работа: заявките ѝ отстъпват място на тези от хората.
+function background(fn) { return lane.run('background', fn); }
+function getBcStats() { return { ...bcStats, inflight, pausedForMs: Math.max(0, pausedUntil - Date.now()) }; }
+
 // URL we send the user to so they can grant access. `state` guards against CSRF.
 function buildAuthorizeUrl(state) {
   const params = new URLSearchParams({
@@ -84,7 +151,7 @@ async function getAuthorization(accessToken) {
 
 // Authenticated GET that also surfaces the Link rel="next" pagination cursor.
 async function authedGet(url, accessToken) {
-  const r = await fetch(url, { headers: headers({ Authorization: `Bearer ${accessToken}` }) });
+  const r = await bcFetch(url, { headers: headers({ Authorization: `Bearer ${accessToken}` }) });
   if (!r.ok) throw new Error(`Basecamp GET failed (${r.status}): ${url}`);
   const json = await r.json();
   const link = r.headers.get('Link') || '';
@@ -163,7 +230,7 @@ async function getColumnCards(token, account, projectId, listId) {
 // Move a card to another column within the same card table. POST .../card_tables/{id}/moves.json
 // body { source_id: cardId, target_id: columnId, position }. Returns true on 204.
 async function moveCard(token, account, projectId, cardTableId, cardId, targetColumnId, position = 0) {
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/${cardTableId}/moves.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/${cardTableId}/moves.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify({ source_id: cardId, target_id: targetColumnId, position }),
@@ -196,7 +263,7 @@ function wormholeDestinationId(w) {
 
 // POST .../card_tables/{tableId}/wormholes.json  body { destination_recording_id }
 async function createWormhole(token, account, projectId, cardTableId, destinationColumnId) {
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/${cardTableId}/wormholes.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/${cardTableId}/wormholes.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify({ destination_recording_id: destinationColumnId }),
@@ -212,7 +279,7 @@ async function createWormhole(token, account, projectId, cardTableId, destinatio
 
 // DELETE .../card_tables/wormholes/{id}.json — 204 on success.
 async function deleteWormhole(token, account, projectId, wormholeId) {
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/wormholes/${wormholeId}.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/wormholes/${wormholeId}.json`, {
     method: 'DELETE',
     headers: headers({ Authorization: `Bearer ${token}` }),
   });
@@ -233,7 +300,7 @@ async function deleteWormhole(token, account, projectId, wormholeId) {
 async function moveCardToColumn(token, account, projectId, cardId, columnId, position) {
   const body = { column_id: columnId };
   if (Number.isInteger(position) && position >= 1) body.position = position;
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${cardId}/moves.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${cardId}/moves.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -267,7 +334,7 @@ async function createCard(token, account, projectId, listId, { title, content, d
   if (content != null) body.content = content;
   if (due_on) body.due_on = due_on;
   if (notify) body.notify = true;
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/lists/${listId}/cards.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/lists/${listId}/cards.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -288,7 +355,7 @@ async function updateCard(token, account, projectId, card, fields = {}) {
   };
   const due = fields.due_on !== undefined ? fields.due_on : card.due_on;
   if (due) body.due_on = due;
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${card.id}.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${card.id}.json`, {
     method: 'PUT',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -329,7 +396,7 @@ async function getVaultFolders(token, account, projectId, vaultId) {
 
 // Нова подпапка. POST .../vaults/{vaultId}/vaults.json body { title }.
 async function createVaultFolder(token, account, projectId, vaultId, title) {
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/vaults/${vaultId}/vaults.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/vaults/${vaultId}/vaults.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify({ title }),
@@ -355,7 +422,7 @@ async function getVaultUploads(token, account, projectId, vaultId) {
 // Нов документ. POST .../vaults/{vaultId}/documents.json body { title, content, status }.
 // Без status: 'active' документът остава чернова и не се вижда в папката.
 async function createDocument(token, account, projectId, vaultId, { title, content }) {
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/vaults/${vaultId}/documents.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/vaults/${vaultId}/documents.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify({ title, content, status: 'active' }),
@@ -366,7 +433,7 @@ async function createDocument(token, account, projectId, vaultId, { title, conte
 
 // PUT .../documents/{id}.json — пълна замяна, затова title се праща винаги.
 async function updateDocument(token, account, projectId, documentId, { title, content }) {
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/documents/${documentId}.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/documents/${documentId}.json`, {
     method: 'PUT',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify({ title, content }),
@@ -380,7 +447,7 @@ async function createStep(token, account, projectId, cardId, { title, due_on, as
   const body = { title };
   if (due_on) body.due_on = due_on;
   if (assignee_ids && assignee_ids.length) body.assignee_ids = assignee_ids;
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${cardId}/steps.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/card_tables/cards/${cardId}/steps.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -487,7 +554,7 @@ async function getRecordingsSince(token, account, type, sinceIso, maxPages = 30)
 async function createMessage(token, account, projectId, boardId, { subject, content, subscriptions } = {}) {
   const body = { subject, content, status: 'active' };
   if (Array.isArray(subscriptions)) body.subscriptions = subscriptions;
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/message_boards/${boardId}/messages.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/message_boards/${boardId}/messages.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -500,7 +567,7 @@ async function createMessage(token, account, projectId, boardId, { subject, cont
 // mentions work and notify the mentioned people (closest thing to a Ping the
 // public API offers; real Pings/DMs are not exposed by Basecamp).
 async function createCampfireLine(token, account, projectId, chatId, content) {
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/chats/${chatId}/lines.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/chats/${chatId}/lines.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify({ content }),
@@ -511,7 +578,7 @@ async function createCampfireLine(token, account, projectId, chatId, content) {
 
 // Comment under any recording (e.g. a message). Notifies the thread's subscribers.
 async function createComment(token, account, projectId, recordingId, content) {
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/recordings/${recordingId}/comments.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/recordings/${recordingId}/comments.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify({ content }),
@@ -528,7 +595,7 @@ async function setSubscription(token, account, projectId, recordingId, { subscri
   if (Array.isArray(subscriptions) && subscriptions.length) body.subscriptions = subscriptions;
   if (Array.isArray(unsubscriptions) && unsubscriptions.length) body.unsubscriptions = unsubscriptions;
   if (!Object.keys(body).length) return true;
-  const r = await fetch(`${API_BASE}/${account}/buckets/${projectId}/recordings/${recordingId}/subscription.json`, {
+  const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/recordings/${recordingId}/subscription.json`, {
     method: 'PUT',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -541,7 +608,7 @@ async function setSubscription(token, account, projectId, recordingId, { subscri
 // Accept */* — the shared headers() default of application/json would make the file
 // server return a JSON error instead of the bytes.
 async function downloadFile(token, url) {
-  const r = await fetch(url, { headers: headers({ Authorization: `Bearer ${token}`, Accept: '*/*' }), redirect: 'follow' });
+  const r = await bcFetch(url, { headers: headers({ Authorization: `Bearer ${token}`, Accept: '*/*' }), redirect: 'follow' }, { timeoutMs: 300_000 });
   if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`download ${r.status} ${r.headers.get('content-type') || ''} ${b.slice(0, 80)}`.trim()); }
   const buffer = Buffer.from(await r.arrayBuffer());
   return { buffer, contentType: r.headers.get('content-type') || '' };
@@ -550,16 +617,19 @@ async function downloadFile(token, url) {
 // Upload raw bytes to get a fresh attachable_sgid. POST /attachments.json?name=<file>
 // (rich-text attachments can't be reused across cards, so each must be re-uploaded).
 async function uploadAttachment(token, account, { name, contentType, buffer }) {
-  const r = await fetch(`${API_BASE}/${account}/attachments.json?name=${encodeURIComponent(name || 'file')}`, {
+  const r = await bcFetch(`${API_BASE}/${account}/attachments.json?name=${encodeURIComponent(name || 'file')}`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': contentType || 'application/octet-stream', 'Content-Length': String(buffer.length) }),
     body: buffer,
-  });
+  }, { timeoutMs: 300_000 });
   if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp upload failed (${r.status}): ${b.slice(0, 150)}`); }
   return (await r.json()).attachable_sgid;
 }
 
 module.exports = {
+  bcFetch,
+  background,
+  getBcStats,
   AUTH_BASE,
   API_BASE,
   normalizeAppUrl,

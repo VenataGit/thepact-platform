@@ -18,8 +18,11 @@ const server = http.createServer(app);
       env: { ...process.env }
     }).toString();
     if (!out.includes('Nothing to do')) console.log('[startup] migrations:', out.trim());
+    setTimeout(() => require('./services/system-watch').migrationSignal(true).catch(() => {}), 5000);
   } catch (err) {
     console.error('[startup] migration warning:', err.stderr?.toString() || err.message);
+    const detail = err.stderr?.toString() || err.stdout?.toString() || err.message;
+    setTimeout(() => require('./services/system-watch').migrationSignal(false, detail).catch(() => {}), 5000);
   }
 })();
 
@@ -58,6 +61,7 @@ const { initCrmReminders } = require('./services/crm-reminders');
 const { initContentAgent } = require('./services/content-agent/trigger');
 const { initPcWatch } = require('./services/pc-watch');
 const { initOvertimeDigest } = require('./services/overtime-digest');
+const { initSystemWatch } = require('./services/system-watch');
 setTimeout(() => {
   initCheckInScheduler();
   initEmail();
@@ -79,6 +83,7 @@ setTimeout(() => {
   initContentAgent();
   initPcWatch();
   initOvertimeDigest();
+  initSystemWatch();
 }, 2000);
 
 // Auto-cleanup: permanently delete cards that have been in trash for 30+ days

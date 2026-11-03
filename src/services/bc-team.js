@@ -102,7 +102,7 @@ async function initBcTeamSync() {
     const [h, m] = time.split(':');
     if (task) { task.stop(); task = null; }
     task = cron.schedule(`${parseInt(m, 10)} ${parseInt(h, 10)} * * *`, () => {
-      refreshTeam().catch((err) => console.error('[bc-team] дневен sync се провали:', err.message));
+      require('./basecamp').background(() => refreshTeam()).catch((err) => console.error('[bc-team] дневен sync се провали:', err.message));
     }, { timezone: 'Europe/Sofia' });
     console.log(`  BC team sync: active (всеки ден ${time} BG)`);
   } catch (err) {

@@ -57,6 +57,8 @@ function planToText(html) {
     }
   );
   return kpPlan.htmlToText(withNames)
+    // маркерите за форматиране (**, ~~, ^^ — от 28.08.2026) са за КП разбиването, не за архива
+    .replace(/(\*\*|~~|\^\^)([\s\S]*?)\1/g, '$2')
     .split('\n').map((l) => l.replace(/[ \t]+$/, '')).join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();

@@ -143,4 +143,4 @@ function initPcWatch() {
   console.log(`  PC watch: active (сигнал след ${STALE_MIN} мин тишина)`);
 }
 
-module.exports = { initPcWatch, recordHeartbeat, check };
+module.exports = { initPcWatch, recordHeartbeat, check, notify };

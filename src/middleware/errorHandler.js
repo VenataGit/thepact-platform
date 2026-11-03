@@ -1,5 +1,8 @@
 const errors = [];
 const MAX_ERRORS = 200;
+// Освен в паметта, грешките отиват и в базата (app_errors) — system-watch закача sink-а при старт.
+let sink = null;
+function setErrorSink(fn) { sink = fn; }
 
 function trackError(source, error, extra = {}) {
   const entry = {
@@ -12,6 +15,7 @@ function trackError(source, error, extra = {}) {
   errors.unshift(entry);
   if (errors.length > MAX_ERRORS) errors.length = MAX_ERRORS;
   console.error(`[${entry.source}] ${entry.message}`);
+  if (sink) { try { sink(entry.source, entry.message, entry.stack); } catch { /* никога не чупи */ } }
 }
 
 function getErrors(limit = 50) { return errors.slice(0, limit); }
@@ -22,4 +26,4 @@ function errorHandler(err, req, res, next) {
   res.status(500).json({ error: 'Internal server error' });
 }
 
-module.exports = { trackError, getErrors, getErrorCount, errorHandler };
+module.exports = { trackError, getErrors, getErrorCount, errorHandler, setErrorSink };

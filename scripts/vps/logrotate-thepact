@@ -1,0 +1,22 @@
+# /etc/logrotate.d/thepact (04.11.2026, стабилност) — копие в git, живее на VPS-а.
+# Преди: deploy логът беше 62 MB / 1 млн реда, PM2 логовете растяха без край.
+/var/log/thepact-deploy.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+
+/root/.pm2/logs/*.log {
+    daily
+    maxsize 50M
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

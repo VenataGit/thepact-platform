@@ -59,6 +59,9 @@ const INTERNAL_ERR = /relation |column |syntax error|violates|duplicate key|null
 app.use((req, res, next) => {
   const json = res.json.bind(res);
   res.json = (body) => {
+    if (res.statusCode >= 500 && res.statusCode !== 503) {
+      try { require('./services/system-watch').recordError('http' + res.statusCode, `${req.method} ${req.path}: ${body && body.error}`); } catch { /* */ }
+    }
     if (res.statusCode >= 500 && body && typeof body.error === 'string' && INTERNAL_ERR.test(body.error)) {
       console.error('[5xx]', req.method, req.originalUrl, body.error);
       body = { ...body, error: 'Вътрешна грешка на сървъра' };
@@ -109,7 +112,8 @@ app.get('/api/health', async (req, res) => {
     status: healthy ? 'ok' : 'degraded',
     checks: { server: true, database: dbOk },
     uptime: process.uptime(),
-    wsClients: getConnectedCount()
+    wsClients: getConnectedCount(),
+    eventLoopP99Ms: require('./services/system-watch').status().eventLoopP99Ms,
   });
 });
 

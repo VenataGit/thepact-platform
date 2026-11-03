@@ -29,10 +29,11 @@ function keyOrAdmin(req, res, next) {
 // Снимката се пази 15 минути, за да са HTML-ът и JSON-ът един и същи момент.
 router.get('/basecamp', keyOrAdmin, async (req, res) => {
   try {
-    const snap = await backup.getSnapshot({
+    // фонова работа — отстъпва на заявките от хората (bc.background)
+    const snap = await require('../services/basecamp').background(() => backup.getSnapshot({
       comments: req.query.comments !== '0',
       fresh: req.query.fresh === '1',
-    });
+    }));
     if (req.query.format === 'json') {
       res.set('Cache-Control', 'no-store');
       return res.json(snap);

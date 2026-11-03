@@ -25,7 +25,8 @@ let runCounter = 0; // campfire sync — само на всеки 4-ти цик�
 function initPmAgent() {
   try {
     cron.schedule('*/15 * * * *', () => {
-      runSync({ trigger: 'cron' }).catch((err) => console.error('[pm-agent] sync error:', err.message));
+      // фонова работа — заявките ѝ отстъпват на тези от хората (bc.background, 04.11.2026)
+      bc.background(() => runSync({ trigger: 'cron' })).catch((err) => console.error('[pm-agent] sync error:', err.message));
     }, { timezone: 'Europe/Sofia' });
     console.log('  PM Agent: snapshot sync active (every 15 min)');
   } catch (err) {

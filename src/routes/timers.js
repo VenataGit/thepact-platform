@@ -9,6 +9,7 @@ router.get('/boards', requireAuth, async (req, res) => {
     const rows = await query('SELECT board_id, started_at, is_paused FROM board_overdue_timers');
     res.json(rows);
   } catch (err) {
+    console.error('[timers]', err.message); // досега грешката не се виждаше никъде
     res.status(500).json({ error: err.message });
   }
 });
@@ -47,6 +48,7 @@ router.post('/boards/sync', requireAuth, async (req, res) => {
     const rows = await query('SELECT board_id, started_at, is_paused FROM board_overdue_timers');
     res.json(rows);
   } catch (err) {
+    console.error('[timers]', err.message); // досега грешката не се виждаше никъде
     res.status(500).json({ error: err.message });
   }
 });
