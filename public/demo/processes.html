@@ -4,213 +4,469 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex">
-<title>Демо: Процеси — стъпки като блокове, които се редактират на място</title>
+<title>Демо: Процеси — 3 варианта</title>
 <style>
   :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
-          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; }
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; }
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; }
   button, input, select, textarea { font:inherit; }
-  header { padding:12px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:14px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:20; }
+  a { color:inherit; }
+  header { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:30; }
   header h1 { font-size:15px; }
   .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
-  .explain { max-width:1240px; margin:14px auto 0; padding:12px 16px; background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; line-height:1.55; color:var(--sec); }
+  .seg { display:flex; gap:4px; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:3px; }
+  .seg button { border:0; background:none; color:var(--sec); padding:6px 12px; border-radius:7px; cursor:pointer; font-weight:600; }
+  .seg button.on { background:var(--green); color:#fff; }
+  .seg.small button { padding:4px 10px; font-weight:500; font-size:12.5px; }
+  .lbl { font-size:12px; color:var(--dim); }
+  .explain { max-width:1840px; margin:12px auto 0; padding:10px 16px; background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; line-height:1.55; color:var(--sec); }
   .explain b { color:var(--text); }
-  .wrap { max-width:1240px; margin:14px auto 40px; display:grid; grid-template-columns:250px 1fr; gap:14px; }
-  nav { background:var(--panel); border-radius:15px; padding:14px; align-self:start; position:sticky; top:64px; }
-  nav h4 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:12px 6px 6px; }
-  nav h4:first-child { margin-top:0; }
-  nav a { display:block; padding:7px 10px; border-radius:8px; color:var(--text); text-decoration:none; cursor:pointer; }
-  nav a:hover { background:var(--hover); }
-  nav a.on { background:var(--green); color:#fff; font-weight:600; }
-  .page { background:var(--panel); border-radius:15px; padding:22px 25px; min-width:0; }
-  .top { display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; }
-  .top h2 { font-size:22px; flex:1; min-width:260px; }
-  .ver { font-size:12px; color:var(--dim); margin-top:4px; }
+  .wrap { max-width:1840px; margin:12px auto 40px; padding:0 20px; display:grid; gap:14px; }
+  .wrap.v-a { grid-template-columns:300px 1fr; }
+  .wrap.v-b { grid-template-columns:1fr; }
+  .wrap.v-c { grid-template-columns:290px 1fr; }
+  .panel { background:var(--panel); border-radius:15px; padding:20px 24px; min-width:0; }
   .btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); color:var(--text); border-radius:8px; padding:7px 14px; cursor:pointer; }
   .btn:hover { background:rgba(255,255,255,.12); }
   .btn.pri { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
   .btn.sm { padding:4px 9px; font-size:12.5px; }
   .btn.del { color:#ff9c95; }
-  .meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin:16px 0; }
+  .btn:disabled { opacity:.35; cursor:default; }
+
+  /* ---------- меню (A и C) ---------- */
+  .side { background:var(--panel); border-radius:15px; padding:12px; align-self:start; position:sticky; top:62px; max-height:calc(100vh - 80px); overflow:auto; }
+  .search { width:100%; background:#0d1518; border:1px solid var(--border); color:var(--text); border-radius:9px; padding:8px 11px; margin-bottom:10px; }
+  .dept { margin-bottom:4px; }
+  .dhead { display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:9px; cursor:pointer; font-weight:700; user-select:none; }
+  .dhead:hover { background:var(--hover); }
+  .dhead .ico { width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .dhead .cnt { margin-left:auto; font-size:11.5px; color:var(--dim); font-weight:600; background:rgba(255,255,255,.06); padding:1px 7px; border-radius:9px; }
+  .dhead .car { color:var(--dim); width:12px; }
+  .dlist { padding:2px 0 6px 20px; border-left:2px solid rgba(255,255,255,.07); margin-left:22px; }
+  .dlist a { display:block; padding:6px 10px; border-radius:7px; cursor:pointer; text-decoration:none; color:#cfd8dc; font-size:13.5px; }
+  .dlist a:hover { background:var(--hover); }
+  .dlist a.on { background:var(--green); color:#fff; font-weight:600; }
+  .side .sep { height:1px; background:rgba(255,255,255,.07); margin:10px 4px; }
+  .side .solo { display:flex; gap:8px; align-items:center; padding:9px 10px; border-radius:9px; cursor:pointer; font-weight:700; }
+  .side .solo:hover { background:var(--hover); } .side .solo.on { background:var(--green); color:#fff; }
+
+  /* ---------- общи за процес ---------- */
+  .top { display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+  .top h2 { font-size:24px; }
+  .crumb { font-size:12px; color:var(--dim); margin-bottom:4px; }
+  .ver { font-size:12px; color:var(--dim); margin-top:4px; }
+  .meta { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:14px 0; }
   .meta div { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:12px; padding:10px 14px; }
   .meta small { display:block; font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
-  .flow { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:6px 0 20px; }
-  .flow .chip { padding:6px 10px; border-radius:8px; font-size:12.5px; border:1px solid; cursor:pointer; }
-  .flow .arr { color:var(--dim); }
-  .step { display:grid; grid-template-columns:38px 1fr; gap:12px; margin-bottom:10px; }
-  .num { width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; color:#111; }
-  .block { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-left:4px solid; border-radius:12px; padding:12px 14px; }
-  .block.flash { box-shadow:0 0 0 2px var(--amber); }
-  .bhead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .btitle { font-size:15px; font-weight:600; flex:1; min-width:200px; }
   .who { font-size:12px; padding:3px 9px; border-radius:10px; font-weight:600; color:#111; white-space:nowrap; }
-  .more { margin-top:8px; color:var(--sec); cursor:pointer; font-size:13px; user-select:none; }
-  .more:hover { color:var(--text); }
-  .details { margin-top:8px; padding:10px 12px; background:rgba(0,0,0,.2); border-radius:8px; line-height:1.6; color:#cfd8dc; white-space:pre-wrap; }
-  .checks { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; flex:none; }
+  .details { padding:10px 12px; background:rgba(0,0,0,.2); border-radius:8px; line-height:1.6; color:#cfd8dc; white-space:pre-wrap; }
+  .checks { display:flex; flex-direction:column; gap:4px; }
   .checks label { display:flex; gap:8px; align-items:flex-start; cursor:pointer; color:#cfd8dc; }
   .checks input { margin-top:3px; accent-color:var(--green); }
-  .warn { margin-top:8px; font-size:13px; color:#ffb4ae; }
+  .warn { font-size:13px; color:#ffb4ae; }
+  .hist { margin-top:22px; font-size:12.5px; color:var(--dim); }
+  .hist li { margin-left:18px; margin-top:3px; }
+  .flash { box-shadow:0 0 0 2px var(--amber) !important; }
+
+  /* A — блокове */
+  .flow { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:4px 0 18px; }
+  .flow .chip { padding:6px 10px; border-radius:8px; font-size:12.5px; border:1px solid; cursor:pointer; }
+  .flow .arr { color:var(--dim); }
+  .step { display:grid; grid-template-columns:40px 1fr; gap:12px; margin-bottom:10px; }
+  .num { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; color:#111; }
+  .block { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-left:4px solid; border-radius:12px; padding:12px 14px; }
+  .block > * + * { margin-top:8px; }
+  .bhead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .btitle { font-size:15.5px; font-weight:600; flex:1; min-width:200px; }
+  .more { color:var(--sec); cursor:pointer; font-size:13px; user-select:none; }
+  .more:hover { color:var(--text); }
+
+  /* B — табло по отдели + ленти */
+  .dtabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .dtab { display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:11px; border:1px solid var(--border); background:var(--card); cursor:pointer; font-weight:700; }
+  .dtab.on { border-color:var(--green); background:rgba(70,163,116,.15); }
+  .dtab .cnt { font-size:11.5px; color:var(--dim); }
+  .pcards { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; margin-bottom:18px; }
+  .pcard { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px 14px; cursor:pointer; }
+  .pcard:hover { background:rgba(255,255,255,.07); }
+  .pcard.on { border-color:var(--green); box-shadow:0 0 0 1px var(--green) inset; }
+  .pcard b { display:block; margin-bottom:6px; }
+  .pcard .dots { display:flex; gap:4px; flex-wrap:wrap; }
+  .pcard small { color:var(--dim); font-size:12px; }
+  .lanes { overflow-x:auto; padding-bottom:6px; }
+  .lanegrid { display:grid; gap:6px 8px; align-items:stretch; }
+  .lanehead { font-weight:700; font-size:13px; display:flex; align-items:center; gap:8px; padding:10px 8px; border-radius:9px; background:rgba(255,255,255,.04); position:sticky; left:0; z-index:2; }
+  .lanecell { border-radius:9px; background:rgba(255,255,255,.015); border:1px dashed rgba(255,255,255,.05); min-height:70px; }
+  .lcard { border-radius:10px; padding:9px 11px; cursor:pointer; color:#111; font-size:13px; font-weight:600; line-height:1.35; height:100%; display:flex; flex-direction:column; gap:6px; }
+  .lcard .n { font-size:11px; font-weight:800; opacity:.7; }
+  .lcard .ic { font-size:11px; font-weight:600; opacity:.75; margin-top:auto; }
+  .lcard.sel { outline:3px solid #fff; }
+  .colhead { font-size:11px; color:var(--dim); text-align:center; padding-bottom:2px; }
+  .stepdetail { margin-top:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-left:4px solid; border-radius:12px; padding:14px 16px; }
+  .stepdetail > * + * { margin-top:10px; }
+
+  /* C — чеклист + панел */
+  .ccols { display:grid; grid-template-columns:minmax(420px,1fr) minmax(420px,1fr); gap:16px; margin-top:6px; }
+  .srow { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; cursor:pointer; border:1px solid transparent; }
+  .srow:hover { background:var(--hover); }
+  .srow.on { background:rgba(70,163,116,.13); border-color:rgba(70,163,116,.45); }
+  .srow input { accent-color:var(--green); width:17px; height:17px; flex:none; }
+  .srow .t { flex:1; font-weight:500; }
+  .srow .n { width:22px; color:var(--dim); font-weight:700; text-align:right; flex:none; }
+  .srow .tag { font-size:11px; color:var(--dim); }
+  .side2 { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-top:4px solid; border-radius:12px; padding:16px 18px; position:sticky; top:62px; align-self:start; }
+  .side2 > * + * { margin-top:12px; }
+  .side2 h3 { font-size:18px; }
+  .progress { height:6px; background:rgba(255,255,255,.07); border-radius:4px; overflow:hidden; margin:6px 0 10px; }
+  .progress i { display:block; height:100%; background:var(--green); }
+
+  /* редакция */
   .edit input[type=text], .edit textarea, .edit select { width:100%; background:#0d1518; border:1px solid var(--border); color:var(--text); border-radius:8px; padding:7px 10px; }
-  .edit textarea { min-height:70px; resize:vertical; line-height:1.5; }
-  .edit .row { display:grid; grid-template-columns:1fr 190px; gap:8px; }
+  .edit textarea { min-height:64px; resize:vertical; line-height:1.5; }
+  .edit .row { display:grid; grid-template-columns:1fr 210px; gap:8px; }
+  .edit .row3 { display:grid; grid-template-columns:1fr 1fr 210px; gap:8px; }
   .edit label.f { display:block; font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.05em; margin:8px 0 3px; }
   .edit .tools { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
   .citem { display:flex; gap:6px; margin-bottom:4px; }
-  .add { display:block; width:100%; margin:4px 0 12px 50px; width:calc(100% - 50px); border:1px dashed rgba(255,255,255,.18); background:none; color:var(--sec); border-radius:10px; padding:6px; cursor:pointer; }
+  .add { display:block; margin:4px 0 12px 52px; width:calc(100% - 52px); border:1px dashed rgba(255,255,255,.18); background:none; color:var(--sec); border-radius:10px; padding:6px; cursor:pointer; }
   .add:hover { color:var(--text); border-color:var(--green); }
-  .bar { position:sticky; bottom:0; margin:16px -25px -22px; padding:12px 25px; background:var(--card); border-top:1px solid var(--border); border-radius:0 0 15px 15px; display:flex; gap:8px; align-items:center; }
-  .hist { margin-top:22px; font-size:12.5px; color:var(--dim); }
-  .hist li { margin-left:18px; margin-top:3px; }
-  .roles { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px; margin-top:14px; }
-  .role { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-top:4px solid; border-radius:12px; padding:12px 14px; }
-  .role h3 { font-size:15px; margin-bottom:8px; }
-  .role li { margin:5px 0 0 18px; line-height:1.45; }
-  .role a { color:var(--text); text-decoration:none; border-bottom:1px dashed var(--dim); cursor:pointer; }
-  .role .p { color:var(--dim); font-size:12px; }
+  .bar { position:sticky; bottom:0; margin:16px -24px -20px; padding:12px 24px; background:var(--card); border-top:1px solid var(--border); border-radius:0 0 15px 15px; display:flex; gap:8px; align-items:center; }
+
+  /* кой за какво */
+  .roles { display:grid; grid-template-columns:repeat(auto-fill,minmax(380px,1fr)); gap:12px; margin-top:14px; }
+  .role { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-top:4px solid; border-radius:12px; padding:12px 16px; }
+  .role h3 { font-size:15px; margin-bottom:4px; display:flex; gap:8px; align-items:center; }
+  .role h3 small { margin-left:auto; color:var(--dim); font-weight:500; font-size:12px; }
+  .role li { margin:4px 0 0 18px; line-height:1.45; }
+  .role .lnk { cursor:pointer; border-bottom:1px dashed var(--dim); }
+  .p { color:var(--dim); font-size:12px; }
   .empty { color:var(--dim); font-style:italic; }
-  @media (max-width:860px) { .wrap { grid-template-columns:1fr; } nav { position:static; } .edit .row { grid-template-columns:1fr; } }
+  table.mx { border-collapse:separate; border-spacing:0; margin-top:14px; width:100%; }
+  .mx th, .mx td { padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.06); text-align:center; font-size:13px; }
+  .mx th { color:var(--sec); font-weight:600; font-size:12px; position:sticky; top:62px; background:#16232a; }
+  .mx td:first-child, .mx th:first-child { text-align:left; }
+  .mx td.c { cursor:pointer; font-weight:700; }
+  .mx td.c:hover { outline:1px solid var(--green); }
+  .mx tr.dept td { background:rgba(255,255,255,.03); color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.06em; font-weight:700; }
+  .note { margin-top:10px; padding:10px 14px; border-radius:10px; background:rgba(70,163,116,.1); border:1px solid rgba(70,163,116,.3); color:#cfe9da; }
 </style>
 </head>
 <body>
 <header>
   <h1>Процеси</h1>
   <span class="badge">ДЕМО — промените се пазят само в този браузър</span>
-  <button class="btn sm" style="margin-left:auto" onclick="resetDemo()">↺ Върни демото в начално състояние</button>
+  <span class="lbl" style="margin-left:18px">Вариант:</span>
+  <div class="seg" id="vtabs"></div>
+  <span class="lbl" style="margin-left:auto">Гледам като:</span>
+  <div class="seg small" id="who"></div>
+  <button class="btn sm" onclick="resetDemo()">↺ Начално състояние</button>
 </header>
-<div class="explain">
-  <b>Как се чете:</b> всяка стъпка е <b>един блок с един ред</b> и цветен етикет кой я прави. Детайлите са скрити под <b>„ℹ️ Повече“</b> и се отварят само когато са нужни. Лентата горе е картата на процеса, като кликнеш стъпка, отиваш на нея.<br>
-  <b>Как се редактира:</b> „✏️ Редактирай“ → пишеш направо в блока, сменяш кой я прави, добавяш стъпка с „＋“, местиш със ↑↓, триеш с 🗑 → „Запази“. Всяко запазване става нова версия с дата и автор. Без Claude, без код.<br>
-  <b>„Кой за какво отговаря“</b> (долу в менюто) се сглобява сам от стъпките: смениш ли собственика на стъпка, тя се мести при новия човек.
-</div>
-<div class="wrap">
-  <nav id="nav"></nav>
-  <main class="page" id="page"></main>
-</div>
+<div class="explain" id="explain"></div>
+<div class="wrap" id="wrap"></div>
 <script>
+// ===================== ДАННИ =====================
 const ROLES = {
-  cc:   { name: 'Контент криейтър', color: '#58a6ff' },
-  lead: { name: 'Creative Lead',    color: '#a371f7' },
-  acc:  { name: 'Акаунт',           color: '#ff7b72' },
-  vid:  { name: 'Видеограф',        color: '#d2a8ff' },
-  ed:   { name: 'Монтажист',        color: '#3fb950' },
-  all:  { name: 'Всички',           color: '#e3b341' },
+  sales: { name: 'Продажби',        color: '#e3b341' },
+  acc:   { name: 'Акаунт',          color: '#ff7b72' },
+  cc:    { name: 'Контент криейтър', color: '#58a6ff' },
+  lead:  { name: 'Creative Lead',   color: '#a371f7' },
+  vid:   { name: 'Видеограф',       color: '#d2a8ff' },
+  ed:    { name: 'Монтажист',       color: '#3fb950' },
+  led:   { name: 'Лийд монтажист',  color: '#7ee2a8' },
+  all:   { name: 'Всички',          color: '#c9d1d9' },
 };
+const DEPTS = [
+  { key: 'common', name: 'Общи правила',      ico: '🧭', color: '#c9d1d9' },
+  { key: 'sales',  name: 'Продажби',          ico: '🤝', color: '#e3b341' },
+  { key: 'cc',     name: 'Контент криейшън',  ico: '💡', color: '#58a6ff' },
+  { key: 'prod',   name: 'Заснемане',         ico: '🎬', color: '#d2a8ff' },
+  { key: 'post',   name: 'Монтаж',            ico: '✂️', color: '#3fb950' },
+  { key: 'acc',    name: 'Акаунт мениджмънт', ico: '📋', color: '#ff7b72' },
+];
 const S = (title, who, more = '', checks = [], warn = '') => ({ title, who, more, checks, warn });
+const P = (id, dept, name, owner, when, done, steps) => ({ id, dept, name, owner, when, done, steps });
 const SEED = [
-  { id: 'kp', dept: 'Контент криейшън', name: 'Контент план — 10 идеи', owner: 'cc',
-    when: 'КП картата е в Pre-Production → Измисляне', done: '10 разписани, снимаеми идеи в КП картата → „Към Клиент“',
-    steps: [
-      S('Прочети брифа', 'cc', 'Клиентската карта + резултатите от миналия КП.\nОтговори си: кой е брандът, за кого говорим, каква е целта този месец, кои са 2–3 послания.\nОтнема 10–15 минути и спестява „случайни“ идеи после.', ['Прочетох клиентската карта', 'Видях кое е работило миналия път']),
-      S('Реши микса', 'cc', 'Преди идеите реши рамката за 10-те видеа. Ориентир:\n- 3 полезни / how-to\n- 2 скеча\n- 2 интервюта\n- 2 POV / тренд / игра\n- 1 brand story\nПропорциите се сменят по клиент, логиката остава.'),
-      S('Brainstorm — по 1 изречение', 'cc', '15–20 сурови идеи, по категории. Всяка е едно изречение: какво е видеото и какъв е механизмът. Още без сценарий.'),
-      S('Избери ТОП 10 през RRS', 'cc', 'Relevant — актуално или вечно човешко?\nRelatable — човек познава ли се?\nShareable — ще го прати ли на някого?\nНе минава → преработваш или отпада.'),
-      S('Разпиши всяка идея', 'cc', 'По процеса „Разписване на една идея“.', [], 'Пояснения и въпроси → в коментар, не в описанието (клиентът го чете).'),
-      S('Сложи предварителни дати', 'cc', 'Разнообразно: не всички информативни подред. Датите се показват още на срещата, за да не се разместват после.'),
-      S('Провери плана', 'cc', '', ['10 концепции, всяка ясно разписана', 'Има микс: полезно · забавно · интеракция · брандово', 'Посланията от брифа са покрити', 'Няма две видеа, които „правят едно и също“', 'Хората, местата и проповете са реални']),
-      S('Премести КП картата в „Към Клиент“ и тагни акаунта', 'cc'),
-    ] },
-  { id: 'idea', dept: 'Контент криейшън', name: 'Разписване на една идея', owner: 'cc',
-    when: 'Идеята е избрана в ТОП 10', done: 'Видеографът и монтажистът могат да я изпълнят, без да питат',
-    steps: [
-      S('Заглавие — кратко, без символи', 'cc', 'Пример: „Видео 4 - Когато колегата е болен“.\nОт заглавието става името на задачата, папката и файла, затова без символи и с непрекъснато оцветяване.'),
-      S('Логистика най-горе', 'cc', '/Участници във видеото - 2 (служител, шеф)/\n/Локация - офис/\n/Необходими продукти-ресурси - термометър, одеяло/'),
-      S('Hook — първите 2–3 секунди', 'cc', 'Шокиращо твърдение, обещание за полза, конфликт, въпрос, POV или игра. Трябва да има причина човек да спре.'),
-      S('Сценарий: реплики с „-“, кадри с „/“', 'cc', '/Шефът влиза и вижда служителя увит в одеяло./\n- Пак ли си болен?\n/Служителят кашля театрално./\n\nНов ред в Basecamp без bullet list: Shift + Enter.'),
-      S('CTA — само ако има смисъл', 'cc', 'В около 30% от видеата. Hook 1 / Hook 2 или CTA 1 / CTA 2 се пишат само ако има няколко версии (органик и реклама).'),
-      S('Референция най-долу', 'cc', 'Референция - (линк)'),
-      S('Провери преди „готово“', 'cc', '', ['Обяснява се в 1–2 изречения', 'Hook-ът обещава точно това, което видеото дава', 'Ясно е какво се ВИЖДА, не само какво се казва', 'Имена, числа, дати — проверени', 'Без следи от AI: дълги тирета, излишни кавички, bold']),
-    ] },
-  { id: 'present', dept: 'Контент криейшън', name: 'Представяне на КП пред клиента', owner: 'cc',
-    when: 'КП картата е в „Към Клиент“', done: 'Записките от клиента са в КП картата същия ден + картата е в „В продукция“',
-    steps: [
-      S('Насрочи среща с клиента', 'acc', 'Включи предварителните дати на видеата.'),
-      S('Представи идеите', 'cc', 'За всяко видео: идеята в едно изречение + защо ще работи.', [], 'Онлайн срещата се записва от начало до край. Без запис = недовършена работа.'),
-      S('Води записки', 'acc'),
-      S('Пусни записките в КП картата — същия ден', 'acc'),
-      S('Нанеси корекциите в самите идеи', 'cc', 'Чрез edit на картата, не като коментари. Обикновено 2–3 рунда.'),
-      S('Премести КП картата в „В продукция“', 'cc'),
-    ] },
-  { id: 'props', dept: 'Контент криейшън', name: 'Пропове и бюджет €30', owner: 'cc',
-    when: 'Идеите са разписани и искат реквизит, принт или графика', done: 'Всичко е при снимачния екип преди снимачния ден',
-    steps: [
-      S('Направи един списък', 'cc', 'предмет · за кое видео · цена · линк/магазин'),
-      S('Подай една заявка до €30', 'cc', '€30 е таван, не цел. Една заявка за целия КП, а не по €5 няколко пъти.'),
-      S('Купи и пази касовата бележка', 'cc', 'Сумата се възстановява срещу бележка/фактура.'),
-      S('Подготви принтове, табели, графики', 'cc'),
-      S('Поискай навреме нещата от клиента', 'cc', 'И следи да дойдат.'),
-      S('Предай всичко на видеографа', 'vid', '', [], 'Видеографът не тръгва на снимки без проповете.'),
-    ] },
-  { id: 'shoot', dept: 'Заснемане', name: 'Снимачен ден', owner: 'vid',
-    when: 'Насрочен ден в Производствения календар', done: 'Файловете са на Z: СЪЩИЯ ден + коментар „Качено“ + стъпката отметната',
-    steps: [
-      S('Вечерта преди: прочети сценариите', 'vid', 'Знай кое е неприкосновено за всяко видео.', [], 'Въпросите — в задачата до 17:00 предния ден.'),
-      S('Провери техниката', 'vid', '', ['Батерии', 'Празни и проверени карти', 'Звук', 'Светлина']),
-      S('Снимай по сценария', 'vid', 'Вариации — да, ако посланието остава.', [], 'Неприкосновеното не става → снимай двата варианта и пиши в задачата веднага.'),
-      S('Качи на Z: и конвертирай в MXF', 'vid', 'Z:\\[Клиент]\\Контент план N\\Видео M\\'),
-      S('Отвори 2–3 клипа за проверка', 'vid'),
-      S('Коментар „Качено“ + бележки', 'vid', 'Кои дубли са добри и всичко, което го няма в сценария.'),
-      S('Отметни „Заснет материал“ и тагни монтажа', 'vid'),
-      S('Върни студиото в готов вид', 'vid', '', ['Софтбоксове на стойките', 'Кабели разкачени, LED изключен', 'Телепромптър покрит', 'Климатик изключен']),
-    ] },
+  P('task', 'common', 'Задача — Име + Час + Готово', 'all', 'Всеки път, когато даваш задача', 'Задачата има един човек, час и видим резултат', [
+    S('Сложи ЕДИН собственик', 'all', 'Не „Хари и Криси“. Може да има помощници, но собственикът е един.'),
+    S('Сложи час, не „ASAP“', 'all', '„До 14:00“, „до четвъртък 12:00“. ASAP значи „нямам срок“.'),
+    S('Напиши „Готово =“ с едно изречение', 'all', 'Пример: „Готово = експорт на Z: + линк в задачата + тагнат акаунтът“.'),
+    S('Видео карта: добави „Неприкосновено“', 'cc', 'Какво не се сменя без писмено ОК. Пример: „интервютата са СЛЕД филма“.'),
+  ]),
+  P('esc', 'common', 'Закъснение и ескалация', 'all', 'Видиш, че нещо няма да стане навреме', 'Коментар с таг до 2 часа — с предложение', [
+    S('Пиши в задачата до 2 часа', 'all', 'Проблем · варианти · какво предлагаш.', [], 'Лоша новина в 17:30 е най-скъпата лоша новина.'),
+    S('Тагни лийда на отдела', 'all'),
+    S('Риск към клиента → тагни акаунта', 'acc'),
+    S('Обещано за днес и не е готово в 13:00 → Венци', 'acc'),
+  ]),
+  P('aar', 'common', 'Разбор след провал', 'all', 'Видео върнато / изпуснат клиентски срок', '4-те отговора в задачата + ново правило', [
+    S('Какво трябваше да стане?', 'all'), S('Какво стана реално?', 'all'), S('Защо има разлика?', 'all'),
+    S('Какво правим различно от утре?', 'all', 'Записва се като ред в съответния процес.'),
+  ]),
+  P('client', 'sales', 'Нов клиент — от „ДА“ до онбординг', 'sales', 'Клиентът потвърди, че почваме', 'ping „Онбординг завършен“ + КП задача в Измисляне', [
+    S('Попълни клиентската карта', 'sales', 'По бланката. Секция не важи → „не важи“, не я трий.'),
+    S('Прати линк към картата на акаунта', 'sales'),
+    S('Прочети картата, питай за липсите', 'acc', 'Въпросите — към продажбите, преди клиента.'),
+    S('Създай проект в Basecamp по шаблона', 'acc', 'Покани: име на латиница + компания.'),
+    S('Онбординг среща', 'acc', '', ['Достъпи до профилите', 'Кой одобрява и какво', 'Ритъм и срокове']),
+    S('ping „Онбординг завършен“ + КП задача', 'acc'),
+  ]),
+  P('card', 'sales', 'Клиентска карта', 'sales', 'След „ДА“ / когато научиш нещо ново', 'Картата е попълнена или „не важи“ във всяка секция', [
+    S('Копирай бланката в папката на клиента', 'sales'),
+    S('Попълни секции 0–8', 'sales', 'Накратко · Обхват · Одобрения · Планиране · Заснемане · Бранд · Тон · Аудитория · Червени линии'),
+    S('Неясното → „Отворени въпроси“', 'sales'),
+    S('Всеки допълва с времето', 'all', 'Обратна връзка от клиента („не харесват X“) отива в картата, не в главата.'),
+  ]),
+  P('kp', 'cc', 'Контент план — 10 идеи', 'cc', 'КП картата е в Pre-Production → Измисляне', '10 разписани, снимаеми идеи → „Към Клиент“', [
+    S('Прочети брифа', 'cc', 'Клиентската карта + резултатите от миналия КП.\nКой е брандът, за кого, каква цел, 2–3 послания.', ['Прочетох клиентската карта', 'Видях кое е работило миналия път']),
+    S('Реши микса', 'cc', '3 how-to · 2 скеча · 2 интервюта · 2 POV/тренд · 1 brand story.\nСменя се по клиент, логиката остава.'),
+    S('Brainstorm — по 1 изречение', 'cc', '15–20 сурови идеи по категории, още без сценарий.'),
+    S('Избери ТОП 10 през RRS', 'cc', 'Relevant · Relatable · Shareable'),
+    S('Разпиши всяка идея', 'cc', 'По процеса „Разписване на една идея“.', [], 'Пояснения и въпроси → в коментар, не в описанието.'),
+    S('Сложи предварителни дати', 'cc', 'Разнообразно — не всички информативни подред.'),
+    S('Провери плана', 'lead', '', ['10 концепции, всяка ясно разписана', 'Има микс', 'Посланията от брифа са покрити', 'Няма две еднакви', 'Хората, местата и проповете са реални']),
+    S('Картата → „Към Клиент“ + тагни акаунта', 'cc'),
+  ]),
+  P('idea', 'cc', 'Разписване на една идея', 'cc', 'Идеята е в ТОП 10', 'Снимачният екип я изпълнява, без да пита', [
+    S('Заглавие — кратко, без символи', 'cc', 'От заглавието става името на задачата, папката и файла.'),
+    S('Логистика най-горе', 'cc', '/Участници - 2/\n/Локация - офис/\n/Необходими продукти-ресурси - .../'),
+    S('Hook — първите 2–3 секунди', 'cc'),
+    S('Реплики с „-“, кадри с „/“', 'cc', '/Шефът влиза и вижда служителя в одеяло./\n- Пак ли си болен?'),
+    S('CTA — само ако има смисъл', 'cc', 'В около 30% от видеата.'),
+    S('Референция най-долу', 'cc'),
+    S('Провери преди „готово“', 'cc', '', ['Обяснява се в 1–2 изречения', 'Hook-ът обещава точно това, което видеото дава', 'Имена, числа, дати — проверени', 'Без следи от AI']),
+  ]),
+  P('present', 'cc', 'Представяне на КП пред клиента', 'cc', 'КП картата е в „Към Клиент“', 'Записките са в картата същия ден + „В продукция“', [
+    S('Насрочи среща с клиента', 'acc', 'С предварителните дати.'),
+    S('Представи идеите', 'cc', 'Идеята в едно изречение + защо ще работи.', [], 'Онлайн срещата се записва от начало до край.'),
+    S('Води записки', 'acc'),
+    S('Записките в КП картата — същия ден', 'acc'),
+    S('Нанеси корекциите в самите идеи', 'cc'),
+    S('Картата → „В продукция“', 'cc'),
+  ]),
+  P('props', 'cc', 'Пропове и бюджет €30', 'cc', 'Идеите искат реквизит или принт', 'Всичко е при снимачния екип преди снимките', [
+    S('Един списък: предмет · видео · цена · линк', 'cc'),
+    S('Една заявка до €30', 'cc', '€30 е таван, не цел.'),
+    S('Купи и пази бележката', 'cc'),
+    S('Предай на видеографа', 'vid', '', [], 'Видеографът не тръгва без проповете.'),
+  ]),
+  P('book', 'prod', 'Насрочване на снимачен ден', 'acc', 'Карта „насрочване на снимки“', 'Събитие в календара + съобщение + тагнат видеограф', [
+    S('Групирай видеата по място и хора', 'acc'),
+    S('Уговори ден с клиента и участниците', 'acc', 'Преди „Заснет материал“ (−11 р.д.).'),
+    S('Събитие в Производствения календар', 'acc'),
+    S('Съобщение в „Насрочване на снимки“', 'acc'),
+    S('Потвърди проповете', 'cc'),
+  ]),
+  P('shoot', 'prod', 'Снимачен ден', 'vid', 'Насрочен ден в календара', 'Файловете на Z: СЪЩИЯ ден + „Качено“ + отметка', [
+    S('Вечерта преди: прочети сценариите', 'vid', 'Знай кое е неприкосновено.', [], 'Въпросите — в задачата до 17:00 предния ден.'),
+    S('Провери техниката', 'vid', '', ['Батерии', 'Празни карти', 'Звук', 'Светлина']),
+    S('Снимай по сценария', 'vid', 'Вариации — да, ако посланието остава.', [], 'Неприкосновеното не става → снимай двата варианта и пиши веднага.'),
+    S('Качи на Z: и конвертирай в MXF', 'vid', 'Z:\\[Клиент]\\Контент план N\\Видео M\\'),
+    S('Коментар „Качено“ + бележки', 'vid'),
+    S('Отметни „Заснет материал“, тагни монтажа', 'vid'),
+    S('Върни студиото в готов вид', 'vid', '', ['Софтбоксове на стойките', 'Кабели разкачени', 'Телепромптър покрит', 'Климатик изключен']),
+  ]),
+  P('edit', 'post', 'Монтаж на едно видео', 'ed', 'Картата е в твоята колона', 'Експорт в Exported Videos + „Приключен монтаж“', [
+    S('Прочети задачата и бележките', 'ed'),
+    S('Провери срока', 'ed', 'Няма да стигнеш → кажи сега, не след срока.'),
+    S('Коментар „започнат монтаж“', 'ed'),
+    S('Проект = името на задачата', 'ed'),
+    S('Монтирай по стандарта', 'ed', 'Hook 2 сек · стегнато темпо · текст в safe zone · глас −18 до −6 dB · до 90 сек'),
+    S('Експорт локално → Z:', 'ed', '', [], 'Никога директно в Z:.'),
+    S('Самопроверка → „Приключен монтаж“', 'ed'),
+  ]),
+  P('qc', 'post', 'Вътрешен преглед', 'led', 'Експортът е готов', '„Готово за клиента“ + таг на акаунта', [
+    S('Самопроверка', 'ed', '', ['Неприкосновеното е изпълнено', 'Всички корекции — една по една', 'Имена и числа', 'Brand book']),
+    S('Lead QA (ниво 1–2)', 'led', 'Въпрос, не поправка: „Какво губим, ако махнем тези 2 секунди?“'),
+    S('Поправки от монтажиста', 'ed'),
+    S('Съмнение за идеята → криейтърът', 'cc'),
+    S('„Готово за клиента“ + таг', 'led'),
+  ]),
+  P('subs', 'post', 'Субтитри', 'ed', 'Клиентът одобри видеото', '„… - със субтитри“ в Exported Videos', [
+    S('Submagic → папката на клиента', 'ed'),
+    S('Стил на клиента (Hex цветове)', 'ed'),
+    S('Провери правопис и синхрон', 'ed', 'Максимум 2 реда, на нивото на гърдите, акцентът на отделен ред.'),
+    S('Експорт → Z: „… - със субтитри“', 'ed'),
+  ]),
+  P('send', 'acc', 'Изпращане към клиента и корекции', 'acc', '„Готово за клиента“', 'Клиентът одобри писмено → „Качване/Насрочване“', [
+    S('Провери: клиентът одобрява ли?', 'acc', 'В клиентската карта.'),
+    S('Качи в задачата на видеото при клиента', 'acc'),
+    S('Няма отговор 24 ч → напомни', 'acc'),
+    S('Корекции → дословно в задачата', 'acc', '', [], 'Не по Messenger и не в КП картата.'),
+    S('Нанеси корекциите', 'ed'),
+    S('Одобрено → субтитри → качване', 'acc'),
+  ]),
+  P('upload', 'acc', 'Качване и насрочване', 'acc', 'Картата е в „Качване/Насрочване“', 'Публично на правилния профил + Done', [
+    S('Провери правилата на клиента', 'acc', 'Къде се качва, копи, линкове, градове.'),
+    S('Качи / насрочи с копи и тагове', 'acc'),
+    S('Провери: публично, правилна дата', 'acc'),
+    S('Done + „Публикувано на …“', 'acc'),
+  ]),
+  P('results', 'acc', 'Резултати и отчет', 'cc', 'Карта „Резултати“ (3 дни след последното видео)', 'Отчетът е при клиента + изводите в следващия КП', [
+    S('Събери числата от всички мрежи', 'acc'),
+    S('Защо? Какво научихме?', 'cc', 'Най-доброто и най-слабото видео: hook, тема, лице, формат.'),
+    S('Представи на клиента', 'cc'),
+    S('2–3 теста в следващия КП', 'cc'),
+  ]),
 ];
 
-const KEY = 'demo-processes-v1';
+// ===================== СЪСТОЯНИЕ =====================
+const VARIANTS_KEYS = ['a', 'b', 'c'];
+const KEY = 'demo-processes-v2';
+const UI_KEY = 'demo-processes-ui';
 let DATA = load();
-let cur = location.hash.slice(1) || DATA[0].id;
-let editing = null; // копие на процеса при редакция
+const ui = Object.assign({ variant: 'a', viewer: 'admin', rolesView: 'cards', openDepts: ['cc'] }, JSON.parse(localStorage.getItem(UI_KEY) || '{}'));
+{ const v = new URLSearchParams(location.search).get('v'); if (VARIANTS_KEYS.includes(v)) ui.variant = v; }
+let cur = location.hash.slice(1) || 'kp';
+let E = null;           // копие на процеса при редакция
+let q = '';             // търсене
+let selStep = 0;        // избрана стъпка (B и C)
+let deptTab = null;     // избран отдел (B)
 const open = new Set();
+const done = new Set(); // отметки в чеклиста (само в сесията)
 
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || seed(); } catch { return seed(); } }
 function seed() { return JSON.parse(JSON.stringify(SEED)).map((p) => ({ ...p, version: 1, history: [{ v: 1, at: '04.11.2026', by: 'Claude', note: 'първа версия от Vault процесите' }] })); }
 function persist() { localStorage.setItem(KEY, JSON.stringify(DATA)); }
-function resetDemo() { if (confirm('Да върна демото в начално състояние?')) { localStorage.removeItem(KEY); DATA = seed(); editing = null; render(); } }
+function saveUi() { localStorage.setItem(UI_KEY, JSON.stringify(ui)); }
+function resetDemo() { if (confirm('Да върна демото в начално състояние?')) { localStorage.removeItem(KEY); DATA = seed(); E = null; render(); } }
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const role = (k) => ROLES[k] || ROLES.all;
+const dept = (k) => DEPTS.find((d) => d.key === k) || DEPTS[0];
+const proc = () => DATA.find((p) => p.id === cur);
 const today = () => new Date().toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const isAdmin = () => ui.viewer === 'admin';
+const last = (p) => p.history[p.history.length - 1];
 
-function renderNav() {
-  const depts = [...new Set(DATA.map((p) => p.dept))];
-  document.getElementById('nav').innerHTML = depts.map((d) => `<h4>${esc(d)}</h4>` +
-    DATA.filter((p) => p.dept === d).map((p) => `<a class="${p.id === cur ? 'on' : ''}" onclick="go('${p.id}')">${esc(p.name)}</a>`).join('')).join('') +
-    `<h4>Хора</h4><a class="${cur === 'roles' ? 'on' : ''}" onclick="go('roles')">👥 Кой за какво отговаря</a>`;
+function go(id) {
+  if (E && !confirm('Има незапазени промени. Да ги изхвърля?')) return;
+  E = null; cur = id; selStep = 0; location.hash = id;
+  const p = proc(); if (p && !ui.openDepts.includes(p.dept)) { ui.openDepts.push(p.dept); saveUi(); }
+  if (p) deptTab = p.dept;
+  render(); window.scrollTo(0, 0);
 }
-function go(id) { if (editing && !confirm('Има незапазени промени. Да ги изхвърля?')) return; editing = null; cur = id; location.hash = id; render(); }
+function goDept(k) { deptTab = k; const p = DATA.find((x) => x.dept === k); if (p) go(p.id); else render(); }
+function setVariant(v) { if (E && !confirm('Има незапазени промени. Да ги изхвърля?')) return; E = null; ui.variant = v; saveUi(); render(); }
+function setViewer(v) { if (v !== 'admin') E = null; ui.viewer = v; saveUi(); render(); }
+function toggleDept(k) { const i = ui.openDepts.indexOf(k); i >= 0 ? ui.openDepts.splice(i, 1) : ui.openDepts.push(k); saveUi(); render(); }
+function toggle(k) { open.has(k) ? open.delete(k) : open.add(k); render(); }
+function tick(k) { done.has(k) ? done.delete(k) : done.add(k); render(); }
+function pick(i) { selStep = i; render(); }
 
-function renderView(p) {
-  const steps = p.steps;
-  return `
-  <div class="top"><div style="flex:1"><h2>${esc(p.name)}</h2><div class="ver">v${p.version} · последна промяна ${esc(p.history[p.history.length - 1].at)} от ${esc(p.history[p.history.length - 1].by)}</div></div>
-    <button class="btn pri" onclick="startEdit()">✏️ Редактирай</button></div>
+// ===================== МЕНЮ (A и C) =====================
+function renderSide() {
+  const match = (p) => !q || (p.name + ' ' + p.steps.map((s) => s.title).join(' ')).toLowerCase().includes(q.toLowerCase());
+  return `<aside class="side">
+    <input class="search" placeholder="🔎 Търси процес или стъпка…" value="${esc(q)}" oninput="q=this.value;render();this.focus&&setTimeout(()=>{const s=document.querySelector('.search');s.focus();s.setSelectionRange(s.value.length,s.value.length)})">
+    ${DEPTS.map((d) => {
+      const list = DATA.filter((p) => p.dept === d.key && match(p));
+      if (q && !list.length) return '';
+      const isOpen = q || ui.openDepts.includes(d.key);
+      return `<div class="dept"><div class="dhead" onclick="toggleDept('${d.key}')"><span class="car">${isOpen ? '▾' : '▸'}</span>
+        <span class="ico" style="background:${d.color}22">${d.ico}</span>${esc(d.name)}<span class="cnt">${list.length}</span></div>
+        ${isOpen ? `<div class="dlist">${list.map((p) => `<a class="${p.id === cur ? 'on' : ''}" onclick="go('${p.id}')">${esc(p.name)}</a>`).join('')}</div>` : ''}</div>`;
+    }).join('')}
+    <div class="sep"></div>
+    <div class="solo ${cur === 'roles' ? 'on' : ''}" onclick="go('roles')">👥 Кой за какво отговаря</div>
+  </aside>`;
+}
+
+// ===================== ОБЩИ ПАРЧЕТА =====================
+function headerBlock(p) {
+  const d = dept(p.dept);
+  return `<div class="top"><div style="flex:1;min-width:300px"><div class="crumb">${d.ico} ${esc(d.name)}</div><h2>${esc(p.name)}</h2>
+      <div class="ver">v${p.version} · последна промяна ${esc(last(p).at)} от ${esc(last(p).by)}</div></div>
+    ${isAdmin() ? `<button class="btn pri" onclick="startEdit()">✏️ Редактирай</button>` : ''}</div>
   <div class="meta">
-    <div><small>👤 Собственик</small>${esc(role(p.owner).name)}</div>
+    <div><small>👤 Собственик на процеса</small><span class="who" style="background:${role(p.owner).color}">${esc(role(p.owner).name)}</span></div>
     <div><small>⏰ Кога започва</small>${esc(p.when)}</div>
     <div><small>✅ Готово е, когато</small>${esc(p.done)}</div>
-  </div>
-  <div class="flow">${steps.map((s, i) => `${i ? '<span class="arr">→</span>' : ''}<span class="chip" style="border-color:${role(s.who).color};color:${role(s.who).color}" onclick="jump(${i})">${i + 1}. ${esc(s.title)}</span>`).join('')}</div>
-  ${steps.map((s, i) => {
+  </div>`;
+}
+const checksHtml = (p, i, s) => s.checks.length ? `<div class="checks">${s.checks.map((t, j) => { const k = `${p.id}:${i}:${j}`; return `<label><input type="checkbox" ${done.has(k) ? 'checked' : ''} onchange="tick('${k}')"> ${esc(t)}</label>`; }).join('')}</div>` : '';
+const histHtml = (p) => `<div class="hist"><b>История на версиите</b><ul>${p.history.slice().reverse().map((h) => `<li>v${h.v} · ${esc(h.at)} · ${esc(h.by)}${h.note ? ' — ' + esc(h.note) : ''}</li>`).join('')}</ul></div>`;
+
+// ===================== ВАРИАНТ A — блокове =====================
+function viewA(p) {
+  return headerBlock(p) +
+  `<div class="flow">${p.steps.map((s, i) => `${i ? '<span class="arr">→</span>' : ''}<span class="chip" style="border-color:${role(s.who).color};color:${role(s.who).color}" onclick="jump(${i})">${i + 1}. ${esc(s.title)}</span>`).join('')}</div>` +
+  p.steps.map((s, i) => {
     const c = role(s.who).color, k = p.id + ':' + i;
     return `<div class="step" id="st${i}"><div class="num" style="background:${c}">${i + 1}</div><div class="block" style="border-left-color:${c}">
       <div class="bhead"><div class="btitle">${esc(s.title)}</div><span class="who" style="background:${c}">${esc(role(s.who).name)}</span></div>
-      ${s.checks.length ? `<div class="checks">${s.checks.map((t) => `<label><input type="checkbox"> ${esc(t)}</label>`).join('')}</div>` : ''}
+      ${checksHtml(p, i, s)}
       ${s.warn ? `<div class="warn">⛔ ${esc(s.warn)}</div>` : ''}
       ${s.more ? `<div class="more" onclick="toggle('${k}')">${open.has(k) ? '▾ Скрий' : 'ℹ️ Повече'}</div>${open.has(k) ? `<div class="details">${esc(s.more)}</div>` : ''}` : ''}
     </div></div>`;
-  }).join('')}
-  <div class="hist"><b>История на версиите</b><ul>${p.history.slice().reverse().map((h) => `<li>v${h.v} · ${esc(h.at)} · ${esc(h.by)}${h.note ? ' — ' + esc(h.note) : ''}</li>`).join('')}</ul></div>`;
+  }).join('') + histHtml(p);
+}
+function jump(i) { const el = document.getElementById('st' + i); if (!el) return; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); const b = el.querySelector('.block'); b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 1200); }
+
+// ===================== ВАРИАНТ B — табло по отдели + ленти =====================
+function viewB() {
+  const p = proc();
+  const dk = deptTab || (p ? p.dept : 'cc');
+  const tabs = `<div class="dtabs">${DEPTS.map((d) => `<div class="dtab ${d.key === dk && cur !== 'roles' ? 'on' : ''}" onclick="goDept('${d.key}')"><span>${d.ico}</span>${esc(d.name)}<span class="cnt">${DATA.filter((x) => x.dept === d.key).length}</span></div>`).join('')}
+    <div class="dtab ${cur === 'roles' ? 'on' : ''}" onclick="go('roles')">👥 Кой за какво отговаря</div></div>`;
+  if (cur === 'roles') return tabs + rolesView();
+  const cards = `<div class="pcards">${DATA.filter((x) => x.dept === dk).map((x) => `<div class="pcard ${x.id === cur ? 'on' : ''}" onclick="go('${x.id}')"><b>${esc(x.name)}</b>
+      <div class="dots">${x.steps.map((s) => `<span class="dot" style="background:${role(s.who).color}" title="${esc(role(s.who).name)}"></span>`).join('')}</div>
+      <small>${x.steps.length} стъпки · ${[...new Set(x.steps.map((s) => s.who))].length} роли</small></div>`).join('')}</div>`;
+  if (E) return tabs + cards + `<div class="panel">${renderEdit(E)}</div>`;
+  const rolesIn = Object.keys(ROLES).filter((k) => p.steps.some((s) => s.who === k));
+  const n = p.steps.length;
+  const grid = `<div class="lanes"><div class="lanegrid" style="grid-template-columns:170px repeat(${n}, minmax(150px,1fr))">
+    <div></div>${p.steps.map((_, i) => `<div class="colhead">стъпка ${i + 1}</div>`).join('')}
+    ${rolesIn.map((k) => `<div class="lanehead"><span class="dot" style="background:${role(k).color}"></span>${esc(role(k).name)}</div>` +
+      p.steps.map((s, i) => s.who === k
+        ? `<div><div class="lcard ${i === selStep ? 'sel' : ''}" style="background:${role(k).color}" onclick="pick(${i})"><span class="n">${i + 1}</span>${esc(s.title)}${(s.more || s.checks.length || s.warn) ? `<span class="ic">${s.checks.length ? '☐ ' + s.checks.length + ' ' : ''}${s.more ? 'ℹ️ ' : ''}${s.warn ? '⛔' : ''}</span>` : ''}</div></div>`
+        : '<div class="lanecell"></div>').join('')).join('')}
+  </div></div>`;
+  const s = p.steps[selStep] || p.steps[0];
+  const c = role(s.who).color;
+  const det = `<div class="stepdetail" style="border-left-color:${c}">
+    <div class="bhead"><div class="btitle">${selStep + 1}. ${esc(s.title)}</div><span class="who" style="background:${c}">${esc(role(s.who).name)}</span>
+      <button class="btn sm" onclick="pick(Math.max(0,selStep-1))" ${selStep ? '' : 'disabled'}>← предишна</button><button class="btn sm" onclick="pick(Math.min(${n - 1},selStep+1))" ${selStep < n - 1 ? '' : 'disabled'}>следваща →</button></div>
+    ${checksHtml(p, selStep, s)}${s.warn ? `<div class="warn">⛔ ${esc(s.warn)}</div>` : ''}${s.more ? `<div class="details">${esc(s.more)}</div>` : (!s.checks.length && !s.warn ? '<div class="p">Няма допълнителна информация — стъпката е ясна от заглавието.</div>' : '')}
+  </div>`;
+  return tabs + cards + `<div class="panel">${headerBlock(p)}<div class="p" style="margin-bottom:8px">Всеки ред е роля, всяка колона е стъпка. Така се вижда кога работата минава от човек на човек. Кликни стъпка за детайлите.</div>${grid}${det}${histHtml(p)}</div>`;
 }
 
-function roleSelect(val, attr) {
-  return `<select ${attr}>${Object.entries(ROLES).map(([k, r]) => `<option value="${k}" ${k === val ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>`;
+// ===================== ВАРИАНТ C — чеклист + детайли отстрани =====================
+function viewC(p) {
+  const total = p.steps.length, ticked = p.steps.filter((_, i) => done.has(p.id + ':s' + i)).length;
+  const s = p.steps[selStep] || p.steps[0], c = role(s.who).color;
+  return headerBlock(p) + `<div class="ccols">
+    <div><div class="p">Отмятай докато работиш (отметките не се пазят — служат само за теб).</div>
+      <div class="progress"><i style="width:${Math.round(ticked / total * 100)}%"></i></div>
+      ${p.steps.map((x, i) => { const k = p.id + ':s' + i; return `<div class="srow ${i === selStep ? 'on' : ''}" onclick="pick(${i})">
+        <span class="n">${i + 1}</span><input type="checkbox" ${done.has(k) ? 'checked' : ''} onclick="event.stopPropagation();tick('${k}')">
+        <span class="t" style="${done.has(k) ? 'text-decoration:line-through;color:var(--dim)' : ''}">${esc(x.title)}</span>
+        <span class="tag">${x.more ? 'ℹ️' : ''}${x.checks.length ? ' ☐' + x.checks.length : ''}${x.warn ? ' ⛔' : ''}</span>
+        <span class="dot" style="background:${role(x.who).color}" title="${esc(role(x.who).name)}"></span></div>`; }).join('')}
+    </div>
+    <div class="side2" style="border-top-color:${c}">
+      <div class="crumb">Стъпка ${selStep + 1} от ${total}</div>
+      <h3>${esc(s.title)}</h3>
+      <div><span class="who" style="background:${c}">${esc(role(s.who).name)}</span></div>
+      ${s.warn ? `<div class="warn">⛔ ${esc(s.warn)}</div>` : ''}
+      ${checksHtml(p, selStep, s)}
+      ${s.more ? `<div class="details">${esc(s.more)}</div>` : (!s.checks.length && !s.warn ? '<div class="p">Няма допълнителна информация — стъпката е ясна от заглавието.</div>' : '')}
+      <div style="display:flex;gap:6px"><button class="btn sm" onclick="pick(Math.max(0,selStep-1))" ${selStep ? '' : 'disabled'}>← предишна</button><button class="btn sm" onclick="pick(Math.min(${total - 1},selStep+1))" ${selStep < total - 1 ? '' : 'disabled'}>следваща →</button></div>
+    </div></div>` + histHtml(p);
 }
+
+// ===================== РЕДАКЦИЯ (еднаква за всички варианти) =====================
+function roleSelect(val, attr) { return `<select ${attr}>${Object.entries(ROLES).map(([k, r]) => `<option value="${k}" ${k === val ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>`; }
+function deptSelect(val) { return `<select onchange="E.dept=this.value">${DEPTS.map((d) => `<option value="${d.key}" ${d.key === val ? 'selected' : ''}>${d.ico} ${esc(d.name)}</option>`).join('')}</select>`; }
 function renderEdit(p) {
   const addBtn = (i) => `<button class="add" onclick="addStep(${i})">＋ Добави стъпка тук</button>`;
   return `<div class="edit">
-  <div class="top"><div style="flex:1"><label class="f">Име на процеса</label><input type="text" value="${esc(p.name)}" oninput="E.name=this.value"></div></div>
-  <div class="row"><div><label class="f">⏰ Кога започва</label><input type="text" value="${esc(p.when)}" oninput="E.when=this.value"></div>
+  <div class="row"><div><label class="f">Име на процеса</label><input type="text" value="${esc(p.name)}" oninput="E.name=this.value"></div><div><label class="f">Отдел</label>${deptSelect(p.dept)}</div></div>
+  <div class="row3"><div><label class="f">⏰ Кога започва</label><input type="text" value="${esc(p.when)}" oninput="E.when=this.value"></div>
+    <div><label class="f">✅ Готово е, когато</label><input type="text" value="${esc(p.done)}" oninput="E.done=this.value"></div>
     <div><label class="f">👤 Собственик</label>${roleSelect(p.owner, 'onchange="E.owner=this.value"')}</div></div>
-  <label class="f">✅ Готово е, когато</label><input type="text" value="${esc(p.done)}" oninput="E.done=this.value">
   <div style="height:16px"></div>
   ${addBtn(0)}
   ${p.steps.map((s, i) => `<div class="step"><div class="num" style="background:${role(s.who).color}">${i + 1}</div><div class="block" style="border-left-color:${role(s.who).color}">
@@ -224,46 +480,71 @@ function renderEdit(p) {
     <div class="tools"><button class="btn sm" onclick="move(${i},-1)" ${i ? '' : 'disabled'}>↑</button><button class="btn sm" onclick="move(${i},1)" ${i < p.steps.length - 1 ? '' : 'disabled'}>↓</button>
       <button class="btn sm del" style="margin-left:auto" onclick="if(confirm('Да изтрия стъпка ${i + 1}?')){E.steps.splice(${i},1);render()}">🗑 Изтрий стъпката</button></div>
   </div></div>${addBtn(i + 1)}`).join('')}
-  <div class="bar"><label class="f" style="margin:0">Какво промени?</label><input type="text" id="note" placeholder="напр. добавих проверка на звука" style="flex:1">
+  <div class="bar"><span class="lbl">Какво промени?</span><input type="text" id="note" placeholder="напр. добавих проверка на звука" style="flex:1">
     <button class="btn" onclick="cancelEdit()">Отказ</button><button class="btn pri" onclick="saveEdit()">💾 Запази като v${p.version + 1}</button></div>
   </div>`;
 }
-let E = null;
-function startEdit() { editing = true; E = JSON.parse(JSON.stringify(DATA.find((p) => p.id === cur))); render(); }
-function cancelEdit() { editing = null; E = null; render(); }
+function startEdit() { E = JSON.parse(JSON.stringify(proc())); render(); }
+function cancelEdit() { E = null; render(); }
 function addStep(i) { E.steps.splice(i, 0, { title: 'Нова стъпка', who: E.owner, more: '', checks: [], warn: '' }); render(); }
 function move(i, d) { const s = E.steps.splice(i, 1)[0]; E.steps.splice(i + d, 0, s); render(); }
 function saveEdit() {
   E.steps = E.steps.filter((s) => s.title.trim()).map((s) => ({ ...s, checks: s.checks.filter((t) => t.trim()) }));
   E.version += 1;
   E.history.push({ v: E.version, at: today(), by: 'Венци', note: (document.getElementById('note').value || '').trim() });
-  DATA[DATA.findIndex((p) => p.id === cur)] = E; persist(); editing = null; E = null; render();
+  DATA[DATA.findIndex((p) => p.id === E.id)] = E; persist();
+  if (!ui.openDepts.includes(E.dept)) ui.openDepts.push(E.dept);
+  deptTab = E.dept; E = null; selStep = 0; render();
 }
-function toggle(k) { open.has(k) ? open.delete(k) : open.add(k); render(); }
-function jump(i) { const el = document.getElementById('st' + i); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); const b = el.querySelector('.block'); b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 1200); }
 
-function renderRoles() {
-  return `<div class="top"><h2>👥 Кой за какво отговаря</h2></div>
-  <p class="dim" style="color:var(--sec);margin-top:6px">Сглобява се сам от стъпките във всички процеси. Смениш ли „кой я прави“ на стъпка, тя се мести тук.</p>
-  <div class="roles">${Object.entries(ROLES).map(([k, r]) => {
+// ===================== КОЙ ЗА КАКВО ОТГОВАРЯ =====================
+function rolesView() {
+  const sw = `<div class="seg small" style="display:inline-flex"><button class="${ui.rolesView === 'cards' ? 'on' : ''}" onclick="ui.rolesView='cards';saveUi();render()">Карти по роля</button><button class="${ui.rolesView === 'matrix' ? 'on' : ''}" onclick="ui.rolesView='matrix';saveUi();render()">Матрица</button></div>`;
+  const head = `<div class="top"><h2 style="flex:1">👥 Кой за какво отговаря</h2>${sw}</div>
+    <div class="note">Тази страница <b>не се пише на ръка</b> — сглобява се всеки път от стъпките в процесите. Смениш ли „кой я прави“ на стъпка, добавиш или изтриеш стъпка — тук се променя веднага след „Запази“.</div>`;
+  if (ui.rolesView === 'matrix') {
+    const rk = Object.keys(ROLES);
+    return `<div class="panel">${head}<table class="mx"><thead><tr><th>Процес</th>${rk.map((k) => `<th><span class="dot" style="background:${role(k).color}"></span><br>${esc(role(k).name)}</th>`).join('')}</tr></thead><tbody>
+      ${DEPTS.map((d) => `<tr class="dept"><td colspan="${rk.length + 1}">${d.ico} ${esc(d.name)}</td></tr>` + DATA.filter((p) => p.dept === d.key).map((p) => `<tr><td><span class="role"><span class="lnk" onclick="go('${p.id}')" style="border:0">${esc(p.name)}</span></span></td>${rk.map((k) => {
+        const n = p.steps.filter((s) => s.who === k).length, own = p.owner === k;
+        return `<td class="${n || own ? 'c' : ''}" ${n ? `onclick="go('${p.id}')" title="${esc(p.steps.filter((s) => s.who === k).map((s) => s.title).join(' · '))}"` : ''} style="${n ? `color:${role(k).color}` : 'color:#334'}">${own ? '★ ' : ''}${n || (own ? '' : '·')}</td>`;
+      }).join('')}</tr>`).join('')).join('')}
+    </tbody></table><div class="p" style="margin-top:8px">Числото = колко стъпки прави ролята в процеса · ★ = собственик на процеса · задръж мишката върху число за стъпките.</div></div>`;
+  }
+  return `<div class="panel">${head}<div class="roles">${Object.entries(ROLES).map(([k, r]) => {
     const own = DATA.filter((p) => p.owner === k);
     const groups = DATA.map((p) => ({ p, steps: p.steps.map((s, i) => ({ s, i })).filter((x) => x.s.who === k) })).filter((g) => g.steps.length);
-    return `<div class="role" style="border-top-color:${r.color}"><h3 style="color:${r.color}">${esc(r.name)}</h3>
-      ${own.length ? `<div class="p">Собственик на процеса: ${own.map((p) => `<a onclick="go('${p.id}')">${esc(p.name)}</a>`).join(', ')}</div>` : ''}
-      ${groups.length ? groups.map((g) => `<div style="margin-top:10px"><a onclick="go('${g.p.id}')"><b>${esc(g.p.name)}</b></a><ul>${g.steps.map((x) => `<li><span class="p">${x.i + 1}.</span> ${esc(x.s.title)}</li>`).join('')}</ul></div>`).join('') : '<div class="empty">няма стъпки в тези процеси</div>'}
+    const total = groups.reduce((a, g) => a + g.steps.length, 0);
+    return `<div class="role" style="border-top-color:${r.color}"><h3 style="color:${r.color}">${esc(r.name)}<small>${total} стъпки · ${groups.length} процеса</small></h3>
+      ${own.length ? `<div class="p">★ Собственик на: ${own.map((p) => `<span class="lnk" onclick="go('${p.id}')">${esc(p.name)}</span>`).join(', ')}</div>` : ''}
+      ${groups.length ? groups.map((g) => `<div style="margin-top:10px"><span class="lnk" onclick="go('${g.p.id}')"><b>${dept(g.p.dept).ico} ${esc(g.p.name)}</b></span><ul>${g.steps.map((x) => `<li><span class="p">${x.i + 1}.</span> ${esc(x.s.title)}</li>`).join('')}</ul></div>`).join('') : '<div class="empty">няма стъпки</div>'}
     </div>`;
-  }).join('')}</div>`;
+  }).join('')}</div></div>`;
 }
 
+// ===================== RENDER =====================
+const VARIANTS = {
+  a: { name: 'A · Блокове', ex: '<b>A — Блокове.</b> Отляво менюто е <b>по отдели, сгъваемо</b>, с брояч и търсене (пише се и по стъпка). Процесът е отгоре надолу: всяка стъпка е блок с един ред + кой я прави; „ℹ️ Повече“ отваря детайлите. Подходящо за <b>четене и учене</b>.' },
+  b: { name: 'B · Табло и ленти', ex: '<b>B — Табло и ленти.</b> Без странично меню: отделите са <b>табове горе</b>, процесите на отдела са <b>карти</b> (цветните точки показват кои роли участват). Процесът е <b>в ленти по роли</b> — най-ясно се вижда кога работата минава от човек на човек. Подходящо за <b>общата картина и предаванията</b>.' },
+  c: { name: 'C · Чеклист + детайли', ex: '<b>C — Чеклист + детайли.</b> Менюто е като в A. Процесът е <b>кратък чеклист</b> отляво за отмятане докато работиш, а <b>детайлите на избраната стъпка</b> са в панел отдясно. Подходящо за <b>изпълнение стъпка по стъпка</b>.' },
+};
 function render() {
-  renderNav();
-  const page = document.getElementById('page');
-  if (cur === 'roles') { page.innerHTML = renderRoles(); return; }
-  const p = DATA.find((x) => x.id === cur) || DATA[0];
-  cur = p.id;
-  page.innerHTML = editing ? renderEdit(E) : renderView(p);
+  document.getElementById('vtabs').innerHTML = Object.entries(VARIANTS).map(([k, v]) => `<button class="${ui.variant === k ? 'on' : ''}" onclick="setVariant('${k}')">${v.name}</button>`).join('');
+  document.getElementById('who').innerHTML = `<button class="${isAdmin() ? 'on' : ''}" onclick="setViewer('admin')">Админ</button><button class="${!isAdmin() ? 'on' : ''}" onclick="setViewer('user')">Служител</button>`;
+  document.getElementById('explain').innerHTML = VARIANTS[ui.variant].ex +
+    `<br><b>Еднакво и в трите:</b> редакцията (✏️ само за админи и мини-админи — превключи „Гледам като“ горе вдясно), историята на версиите и „👥 Кой за какво отговаря“, което се обновява само.`;
+  const wrap = document.getElementById('wrap');
+  wrap.className = 'wrap v-' + ui.variant;
+  if (cur !== 'roles' && !proc()) cur = DATA[0].id;
+  if (ui.variant === 'b') { wrap.innerHTML = viewB(); return; }
+  let main;
+  if (cur === 'roles') main = rolesView();
+  else if (E) main = `<div class="panel">${renderEdit(E)}</div>`;
+  else main = `<div class="panel">${ui.variant === 'a' ? viewA(proc()) : viewC(proc())}</div>`;
+  wrap.innerHTML = renderSide() + `<div style="min-width:0">${main}</div>`;
 }
 window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== cur) go(h); });
+{ const p = proc(); if (p) { deptTab = p.dept; if (!ui.openDepts.includes(p.dept)) ui.openDepts.push(p.dept); } }
 render();
 </script>
 </body>
