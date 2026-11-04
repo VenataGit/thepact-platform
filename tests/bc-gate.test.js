@@ -36,6 +36,27 @@ it('таймаут — заявката не виси вечно', async () => {
   expect(bc.getBcStats().timeouts).toBeGreaterThanOrEqual(1);
 });
 
+it('заявките на хората не се забавят изкуствено (80 наведнъж, два токена)', async () => {
+  global.fetch = jest.fn(async () => { await new Promise((r) => setTimeout(r, 20)); return resp(200); });
+  const t0 = Date.now();
+  await Promise.all(Array.from({ length: 80 }, (_, i) => bc.bcFetch('https://3.basecampapi.com/h' + i, { headers: { Authorization: 'Bearer ' + (i % 2 ? 'A' : 'B') } })));
+  expect(Date.now() - t0).toBeLessThan(1500); // преди: общ таван 40/10 сек → ~10 сек
+});
+
+it('429 при един токен не спира заявките с друг токен', async () => {
+  let first = true;
+  global.fetch = jest.fn(async (u, o) => {
+    if (o.headers.Authorization === 'Bearer SLOW' && first) { first = false; return resp(429, { 'Retry-After': '2' }); }
+    return resp(200);
+  });
+  const slow = bc.bcFetch('https://3.basecampapi.com/s', { headers: { Authorization: 'Bearer SLOW' } });
+  await new Promise((r) => setTimeout(r, 50));
+  const t0 = Date.now();
+  await bc.bcFetch('https://3.basecampapi.com/f', { headers: { Authorization: 'Bearer FAST' } });
+  expect(Date.now() - t0).toBeLessThan(500);
+  await slow;
+});
+
 it('фоновите заявки имат по-нисък таван от тези на хората', async () => {
   global.fetch = jest.fn(async () => resp(200));
   // 20 фонови заявки запълват своя таван; следващата фонова чака, а човешката минава веднага

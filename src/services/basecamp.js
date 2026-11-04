@@ -27,26 +27,41 @@ function headers(extra = {}) {
 const { AsyncLocalStorage } = require('async_hooks');
 const lane = new AsyncLocalStorage();
 const WINDOW_MS = 10_000;
-const MAX_PER_WINDOW = 40;        // Basecamp: ~50 заявки / 10 сек — оставяме резерв
-const MAX_BG_PER_WINDOW = 20;     // фоновите (PM агент и т.н.) — най-много половината
-const MAX_INFLIGHT = 8;
-const starts = [];                // { t, bg }
+// Лимитът на Basecamp е за всеки токен поотделно (всеки човек ползва своя). Затова:
+//  - заявките на хората НЕ се забавят изкуствено — само при 429 се изчаква (Retry-After);
+//  - фоновите задачи (PM агент, бекъп, sync на екипа — bc.background) се ограничават до
+//    MAX_BG_PER_WINDOW на 10 сек за своя токен — те бяха източникът на 429-ите.
+// (04.11.2026: първата версия имаше ОБЩ таван 40/10 сек за целия сървър → таблата на
+// няколко души + PM агентът се редяха на една опашка и всичко стана бавно.)
+const MAX_BG_PER_WINDOW = 20;
+const MAX_BG_INFLIGHT = 4;
+const MAX_INFLIGHT = 48;          // общ предпазител срещу лавина
+const buckets = new Map();        // токен → { bgStarts: [t], bgInflight, pausedUntil }
 let inflight = 0;
-let pausedUntil = 0;              // общо изчакване след 429
 const bcStats = { requests: 0, r429: 0, timeouts: 0, retries: 0, since: new Date().toISOString() };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-// Пуска заявки в рамките на десетсекундния прозорец. Фоновите имат по-нисък таван,
-// за да остава място за това, което хората отварят в момента.
-async function acquireSlot(bg) {
+function bucketOf(opts) {
+  const h = opts && opts.headers;
+  const key = (h && (h.Authorization || h.authorization)) || 'anon';
+  let b = buckets.get(key);
+  if (!b) { b = { bgStarts: [], bgInflight: 0, pausedUntil: 0 }; buckets.set(key, b); }
+  return b;
+}
+async function acquireSlot(b, bg) {
   for (;;) {
     const now = Date.now();
-    while (starts.length && now - starts[0].t > WINDOW_MS) starts.shift();
-    const bgCount = starts.reduce((n, x) => n + (x.bg ? 1 : 0), 0);
-    const ok = now >= pausedUntil && inflight < MAX_INFLIGHT && starts.length < MAX_PER_WINDOW && (!bg || bgCount < MAX_BG_PER_WINDOW);
-    if (ok) { starts.push({ t: now, bg }); inflight++; return; }
-    const waitWin = starts.length ? WINDOW_MS - (now - starts[0].t) + 5 : 50;
-    await sleep(Math.max(50, Math.min(pausedUntil > now ? pausedUntil - now : waitWin, bg ? 1000 : 250)));
+    while (b.bgStarts.length && now - b.bgStarts[0] > WINDOW_MS) b.bgStarts.shift();
+    const ok = now >= b.pausedUntil && inflight < MAX_INFLIGHT
+      && (!bg || (b.bgStarts.length < MAX_BG_PER_WINDOW && b.bgInflight < MAX_BG_INFLIGHT));
+    if (ok) {
+      inflight++;
+      if (bg) { b.bgStarts.push(now); b.bgInflight++; }
+      return;
+    }
+    const wait = b.pausedUntil > now ? b.pausedUntil - now
+      : (bg && b.bgStarts.length >= MAX_BG_PER_WINDOW ? WINDOW_MS - (now - b.bgStarts[0]) + 5 : 50);
+    await sleep(Math.max(20, Math.min(wait, 1000)));
   }
 }
 
@@ -54,9 +69,10 @@ async function acquireSlot(bg) {
 // дори при POST. Мрежова грешка/5xx се повтаря само при GET (POST може вече да е минал).
 async function bcFetch(url, opts = {}, { timeoutMs = 30_000, tries = 4 } = {}) {
   const bg = lane.getStore() === 'background';
+  const b = bucketOf(opts);
   const method = (opts.method || 'GET').toUpperCase();
   for (let attempt = 1; ; attempt++) {
-    await acquireSlot(bg);
+    await acquireSlot(b, bg);
     let r;
     try {
       bcStats.requests++;
@@ -67,12 +83,13 @@ async function bcFetch(url, opts = {}, { timeoutMs = 30_000, tries = 4 } = {}) {
       throw err;
     } finally {
       inflight--;
+      if (bg) b.bgInflight--;
     }
     if (r.status === 429 && attempt < tries) {
       bcStats.r429++; bcStats.retries++;
       const ra = parseInt(r.headers.get('Retry-After'), 10);
       const waitMs = (Number.isFinite(ra) && ra > 0 ? ra * 1000 : 5000 * attempt) + Math.floor(Math.random() * 500);
-      pausedUntil = Math.max(pausedUntil, Date.now() + waitMs);
+      b.pausedUntil = Math.max(b.pausedUntil, Date.now() + waitMs);
       await sleep(waitMs);
       continue;
     }
@@ -84,7 +101,7 @@ async function bcFetch(url, opts = {}, { timeoutMs = 30_000, tries = 4 } = {}) {
 
 // Изпълнява fn като фонова работа: заявките ѝ отстъпват място на тези от хората.
 function background(fn) { return lane.run('background', fn); }
-function getBcStats() { return { ...bcStats, inflight, pausedForMs: Math.max(0, pausedUntil - Date.now()) }; }
+function getBcStats() { return { ...bcStats, inflight, tokens: buckets.size }; }
 
 // URL we send the user to so they can grant access. `state` guards against CSRF.
 function buildAuthorizeUrl(state) {
