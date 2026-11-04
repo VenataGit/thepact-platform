@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо: Процеси — стъпки като блокове, които се редактират на място</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; }
+  button, input, select, textarea { font:inherit; }
+  header { padding:12px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:14px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:20; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .explain { max-width:1240px; margin:14px auto 0; padding:12px 16px; background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; line-height:1.55; color:var(--sec); }
+  .explain b { color:var(--text); }
+  .wrap { max-width:1240px; margin:14px auto 40px; display:grid; grid-template-columns:250px 1fr; gap:14px; }
+  nav { background:var(--panel); border-radius:15px; padding:14px; align-self:start; position:sticky; top:64px; }
+  nav h4 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:12px 6px 6px; }
+  nav h4:first-child { margin-top:0; }
+  nav a { display:block; padding:7px 10px; border-radius:8px; color:var(--text); text-decoration:none; cursor:pointer; }
+  nav a:hover { background:var(--hover); }
+  nav a.on { background:var(--green); color:#fff; font-weight:600; }
+  .page { background:var(--panel); border-radius:15px; padding:22px 25px; min-width:0; }
+  .top { display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+  .top h2 { font-size:22px; flex:1; min-width:260px; }
+  .ver { font-size:12px; color:var(--dim); margin-top:4px; }
+  .btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); color:var(--text); border-radius:8px; padding:7px 14px; cursor:pointer; }
+  .btn:hover { background:rgba(255,255,255,.12); }
+  .btn.pri { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+  .btn.sm { padding:4px 9px; font-size:12.5px; }
+  .btn.del { color:#ff9c95; }
+  .meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin:16px 0; }
+  .meta div { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:12px; padding:10px 14px; }
+  .meta small { display:block; font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
+  .flow { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:6px 0 20px; }
+  .flow .chip { padding:6px 10px; border-radius:8px; font-size:12.5px; border:1px solid; cursor:pointer; }
+  .flow .arr { color:var(--dim); }
+  .step { display:grid; grid-template-columns:38px 1fr; gap:12px; margin-bottom:10px; }
+  .num { width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; color:#111; }
+  .block { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-left:4px solid; border-radius:12px; padding:12px 14px; }
+  .block.flash { box-shadow:0 0 0 2px var(--amber); }
+  .bhead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .btitle { font-size:15px; font-weight:600; flex:1; min-width:200px; }
+  .who { font-size:12px; padding:3px 9px; border-radius:10px; font-weight:600; color:#111; white-space:nowrap; }
+  .more { margin-top:8px; color:var(--sec); cursor:pointer; font-size:13px; user-select:none; }
+  .more:hover { color:var(--text); }
+  .details { margin-top:8px; padding:10px 12px; background:rgba(0,0,0,.2); border-radius:8px; line-height:1.6; color:#cfd8dc; white-space:pre-wrap; }
+  .checks { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+  .checks label { display:flex; gap:8px; align-items:flex-start; cursor:pointer; color:#cfd8dc; }
+  .checks input { margin-top:3px; accent-color:var(--green); }
+  .warn { margin-top:8px; font-size:13px; color:#ffb4ae; }
+  .edit input[type=text], .edit textarea, .edit select { width:100%; background:#0d1518; border:1px solid var(--border); color:var(--text); border-radius:8px; padding:7px 10px; }
+  .edit textarea { min-height:70px; resize:vertical; line-height:1.5; }
+  .edit .row { display:grid; grid-template-columns:1fr 190px; gap:8px; }
+  .edit label.f { display:block; font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.05em; margin:8px 0 3px; }
+  .edit .tools { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .citem { display:flex; gap:6px; margin-bottom:4px; }
+  .add { display:block; width:100%; margin:4px 0 12px 50px; width:calc(100% - 50px); border:1px dashed rgba(255,255,255,.18); background:none; color:var(--sec); border-radius:10px; padding:6px; cursor:pointer; }
+  .add:hover { color:var(--text); border-color:var(--green); }
+  .bar { position:sticky; bottom:0; margin:16px -25px -22px; padding:12px 25px; background:var(--card); border-top:1px solid var(--border); border-radius:0 0 15px 15px; display:flex; gap:8px; align-items:center; }
+  .hist { margin-top:22px; font-size:12.5px; color:var(--dim); }
+  .hist li { margin-left:18px; margin-top:3px; }
+  .roles { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px; margin-top:14px; }
+  .role { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-top:4px solid; border-radius:12px; padding:12px 14px; }
+  .role h3 { font-size:15px; margin-bottom:8px; }
+  .role li { margin:5px 0 0 18px; line-height:1.45; }
+  .role a { color:var(--text); text-decoration:none; border-bottom:1px dashed var(--dim); cursor:pointer; }
+  .role .p { color:var(--dim); font-size:12px; }
+  .empty { color:var(--dim); font-style:italic; }
+  @media (max-width:860px) { .wrap { grid-template-columns:1fr; } nav { position:static; } .edit .row { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Процеси</h1>
+  <span class="badge">ДЕМО — промените се пазят само в този браузър</span>
+  <button class="btn sm" style="margin-left:auto" onclick="resetDemo()">↺ Върни демото в начално състояние</button>
+</header>
+<div class="explain">
+  <b>Как се чете:</b> всяка стъпка е <b>един блок с един ред</b> и цветен етикет кой я прави. Детайлите са скрити под <b>„ℹ️ Повече“</b> и се отварят само когато са нужни. Лентата горе е картата на процеса, като кликнеш стъпка, отиваш на нея.<br>
+  <b>Как се редактира:</b> „✏️ Редактирай“ → пишеш направо в блока, сменяш кой я прави, добавяш стъпка с „＋“, местиш със ↑↓, триеш с 🗑 → „Запази“. Всяко запазване става нова версия с дата и автор. Без Claude, без код.<br>
+  <b>„Кой за какво отговаря“</b> (долу в менюто) се сглобява сам от стъпките: смениш ли собственика на стъпка, тя се мести при новия човек.
+</div>
+<div class="wrap">
+  <nav id="nav"></nav>
+  <main class="page" id="page"></main>
+</div>
+<script>
+const ROLES = {
+  cc:   { name: 'Контент криейтър', color: '#58a6ff' },
+  lead: { name: 'Creative Lead',    color: '#a371f7' },
+  acc:  { name: 'Акаунт',           color: '#ff7b72' },
+  vid:  { name: 'Видеограф',        color: '#d2a8ff' },
+  ed:   { name: 'Монтажист',        color: '#3fb950' },
+  all:  { name: 'Всички',           color: '#e3b341' },
+};
+const S = (title, who, more = '', checks = [], warn = '') => ({ title, who, more, checks, warn });
+const SEED = [
+  { id: 'kp', dept: 'Контент криейшън', name: 'Контент план — 10 идеи', owner: 'cc',
+    when: 'КП картата е в Pre-Production → Измисляне', done: '10 разписани, снимаеми идеи в КП картата → „Към Клиент“',
+    steps: [
+      S('Прочети брифа', 'cc', 'Клиентската карта + резултатите от миналия КП.\nОтговори си: кой е брандът, за кого говорим, каква е целта този месец, кои са 2–3 послания.\nОтнема 10–15 минути и спестява „случайни“ идеи после.', ['Прочетох клиентската карта', 'Видях кое е работило миналия път']),
+      S('Реши микса', 'cc', 'Преди идеите реши рамката за 10-те видеа. Ориентир:\n- 3 полезни / how-to\n- 2 скеча\n- 2 интервюта\n- 2 POV / тренд / игра\n- 1 brand story\nПропорциите се сменят по клиент, логиката остава.'),
+      S('Brainstorm — по 1 изречение', 'cc', '15–20 сурови идеи, по категории. Всяка е едно изречение: какво е видеото и какъв е механизмът. Още без сценарий.'),
+      S('Избери ТОП 10 през RRS', 'cc', 'Relevant — актуално или вечно човешко?\nRelatable — човек познава ли се?\nShareable — ще го прати ли на някого?\nНе минава → преработваш или отпада.'),
+      S('Разпиши всяка идея', 'cc', 'По процеса „Разписване на една идея“.', [], 'Пояснения и въпроси → в коментар, не в описанието (клиентът го чете).'),
+      S('Сложи предварителни дати', 'cc', 'Разнообразно: не всички информативни подред. Датите се показват още на срещата, за да не се разместват после.'),
+      S('Провери плана', 'cc', '', ['10 концепции, всяка ясно разписана', 'Има микс: полезно · забавно · интеракция · брандово', 'Посланията от брифа са покрити', 'Няма две видеа, които „правят едно и също“', 'Хората, местата и проповете са реални']),
+      S('Премести КП картата в „Към Клиент“ и тагни акаунта', 'cc'),
+    ] },
+  { id: 'idea', dept: 'Контент криейшън', name: 'Разписване на една идея', owner: 'cc',
+    when: 'Идеята е избрана в ТОП 10', done: 'Видеографът и монтажистът могат да я изпълнят, без да питат',
+    steps: [
+      S('Заглавие — кратко, без символи', 'cc', 'Пример: „Видео 4 - Когато колегата е болен“.\nОт заглавието става името на задачата, папката и файла, затова без символи и с непрекъснато оцветяване.'),
+      S('Логистика най-горе', 'cc', '/Участници във видеото - 2 (служител, шеф)/\n/Локация - офис/\n/Необходими продукти-ресурси - термометър, одеяло/'),
+      S('Hook — първите 2–3 секунди', 'cc', 'Шокиращо твърдение, обещание за полза, конфликт, въпрос, POV или игра. Трябва да има причина човек да спре.'),
+      S('Сценарий: реплики с „-“, кадри с „/“', 'cc', '/Шефът влиза и вижда служителя увит в одеяло./\n- Пак ли си болен?\n/Служителят кашля театрално./\n\nНов ред в Basecamp без bullet list: Shift + Enter.'),
+      S('CTA — само ако има смисъл', 'cc', 'В около 30% от видеата. Hook 1 / Hook 2 или CTA 1 / CTA 2 се пишат само ако има няколко версии (органик и реклама).'),
+      S('Референция най-долу', 'cc', 'Референция - (линк)'),
+      S('Провери преди „готово“', 'cc', '', ['Обяснява се в 1–2 изречения', 'Hook-ът обещава точно това, което видеото дава', 'Ясно е какво се ВИЖДА, не само какво се казва', 'Имена, числа, дати — проверени', 'Без следи от AI: дълги тирета, излишни кавички, bold']),
+    ] },
+  { id: 'present', dept: 'Контент криейшън', name: 'Представяне на КП пред клиента', owner: 'cc',
+    when: 'КП картата е в „Към Клиент“', done: 'Записките от клиента са в КП картата същия ден + картата е в „В продукция“',
+    steps: [
+      S('Насрочи среща с клиента', 'acc', 'Включи предварителните дати на видеата.'),
+      S('Представи идеите', 'cc', 'За всяко видео: идеята в едно изречение + защо ще работи.', [], 'Онлайн срещата се записва от начало до край. Без запис = недовършена работа.'),
+      S('Води записки', 'acc'),
+      S('Пусни записките в КП картата — същия ден', 'acc'),
+      S('Нанеси корекциите в самите идеи', 'cc', 'Чрез edit на картата, не като коментари. Обикновено 2–3 рунда.'),
+      S('Премести КП картата в „В продукция“', 'cc'),
+    ] },
+  { id: 'props', dept: 'Контент криейшън', name: 'Пропове и бюджет €30', owner: 'cc',
+    when: 'Идеите са разписани и искат реквизит, принт или графика', done: 'Всичко е при снимачния екип преди снимачния ден',
+    steps: [
+      S('Направи един списък', 'cc', 'предмет · за кое видео · цена · линк/магазин'),
+      S('Подай една заявка до €30', 'cc', '€30 е таван, не цел. Една заявка за целия КП, а не по €5 няколко пъти.'),
+      S('Купи и пази касовата бележка', 'cc', 'Сумата се възстановява срещу бележка/фактура.'),
+      S('Подготви принтове, табели, графики', 'cc'),
+      S('Поискай навреме нещата от клиента', 'cc', 'И следи да дойдат.'),
+      S('Предай всичко на видеографа', 'vid', '', [], 'Видеографът не тръгва на снимки без проповете.'),
+    ] },
+  { id: 'shoot', dept: 'Заснемане', name: 'Снимачен ден', owner: 'vid',
+    when: 'Насрочен ден в Производствения календар', done: 'Файловете са на Z: СЪЩИЯ ден + коментар „Качено“ + стъпката отметната',
+    steps: [
+      S('Вечерта преди: прочети сценариите', 'vid', 'Знай кое е неприкосновено за всяко видео.', [], 'Въпросите — в задачата до 17:00 предния ден.'),
+      S('Провери техниката', 'vid', '', ['Батерии', 'Празни и проверени карти', 'Звук', 'Светлина']),
+      S('Снимай по сценария', 'vid', 'Вариации — да, ако посланието остава.', [], 'Неприкосновеното не става → снимай двата варианта и пиши в задачата веднага.'),
+      S('Качи на Z: и конвертирай в MXF', 'vid', 'Z:\\[Клиент]\\Контент план N\\Видео M\\'),
+      S('Отвори 2–3 клипа за проверка', 'vid'),
+      S('Коментар „Качено“ + бележки', 'vid', 'Кои дубли са добри и всичко, което го няма в сценария.'),
+      S('Отметни „Заснет материал“ и тагни монтажа', 'vid'),
+      S('Върни студиото в готов вид', 'vid', '', ['Софтбоксове на стойките', 'Кабели разкачени, LED изключен', 'Телепромптър покрит', 'Климатик изключен']),
+    ] },
+];
+
+const KEY = 'demo-processes-v1';
+let DATA = load();
+let cur = location.hash.slice(1) || DATA[0].id;
+let editing = null; // копие на процеса при редакция
+const open = new Set();
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || seed(); } catch { return seed(); } }
+function seed() { return JSON.parse(JSON.stringify(SEED)).map((p) => ({ ...p, version: 1, history: [{ v: 1, at: '04.11.2026', by: 'Claude', note: 'първа версия от Vault процесите' }] })); }
+function persist() { localStorage.setItem(KEY, JSON.stringify(DATA)); }
+function resetDemo() { if (confirm('Да върна демото в начално състояние?')) { localStorage.removeItem(KEY); DATA = seed(); editing = null; render(); } }
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const role = (k) => ROLES[k] || ROLES.all;
+const today = () => new Date().toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+function renderNav() {
+  const depts = [...new Set(DATA.map((p) => p.dept))];
+  document.getElementById('nav').innerHTML = depts.map((d) => `<h4>${esc(d)}</h4>` +
+    DATA.filter((p) => p.dept === d).map((p) => `<a class="${p.id === cur ? 'on' : ''}" onclick="go('${p.id}')">${esc(p.name)}</a>`).join('')).join('') +
+    `<h4>Хора</h4><a class="${cur === 'roles' ? 'on' : ''}" onclick="go('roles')">👥 Кой за какво отговаря</a>`;
+}
+function go(id) { if (editing && !confirm('Има незапазени промени. Да ги изхвърля?')) return; editing = null; cur = id; location.hash = id; render(); }
+
+function renderView(p) {
+  const steps = p.steps;
+  return `
+  <div class="top"><div style="flex:1"><h2>${esc(p.name)}</h2><div class="ver">v${p.version} · последна промяна ${esc(p.history[p.history.length - 1].at)} от ${esc(p.history[p.history.length - 1].by)}</div></div>
+    <button class="btn pri" onclick="startEdit()">✏️ Редактирай</button></div>
+  <div class="meta">
+    <div><small>👤 Собственик</small>${esc(role(p.owner).name)}</div>
+    <div><small>⏰ Кога започва</small>${esc(p.when)}</div>
+    <div><small>✅ Готово е, когато</small>${esc(p.done)}</div>
+  </div>
+  <div class="flow">${steps.map((s, i) => `${i ? '<span class="arr">→</span>' : ''}<span class="chip" style="border-color:${role(s.who).color};color:${role(s.who).color}" onclick="jump(${i})">${i + 1}. ${esc(s.title)}</span>`).join('')}</div>
+  ${steps.map((s, i) => {
+    const c = role(s.who).color, k = p.id + ':' + i;
+    return `<div class="step" id="st${i}"><div class="num" style="background:${c}">${i + 1}</div><div class="block" style="border-left-color:${c}">
+      <div class="bhead"><div class="btitle">${esc(s.title)}</div><span class="who" style="background:${c}">${esc(role(s.who).name)}</span></div>
+      ${s.checks.length ? `<div class="checks">${s.checks.map((t) => `<label><input type="checkbox"> ${esc(t)}</label>`).join('')}</div>` : ''}
+      ${s.warn ? `<div class="warn">⛔ ${esc(s.warn)}</div>` : ''}
+      ${s.more ? `<div class="more" onclick="toggle('${k}')">${open.has(k) ? '▾ Скрий' : 'ℹ️ Повече'}</div>${open.has(k) ? `<div class="details">${esc(s.more)}</div>` : ''}` : ''}
+    </div></div>`;
+  }).join('')}
+  <div class="hist"><b>История на версиите</b><ul>${p.history.slice().reverse().map((h) => `<li>v${h.v} · ${esc(h.at)} · ${esc(h.by)}${h.note ? ' — ' + esc(h.note) : ''}</li>`).join('')}</ul></div>`;
+}
+
+function roleSelect(val, attr) {
+  return `<select ${attr}>${Object.entries(ROLES).map(([k, r]) => `<option value="${k}" ${k === val ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>`;
+}
+function renderEdit(p) {
+  const addBtn = (i) => `<button class="add" onclick="addStep(${i})">＋ Добави стъпка тук</button>`;
+  return `<div class="edit">
+  <div class="top"><div style="flex:1"><label class="f">Име на процеса</label><input type="text" value="${esc(p.name)}" oninput="E.name=this.value"></div></div>
+  <div class="row"><div><label class="f">⏰ Кога започва</label><input type="text" value="${esc(p.when)}" oninput="E.when=this.value"></div>
+    <div><label class="f">👤 Собственик</label>${roleSelect(p.owner, 'onchange="E.owner=this.value"')}</div></div>
+  <label class="f">✅ Готово е, когато</label><input type="text" value="${esc(p.done)}" oninput="E.done=this.value">
+  <div style="height:16px"></div>
+  ${addBtn(0)}
+  ${p.steps.map((s, i) => `<div class="step"><div class="num" style="background:${role(s.who).color}">${i + 1}</div><div class="block" style="border-left-color:${role(s.who).color}">
+    <div class="row"><div><label class="f">Стъпка — един ред, започва с глагол</label><input type="text" value="${esc(s.title)}" oninput="E.steps[${i}].title=this.value"></div>
+      <div><label class="f">Кой я прави</label>${roleSelect(s.who, `onchange="E.steps[${i}].who=this.value;render()"`)}</div></div>
+    <label class="f">ℹ️ Повече (по желание — показва се само при клик)</label><textarea oninput="E.steps[${i}].more=this.value">${esc(s.more)}</textarea>
+    <label class="f">☐ Чеклист (по желание)</label>
+    ${s.checks.map((t, j) => `<div class="citem"><input type="text" value="${esc(t)}" oninput="E.steps[${i}].checks[${j}]=this.value"><button class="btn sm del" onclick="E.steps[${i}].checks.splice(${j},1);render()">✕</button></div>`).join('')}
+    <button class="btn sm" onclick="E.steps[${i}].checks.push('');render()">＋ точка</button>
+    <label class="f">⛔ Внимание (по желание)</label><input type="text" value="${esc(s.warn)}" oninput="E.steps[${i}].warn=this.value">
+    <div class="tools"><button class="btn sm" onclick="move(${i},-1)" ${i ? '' : 'disabled'}>↑</button><button class="btn sm" onclick="move(${i},1)" ${i < p.steps.length - 1 ? '' : 'disabled'}>↓</button>
+      <button class="btn sm del" style="margin-left:auto" onclick="if(confirm('Да изтрия стъпка ${i + 1}?')){E.steps.splice(${i},1);render()}">🗑 Изтрий стъпката</button></div>
+  </div></div>${addBtn(i + 1)}`).join('')}
+  <div class="bar"><label class="f" style="margin:0">Какво промени?</label><input type="text" id="note" placeholder="напр. добавих проверка на звука" style="flex:1">
+    <button class="btn" onclick="cancelEdit()">Отказ</button><button class="btn pri" onclick="saveEdit()">💾 Запази като v${p.version + 1}</button></div>
+  </div>`;
+}
+let E = null;
+function startEdit() { editing = true; E = JSON.parse(JSON.stringify(DATA.find((p) => p.id === cur))); render(); }
+function cancelEdit() { editing = null; E = null; render(); }
+function addStep(i) { E.steps.splice(i, 0, { title: 'Нова стъпка', who: E.owner, more: '', checks: [], warn: '' }); render(); }
+function move(i, d) { const s = E.steps.splice(i, 1)[0]; E.steps.splice(i + d, 0, s); render(); }
+function saveEdit() {
+  E.steps = E.steps.filter((s) => s.title.trim()).map((s) => ({ ...s, checks: s.checks.filter((t) => t.trim()) }));
+  E.version += 1;
+  E.history.push({ v: E.version, at: today(), by: 'Венци', note: (document.getElementById('note').value || '').trim() });
+  DATA[DATA.findIndex((p) => p.id === cur)] = E; persist(); editing = null; E = null; render();
+}
+function toggle(k) { open.has(k) ? open.delete(k) : open.add(k); render(); }
+function jump(i) { const el = document.getElementById('st' + i); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); const b = el.querySelector('.block'); b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 1200); }
+
+function renderRoles() {
+  return `<div class="top"><h2>👥 Кой за какво отговаря</h2></div>
+  <p class="dim" style="color:var(--sec);margin-top:6px">Сглобява се сам от стъпките във всички процеси. Смениш ли „кой я прави“ на стъпка, тя се мести тук.</p>
+  <div class="roles">${Object.entries(ROLES).map(([k, r]) => {
+    const own = DATA.filter((p) => p.owner === k);
+    const groups = DATA.map((p) => ({ p, steps: p.steps.map((s, i) => ({ s, i })).filter((x) => x.s.who === k) })).filter((g) => g.steps.length);
+    return `<div class="role" style="border-top-color:${r.color}"><h3 style="color:${r.color}">${esc(r.name)}</h3>
+      ${own.length ? `<div class="p">Собственик на процеса: ${own.map((p) => `<a onclick="go('${p.id}')">${esc(p.name)}</a>`).join(', ')}</div>` : ''}
+      ${groups.length ? groups.map((g) => `<div style="margin-top:10px"><a onclick="go('${g.p.id}')"><b>${esc(g.p.name)}</b></a><ul>${g.steps.map((x) => `<li><span class="p">${x.i + 1}.</span> ${esc(x.s.title)}</li>`).join('')}</ul></div>`).join('') : '<div class="empty">няма стъпки в тези процеси</div>'}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function render() {
+  renderNav();
+  const page = document.getElementById('page');
+  if (cur === 'roles') { page.innerHTML = renderRoles(); return; }
+  const p = DATA.find((x) => x.id === cur) || DATA[0];
+  cur = p.id;
+  page.innerHTML = editing ? renderEdit(E) : renderView(p);
+}
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== cur) go(h); });
+render();
+</script>
+</body>
+</html>
