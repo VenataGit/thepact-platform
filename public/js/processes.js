@@ -64,6 +64,7 @@ async function renderProcesses(el, a, b) {
   let main, sideKey = a || 'home';
   if (!a) main = prHome();
   else if (a === 'roles') main = prRolesView();
+  else if (a === 'gaps') main = prGapsView();
   else if (a === 'checklists') { main = prChecklists(b); sideKey = 'checklists'; }
   else if (a === 'settings') main = PR.canEdit ? prSettings() : prNoAccess();
   else if (a === 'new') main = PR.canEdit ? prEditor(true) : prNoAccess();
@@ -95,6 +96,7 @@ function prSide(active) {
     <div class="pr-sep"></div>
     <a class="pr-solo ${active === 'roles' ? 'on' : ''}" href="#/processes/roles">👥 Кой за какво отговаря</a>
     <a class="pr-solo ${active === 'checklists' ? 'on' : ''}" href="#/processes/checklists">☑️ Чеклисти по роля</a>
+    <a class="pr-solo ${active === 'gaps' ? 'on' : ''}" href="#/processes/gaps">🚧 Дупки за оправяне <span class="pr-cnt">${prGaps().length}</span></a>
     ${PR.canEdit ? `<a class="pr-solo ${active === 'settings' ? 'on' : ''}" href="#/processes/settings">⚙️ Настройки</a>
     <a class="pr-solo pr-new ${active === 'new' ? 'on' : ''}" href="#/processes/new">＋ Нов процес</a>` : ''}`;
 }
@@ -155,7 +157,7 @@ function prView(p) {
     return `<div class="pr-step" id="prSt${i}"><div class="pr-num" style="background:${esc(r.color)};color:${prInk(r.color)}">${i + 1}</div><div class="pr-block" style="border-left-color:${esc(r.color)}">
       <div class="pr-bhead"><div class="pr-btitle">${esc(s.title)}</div>${prPill(s.who)}</div>
       ${s.checks.length ? `<div class="pr-checks">${s.checks.map((t) => `<label><input type="checkbox"> ${esc(t)}</label>`).join('')}</div>` : ''}
-      ${s.warn ? `<div class="pr-warn">⛔ ${esc(s.warn)}</div>` : ''}
+      ${prWarnHtml(s.warn)}
       ${s.more || prImgs(s).length ? `<div class="pr-more" onclick="prToggleMore(${jsq(k)})">${PR.open.has(k) ? '▾ Скрий' : 'ℹ️ Повече' + (prImgs(s).length ? ' · 🖼 ' + prImgs(s).length : '')}</div>${PR.open.has(k) ? `<div class="pr-details">${s.more ? prText(s.more) : ''}${prGallery(s)}</div>` : ''}` : ''}
     </div></div>`;
   }).join('');
@@ -342,7 +344,7 @@ function prChecklistHtml(m, withMore) {
     ${g.p.when ? `<div class="prc-when">⏰ ${esc(g.p.when)}${g.p.done ? ' · ✅ ' + esc(g.p.done) : ''}</div>` : ''}
     ${g.steps.map((x) => `<div class="prc-step"><span class="prc-box"></span><div><b>${x.i + 1}. ${esc(x.s.title)}</b>${m.showWho || x.s.who === 'all' ? ` <span class="prc-who">(${esc(prRole(x.s.who).name)})</span>` : ''}
       ${x.s.checks.length ? `<div class="prc-sub2">${x.s.checks.map((t) => `<div class="prc-step prc-small"><span class="prc-box"></span><div>${esc(t)}</div></div>`).join('')}</div>` : ''}
-      ${x.s.warn ? `<div class="prc-warn">⛔ ${esc(x.s.warn)}</div>` : ''}
+      ${x.s.warn && !prIsGap(x.s.warn) ? `<div class="prc-warn">⛔ ${esc(x.s.warn)}</div>` : ''}
       ${withMore && x.s.more ? `<div class="prc-more">${prText(x.s.more)}</div>` : ''}${withMore ? prGallery(x.s, true) : ''}</div></div>`).join('')}
   </section>`).join('') || '<p>Няма стъпки за тази роля.</p>'}`;
 }
@@ -427,4 +429,26 @@ async function prOrdSave() {
   const r = await fetch('/api/processes/order/all', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: PR.orderDraft }) });
   if (!r.ok) return showToast('Грешка', 'error');
   PR.orderDraft = null; await prLoad(true); showToast('Редът е запазен', 'success'); router();
+}
+
+// ---------- дупки: „ДУПКА: …" (с или без 🕳/🚧 отпред) в „Внимание" = място, по което още трябва да се работи ----------
+// Не е отделно поле — пише се в „Внимание". Махнеш ли го от стъпката, изчезва и от списъка.
+// Не се печата в чеклистите на екипа (там е шум).
+const GAP_RE = /^\s*(?:🕳️?|🚧)?\s*ДУПКА:\s*/u;
+const prIsGap = (w) => GAP_RE.test(w || '');
+const prGapText = (w) => String(w || '').replace(GAP_RE, '');
+function prWarnHtml(w) {
+  if (!w) return '';
+  return prIsGap(w) ? `<div class="pr-gap">🚧 ДУПКА: ${esc(prGapText(w))}</div>` : `<div class="pr-warn">⛔ ${esc(w)}</div>`;
+}
+function prGaps() {
+  return (PR.data || []).flatMap((p) => p.steps.map((s, i) => ({ p, s, i })).filter((x) => prIsGap(x.s.warn)));
+}
+function prGapsView() {
+  const list = prGaps();
+  const groups = prByDept().map((g) => ({ d: g.d, items: list.filter((x) => g.list.includes(x.p)) })).filter((g) => g.items.length);
+  return `<div class="pr-panel"><div class="pr-top"><h1 class="pr-grow">🚧 Дупки за оправяне</h1><span class="pr-dim">${list.length} общо</span></div>
+    <div class="pr-note">Места в процесите, по които още трябва да се работи. Събират се сами от стъпките: в „⛔ Внимание“ на стъпката започва с „ДУПКА:“. Оправиш ли дупката — махни реда от стъпката и тя изчезва оттук. В чеклистите на екипа не се печатат.</div>
+    ${groups.map((g) => `<h3 class="pr-h3">${esc(g.d.icon || '')} ${esc(g.d.name)}</h3>${g.items.map((x) => `<a class="pr-gaprow" href="#/processes/${x.p.id}"><span class="pr-gapwhere">${esc(x.p.name)} · стъпка ${x.i + 1}<b>${esc(x.s.title)}</b></span><span class="pr-gaptxt">${esc(prGapText(x.s.warn))}</span>${prPill(x.s.who)}</a>`).join('')}`).join('') || '<p class="pr-dim">Няма отбелязани дупки. 🎉</p>'}
+  </div>`;
 }
