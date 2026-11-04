@@ -130,7 +130,24 @@ a.pr-tile:hover { background: rgba(255, 255, 255, .07); }
 .pr-mx-dept td { background: rgba(255, 255, 255, .03); color: #66798a; font-size: 11px !important; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; text-align: left !important; }
 .pr-dotb { width: 10px; height: 10px; border-radius: 50%; display: block; margin: 0 auto 4px; }
 
+/* снимки в „Повече" */
+.pr-gallery { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; white-space: normal; }
+.pr-gallery img { max-height: 220px; max-width: 360px; border-radius: 8px; display: block; border: 1px solid rgba(255, 255, 255, .1); }
+.pr-gallery a:hover img { border-color: #46a374; }
+.pr-imgs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.pr-imgbox { position: relative; }
+.pr-imgbox img { height: 84px; max-width: 160px; object-fit: cover; border-radius: 8px; display: block; border: 1px solid #1e3040; }
+.pr-imgbox .pr-btn { position: absolute; top: 4px; right: 4px; padding: 1px 6px; background: rgba(17, 26, 30, .85); }
+
 /* чеклисти */
+.pr-pick { margin-top: 14px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .07); border-radius: 12px; padding: 10px 14px; }
+.pr-pick-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.pr-pick-h .pr-small { flex: 1; }
+.pr-pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 4px 12px; }
+.pr-pick-item { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 7px; color: #9aa7ad; }
+.pr-pick-item.on { color: #e6e6e6; background: rgba(70, 163, 116, .1); }
+.pr-pick-item label { flex: 1; cursor: pointer; display: flex; gap: 6px; align-items: center; }
+.pr-pick-item input { accent-color: #46a374; }
 .pr-paper { border-radius: 10px; margin-top: 16px; box-shadow: 0 2px 18px rgba(0, 0, 0, .4); }
 .pr-chip.on { font-weight: 700; }
 

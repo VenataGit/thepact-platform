@@ -13,7 +13,7 @@
 const PR = {
   data: null, config: null, canEdit: false, q: '',
   openDepts: new Set(JSON.parse(localStorage.getItem('pr_open_depts') || '[]')),
-  open: new Set(), E: null, rolesView: localStorage.getItem('pr_roles_view') || 'cards',
+  open: new Set(), E: null, clOff: {}, rolesView: localStorage.getItem('pr_roles_view') || 'cards',
   clMore: false, cfgDraft: null, orderDraft: null,
 };
 
@@ -156,7 +156,7 @@ function prView(p) {
       <div class="pr-bhead"><div class="pr-btitle">${esc(s.title)}</div>${prPill(s.who)}</div>
       ${s.checks.length ? `<div class="pr-checks">${s.checks.map((t) => `<label><input type="checkbox"> ${esc(t)}</label>`).join('')}</div>` : ''}
       ${s.warn ? `<div class="pr-warn">⛔ ${esc(s.warn)}</div>` : ''}
-      ${s.more ? `<div class="pr-more" onclick="prToggleMore(${jsq(k)})">${PR.open.has(k) ? '▾ Скрий' : 'ℹ️ Повече'}</div>${PR.open.has(k) ? `<div class="pr-details">${prText(s.more)}</div>` : ''}` : ''}
+      ${s.more || prImgs(s).length ? `<div class="pr-more" onclick="prToggleMore(${jsq(k)})">${PR.open.has(k) ? '▾ Скрий' : 'ℹ️ Повече' + (prImgs(s).length ? ' · 🖼 ' + prImgs(s).length : '')}</div>${PR.open.has(k) ? `<div class="pr-details">${s.more ? prText(s.more) : ''}${prGallery(s)}</div>` : ''}` : ''}
     </div></div>`;
   }).join('');
   return `<div class="pr-panel">${prHead(p)}
@@ -204,7 +204,9 @@ function prEditor(isNew, id) {
     ${E.steps.map((s, i) => { const r = prRole(s.who); return `<div class="pr-step"><div class="pr-num" style="background:${esc(r.color)};color:${prInk(r.color)}">${i + 1}</div><div class="pr-block" style="border-left-color:${esc(r.color)}">
       <div class="pr-row2"><div><label class="pr-f">Стъпка — един ред, започва с глагол</label><input type="text" value="${esc(s.title)}" oninput="prSet(${jsq('steps.' + i + '.title')}, this.value)"></div>
         <div><label class="pr-f">Кой я прави</label>${roleSel(s.who, 'steps.' + i + '.who', true)}</div></div>
-      <label class="pr-f">ℹ️ Повече (по желание — показва се само при клик; линковете стават кликаеми)</label><textarea oninput="prSet(${jsq('steps.' + i + '.more')}, this.value)">${esc(s.more)}</textarea>
+      <label class="pr-f">ℹ️ Повече (по желание — показва се само при клик; линковете, вкл. към видео, стават кликаеми; снимка може и с Ctrl+V тук)</label><textarea oninput="prSet(${jsq('steps.' + i + '.more')}, this.value)" onpaste="prPasteImg(event, ${i})">${esc(s.more)}</textarea>
+      <div class="pr-imgs">${prImgs(s).map((u, j) => `<div class="pr-imgbox"><img src="${safeUrl(u)}" alt=""><button class="pr-btn pr-sm pr-del" onclick="prDelImg(${i}, ${j})" title="Махни снимката">✕</button></div>`).join('')}
+        <label class="pr-btn pr-sm">📷 Добави снимка<input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden onchange="prUploadImgs(this.files, ${i}); this.value=''"></label></div>
       <label class="pr-f">☐ Чеклист (по желание)</label>
       ${s.checks.map((t, j) => `<div class="pr-citem"><input type="text" value="${esc(t)}" oninput="prSet(${jsq('steps.' + i + '.checks.' + j)}, this.value)"><button class="pr-btn pr-sm pr-del" onclick="prDelCheck(${i}, ${j})">✕</button></div>`).join('')}
       <button class="pr-btn pr-sm" onclick="prAddCheck(${i})">＋ точка</button>
@@ -223,7 +225,35 @@ function prSet(path, val, rerender) {
   o[parts[parts.length - 1]] = val;
   if (rerender) router();
 }
-function prAddStep(i) { PR.E.steps.splice(i, 0, { title: '', who: PR.E.owner || '', more: '', checks: [], warn: '' }); router(); }
+function prAddStep(i) { PR.E.steps.splice(i, 0, { title: '', who: PR.E.owner || '', more: '', checks: [], warn: '', images: [] }); router(); }
+// ---------- снимки в „Повече" ----------
+const prImgs = (s) => (s && Array.isArray(s.images) ? s.images : []);
+function prGallery(s, print) {
+  // при печат/сваляне адресът е пълен, за да се вижда и в изтегления файл
+  const list = prImgs(s).map((u) => safeUrl(print && u.startsWith('/') ? location.origin + u : u)).filter(Boolean);
+  if (!list.length) return '';
+  return `<div class="${print ? 'prc-imgs' : 'pr-gallery'}">${list.map((u) => `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="" loading="lazy"></a>`).join('')}</div>`;
+}
+async function prUploadImgs(files, i) {
+  const step = PR.E && PR.E.steps[i]; if (!step) return;
+  if (!Array.isArray(step.images)) step.images = [];
+  for (const file of Array.from(files || [])) {
+    if (step.images.length >= 12) { showToast('Максимум 12 снимки на стъпка', 'error'); break; }
+    const fd = new FormData(); fd.append('file', file, file.name || 'snimka.png');
+    const r = await fetch('/api/processes/images', { method: 'POST', body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { showToast(j.error || 'Снимката не се качи', 'error', 5000); continue; }
+    step.images.push(j.url);
+  }
+  router();
+}
+function prPasteImg(ev, i) {
+  const items = Array.from((ev.clipboardData && ev.clipboardData.items) || []).filter((x) => x.kind === 'file' && /^image\/(png|jpeg|gif|webp)$/.test(x.type));
+  if (!items.length) return; // обикновен текст — нищо не пипаме
+  ev.preventDefault();
+  prUploadImgs(items.map((x) => x.getAsFile()).filter(Boolean), i);
+}
+function prDelImg(i, j) { PR.E.steps[i].images.splice(j, 1); router(); }
 function prDelStep(i) { if (confirm('Да изтрия стъпка ' + (i + 1) + '?')) { PR.E.steps.splice(i, 1); router(); } }
 function prMove(i, d) { const s = PR.E.steps.splice(i, 1)[0]; PR.E.steps.splice(i + d, 0, s); router(); }
 function prAddCheck(i) { PR.E.steps[i].checks.push(''); router(); }
@@ -276,14 +306,34 @@ function prRolesView() {
 
 // ---------- чеклисти по роля (за печат / сваляне) ----------
 // key = ключ на роля, или „p<id>“ за чеклист на един процес.
+// Чеклистът на ролята може да е целият (по подразбиране) или само избрани процеси —
+// напр. видеографът си взима само „Снимачен ден". Изборът е в PR.clOff (изключените) и не се пази.
 function prChecklistModel(key) {
   if (/^p\d+$/.test(key || '')) {
     const p = prProc(parseInt(key.slice(1), 10)); if (!p) return null;
-    return { title: p.name, sub: 'Чеклист на процеса · всички стъпки', color: prDept(p.dept).color, groups: [{ p, steps: p.steps.map((s, i) => ({ s, i })) }], own: [], showWho: true };
+    const groups = [{ p, steps: p.steps.map((s, i) => ({ s, i })) }];
+    return { title: p.name, sub: 'Чеклист на процеса · всички стъпки', color: prDept(p.dept).color, groups, all: groups, own: [], showWho: true, single: true };
   }
   const r = (PR.config.roles || []).find((x) => x.key === key); if (!r) return null;
-  const groups = prByDept().flatMap((g) => g.list).map((p) => ({ p, steps: p.steps.map((s, i) => ({ s, i })).filter((x) => x.s.who === r.key || x.s.who === 'all') })).filter((g) => g.steps.length);
-  return { title: r.name, sub: 'Всичко, което прави тази роля, от всички процеси', color: r.color, groups, own: PR.data.filter((p) => p.owner === r.key), showWho: false };
+  const all = prByDept().flatMap((g) => g.list).map((p) => ({ p, steps: p.steps.map((s, i) => ({ s, i })).filter((x) => x.s.who === r.key || x.s.who === 'all') })).filter((g) => g.steps.length);
+  const off = PR.clOff[key] || new Set();
+  const groups = all.filter((g) => !off.has(g.p.id));
+  const part = groups.length < all.length;
+  return {
+    title: r.name + (part && groups.length === 1 ? ' — ' + groups[0].p.name : ''),
+    sub: part ? `Част от чеклиста: ${groups.length} от ${all.length} процеса` : 'Всичко, което прави тази роля, от всички процеси',
+    color: r.color, groups, all, own: part ? [] : PR.data.filter((p) => p.owner === r.key), showWho: false,
+  };
+}
+function prClToggle(key, id) { const off = PR.clOff[key] || (PR.clOff[key] = new Set()); off.has(id) ? off.delete(id) : off.add(id); router(); }
+function prClOnly(key, id) { const m = prChecklistModel(key); PR.clOff[key] = new Set(m.all.map((g) => g.p.id).filter((x) => x !== id)); router(); }
+function prClAll(key, on) { const m = prChecklistModel(key); PR.clOff[key] = on ? new Set() : new Set(m.all.map((g) => g.p.id)); router(); }
+function prClPicker(key, m) {
+  if (m.single) return '';
+  const off = PR.clOff[key] || new Set();
+  return `<div class="pr-pick"><div class="pr-pick-h"><b>Какво да влезе</b><span class="pr-dim pr-small">по подразбиране — целият; „само“ = чеклист само за това (напр. за снимачен ден)</span>
+      <button class="pr-btn pr-sm" onclick="prClAll(${jsq(key)}, true)">Целият</button><button class="pr-btn pr-sm" onclick="prClAll(${jsq(key)}, false)">Нищо</button></div>
+    <div class="pr-pick-list">${m.all.map((g) => { const on = !off.has(g.p.id); return `<div class="pr-pick-item ${on ? 'on' : ''}"><label><input type="checkbox" ${on ? 'checked' : ''} onchange="prClToggle(${jsq(key)}, ${g.p.id})"> ${esc(prDept(g.p.dept).icon || '')} ${esc(g.p.name)} <span class="pr-dim pr-small">· ${g.steps.length}</span></label><button class="pr-link" onclick="prClOnly(${jsq(key)}, ${g.p.id})">само</button></div>`; }).join('')}</div></div>`;
 }
 function prChecklistHtml(m, withMore) {
   return `<div class="prc-head" style="border-color:${esc(m.color)}"><div><div class="prc-kicker">Чеклист · The Pact</div><h1>${esc(m.title)}</h1><div class="prc-sub">${esc(m.sub)} · сглобен на ${esc(prDate(new Date()))}</div></div></div>
@@ -293,7 +343,7 @@ function prChecklistHtml(m, withMore) {
     ${g.steps.map((x) => `<div class="prc-step"><span class="prc-box"></span><div><b>${x.i + 1}. ${esc(x.s.title)}</b>${m.showWho || x.s.who === 'all' ? ` <span class="prc-who">(${esc(prRole(x.s.who).name)})</span>` : ''}
       ${x.s.checks.length ? `<div class="prc-sub2">${x.s.checks.map((t) => `<div class="prc-step prc-small"><span class="prc-box"></span><div>${esc(t)}</div></div>`).join('')}</div>` : ''}
       ${x.s.warn ? `<div class="prc-warn">⛔ ${esc(x.s.warn)}</div>` : ''}
-      ${withMore && x.s.more ? `<div class="prc-more">${prText(x.s.more)}</div>` : ''}</div></div>`).join('')}
+      ${withMore && x.s.more ? `<div class="prc-more">${prText(x.s.more)}</div>` : ''}${withMore ? prGallery(x.s, true) : ''}</div></div>`).join('')}
   </section>`).join('') || '<p>Няма стъпки за тази роля.</p>'}`;
 }
 const PRC_CSS = `.prc{font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#111;background:#fff;max-width:820px;margin:0 auto;padding:28px 34px;line-height:1.45}
@@ -301,7 +351,8 @@ const PRC_CSS = `.prc{font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-ser
 .prc-sub{color:#555;font-size:13px}.prc-own{font-size:13px;color:#333;margin:0 0 10px}.prc-sec{margin:18px 0 6px;break-inside:avoid-page}.prc h2{font-size:17px;margin:0 0 4px;border-bottom:1px solid #ccc;padding-bottom:3px}
 .prc-when{font-size:12px;color:#555;margin-bottom:6px}.prc-step{display:flex;gap:10px;align-items:flex-start;margin:7px 0;break-inside:avoid}.prc-box{width:15px;height:15px;border:1.6px solid #333;border-radius:3px;flex:none;margin-top:2px}
 .prc-small{margin:4px 0;font-size:13.5px}.prc-small .prc-box{width:12px;height:12px}.prc-sub2{margin:4px 0 0 2px}.prc-who{color:#666;font-weight:400;font-size:12.5px}.prc-warn{color:#b3261e;font-size:13px;margin-top:3px}
-.prc-more{white-space:pre-wrap;font-size:12.5px;color:#444;background:#f4f4f4;border-radius:6px;padding:6px 9px;margin-top:4px}.prc a{color:#1f5fbf}`;
+.prc-more{white-space:pre-wrap;font-size:12.5px;color:#444;background:#f4f4f4;border-radius:6px;padding:6px 9px;margin-top:4px}.prc a{color:#1f5fbf}
+.prc-imgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.prc-imgs img{max-height:150px;max-width:260px;border-radius:5px;border:1px solid #ddd;display:block}`;
 function prChecklists(key) {
   const roles = PR.config.roles || [];
   const picker = `<div class="pr-chips">${roles.map((r) => `<a class="pr-chip ${r.key === key ? 'on' : ''}" href="#/processes/checklists/${encodeURIComponent(r.key)}" style="border-color:${esc(r.color)};${r.key === key ? `background:${esc(r.color)};color:${prInk(r.color)}` : `color:${esc(r.color)}`}">${esc(r.name)}</a>`).join('')}</div>`;
@@ -311,7 +362,7 @@ function prChecklists(key) {
   return `<div class="pr-panel"><div class="pr-top pr-noprint"><h1 class="pr-grow">☑️ Чеклист</h1>
       <label class="pr-dim"><input type="checkbox" ${PR.clMore ? 'checked' : ''} onchange="PR.clMore=this.checked;router()"> с подробностите („Повече“)</label>
       <button class="pr-btn" onclick="prDownloadChecklist(${jsq(key)})">⬇ Изтегли</button><button class="pr-btn pr-pri" onclick="window.print()">🖨 Принтирай / PDF</button></div>
-    <div class="pr-noprint">${picker}</div>
+    <div class="pr-noprint">${picker}${prClPicker(key, m)}</div>
     <div id="prPrintArea" class="prc pr-paper">${prChecklistHtml(m, PR.clMore)}</div></div>
     <style>${PRC_CSS}</style>`;
 }

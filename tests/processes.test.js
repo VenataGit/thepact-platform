@@ -136,3 +136,22 @@ describe('почистване на стъпките', () => {
     expect(out[0].more.length).toBe(4000);
   });
 });
+
+describe('снимки в „Повече"', () => {
+  it('пазят се само наши адреси от uploads/processes, макс. 12', () => {
+    const imgs = ['/uploads/processes/1730700000000-ab12cd34.png', 'https://evil.example/x.png', '/uploads/chat/1-a.png',
+      '/uploads/processes/../../.env', 'javascript:alert(1)', ...Array.from({ length: 15 }, (_, i) => `/uploads/processes/17307000000${i}-x${i}.jpg`)];
+    const out = _test.cleanSteps([{ title: 'Снимай', who: 'vid', images: imgs }], new Set(['vid']));
+    expect(out[0].images[0]).toBe('/uploads/processes/1730700000000-ab12cd34.png');
+    expect(out[0].images).toHaveLength(12);
+    expect(out[0].images.some((u) => /evil|chat|\.\.|javascript/.test(u))).toBe(false);
+  });
+  it('обикновен човек не може да качва — 403', async () => {
+    const res = await request(app).post('/api/processes/images').set('Cookie', member).attach('file', Buffer.from('x'), 'a.png');
+    expect(res.status).toBe(403);
+  });
+  it('админ: само картинки — .svg се отказва', async () => {
+    const res = await request(app).post('/api/processes/images').set('Cookie', admin).attach('file', Buffer.from('<svg/>'), { filename: 'a.svg', contentType: 'image/svg+xml' });
+    expect(res.status).toBe(400);
+  });
+});

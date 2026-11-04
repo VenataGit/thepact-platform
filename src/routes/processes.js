@@ -10,6 +10,23 @@ const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const seed = require('../services/processes-seed');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const { avatarFilter, safeStorageFilename } = require('../utils/upload-validator');
+
+// Снимки към „Повече" на стъпка (04.11.2026): само JPG/PNG/GIF/WebP, до 10 MB, в uploads/processes.
+// Nginx сервира /uploads/ директно с nosniff + CSP sandbox.
+const IMG_DIR = path.join(__dirname, '..', '..', 'uploads', 'processes');
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => { fs.mkdir(IMG_DIR, { recursive: true }, (err) => cb(err, IMG_DIR)); },
+    filename: (req, file, cb) => cb(null, safeStorageFilename(file.originalname)),
+  }),
+  fileFilter: avatarFilter,
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+});
+const IMG_RE = /^\/uploads\/processes\/\d+-[a-z0-9]+\.(jpg|jpeg|png|gif|webp)$/;
 
 let schemaReady = null;
 function ensureSchema() {
@@ -101,6 +118,7 @@ function cleanSteps(steps, roleKeys) {
     more: str(s && s.more, 4000).trim(),
     checks: (Array.isArray(s && s.checks) ? s.checks : []).slice(0, 40).map((t) => one(t, 300)).filter(Boolean),
     warn: one(s && s.warn, 300),
+    images: (Array.isArray(s && s.images) ? s.images : []).filter((u) => IMG_RE.test(String(u))).slice(0, 12),
   })).filter((s) => s.title);
 }
 
@@ -287,6 +305,15 @@ router.delete('/:id', requireAuth, requireEditor, async (req, res) => {
     console.error('[processes] delete:', err.message);
     res.status(500).json({ error: 'Грешка при изтриване' });
   }
+});
+
+// POST /api/processes/images — качва една снимка, връща адреса ѝ (влиза в стъпката чак при „Запази")
+router.post('/images', requireAuth, requireEditor, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Снимката е над 10 MB' : err.message });
+    if (!req.file) return res.status(400).json({ error: 'Няма файл' });
+    res.json({ url: '/uploads/processes/' + req.file.filename });
+  });
 });
 
 // PUT /api/processes/config/all — роли и отдели (име, цвят, икона, ред)
