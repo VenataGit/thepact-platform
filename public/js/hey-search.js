@@ -156,6 +156,7 @@ function populateMore(el) {
       ${(currentUser?.role === 'admin' && !isPageOff('client-report')) ? `<a class="nav-dropdown__item" href="#/client-report" onclick="closeAllDropdowns()">Статистика</a>` : ''}
       ${(currentUser && !isPageOff('task-completions')) ? `<a class="nav-dropdown__item" href="#/task-completions" onclick="closeAllDropdowns()">Готови задачи</a>` : ''}
       ${(currentUser && !isPageOff('overtime')) ? `<a class="nav-dropdown__item" href="#/overtime" onclick="closeAllDropdowns()">Overtime</a>` : ''}
+      ${(currentUser && !isPageOff('processes')) ? `<a class="nav-dropdown__item" href="#/processes" onclick="closeAllDropdowns()">Процеси</a>` : ''}
       <!-- Настройките се виждат от всички; отварят се само с админ права (sgOpenSettings). -->
       <a class="nav-dropdown__item" href="#/admin" onclick="return sgOpenSettings(event)">Настройки</a>
     </div>

@@ -208,6 +208,7 @@ app.use('/api/clients', require('./routes/clients'));
 app.use('/api/client-report', require('./routes/client-report'));
 app.use('/api/task-completions', require('./routes/task-completions'));
 app.use('/api/overtime', require('./routes/overtime'));
+app.use('/api/processes', require('./routes/processes'));
 app.use('/api/bc-calendar', require('./routes/bc-calendar'));
 app.use('/api/kp-split', require('./routes/kp-split'));
 app.use('/api/task-creator', require('./routes/task-creator'));

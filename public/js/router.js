@@ -16,6 +16,7 @@ var PAGE_TOGGLES = [
   { id: 'client-report', label: 'Статистика' },
   { id: 'task-completions', label: 'Готови задачи' },
   { id: 'overtime', label: 'Overtime' },
+  { id: 'processes', label: 'Процеси' },
 ];
 function isPageOff(id) {
   return !!(typeof _platformConfig === 'object' && _platformConfig && _platformConfig['page_off_' + id] === 'true');
@@ -109,6 +110,7 @@ function router() {
     case 'client-report': return renderClientReport(el);
     case 'task-completions': return renderTaskCompletionsReport(el);
     case 'overtime': return renderOvertime(el, parts[1] || null);
+    case 'processes': return renderProcesses(el, parts[1] || null, parts[2] || null);
     default: return renderDashboard(el);
   }
 }
