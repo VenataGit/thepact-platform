@@ -34,11 +34,21 @@ function otRange(kind) {
 const OT_KINDS = ['Снимки', 'Пътуване', 'Събитие', 'Монтаж', 'Техника / подготовка', 'Друго'];
 const OT_COMP = { pay: '💰 Плащане', rest: '🏖 Почивка' };
 
-function otIsAdmin() { return !!currentUser && currentUser.role === 'admin'; }
+// Пълен админ ИЛИ поименно пуснат от Настройки → ⏱ Overtime достъп (09.11.2026) — решава сървърът.
+let _otManager = null;
+async function otCheckManager() {
+  try {
+    const r = await fetch('/api/overtime/me');
+    _otManager = r.ok ? !!(await r.json()).manager : false;
+  } catch (e) { _otManager = false; }
+  return _otManager;
+}
+function otIsAdmin() { return !!_otManager; }
 
 async function renderOvertime(el, sub) {
   el.className = 'flush-top';
   const today = otDateStr(new Date());
+  await otCheckManager(); // всеки път наново — достъпът може да е даден/отнет междувременно
   if (sub === 'admin' && !otIsAdmin()) { location.hash = '#/overtime'; return; }
   const adminView = sub === 'admin';
   if (adminView !== _otState.adminView) { _otState.adminView = adminView; _otState.user = 0; }
@@ -48,7 +58,7 @@ async function renderOvertime(el, sub) {
       <div class="tr-head">
         <h2 id="otTitle">${adminView ? '🔒 Overtime — всички служители' : '⏱ Моят overtime'}</h2>
         ${adminView ? '<a class="tr-csv ot-switch" href="#/overtime">← Моят overtime</a>'
-          : (otIsAdmin() ? '<a class="tr-csv ot-switch" href="#/overtime/admin" title="Записите на всички служители + бележки (само за админ)">🔒 Админ</a>' : '')}
+          : (otIsAdmin() ? '<a class="tr-csv ot-switch" href="#/overtime/admin" title="Записите на всички служители + бележки">🔒 Админ</a>' : '')}
       </div>
       <div class="ot-form-grid"${adminView ? ' style="display:none"' : ''}>
         <div class="tr-box">

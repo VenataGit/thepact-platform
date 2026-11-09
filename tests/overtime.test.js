@@ -143,3 +143,57 @@ describe('бележки на админа', () => {
     expect(call[1]).toEqual([2]);
   });
 });
+
+describe('поименен достъп (overtime_access)', () => {
+  const grantMember = () => mockDb.queryOne.mockImplementation(async (sql, p) =>
+    (/FROM overtime_access WHERE user_id/.test(sql) && p[0] === MEMBER_USER.id ? { '?column?': 1 } : null));
+
+  it('/me — обикновен човек: не; пуснат: да; админ: да', async () => {
+    expect((await request(app).get('/api/overtime/me').set('Cookie', member)).body.manager).toBe(false);
+    grantMember();
+    expect((await request(app).get('/api/overtime/me').set('Cookie', member)).body).toEqual({ manager: true, fullAdmin: false });
+    expect((await request(app).get('/api/overtime/me').set('Cookie', admin)).body).toEqual({ manager: true, fullAdmin: true });
+  });
+  it('пуснатият вижда всички (scope=all) и пише бележки', async () => {
+    grantMember();
+    const res = await request(app).get('/api/overtime?scope=all').set('Cookie', member);
+    expect(res.body.scope).toBe('all');
+    const call = mockDb.query.mock.calls.find((c) => /work_date BETWEEN/.test(c[0]));
+    expect(call[1][2]).toBeNull();
+    mockDb.queryOne.mockImplementation(async (sql) => (/overtime_access/.test(sql) ? { x: 1 } : (/INSERT INTO overtime_admin_notes/.test(sql) ? { id: 8 } : null)));
+    const n = await request(app).post('/api/overtime/notes').set('Cookie', member).send({ text: 'закъсня' });
+    expect(n.status).toBe(200);
+  });
+  it('пуснатият може да трие чужд запис', async () => {
+    mockDb.queryOne.mockImplementation(async (sql) => (/overtime_access/.test(sql) ? { x: 1 } : (/SELECT user_id FROM overtime_entries/.test(sql) ? { user_id: 99 } : null)));
+    const res = await request(app).delete('/api/overtime/7').set('Cookie', member);
+    expect(res.status).toBe(200);
+  });
+  it('достъп дава/отнема САМО пълен админ — пуснатият получава 403', async () => {
+    grantMember();
+    expect((await request(app).get('/api/overtime/access').set('Cookie', member)).status).toBe(403);
+    expect((await request(app).put('/api/overtime/access/5').set('Cookie', member).send({ granted: true })).status).toBe(403);
+  });
+  it('админ пуска човек', async () => {
+    mockDb.queryOne.mockResolvedValueOnce({ id: 5 });
+    const res = await request(app).put('/api/overtime/access/5').set('Cookie', admin).send({ granted: true });
+    expect(res.status).toBe(200);
+    const ins = mockDb.execute.mock.calls.find((c) => /INSERT INTO overtime_access/.test(c[0]));
+    expect(ins[1]).toEqual([5, ADMIN_USER.id]);
+  });
+  it('админ пуска несъществуващ/неактивен → 404', async () => {
+    const res = await request(app).put('/api/overtime/access/5').set('Cookie', admin).send({ granted: true });
+    expect(res.status).toBe(404);
+  });
+  it('админ отнема достъп', async () => {
+    const res = await request(app).put('/api/overtime/access/5').set('Cookie', admin).send({ granted: false });
+    expect(res.status).toBe(200);
+    expect(mockDb.execute.mock.calls.find((c) => /DELETE FROM overtime_access/.test(c[0]))[1]).toEqual([5]);
+  });
+  it('админ вижда списъка с хора', async () => {
+    mockDb.query.mockResolvedValueOnce([{ id: 2, name: 'Иво', role: 'member', granted: true }]);
+    const res = await request(app).get('/api/overtime/access').set('Cookie', admin);
+    expect(res.status).toBe(200);
+    expect(res.body.people[0].granted).toBe(true);
+  });
+});

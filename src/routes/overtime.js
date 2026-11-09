@@ -2,6 +2,10 @@
 //  • Всеки вижда САМО своите записи; всички хора и историята им вижда само админ (role = admin),
 //    и то само в админ изгледа (?scope=all, бутон „🔒 Админ" на страницата) — 02.11.2026 (2).
 //  • Бележки на админа (/notes) — само за админ: напр. „дойде 3 ч по-късно след overtime-а".
+//  • 09.11.2026: пълният админ (role = admin) може да даде същите права на човек от екипа
+//    (Настройки → ⏱ Overtime достъп, таблица overtime_access), „за да може той да следи
+//    хората, а не аз". Той вижда всички, пише/трие бележки, трие записи. Достъп дава и
+//    отнема САМО пълен админ — даденият не може да го дава нататък.
 //  • Без одобрение — записът влиза веднага.
 //  • Без редакция: човек може само да изтрие свой запис (ако е объркал) и да го въведе пак.
 //  • Пази се и КОГА е добавен записът (created_at) — показва се като дата.
@@ -48,24 +52,46 @@ function ensureSchema() {
           created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           deleted_at    TIMESTAMPTZ
         )`))
+      .then(() => execute(`
+        CREATE TABLE IF NOT EXISTS overtime_access (
+          user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          granted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`))
       .catch((err) => { schemaReady = null; throw err; });
   }
   return schemaReady;
 }
 
 const isAdmin = (req) => req.user && req.user.role === 'admin';
+// Може ли да следи overtime-а на всички: пълен админ или поименно пуснат (overtime_access).
+async function canManage(req) {
+  if (!req.user) return false;
+  if (isAdmin(req)) return true;
+  await ensureSchema();
+  return !!(await queryOne('SELECT 1 FROM overtime_access WHERE user_id = $1', [req.user.userId]));
+}
+async function requireManager(req, res, next) {
+  try {
+    if (await canManage(req)) return next();
+    res.status(403).json({ error: 'Нямаш достъп до админ изгледа на Overtime' });
+  } catch (err) {
+    console.error('[overtime] access check', err.message);
+    res.status(500).json({ error: 'Грешка при проверка на достъпа' });
+  }
+}
 const sofiaToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Sofia' }).format(new Date());
 const validDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 
 // GET /api/overtime?from=YYYY-MM-DD&to=YYYY-MM-DD[&scope=all&user=ID]
 // По подразбиране — само своите (и за админ). scope=all → всички или един човек,
-// но само за админ; на всеки друг scope/user се игнорират.
+// но само за админ или пуснат човек (canManage); на всеки друг scope/user се игнорират.
 router.get('/', requireAuth, async (req, res) => {
   try {
     await ensureSchema();
     const from = validDate(req.query.from) ? req.query.from : '2000-01-01';
     const to = validDate(req.query.to) ? req.query.to : '2100-01-01';
-    const admin = isAdmin(req);
+    const admin = await canManage(req);
     const all = admin && req.query.scope === 'all';
     const onlyUser = all ? (parseInt(req.query.user, 10) || null) : req.user.userId;
     const rows = await query(
@@ -124,9 +150,65 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// ---------- Бележки на админа (само role = admin) ----------
+// ---------- Кой има достъп до админ изгледа (управлява го САМО пълен админ) ----------
+// GET /api/overtime/me — за страницата: да покаже ли бутона „🔒 Админ".
+router.get('/me', requireAuth, async (req, res) => {
+  try {
+    res.json({ manager: await canManage(req), fullAdmin: isAdmin(req) });
+  } catch (err) {
+    console.error('[overtime] me', err.message);
+    res.status(500).json({ error: 'Грешка' });
+  }
+});
+
+// GET /api/overtime/access — активните хора + кой е пуснат.
+router.get('/access', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await ensureSchema();
+    const people = await query(
+      `SELECT u.id, u.name, u.role, p.name AS position_name,
+              a.user_id IS NOT NULL AS granted, a.granted_at, g.name AS granted_by_name
+         FROM users u
+         LEFT JOIN positions p ON p.id = u.position_id
+         LEFT JOIN overtime_access a ON a.user_id = u.id
+         LEFT JOIN users g ON g.id = a.granted_by
+        WHERE u.is_active = TRUE
+        ORDER BY u.name`
+    );
+    res.json({ people });
+  } catch (err) {
+    console.error('[overtime] access list', err.message);
+    res.status(500).json({ error: 'Грешка при зареждане' });
+  }
+});
+
+// PUT /api/overtime/access/:userId { granted: true|false }
+router.put('/access/:userId', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await ensureSchema();
+    const userId = parseInt(req.params.userId, 10);
+    if (!userId) return res.status(400).json({ error: 'Невалиден човек' });
+    if (req.body && req.body.granted) {
+      const u = await queryOne('SELECT id FROM users WHERE id = $1 AND is_active = TRUE', [userId]);
+      if (!u) return res.status(404).json({ error: 'Няма такъв активен човек' });
+      await execute(
+        `INSERT INTO overtime_access (user_id, granted_by) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO NOTHING`,
+        [userId, req.user.userId]
+      );
+    } else {
+      await execute('DELETE FROM overtime_access WHERE user_id = $1', [userId]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[overtime] access set', err.message);
+    res.status(500).json({ error: 'Грешка при запис' });
+  }
+});
+
+// ---------- Бележки на админа (админ + пуснатите в overtime_access) ----------
 // GET /api/overtime/notes[?user=ID] — всички бележки или само за един човек.
-router.get('/notes', requireAuth, requireAdmin, async (req, res) => {
+router.get('/notes', requireAuth, requireManager, async (req, res) => {
   try {
     await ensureSchema();
     const user = parseInt(req.query.user, 10) || null;
@@ -149,7 +231,7 @@ router.get('/notes', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/overtime/notes { about_user_id?, date, text }
-router.post('/notes', requireAuth, requireAdmin, async (req, res) => {
+router.post('/notes', requireAuth, requireManager, async (req, res) => {
   try {
     await ensureSchema();
     const b = req.body || {};
@@ -170,7 +252,7 @@ router.post('/notes', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // DELETE /api/overtime/notes/:id — меко триене.
-router.delete('/notes/:id', requireAuth, requireAdmin, async (req, res) => {
+router.delete('/notes/:id', requireAuth, requireManager, async (req, res) => {
   try {
     await ensureSchema();
     const id = parseInt(req.params.id, 10);
@@ -192,7 +274,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
     if (!id) return res.status(400).json({ error: 'Невалиден запис' });
     const row = await queryOne('SELECT user_id FROM overtime_entries WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (!row) return res.status(404).json({ error: 'Записът не е намерен' });
-    if (row.user_id !== req.user.userId && !isAdmin(req)) return res.status(403).json({ error: 'Можеш да триеш само свои записи' });
+    if (row.user_id !== req.user.userId && !(await canManage(req))) return res.status(403).json({ error: 'Можеш да триеш само свои записи' });
     await execute('UPDATE overtime_entries SET deleted_at = NOW() WHERE id = $1', [id]);
     res.json({ ok: true });
   } catch (err) {

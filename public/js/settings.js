@@ -67,6 +67,7 @@ var SG_SECTIONS = [
   { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
   { id: 'hidden-clients', icon: '🚫', label: 'Скрити клиенти', hint: 'Имена, изчистени от филтрите', adminOnly: true },
   { id: 'pages', icon: '🧩', label: 'Функции и страници', hint: 'Скрий/покажи инструменти', adminOnly: true },
+  { id: 'overtime', icon: '⏱', label: 'Overtime достъп', hint: 'Кой следи overtime-а на екипа', adminOnly: true },
   { id: 'calendar', icon: '📅', label: 'Производствен календар', hint: 'Календари за снимки + известия', adminOnly: false },
   { id: 'results', icon: '📊', label: 'Резултати', hint: 'Известие при изпубликуван КП', adminOnly: true },
   { id: 'sheets', icon: '📄', label: 'Таблица известия', hint: 'Google Sheets → Basecamp', adminOnly: true },
@@ -130,6 +131,7 @@ async function renderSettings(el, sub) {
   else if (active === 'dashboard') sgSectionDashboard(body);
   else if (active === 'hidden-clients') sgSectionHiddenClients(body);
   else if (active === 'pages') sgSectionPages(body);
+  else if (active === 'overtime') sgSectionOvertime(body);
   else if (active === 'calendar') sgSectionCalendar(body);
   else if (active === 'results') sgSectionResults(body);
   else if (active === 'sheets') sgSectionSheets(body);
@@ -316,6 +318,56 @@ function sgTogglePage(id, enabled) {
   saveSetting(key, value);
   if (typeof _platformConfig === 'object') _platformConfig[key] = value;
   showToast(enabled ? 'Включено ✓' : 'Изключено ✓', 'success', 1500);
+}
+
+// ==================== СЕКЦИЯ: OVERTIME ДОСТЪП ====================
+// Венци, 09.11.2026: само пълен админ дава на човек от екипа достъп до админ изгледа на
+// Overtime (#/overtime/admin) — „за да може той да следи хората, а не аз". Пуснатият вижда
+// записите на всички, пише и трие бележки, трие записи. Не може да пуска други.
+
+function sgSectionOvertime(host) {
+  host.innerHTML =
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">⏱ Overtime — кой следи екипа</div>' +
+      '<div class="sg-section__desc">Отметнатите хора получават бутона <b>„🔒 Админ“</b> на страницата <a href="#/overtime">Overtime</a>: виждат записите на всички служители, пишат и трият бележки и могат да трият записи. Пълните админи го имат винаги. Достъп дава и отнема само пълен админ — пуснатият човек не може да пуска други. Всеки останал вижда само своите записи.</div>' +
+      '<div id="sgOtAccess"><div class="ga-loading">Зареждане…</div></div>' +
+    '</div>';
+  sgOtAccessLoad();
+}
+
+async function sgOtAccessLoad() {
+  var box = document.getElementById('sgOtAccess');
+  if (!box) return;
+  try {
+    var r = await fetch('/api/overtime/access');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var people = (await r.json()).people || [];
+    box.innerHTML = '<div class="sg-pages-list">' + people.map(function (p) {
+      var full = p.role === 'admin';
+      var who = esc(p.name) + (p.position_name ? ' <span class="ga-dim">· ' + esc(p.position_name) + '</span>' : '');
+      if (full) return '<label class="ga-toggle sg-pages-row"><input type="checkbox" checked disabled> ' + who + ' <span class="ga-dim">— админ, винаги</span></label>';
+      var since = p.granted && p.granted_at
+        ? ' <span class="ga-dim">— от ' + esc(new Date(p.granted_at).toLocaleDateString('bg-BG')) + (p.granted_by_name ? ', пуснат от ' + esc(p.granted_by_name) : '') + '</span>' : '';
+      return '<label class="ga-toggle sg-pages-row"><input type="checkbox" ' + (p.granted ? 'checked' : '') +
+        ' onchange="sgOtAccessSet(' + Number(p.id) + ', this.checked, this)"> ' + who + since + '</label>';
+    }).join('') + '</div>';
+  } catch (e) {
+    box.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка при зареждане: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function sgOtAccessSet(userId, granted, input) {
+  if (input) input.disabled = true;
+  try {
+    var r = await fetch('/api/overtime/access/' + Number(userId), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ granted: !!granted })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    showToast(granted ? 'Достъпът е даден ✓' : 'Достъпът е отнет ✓', 'success', 1500);
+  } catch (e) {
+    showToast('Грешка: ' + e.message, 'error');
+  }
+  sgOtAccessLoad();
 }
 
 // ==================== СЕКЦИЯ: КАЛЕНДАР ИЗВЕСТИЯ ====================
