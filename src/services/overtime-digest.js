@@ -7,8 +7,13 @@
 // (по човек, със сбора му за месеца) и изтритите. Ако няма нищо ново — нищо не се праща.
 // Абонат е само Венци → само той получава известие.
 //
-// Настройки (таблица settings, по желание): overtime_digest_enabled ('false' спира),
-// overtime_digest_bc_project, overtime_digest_bc_board, overtime_digest_bc_person.
+// 09.11.2026: вече НЕ в личния проект, а в Message Board на Video Production („вече друг
+// човек ще ги следи"). Къде и кой се тагва се сменя от Настройки → ⏱ Overtime:
+//   overtime_digest_bc_board_url — линк към Message Board (…/buckets/{project}/message_boards/{board})
+//   overtime_digest_tags         — person_id-та от bc_people (JSON масив): тагват се в началото
+//                                  и са ЕДИНСТВЕНИТЕ абонати → само те получават известие.
+//                                  Никой избран → абонат е само ботът (никой от проекта не се пингва).
+//   overtime_digest_enabled      — 'false' спира.
 // Без AI, без токени — една SQL заявка и едно съобщение на ден.
 const cron = require('node-cron');
 const { query, queryOne, execute } = require('../db/pool');
@@ -16,11 +21,14 @@ const bc = require('./basecamp');
 const { getServiceAuth } = require('./basecamp-token');
 
 const TZ = 'Europe/Sofia';
-const DEFAULTS = {
-  project: 47742842,     // „Венцислав Калчев - бизнес" (личният проект)
-  board: 10404218914,    // „Message Board 2" — празен, само за overtime (да се преименува на „Overtime")
-  person: 45460211,      // Венци (по person ID — имейлите в bc_people са маскирани)
-};
+// Video Production → Message Board за overtime (Венци, 09.11.2026)
+const DEFAULT_BOARD_URL = 'https://3.basecamp.com/5750544/buckets/39396506/message_boards/10489151165';
+
+// линк от Basecamp → { project, board } или null
+function parseBoardUrl(url) {
+  const m = String(url || '').match(/buckets\/(\d+)\/message_boards\/(\d+)/);
+  return m ? { project: Number(m[1]), board: Number(m[2]) } : null;
+}
 const PAGE_URL = 'https://thepact.pro/#/overtime/admin';
 const COMP = { pay: '💰 плащане', rest: '🏖 почивка' };
 const DOW = ['неделя', 'понеделник', 'вторник', 'сряда', 'четвъртък', 'петък', 'събота'];
@@ -49,7 +57,7 @@ const dm = (s) => s.slice(8, 10) + '.' + s.slice(5, 7);
 
 // Сглобява съобщението. added = нови записи (с month_total), removed = изтрити.
 // Връща null, ако няма нищо за казване.
-function buildDigest(added, removed, now = new Date()) {
+function buildDigest(added, removed, now = new Date(), prefix = '') {
   if (!added.length && !removed.length) return null;
   const today = sofiaDate(now);
   const total = added.reduce((s, e) => s + (Number(e.ot_minutes) || 0), 0);
@@ -59,6 +67,7 @@ function buildDigest(added, removed, now = new Date()) {
   const subject = '⏱ Overtime — ' + fmtDay(today) + ': ' + parts.join(', ');
 
   const html = [];
+  if (prefix) html.push(prefix);
   // по човек, в реда на първата поява (заявката е подредена по име)
   const by = new Map();
   added.forEach((e) => { if (!by.has(e.user_id)) by.set(e.user_id, []); by.get(e.user_id).push(e); });
@@ -109,19 +118,47 @@ async function collect(since, until) {
   return { added, removed };
 }
 
+async function loadConfig() {
+  const boardUrl = (await getSetting('overtime_digest_bc_board_url')) || DEFAULT_BOARD_URL;
+  let tags = [];
+  try { tags = JSON.parse((await getSetting('overtime_digest_tags')) || '[]'); } catch { tags = []; }
+  return {
+    enabled: (await getSetting('overtime_digest_enabled')) !== 'false',
+    boardUrl,
+    ids: parseBoardUrl(boardUrl),
+    tags: (Array.isArray(tags) ? tags : []).map(String).filter((x) => /^\d+$/.test(x)),
+  };
+}
+
+let _botId = null;
+async function botPersonId(auth) {
+  if (_botId) return _botId;
+  try { const me = await bc.getMyProfile(auth.token, auth.account); if (me && me.id) _botId = Number(me.id); } catch { /* */ }
+  return _botId;
+}
+
 async function runDigest(now = new Date()) {
-  if ((await getSetting('overtime_digest_enabled')) === 'false') return { skipped: 'disabled' };
+  const cfg = await loadConfig();
+  if (!cfg.enabled) return { skipped: 'disabled' };
+  if (!cfg.ids) throw new Error('Невалиден линк към Message Board: ' + cfg.boardUrl);
   await require('../routes/overtime').ensureSchema();
   const last = await getSetting('overtime_digest_last');
   const since = last ? new Date(last) : new Date(now.getTime() - 24 * 3600 * 1000);
   const { added, removed } = await collect(since.toISOString(), now.toISOString());
-  const msg = buildDigest(added, removed, now);
-  if (msg) {
-    const project = parseInt(await getSetting('overtime_digest_bc_project')) || DEFAULTS.project;
-    const board = parseInt(await getSetting('overtime_digest_bc_board')) || DEFAULTS.board;
-    const person = parseInt(await getSetting('overtime_digest_bc_person')) || DEFAULTS.person;
+  let msg = null;
+  if (added.length || removed.length) {
+    // тагнатите: в началото на съобщението + единствените абонати
+    const people = cfg.tags.length
+      ? await query('SELECT person_id, name, attachable_sgid FROM bc_people WHERE person_id = ANY($1::bigint[])', [cfg.tags])
+      : [];
+    const prefix = people.map((p) => (p.attachable_sgid
+      ? '<bc-attachment sgid="' + esc(p.attachable_sgid) + '"></bc-attachment>'
+      : '<strong>' + esc(p.name) + '</strong>')).join(' ');
+    msg = buildDigest(added, removed, now, prefix);
     const auth = await getServiceAuth();
-    await bc.createMessage(auth.token, auth.account, project, board, { ...msg, subscriptions: [person] });
+    let subscriptions = people.map((p) => Number(p.person_id));
+    if (!subscriptions.length) { const bot = await botPersonId(auth); subscriptions = bot ? [bot] : []; }
+    await bc.createMessage(auth.token, auth.account, cfg.ids.project, cfg.ids.board, { ...msg, subscriptions });
   }
   // чак след успешно пращане — ако Basecamp откаже, утре влиза и днешното
   await saveSetting('overtime_digest_last', now.toISOString());
@@ -136,4 +173,4 @@ function initOvertimeDigest() {
   console.log('  Overtime digest: active (всеки ден в 09:00)');
 }
 
-module.exports = { initOvertimeDigest, runDigest, buildDigest };
+module.exports = { initOvertimeDigest, runDigest, buildDigest, loadConfig, parseBoardUrl, saveSetting, DEFAULT_BOARD_URL };

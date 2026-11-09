@@ -6,7 +6,7 @@ const mockDb = {
   execute: jest.fn().mockResolvedValue(undefined)
 };
 jest.mock('../src/db/pool', () => mockDb);
-jest.mock('../src/services/basecamp', () => ({ createMessage: jest.fn().mockResolvedValue({ id: 1 }) }));
+jest.mock('../src/services/basecamp', () => ({ createMessage: jest.fn().mockResolvedValue({ id: 1 }), getMyProfile: jest.fn().mockResolvedValue({ id: 52083905 }) }));
 jest.mock('../src/services/basecamp-token', () => ({ getServiceAuth: jest.fn().mockResolvedValue({ token: 't', account: 5750544 }) }));
 
 const bc = require('../src/services/basecamp');
@@ -43,15 +43,15 @@ describe('buildDigest', () => {
 });
 
 describe('runDigest', () => {
-  it('изпраща в Message Board на личния проект, абонат само Венци, и мести „последно"', async () => {
+  it('по подразбиране — Video Production, никой тагнат → абонат само ботът, и мести „последно"', async () => {
     mockDb.queryOne.mockImplementation(async (sql, p) => (p && p[0] === 'overtime_digest_last' ? { value: '2026-11-02T07:00:00.000Z' } : null));
     mockDb.query.mockImplementation(async (sql) => (/deleted_at IS NULL AND o.created_at/.test(sql) ? [E({})] : []));
     const now = new Date('2026-11-03T07:00:00Z');
     const r = await runDigest(now);
     expect(r).toEqual({ added: 1, removed: 0, sent: true });
     const [, , project, board, msg] = bc.createMessage.mock.calls[0];
-    expect([project, board]).toEqual([47742842, 10404218914]);
-    expect(msg.subscriptions).toEqual([45460211]);
+    expect([project, board]).toEqual([39396506, 10489151165]);
+    expect(msg.subscriptions).toEqual([52083905]);
     const sel = mockDb.query.mock.calls.find((c) => /deleted_at IS NULL AND o.created_at/.test(c[0]));
     expect(sel[1]).toEqual(['2026-11-02T07:00:00.000Z', '2026-11-03T07:00:00.000Z']);
     expect(mockDb.execute.mock.calls.some((c) => /INSERT INTO settings/.test(c[0]) && c[1][0] === 'overtime_digest_last' && c[1][1] === now.toISOString())).toBe(true);
@@ -71,5 +71,29 @@ describe('runDigest', () => {
     bc.createMessage.mockRejectedValueOnce(new Error('500'));
     await expect(runDigest(new Date('2026-11-03T07:00:00Z'))).rejects.toThrow('500');
     expect(mockDb.execute.mock.calls.some((c) => c[1] && c[1][0] === 'overtime_digest_last')).toBe(false);
+  });
+});
+
+describe('настройките от админ панела', () => {
+  it('линкът и тагнатите се ползват: тагове в началото, само те са абонати', async () => {
+    const settings = {
+      overtime_digest_bc_board_url: 'https://3.basecamp.com/5750544/buckets/111/message_boards/222',
+      overtime_digest_tags: '["9001","9002"]'
+    };
+    mockDb.queryOne.mockImplementation(async (sql, p) => (p && settings[p[0]] ? { value: settings[p[0]] } : null));
+    mockDb.query.mockImplementation(async (sql) => {
+      if (/FROM bc_people/.test(sql)) return [{ person_id: '9001', name: 'Иво', attachable_sgid: 'sg1' }, { person_id: '9002', name: 'Мира', attachable_sgid: '' }];
+      return /deleted_at IS NULL AND o.created_at/.test(sql) ? [E({})] : [];
+    });
+    await runDigest(new Date('2026-11-10T07:00:00Z'));
+    const [, , project, board, msg] = bc.createMessage.mock.calls[0];
+    expect([project, board]).toEqual([111, 222]);
+    expect(msg.subscriptions).toEqual([9001, 9002]);
+    expect(msg.content).toMatch(/^<div><bc-attachment sgid="sg1"><\/bc-attachment> <strong>Мира<\/strong><br>/);
+  });
+  it('невалиден линк → грешка, нищо не се праща', async () => {
+    mockDb.queryOne.mockImplementation(async (sql, p) => (p && p[0] === 'overtime_digest_bc_board_url' ? { value: 'https://example.com' } : null));
+    await expect(runDigest()).rejects.toThrow(/Невалиден линк/);
+    expect(bc.createMessage).not.toHaveBeenCalled();
   });
 });

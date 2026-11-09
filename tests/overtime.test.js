@@ -137,10 +137,16 @@ describe('бележки на админа', () => {
     const res = await request(app).post('/api/overtime/notes').set('Cookie', admin).send({ text: ' ' });
     expect(res.status).toBe(400);
   });
-  it('филтър по човек', async () => {
+  it('филтър по човек (без период — всичко)', async () => {
     await request(app).get('/api/overtime/notes?user=2').set('Cookie', admin);
     const call = mockDb.query.mock.calls.find((c) => /FROM overtime_admin_notes/.test(c[0]));
-    expect(call[1]).toEqual([2]);
+    expect(call[1]).toEqual([2, '2000-01-01', '2100-01-01']);
+  });
+  it('следва периода горе', async () => {
+    await request(app).get('/api/overtime/notes?from=2026-10-01&to=2026-10-31').set('Cookie', admin);
+    const call = mockDb.query.mock.calls.find((c) => /FROM overtime_admin_notes/.test(c[0]));
+    expect(call[0]).toMatch(/note_date BETWEEN \$2::date AND \$3::date/);
+    expect(call[1]).toEqual([null, '2026-10-01', '2026-10-31']);
   });
 });
 
@@ -195,5 +201,28 @@ describe('поименен достъп (overtime_access)', () => {
     const res = await request(app).get('/api/overtime/access').set('Cookie', admin);
     expect(res.status).toBe(200);
     expect(res.body.people[0].granted).toBe(true);
+  });
+});
+
+describe('настройки на известията (digest-settings)', () => {
+  it('само пълен админ', async () => {
+    expect((await request(app).get('/api/overtime/digest-settings').set('Cookie', member)).status).toBe(403);
+    expect((await request(app).put('/api/overtime/digest-settings').set('Cookie', member).send({ tags: [] })).status).toBe(403);
+  });
+  it('по подразбиране — Video Production', async () => {
+    const res = await request(app).get('/api/overtime/digest-settings').set('Cookie', admin);
+    expect(res.status).toBe(200);
+    expect(res.body.boardUrl).toBe('https://3.basecamp.com/5750544/buckets/39396506/message_boards/10489151165');
+    expect(res.body.tags).toEqual([]);
+  });
+  it('записва линк и тагове; невалиден линк → 400', async () => {
+    const bad = await request(app).put('/api/overtime/digest-settings').set('Cookie', admin).send({ boardUrl: 'https://3.basecamp.com/x' });
+    expect(bad.status).toBe(400);
+    const ok = await request(app).put('/api/overtime/digest-settings').set('Cookie', admin)
+      .send({ boardUrl: ' https://3.basecamp.com/5750544/buckets/1/message_boards/2 ', tags: ['9001', '9001', 'x', 9002] });
+    expect(ok.status).toBe(200);
+    const saved = Object.fromEntries(mockDb.execute.mock.calls.filter((c) => /INSERT INTO settings/.test(c[0])).map((c) => c[1]));
+    expect(saved.overtime_digest_bc_board_url).toBe('https://3.basecamp.com/5750544/buckets/1/message_boards/2');
+    expect(saved.overtime_digest_tags).toBe('["9001","9002"]');
   });
 });

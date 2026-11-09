@@ -29,6 +29,8 @@ function otRange(kind) {
   if (kind === 'month') return { from: otDateStr(new Date(now.getFullYear(), now.getMonth(), 1)), to: otDateStr(now) };
   if (kind === 'lastmonth') return { from: otDateStr(new Date(now.getFullYear(), now.getMonth() - 1, 1)), to: otDateStr(new Date(now.getFullYear(), now.getMonth(), 0)) };
   if (kind === 'year') return { from: now.getFullYear() + '-01-01', to: otDateStr(now) };
+  // „📅 Период" — избран на ръка (Венци, 09.11.2026)
+  if (kind === 'custom') return { from: _otState.cfrom || '', to: _otState.cto || '' };
   return { from: '', to: '' }; // всичко
 }
 const OT_KINDS = ['Снимки', 'Пътуване', 'Събитие', 'Монтаж', 'Техника / подготовка', 'Друго'];
@@ -94,6 +96,13 @@ async function renderOvertime(el, sub) {
           <button class="cr-tab tr-preset" data-r="lastmonth">Миналия месец</button>
           <button class="cr-tab tr-preset" data-r="year">Тази година</button>
           <button class="cr-tab tr-preset" data-r="all">Всичко</button>
+          <button class="cr-tab tr-preset" data-r="custom">📅 Период</button>
+        </div>
+        <div class="tr-range" id="otCustom" style="display:none;margin-left:0">
+          <input type="date" id="otCFrom">
+          <span>—</span>
+          <input type="date" id="otCTo">
+          <button class="tr-apply" id="otCApply">Покажи</button>
         </div>
         <select class="tc-sel" id="otUser" style="display:none;margin-left:auto"></select>
       </div>
@@ -117,7 +126,20 @@ async function renderOvertime(el, sub) {
   upd();
   document.getElementById('otSave').addEventListener('click', otSave);
   if (adminView) document.getElementById('otnSave').addEventListener('click', otSaveNote);
-  el.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => { _otState.range = b.dataset.r; otLoad(); }));
+  el.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.r === 'custom') {
+      // първо показва полетата (с текущия период вътре); зарежда чак с „Покажи"
+      const cur = otRange(_otState.range);
+      if (!_otState.cfrom) { _otState.cfrom = cur.from || otRange('month').from; _otState.cto = cur.to || otRange('month').to; }
+    }
+    _otState.range = b.dataset.r; otLoad();
+  }));
+  document.getElementById('otCApply').addEventListener('click', () => {
+    const f = document.getElementById('otCFrom').value, t = document.getElementById('otCTo').value;
+    if (!f || !t) { showToast('Избери начална и крайна дата.', 'error'); return; }
+    if (f > t) { showToast('Началната дата е след крайната.', 'error'); return; }
+    _otState.cfrom = f; _otState.cto = t; _otState.range = 'custom'; otLoad();
+  });
   document.getElementById('otUser').addEventListener('change', (e) => { _otState.user = Number(e.target.value) || 0; otLoad(); });
   otLoadClients();
   await otLoad();
@@ -157,6 +179,12 @@ async function otLoad() {
   if (to) q.set('to', to);
   if (_otState.adminView) { q.set('scope', 'all'); if (_otState.user) q.set('user', _otState.user); }
   document.querySelectorAll('.ot-page [data-r]').forEach((b) => b.classList.toggle('active', b.dataset.r === _otState.range));
+  const cbox = document.getElementById('otCustom');
+  if (cbox) {
+    cbox.style.display = _otState.range === 'custom' ? '' : 'none';
+    document.getElementById('otCFrom').value = _otState.cfrom || '';
+    document.getElementById('otCTo').value = _otState.cto || '';
+  }
   const r = await fetch('/api/overtime?' + q.toString());
   const list = document.getElementById('otList');
   if (!r.ok) { if (list) list.innerHTML = '<div class="tr-empty">Грешка при зареждане.</div>'; return; }
@@ -168,12 +196,18 @@ async function otLoad() {
 async function otLoadNotes() {
   const box = document.getElementById('otnList');
   if (!box) return;
-  const r = await fetch('/api/overtime/notes' + (_otState.user ? '?user=' + _otState.user : ''));
+  // бележките следват периода горе (Венци, 09.11.2026)
+  const { from, to } = otRange(_otState.range);
+  const q = new URLSearchParams();
+  if (_otState.user) q.set('user', _otState.user);
+  if (from) q.set('from', from);
+  if (to) q.set('to', to);
+  const r = await fetch('/api/overtime/notes?' + q.toString());
   if (!r.ok) { box.innerHTML = '<div class="tr-empty">Грешка при зареждане на бележките.</div>'; return; }
   const notes = (await r.json()).notes || [];
   const sel = document.getElementById('otnUser');
   if (sel && _otState.user) sel.value = String(_otState.user);
-  if (!notes.length) { box.innerHTML = '<div class="tr-empty">Няма бележки' + (_otState.user ? ' за този човек' : '') + '.</div>'; return; }
+  if (!notes.length) { box.innerHTML = '<div class="tr-empty">Няма бележки' + (_otState.user ? ' за този човек' : '') + ' за този период.</div>'; return; }
   box.innerHTML = notes.map((n) => '<div class="ot-note-item"><div class="ot-note-item__head"><b>' + otFmtDate(n.note_date) + '</b>' +
     '<span class="ot-tag">' + esc(n.about_name || 'общо') + '</span>' +
     '<span class="tr-dim">записал: ' + esc(n.author_name || '—') + ', ' + new Date(n.created_at).toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</span>' +

@@ -206,12 +206,55 @@ router.put('/access/:userId', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// ---------- Известията (дневното обобщение): къде и кой се тагва — само пълен админ ----------
+// GET /api/overtime/digest-settings
+router.get('/digest-settings', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const digest = require('../services/overtime-digest');
+    const cfg = await digest.loadConfig();
+    const team = await query(
+      'SELECT person_id::text AS person_id, name, title FROM bc_people WHERE active = TRUE ORDER BY name'
+    ).catch(() => []);
+    res.json({ enabled: cfg.enabled, boardUrl: cfg.boardUrl, tags: cfg.tags, team });
+  } catch (err) {
+    console.error('[overtime] digest settings', err.message);
+    res.status(500).json({ error: 'Грешка при зареждане' });
+  }
+});
+
+// PUT /api/overtime/digest-settings { boardUrl?, tags?: [person_id], enabled? }
+router.put('/digest-settings', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const digest = require('../services/overtime-digest');
+    const b = req.body || {};
+    if (b.boardUrl !== undefined) {
+      const url = String(b.boardUrl || '').trim();
+      if (!digest.parseBoardUrl(url)) {
+        return res.status(400).json({ error: 'Невалиден линк — очаквам …/buckets/…/message_boards/… от Basecamp.' });
+      }
+      await digest.saveSetting('overtime_digest_bc_board_url', url.slice(0, 500));
+    }
+    if (b.tags !== undefined) {
+      const tags = [...new Set((Array.isArray(b.tags) ? b.tags : []).map(String).filter((x) => /^\d{1,15}$/.test(x)))].slice(0, 20);
+      await digest.saveSetting('overtime_digest_tags', JSON.stringify(tags));
+    }
+    if (b.enabled !== undefined) await digest.saveSetting('overtime_digest_enabled', b.enabled ? 'true' : 'false');
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[overtime] digest settings save', err.message);
+    res.status(500).json({ error: 'Грешка при запис' });
+  }
+});
+
 // ---------- Бележки на админа (админ + пуснатите в overtime_access) ----------
-// GET /api/overtime/notes[?user=ID] — всички бележки или само за един човек.
+// GET /api/overtime/notes[?user=ID&from=YYYY-MM-DD&to=YYYY-MM-DD] — следва избрания период
+// горе на страницата (Венци, 09.11.2026): бележка се показва, ако датата ѝ е в периода.
 router.get('/notes', requireAuth, requireManager, async (req, res) => {
   try {
     await ensureSchema();
     const user = parseInt(req.query.user, 10) || null;
+    const from = validDate(req.query.from) ? req.query.from : '2000-01-01';
+    const to = validDate(req.query.to) ? req.query.to : '2100-01-01';
     const rows = await query(
       `SELECT n.id, n.about_user_id, a.name AS about_name, n.author_id, w.name AS author_name,
               to_char(n.note_date, 'YYYY-MM-DD') AS note_date, n.text, n.created_at
@@ -219,9 +262,10 @@ router.get('/notes', requireAuth, requireManager, async (req, res) => {
          LEFT JOIN users a ON a.id = n.about_user_id
          LEFT JOIN users w ON w.id = n.author_id
         WHERE n.deleted_at IS NULL AND ($1::int IS NULL OR n.about_user_id = $1::int)
+          AND n.note_date BETWEEN $2::date AND $3::date
         ORDER BY n.note_date DESC, n.id DESC
         LIMIT 500`,
-      [user]
+      [user, from, to]
     );
     res.json({ notes: rows });
   } catch (err) {

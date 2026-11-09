@@ -67,7 +67,7 @@ var SG_SECTIONS = [
   { id: 'dashboard', icon: '🗂', label: 'Dashboard', hint: 'Дъски за всички', adminOnly: true },
   { id: 'hidden-clients', icon: '🚫', label: 'Скрити клиенти', hint: 'Имена, изчистени от филтрите', adminOnly: true },
   { id: 'pages', icon: '🧩', label: 'Функции и страници', hint: 'Скрий/покажи инструменти', adminOnly: true },
-  { id: 'overtime', icon: '⏱', label: 'Overtime достъп', hint: 'Кой следи overtime-а на екипа', adminOnly: true },
+  { id: 'overtime', icon: '⏱', label: 'Overtime', hint: 'Достъп и известия', adminOnly: true },
   { id: 'calendar', icon: '📅', label: 'Производствен календар', hint: 'Календари за снимки + известия', adminOnly: false },
   { id: 'results', icon: '📊', label: 'Резултати', hint: 'Известие при изпубликуван КП', adminOnly: true },
   { id: 'sheets', icon: '📄', label: 'Таблица известия', hint: 'Google Sheets → Basecamp', adminOnly: true },
@@ -331,8 +331,80 @@ function sgSectionOvertime(host) {
       '<div class="sg-section__hdr">⏱ Overtime — кой следи екипа</div>' +
       '<div class="sg-section__desc">Отметнатите хора получават бутона <b>„🔒 Админ“</b> на страницата <a href="#/overtime">Overtime</a>: виждат записите на всички служители, пишат и трият бележки и могат да трият записи. Пълните админи го имат винаги. Достъп дава и отнема само пълен админ — пуснатият човек не може да пуска други. Всеки останал вижда само своите записи.</div>' +
       '<div id="sgOtAccess"><div class="ga-loading">Зареждане…</div></div>' +
+    '</div>' +
+    '<div class="sg-section">' +
+      '<div class="sg-section__hdr">🔔 Известия — дневното обобщение</div>' +
+      '<div class="sg-section__desc">Всеки ден в <b>09:00</b> ботът пуска едно съобщение в Message Board-а отдолу с всичко ново в overtime-а (нови и изтрити записи). Ако няма нищо ново, не пуска нищо. Тагнатите хора са <b>единствените</b>, които получават известие. Никой друг от проекта не се пингва.</div>' +
+      '<div id="sgOtDigest"><div class="ga-loading">Зареждане…</div></div>' +
     '</div>';
   sgOtAccessLoad();
+  sgOtDigestLoad();
+}
+
+var _sgOtDigest = null;
+
+async function sgOtDigestLoad() {
+  var box = document.getElementById('sgOtDigest');
+  if (!box) return;
+  try {
+    var r = await fetch('/api/overtime/digest-settings');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _sgOtDigest = await r.json();
+    sgOtDigestRender();
+  } catch (e) {
+    box.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка при зареждане: ' + esc(e.message) + '</div>';
+  }
+}
+
+function sgOtDigestRender() {
+  var box = document.getElementById('sgOtDigest');
+  var d = _sgOtDigest;
+  if (!box || !d) return;
+  var team = d.team || [];
+  var tags = d.tags || [];
+  var chips = tags.map(function (pid) {
+    var p = team.find(function (x) { return String(x.person_id) === String(pid); });
+    return '<span class="ga-chip">' + esc(p ? p.name : '#' + pid) +
+      '<button onclick="sgOtDigestTag(' + jsq(String(pid)) + ', false)" title="Махни">✕</button></span>';
+  }).join('');
+  var opts = '<option value="">+ тагни човек</option>' + team
+    .filter(function (p) { return tags.indexOf(String(p.person_id)) === -1; })
+    .map(function (p) { return '<option value="' + esc(String(p.person_id)) + '">' + esc(p.name) + '</option>'; }).join('');
+  box.innerHTML =
+    '<div class="ga-row ga-row--config">' +
+      '<label class="ga-toggle"><input type="checkbox" ' + (d.enabled ? 'checked' : '') + ' onchange="sgOtDigestSave({ enabled: this.checked })"> Включено</label>' +
+      '<input type="text" class="ga-input ga-input--board" id="sgOtBoardUrl" value="' + esc(d.boardUrl) + '" placeholder="Линк към Basecamp Message Board…">' +
+      '<button class="btn btn-sm" onclick="sgOtDigestSave({ boardUrl: document.getElementById(\'sgOtBoardUrl\').value })">Запази</button>' +
+    '</div>' +
+    '<div class="ga-share">Отвори Message Board-а в Basecamp, копирай адреса от браузъра (…/buckets/…/message_boards/…) и го постави тук.' +
+      (d.boardUrl ? ' Сега: <a href="' + esc(safeUrl(d.boardUrl)) + '" target="_blank" rel="noopener">отвори в Basecamp ↗</a>' : '') + '</div>' +
+    '<div class="ga-add">' +
+      '<div class="ga-add__hdr">🏷 Кой се тагва при ново известие</div>' +
+      '<div class="ga-row" style="margin-top:6px;flex-wrap:wrap">' + (chips || '<span class="ga-dim">Никой — съобщението ще излиза, но никой няма да получи известие.</span>') +
+        '<select class="ga-select" onchange="if(this.value) sgOtDigestTag(this.value, true)">' + opts + '</select>' +
+      '</div>' +
+      '<div class="ga-share">Хората са от проекта Video Production в Basecamp.</div>' +
+    '</div>';
+}
+
+function sgOtDigestTag(pid, on) {
+  var tags = ((_sgOtDigest && _sgOtDigest.tags) || []).filter(function (x) { return String(x) !== String(pid); });
+  if (on) tags.push(String(pid));
+  sgOtDigestSave({ tags: tags });
+}
+
+async function sgOtDigestSave(patch) {
+  try {
+    var r = await fetch('/api/overtime/digest-settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch)
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    showToast('Запазено ✓', 'success', 1500);
+  } catch (e) {
+    showToast(e.message, 'error', 5000);
+  }
+  sgOtDigestLoad();
 }
 
 async function sgOtAccessLoad() {
