@@ -126,9 +126,25 @@ function caDuplicatesHtml(list) {
 }
 
 // Клиенти с карти в Basecamp, които ги няма в КП-Автоматизация → бутон „Добави".
-function caMissingHtml(list) {
+// „✕" скрива лентата в този браузър: запомнят се показаните имена, а лентата излиза
+// пак само ако в Basecamp се появи НОВ клиент (и показва само новите).
+function caMissingSeen() {
+  try { return JSON.parse(localStorage.getItem('ca_missing_dismissed') || '[]') || []; } catch (e) { return []; }
+}
+function caDismissMissing() {
+  var seen = caMissingSeen();
+  (_ca.missingShown || []).forEach(function (n) { if (seen.indexOf(n) < 0) seen.push(n); });
+  try { localStorage.setItem('ca_missing_dismissed', JSON.stringify(seen)); } catch (e) {}
+  var b = document.querySelector('.ca-missing');
+  if (b) b.remove();
+}
+
+function caMissingHtml(all) {
+  var seen = caMissingSeen();
+  var list = all.filter(function (c) { return seen.indexOf(String(c.name).toLowerCase()) < 0; });
+  _ca.missingShown = list.map(function (c) { return String(c.name).toLowerCase(); });
   if (!list.length) return '';
-  return '<div class="ca-dupbox ca-missing"><strong>В Basecamp има карти за ' + list.length + (list.length === 1 ? ' клиент, който още не е' : ' клиента, които още не са') +
+  return '<div class="ca-dupbox ca-missing"><button class="ca-dupbox__x" title="Скрий — ще излезе пак само ако се появи нов клиент" onclick="caDismissMissing()">✕</button><strong>В Basecamp има карти за ' + list.length + (list.length === 1 ? ' клиент, който още не е' : ' клиента, които още не са') +
     ' в списъка</strong> (ги няма в КП-Автоматизация): ' + list.map(function (c) {
       return '<span class="ca-tag">' + esc(c.name) + ' <span class="ca-dim">(' + c.cards + ' карти)</span> ' +
         '<button class="ca-x" onclick="caAddClient(' + jsq(c.name) + ')">＋ Добави</button></span>';
