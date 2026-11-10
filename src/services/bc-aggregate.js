@@ -233,7 +233,9 @@ function parseClientKp(title) {
   if (!title) return null;
   const m = String(title).match(/^(.+?)\s+(?:КП|KP)\s*[-–—]?\s*0*(\d+)/i);
   if (!m) return null;
-  const client = m[1].trim().replace(/\s+/g, ' ');
+  // „Sirvis - КП-3", „Lady Popular – КП 2": разделителят пред „КП" не е част от името
+  // (иначе същият клиент излиза като „Sirvis -" и „Sirvis" — Венци, 10.11.2026).
+  const client = m[1].trim().replace(/[\s\-–—:|,.]+$/, '').replace(/\s+/g, ' ');
   const kp = parseInt(m[2], 10);
   if (!client || !Number.isFinite(kp)) return null;
   return { client, kp };
