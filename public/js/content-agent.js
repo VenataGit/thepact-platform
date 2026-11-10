@@ -65,6 +65,10 @@ async function renderContentList(el) {
     'Тук е паметта на всеки клиент: колкото повече знае, толкова по-точни са идеите.');
   try {
     var data = await caApi('GET', '/clients');
+    // Колко клиента работят с агента — без скритите (дубликатите сървърът вече ги е махнал).
+    var activeN = data.clients.filter(function (c) { return !c.hidden; }).length;
+    var headT = document.querySelector('.ca-head__t');
+    if (headT) headT.innerHTML = '🎬 Content агент <span class="ca-head__n">' + activeN + (activeN === 1 ? ' активен клиент' : ' активни клиента') + '</span>';
     var html = '<div class="ca-toolbar">' +
       '<input class="ca-input ca-search" id="caSearch" placeholder="Търси клиент…" oninput="caFilterList()">' +
       '<span class="ca-spacer"></span>' +
