@@ -10,6 +10,8 @@ const scout = require('../services/content-agent/scout');
 const pipeline = require('../services/content-agent/pipeline');
 const caHistory = require('../services/content-agent/history');
 const discover = require('../services/content-agent/discover');
+const agg = require('../services/bc-aggregate');
+const { getUserAuth } = require('../services/basecamp-token');
 const imports = require('../services/content-agent/imports');
 const multer = require('multer');
 const fs = require('fs');
@@ -43,11 +45,52 @@ router.get('/clients', async (req, res) => {
     );
     const hidden = new Set((await store.loadSettings()).hiddenClients);
     res.json({
+      missing: await missingFromBasecamp(req, rows).catch(() => []),
       // Дубликатите (еднакво име) не се показват — само настоящият клиент.
       clients: rows.filter((c) => groups.canonicalOf[c.id] === undefined || groups.canonicalOf[c.id] === c.id)
         .map((c) => ({ ...c, hidden: hidden.has(c.id) })),
       duplicates: groups.duplicates,
     });
+  } catch (e) { fail(res, e); }
+});
+
+// Клиенти с карти в Basecamp („RoboHubPro КП-2"), които ги няма в КП-Автоматизация
+// (kp_clients) — а Content агентът работи само с клиентите оттам. Показват се с бутон
+// „Добави". Best-effort: без Basecamp връзка или при бавен отговор — празно.
+async function missingFromBasecamp(req, rows) {
+  const auth = await getUserAuth(req.user.userId);
+  const live = await Promise.race([
+    agg.listClientNames(auth.token, auth.account),
+    new Promise((resolve) => setTimeout(() => resolve([]), 8000)),
+  ]);
+  const known = new Set(rows.map((r) => store.nameKey(r.name)));
+  const kpHidden = new Set((await agg.getHiddenClientNames().catch(() => [])).map((n) => store.nameKey(n)));
+  return (live || []).filter((c) => {
+    const k = store.nameKey(c.name);
+    return k && !known.has(k) && !kpHidden.has(k);
+  });
+}
+
+// Добавя клиент от Basecamp в КП-Автоматизация — НА ПАУЗА: ботът не му пуска КП
+// карти, докато някой не му зададе дати там. Така се появява и в Content агента.
+router.post('/clients/add', express.json(), async (req, res) => {
+  try {
+    const name = String((req.body && req.body.name) || '').trim().slice(0, 200);
+    if (!name) return res.status(400).json({ error: 'Няма име.' });
+    const all = await query('SELECT id, name FROM kp_clients');
+    const same = all.find((c) => store.nameKey(c.name) === store.nameKey(name));
+    if (same) return res.json({ id: same.id, existed: true });
+    const kp = Math.max(0, parseInt(req.body.last_kp, 10) || 0);
+    const row = await queryOne(
+      `INSERT INTO kp_clients (name, current_kp_number, notes, active, paused)
+       VALUES ($1, $2, $3, TRUE, TRUE) RETURNING id`,
+      [name, kp + 1, 'Добавен от Content агента (има карти в Basecamp). На пауза — задай дати, преди да го пуснеш в КП-Автоматизация.']
+    );
+    await execute(
+      'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
+      [who(req) || 'Content агент', 'create_client', name, 'от Content агента, на пауза']
+    ).catch(() => {});
+    res.json({ id: row.id });
   } catch (e) { fail(res, e); }
 });
 

@@ -72,7 +72,7 @@ async function renderContentList(el) {
         ? '<label class="ca-check ca-check--inline"><input type="checkbox"' + (_ca.showHidden ? ' checked' : '') + ' onchange="caToggleHidden(this.checked)"> Покажи скритите (' +
           data.clients.filter(function (c) { return c.hidden; }).length + ')</label>' : '') +
       (caIsAdmin() ? '<a class="btn btn-ghost btn-sm" href="#/content/settings">⚙ Настройки</a>' : '') +
-      '</div>' + caDuplicatesHtml(data.duplicates || []) + '<div class="ca-grid" id="caGrid">';
+      '</div>' + caDuplicatesHtml(data.duplicates || []) + caMissingHtml(data.missing || []) + '<div class="ca-grid" id="caGrid">';
     // Еднакви имена = дубликат в КП-Автоматизация. Показваме КП номера и кой е живият,
     // за да не се пълни паметта на стария ред (агентът при таг избира живия).
     var seen = {};
@@ -123,6 +123,24 @@ function caDuplicatesHtml(list) {
       return esc(d.name) + ': ползва се КП-' + esc(d.canonical.kp || '?') + ', стар ' +
         d.others.map(function (o) { return 'КП-' + esc(o.kp || '?'); }).join(', ');
     }).join(' · ') + '</div>';
+}
+
+// Клиенти с карти в Basecamp, които ги няма в КП-Автоматизация → бутон „Добави".
+function caMissingHtml(list) {
+  if (!list.length) return '';
+  return '<div class="ca-dupbox ca-missing"><strong>В Basecamp има карти за ' + list.length + (list.length === 1 ? ' клиент, който още не е' : ' клиента, които още не са') +
+    ' в списъка</strong> (ги няма в КП-Автоматизация): ' + list.map(function (c) {
+      return '<span class="ca-tag">' + esc(c.name) + ' <span class="ca-dim">(' + c.cards + ' карти)</span> ' +
+        '<button class="ca-x" onclick="caAddClient(' + jsq(c.name) + ')">＋ Добави</button></span>';
+    }).join(' ') + '<div class="ca-dim ca-small">Добавеният клиент влиза и в КП-Автоматизация, но <strong>на пауза</strong> — ботът няма да му пуска КП карти, докато не му зададеш дати там.</div></div>';
+}
+
+async function caAddClient(name) {
+  try {
+    var r = await caApi('POST', '/clients/add', { name: name });
+    showToast(r.existed ? 'Клиентът вече го има' : 'Добавен: ' + name, 'success');
+    location.hash = '#/content/' + r.id;
+  } catch (e) { showToast(e.message, 'error'); }
 }
 
 function caToggleHidden(on) {
