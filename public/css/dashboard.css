@@ -142,6 +142,9 @@
 .tcr-btn { margin-top: 4px; font-weight: 600; padding: 11px 20px; }
 .tcr-muted { color: var(--text-dim); font-size: 13px; padding: 8px 0; }
 .tcr-err { color: var(--red); font-size: 13px; padding: 8px 0; }
+.tcr-loc { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; line-height: 1.5; color: var(--text); word-break: break-all; }
+.tcr-loc__h { color: var(--yellow); font-weight: 600; margin-top: 4px; }
+.tcr-loc__h:first-child { margin-top: 0; }
 .tcr-ok { color: var(--green); font-size: 14px; font-weight: 600; padding: 10px 0 2px; }
 .tcr-ok a { color: var(--accent); }
 /* Историята в админ панела */

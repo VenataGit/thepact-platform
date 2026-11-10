@@ -1,13 +1,13 @@
 // ==================== СЪЗДАВАНЕ НА ЗАДАЧИ (#/create-task) ====================
-// Инструмент в More, достъпен за всички. Две форми:
-//   „Измисляне"       → карта в Pre-Production → Измисляне с шаблона на контент плана
-//                        и избран брой видео секции.
-//   „Единична задача" → карта в избрана дъска/колона със стъпките на системата;
-//                        първата попълнена дата смята останалите, после човекът
-//                        има пълен контрол (бутонът ↻ преизчислява от дадено поле).
+// Инструмент в More, достъпен за всички. Само „Единична задача": карта в избрана
+// дъска/колона със стъпките на системата; първата попълнена дата смята останалите,
+// после човекът има пълен контрол (бутонът ↻ преизчислява от дадено поле).
+// „Измисляне (контент план)" е махнато (10.11.2026) — КП картите ги прави само
+// КП-Автоматизацията, иначе номерата се разминават.
+// Локацията на файловете е задължителна и се вижда под заглавието, докато пишеш.
 // Картите се създават от бот профила ThePactAlerts — кой ги е поръчал се пази в
 // платформата (Настройки → Създаване на задачи).
-var _tcr = { init: null, tab: 'plan', busy: false };
+var _tcr = { init: null, busy: false, locTimer: null, locSeq: 0 };
 
 async function renderTaskCreator(el) {
   setBreadcrumb([{ label: 'Създаване на задачи', href: '#/create-task' }]);
@@ -32,17 +32,11 @@ async function renderTaskCreator(el) {
 
 function tcrBody(html) { var b = document.getElementById('tcrBody'); if (b) b.innerHTML = html; }
 
-function tcrTab(tab) { _tcr.tab = tab; tcrRender(); }
-
 function tcrRender() {
   var d = _tcr.init || {};
-  var tabs =
-    '<div class="tcr-tabs">' +
-      '<button class="tcr-tab' + (_tcr.tab === 'plan' ? ' tcr-tab--on' : '') + '" onclick="tcrTab(\'plan\')">💡 Измисляне (контент план)</button>' +
-      '<button class="tcr-tab' + (_tcr.tab === 'single' ? ' tcr-tab--on' : '') + '" onclick="tcrTab(\'single\')">🎬 Единична задача</button>' +
-    '</div>';
-  tcrBody(tabs + '<div id="tcrForm">' + (_tcr.tab === 'plan' ? tcrPlanForm(d) : tcrSingleForm(d)) + '</div><div id="tcrResult"></div>');
-  if (_tcr.tab === 'single') tcrSyncColumns();
+  tcrBody('<div id="tcrForm">' + tcrSingleForm(d) + '</div><div id="tcrResult"></div>');
+  tcrSyncColumns();
+  tcrLocation();
   ensureClientNames().then(tcrFillClients);
 }
 
@@ -52,7 +46,7 @@ function tcrRender() {
 // разминаване („Св. Влас" вместо „Свети Влас") изважда картата от групата на клиента.
 
 function tcrFillClients() {
-  ['tcrPlanClient', 'tcrClient'].forEach(function (id) {
+  ['tcrClient'].forEach(function (id) {
     var sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">— избери клиент —</option>' +
@@ -74,55 +68,39 @@ function tcrStripClient(title) {
   return s;
 }
 
-function tcrPickClient(selId, titleId, isPlan) {
+function tcrPickClient(selId, titleId) {
   var sel = document.getElementById(selId), title = document.getElementById(titleId);
   if (!sel || !title) return;
   var rest = tcrStripClient(title.value);
-  if (!sel.value) { title.value = rest; return; }
-  if (!rest && isPlan) rest = 'КП-';
+  if (!sel.value) { title.value = rest; tcrLocation(); return; }
   title.value = (sel.value + ' ' + rest).trimEnd();
   title.focus();
+  tcrLocation();
 }
 
-// ---------- Измисляне ----------
-
-function tcrPlanForm(d) {
-  if (!d.plan) {
-    return '<div class="tcr-err">' + esc(d.planError || 'Не намерих дъската за задачите „Измисляне".') + '</div>';
-  }
-  var max = d.maxVideos || 30;
-  var def = d.defaultVideos || 10;
-  return '<div class="tcr-card">' +
-    '<div class="tcr-dest">Задачата отива в <strong>' + esc(d.plan.boardTitle) + '</strong> → <strong>' + esc(d.plan.columnTitle) + '</strong></div>' +
-    '<label class="tcr-field"><span class="tcr-label">Клиент</span>' +
-      '<select id="tcrPlanClient" class="tcr-input" onchange="tcrPickClient(\'tcrPlanClient\',\'tcrPlanTitle\',true)"><option value="">— зареждам —</option></select>' +
-      '<span class="tcr-note">Изборът слага името в началото на заглавието — точно както е записано другаде. Клиентът и КП-то се четат оттам.</span></label>' +
-    '<label class="tcr-field"><span class="tcr-label">Име на задачата</span>' +
-      '<input type="text" id="tcrPlanTitle" class="tcr-input" maxlength="200" placeholder="напр. Fornetti КП-4"></label>' +
-    '<div class="tcr-grid">' +
-      '<label class="tcr-field"><span class="tcr-label">Краен срок (due date)</span>' +
-        '<input type="date" id="tcrPlanDue" class="tcr-input"></label>' +
-      '<label class="tcr-field"><span class="tcr-label">Колко видеа</span>' +
-        '<input type="number" id="tcrPlanCount" class="tcr-input" min="1" max="' + max + '" value="' + def + '">' +
-        '<span class="tcr-note">Толкова „Видео N" секции влизат в шаблона (макс. ' + max + ').</span></label>' +
-    '</div>' +
-    '<label class="tcr-field"><span class="tcr-label">Допълнителна информация</span>' +
-      '<textarea id="tcrPlanExtra" class="tcr-input tcr-textarea" rows="5" placeholder="Всичко нужно допълнително — то влиза в самата задача."></textarea>' +
-      '<span class="tcr-note">Влиза на реда „Допълнителна информация" в шаблона; ако го няма, се добавя най-отдолу.</span></label>' +
-    '<button class="btn btn-primary tcr-btn" onclick="tcrCreatePlan()">Създай задачата</button>' +
-  '</div>';
+// ---------- локацията на файловете ----------
+// Сървърът я сглобява от заглавието (services/folder-paths.js) — тук само показваме
+// какво ще влезе в описанието. Неразпознато заглавие → задачата не се създава.
+function tcrLocation() {
+  clearTimeout(_tcr.locTimer);
+  _tcr.locTimer = setTimeout(tcrLocationNow, 250);
 }
 
-async function tcrCreatePlan() {
-  if (_tcr.busy) return;
-  var title = (document.getElementById('tcrPlanTitle') || {}).value || '';
-  var due = (document.getElementById('tcrPlanDue') || {}).value || '';
-  var count = parseInt((document.getElementById('tcrPlanCount') || {}).value, 10);
-  if (!title.trim()) { tcrResult('<div class="tcr-err">Напиши име на задачата.</div>'); return; }
-  await tcrPost('/api/task-creator/plan', {
-    title: title, dueOn: due || null, videoCount: count,
-    extraInfo: (document.getElementById('tcrPlanExtra') || {}).value || '',
-  });
+async function tcrLocationNow() {
+  var box = document.getElementById('tcrLoc');
+  var title = ((document.getElementById('tcrTitle') || {}).value || '').trim();
+  if (!box) return;
+  if (!title) { box.innerHTML = '<span class="tcr-note">Локацията на файловете се прави от заглавието и влиза най-горе в описанието.</span>'; return; }
+  var seq = ++_tcr.locSeq;
+  try {
+    var res = await fetch('/api/task-creator/location?title=' + encodeURIComponent(title));
+    var d = await res.json();
+    if (seq !== _tcr.locSeq) return;
+    box.innerHTML = d.ok
+      ? '<div class="tcr-loc"><div class="tcr-loc__h">Локация на файлове:</div><div>' + esc(d.files) + '</div><div>' + esc(d.filesMac) + '</div>' +
+        '<div class="tcr-loc__h">Локация на експортираното видео:</div><div>' + esc(d.exported) + '</div><div>' + esc(d.exportedMac) + '</div></div>'
+      : '<div class="tcr-err">⚠ ' + esc(d.hint || 'Заглавието не дава локация на файловете.') + '</div>';
+  } catch (e) { /* прегледът е само помощ — сървърът пак проверява */ }
 }
 
 // ---------- Единична задача ----------
@@ -145,10 +123,11 @@ function tcrSingleForm(d) {
 
   return '<div class="tcr-card">' +
     '<label class="tcr-field"><span class="tcr-label">Клиент</span>' +
-      '<select id="tcrClient" class="tcr-input" onchange="tcrPickClient(\'tcrClient\',\'tcrTitle\',false)"><option value="">— зареждам —</option></select>' +
+      '<select id="tcrClient" class="tcr-input" onchange="tcrPickClient(\'tcrClient\',\'tcrTitle\')"><option value="">— зареждам —</option></select>' +
       '<span class="tcr-note">Изборът слага името в началото на заглавието — точно както е записано другаде. Клиентът и КП-то се четат оттам.</span></label>' +
     '<label class="tcr-field"><span class="tcr-label">Име на задачата</span>' +
-      '<input type="text" id="tcrTitle" class="tcr-input" maxlength="200" placeholder="напр. Fornetti КП-4 - Видео 3 - Заглавие"></label>' +
+      '<input type="text" id="tcrTitle" class="tcr-input" maxlength="200" placeholder="напр. Fornetti КП-4 - Видео 3 - Заглавие" oninput="tcrLocation()"></label>' +
+    '<div class="tcr-field"><span class="tcr-label">Локация на файловете (влиза автоматично)</span><div id="tcrLoc"></div></div>' +
     '<label class="tcr-field"><span class="tcr-label">Описание</span>' +
       '<textarea id="tcrContent" class="tcr-input tcr-textarea" rows="10">' + esc(d.singleTemplate || '') + '</textarea>' +
       '<span class="tcr-note">Шаблонът е попълнен предварително — замени ХХХ-тата. Ако не ти трябва, изтрий го.</span></label>' +
@@ -253,7 +232,6 @@ async function tcrPost(url, body) {
     if (!res.ok || data.error) { tcrResult('<div class="tcr-err">' + esc(data.error || 'Грешка при създаване.') + '</div>'); return; }
     var html = '<div class="tcr-ok">✓ Готово — <strong>' + esc(data.title) + '</strong> е в „' + esc(data.column) + '" (' + esc(data.board) + ').' +
       (data.url ? ' <a href="' + esc(data.url) + '" target="_blank" rel="noopener">Отвори картата →</a>' : '') + '</div>';
-    if (data.videoCount) html += '<div class="tcr-muted">Шаблонът е с ' + data.videoCount + ' видео секции.</div>';
     if (data.stepErrors && data.stepErrors.length) {
       html += '<div class="tcr-err">Тези стъпки не се създадоха: ' + esc(data.stepErrors.join(', ')) + '</div>';
     }
@@ -272,10 +250,11 @@ async function tcrPost(url, body) {
 // човек да пусне няколко задачи една след друга. Описанието се връща на шаблона,
 // не на празно, защото следващата задача пак тръгва от него.
 function tcrClearForm() {
-  ['tcrPlanTitle', 'tcrTitle', 'tcrPlanExtra', 'tcrPlanClient', 'tcrClient'].forEach(function (id) {
+  ['tcrTitle', 'tcrClient'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
   var content = document.getElementById('tcrContent');
   if (content) content.value = (_tcr.init || {}).singleTemplate || '';
+  tcrLocation();
 }

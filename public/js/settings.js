@@ -1972,74 +1972,14 @@ async function tskAdmLoad() {
   }
 }
 
-function tskAdmBoardOpts(sel) {
-  var opts = '<option value=""' + (!sel ? ' selected' : '') + '>— авто: Pre-Production —</option>';
-  ((_tskAdm.init || {}).boards || []).forEach(function (b) {
-    opts += '<option value="' + esc(b.id) + '"' + (String(sel) === String(b.id) ? ' selected' : '') + '>' + esc(b.title) + '</option>';
-  });
-  return opts;
-}
-
-function tskAdmColOpts(boardId, sel) {
-  var boards = (_tskAdm.init || {}).boards || [];
-  var board = boards.find(function (b) { return String(b.id) === String(boardId); });
-  if (!board) board = boards.find(function (b) { return /pre[\s-]*produc|предпрод/i.test(b.title || '') && !/post|пост/i.test(b.title || ''); });
-  var opts = '<option value=""' + (!sel ? ' selected' : '') + '>— авто: Измисляне —</option>';
-  ((board && board.columns) || []).forEach(function (c) {
-    opts += '<option value="' + esc(c.id) + '"' + (String(sel) === String(c.id) ? ' selected' : '') + '>' + esc(c.title) + (c.isDone ? ' (Done)' : '') + '</option>';
-  });
-  return opts;
-}
-
 function tskAdmRender() {
   var host = document.getElementById('sgBody');
   if (!host || !_tskAdm) return;
   var s = _tskAdm.s, tpl = _tskAdm.tpl, init = _tskAdm.init;
   var html = '';
 
-  // --- 1. Дестинация за задачите „Измисляне" ---
-  html += '<div class="sg-section">' +
-    '<div class="sg-section__hdr">💡 Задача за измисляне — къде отива</div>' +
-    '<div class="sg-section__desc">Инструментът е в <a href="#/create-task">More → Създаване на задачи</a> и е достъпен за всички. ' +
-      'Празно = авто (Pre-Production → Измисляне) или каквото е зададено в <a href="#/admin/kp">КП-Автоматизация</a>.</div>' +
-    (init.error
-      ? '<div class="ga-empty" style="color:var(--yellow)">⚠ Basecamp не отговори (' + esc(init.error) + ') — дъската не може да се избере сега.</div>'
-      : '<div class="sg-kp-grid">' +
-          '<label class="sg-kp-field"><span class="sg-kp-label">Дъска (Card Table)</span>' +
-            '<select class="ga-select sg-kp-select" id="tskAdmBoard" onchange="tskAdmBoardChange(this.value)">' + tskAdmBoardOpts(s.task_plan_board_id) + '</select></label>' +
-          '<label class="sg-kp-field"><span class="sg-kp-label">Колона</span>' +
-            '<select class="ga-select sg-kp-select" id="tskAdmCol" onchange="tskAdmSave(\'task_plan_column_id\', this.value)">' + tskAdmColOpts(s.task_plan_board_id, s.task_plan_column_id) + '</select></label>' +
-        '</div>') +
-    '<div class="sg-kp-rows" style="margin-top:12px">' +
-      '<div class="sg-kp-row"><span class="sg-kp-row__label">Брой видеа по подразбиране</span>' +
-        '<input type="number" min="1" max="60" class="ga-input sg-kp-num" value="' + esc(String(tpl.defaultVideos || 10)) + '" onblur="tskAdmSave(\'task_default_videos\', this.value || \'10\')">' +
-        '<span class="sg-kp-row__hint">колко видео секции стоят във формата при отваряне</span></div>' +
-      '<div class="sg-kp-row"><span class="sg-kp-row__label">Максимум видеа</span>' +
-        '<input type="number" min="1" max="60" class="ga-input sg-kp-num" value="' + esc(String(tpl.maxVideos || 30)) + '" onblur="tskAdmSave(\'task_max_videos\', this.value || \'30\')">' +
-        '<span class="sg-kp-row__hint">таван, за да не се налее борда по грешка (хард лимит 60)</span></div>' +
-    '</div>' +
-  '</div>';
-
-  // --- 2. Шаблон на задачата за измисляне ---
-  var own = tpl.ownTemplate || tpl.ownVideoSection;
-  html += '<div class="sg-section">' +
-    '<div class="sg-section__hdr">✏️ Шаблон на задачата за измисляне</div>' +
-    '<div class="sg-section__desc">' + (own
-      ? 'Инструментът има <strong>собствен</strong> шаблон. Изтрий текста и запази, за да се върне към шаблона от <a href="#/admin/kp">КП-Автоматизация</a>.'
-      : 'В момента се ползва шаблонът от <a href="#/admin/kp">КП-Автоматизация</a>. Промениш ли текста тук, инструментът ще си има собствен.') + '</div>' +
-    '<label class="sg-kp-field"><span class="sg-kp-label">Основен текст</span>' +
-      '<textarea class="ga-input sg-kp-textarea" id="tskAdmTplMain" rows="7">' + esc(tpl.template || '') + '</textarea>' +
-      '<span class="sg-kp-note">{клиент} = името на задачата · {video_sections} = секциите за видеата · {брой} = избраният брой видеа</span></label>' +
-    '<label class="sg-kp-field" style="margin-top:12px"><span class="sg-kp-label">Секция за всяко видео</span>' +
-      '<textarea class="ga-input sg-kp-textarea" id="tskAdmTplVideo" rows="7">' + esc(tpl.videoSection || '') + '</textarea>' +
-      '<span class="sg-kp-note">{N} = номер на видеото. Повтаря се за всяко избрано видео.</span></label>' +
-    '<span class="sg-kp-note" style="display:block;margin-top:10px">Полето „Допълнителна информация" от формата влиза на реда „Допълнителна информация" в основния текст ' +
-      '(на мястото на ХХХ). Може и изрично — с плейсхолдъра <code>{доп_информация}</code>. Няма ли нито едното, текстът се добавя най-отдолу.</span>' +
-    '<div class="ga-row ga-row--foot">' +
-      '<button class="btn btn-sm" onclick="tskAdmSaveTemplates(this)">💾 Запази шаблона</button>' +
-    '</div>' +
-  '</div>';
-
+  // Задачата „Измисляне (контент план)" е махната от инструмента (10.11.2026) —
+  // КП картите ги прави само КП-Автоматизацията. Затова тук няма дестинация и шаблон за нея.
   // --- 2б. Шаблон в описанието на единичната задача ---
   html += '<div class="sg-section">' +
     '<div class="sg-section__hdr">📝 Описание на единичната задача</div>' +
@@ -2058,8 +1998,8 @@ function tskAdmRender() {
   html += '<div class="sg-section">' +
     '<div class="sg-section__hdr">🎬 Стъпки на единичната задача</div>' +
     '<div class="sg-section__desc">Всяка нова единична задача получава тези стъпки. Числото е колко <strong>работни дни преди датата за публикуване</strong> ' +
-      'пада стъпката — по него се смятат сами останалите дати във формата. Отмесванията 11 / 6 / 1 са същите, с които работи и авто-синхронът на датите; ' +
-      '„Измисляне" е само на този инструмент. Полетата във формата се подреждат по числото — първо най-отдалеченото от публикуването.</div>' +
+      'пада стъпката — по него се смятат сами останалите дати във формата. Отмесванията 11 / 6 / 1 са същите, с които работи и авто-синхронът на датите. ' +
+      'Полетата във формата се подреждат по числото — първо най-отдалеченото от публикуването.</div>' +
     '<div class="sg-kp-rows" id="tskAdmSteps">' +
       '<div class="sg-kp-row" style="border-top:none">' +
         '<span class="sg-kp-row__hint" style="flex:1;min-width:220px">Заглавие на стъпката в Basecamp</span>' +
@@ -2125,13 +2065,6 @@ function tskAdmSave(key, value, rerender) {
   if (_tskAdm) _tskAdm.s[key] = String(value);
   showToast('Запазено ✓', 'success', 1500);
   if (rerender) tskAdmRender();
-}
-
-function tskAdmBoardChange(boardId) {
-  tskAdmSave('task_plan_board_id', boardId);
-  tskAdmSave('task_plan_column_id', ''); // колоната от старата дъска вече не важи
-  var col = document.getElementById('tskAdmCol');
-  if (col) col.innerHTML = tskAdmColOpts(boardId, '');
 }
 
 // Текстовите полета тръгват попълнени с наследения текст. Ако човек не го е пипал,

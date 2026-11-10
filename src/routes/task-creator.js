@@ -21,28 +21,6 @@ const MAX_CONTENT = 20000;
 
 const clean = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
 
-// Дъската + колоната за задачите „Измисляне". Явните настройки печелят; празни
-// настройки → авто по име (Pre-Production → Измисляне), както при КП картите.
-function resolvePlanDest(struct, cfg) {
-  const boards = struct.boards || [];
-  let board = cfg.planBoardId ? boards.find((b) => String(b.id) === String(cfg.planBoardId)) : null;
-  if (!board) {
-    board = boards.find((b) => /pre[\s-]*produc|предпрод/i.test(b.title || '') && !/post|пост/i.test(b.title || ''));
-  }
-  if (!board) throw new Error('Не намерих дъска „Pre-Production" в Basecamp — задай я в Настройки → Създаване на задачи.');
-
-  const cols = board.columns || [];
-  let column = cfg.planColumnId ? cols.find((c) => String(c.id) === String(cfg.planColumnId)) : null;
-  if (!column) column = cols.find((c) => /измисляне/i.test(c.title || '')) || cols.find((c) => !c.isDone);
-  if (!column) throw new Error(`Дъската „${board.title}" няма подходяща колона за задачите.`);
-
-  return {
-    projectId: struct.projectId,
-    boardId: board.id, boardTitle: board.title,
-    columnId: column.id, columnTitle: column.title,
-  };
-}
-
 async function logCreated(req, row) {
   try {
     await execute(
@@ -69,16 +47,12 @@ router.get('/init', requireAuth, async (req, res) => {
     const cfg = await tc.loadTaskCfg();
     const auth = await getServiceAuth();
     const struct = await agg.loadStructure(auth.token, auth.account);
-    let plan = null, planError = null;
-    try { plan = resolvePlanDest(struct, cfg); } catch (e) { planError = e.message; }
     res.json({
       boards: (struct.boards || []).map((b) => ({
         id: String(b.id),
         title: b.title,
         columns: (b.columns || []).map((c) => ({ id: String(c.id), title: c.title, isDone: !!c.isDone })),
       })),
-      plan: plan ? { boardId: String(plan.boardId), boardTitle: plan.boardTitle, columnId: String(plan.columnId), columnTitle: plan.columnTitle } : null,
-      planError,
       steps: cfg.steps,
       maxVideos: cfg.maxVideos,
       defaultVideos: cfg.defaultVideos,
@@ -102,62 +76,22 @@ router.get('/dates', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/task-creator/plan { title, dueOn, videoCount, extraInfo } — задача за измисляне.
-router.post('/plan', requireAuth, async (req, res) => {
-  try {
-    const title = clean(req.body?.title, MAX_TITLE);
-    if (!title) return res.status(400).json({ error: 'Напиши име на задачата.' });
-    const dueOn = req.body?.dueOn ? String(req.body.dueOn).slice(0, 10) : null;
-    if (dueOn && !tc.isDate(dueOn)) return res.status(400).json({ error: 'Невалиден краен срок.' });
+// Задачата „Измисляне (контент план)" е махната (Венци, 10.11.2026): препокриваше се с
+// КП-Автоматизацията — ръчно направените КП карти не се броят там и автоматизацията
+// после създава карта със същия номер (така се получиха две „MASTERHAUS КП-3").
+// КП картите идват само от КП-Автоматизацията; тук остава единичната задача.
 
-    const cfg = await tc.loadTaskCfg();
-    const videoCount = parseInt(req.body?.videoCount, 10);
-    if (!Number.isFinite(videoCount) || videoCount < 1 || videoCount > cfg.maxVideos) {
-      return res.status(400).json({ error: `Броят видеа трябва да е между 1 и ${cfg.maxVideos}.` });
-    }
+// Локацията на файловете е задължителна за всяка единична задача (Венци, 10.11.2026).
+// Сглобява се от заглавието (services/folder-paths.js): „Клиент КП-N …" / „Клиент РЕК-N …" /
+// „Клиент КМП-N …" или „Клиент - Име на задачата". Неразпознато заглавие = без локация,
+// затова такова заглавие не се приема.
+const LOCATION_HINT = 'Заглавието трябва да е „Клиент КП-4 - Видео 3 - Име" или „Клиент - Име на задачата" (тире с интервал от двете страни) — оттам се прави локацията на файловете.';
 
-    const auth = await getServiceAuth();
-    const struct = await agg.loadStructure(auth.token, auth.account);
-    const dest = resolvePlanDest(struct, cfg);
-
-    const extraInfo = clean(req.body?.extraInfo, MAX_CONTENT);
-    // Локациите идват от заглавието („Клиент КП-12") — виж services/folder-paths.js.
-    // Тук блокът е най-отгоре: текстът на плана съдържа N видео секции, всяка със свое
-    // „Описание:", тоест вмъкването по средата би паднало вътре в първото видео.
-    // Всичко е в ЕДИН Trix блок, за да не изчезнат празните редове при редакция.
-    const content = bch.block(bch.join([
-      fp.locationLines(title),
-      bch.lines(tc.buildPlanText(cfg, title, videoCount, extraInfo)),
-    ]));
-    // Планът носи срока си в стъпката „Pre-Production - Готов сценарий", а не в Due On
-    // (Due On вече значи само „дата за публикуване"). Само тази стъпка — заснемане,
-    // монтаж и качване нямат смисъл на ниво контент план.
-    const card = await bc.createCard(auth.token, auth.account, dest.projectId, dest.columnId, {
-      title, content,
-    });
-    if (dueOn) {
-      const planStep = prodSteps.byKey(prodSteps.PLAN_STEP_KEY);
-      try {
-        await bc.createStep(auth.token, auth.account, dest.projectId, card.id, { title: planStep.title, due_on: dueOn });
-      } catch (e) {
-        console.warn('[task-creator plan] step failed:', e.message);
-      }
-    }
-    agg.invalidateBoard(dest.boardId);
-    // Папката на самия контент план — видео папките идват при разбиването.
-    await fq.enqueue({ cardId: card.id, title });
-
-    const out = {
-      kind: 'plan', title: card.title || title, cardId: card.id,
-      url: bc.normalizeAppUrl(card.app_url), board: dest.boardTitle, column: dest.columnTitle,
-      videoCount, dueOn,
-    };
-    await logCreated(req, out);
-    res.json(out);
-  } catch (err) {
-    console.error('[task-creator plan]', err.message);
-    res.status(502).json({ error: err.message });
-  }
+// GET /api/task-creator/location?title=… — прегледът на локацията във формата.
+router.get('/location', requireAuth, (req, res) => {
+  const p = fp.pathsForTitle(clean(req.query.title, MAX_TITLE));
+  if (!p) return res.json({ ok: false, hint: LOCATION_HINT });
+  res.json({ ok: true, files: p.files.win, filesMac: p.files.mac, exported: p.exported.win, exportedMac: p.exported.mac });
 });
 
 // POST /api/task-creator/single { title, content, boardId, columnId, dueOn, stepDates }
@@ -171,6 +105,7 @@ router.post('/single', requireAuth, async (req, res) => {
     const boardId = String(req.body?.boardId || '');
     const columnId = String(req.body?.columnId || '');
     if (!boardId || !columnId) return res.status(400).json({ error: 'Избери дъска и колона.' });
+    if (!fp.pathsForTitle(title)) return res.status(400).json({ error: LOCATION_HINT });
 
     const cfg = await tc.loadTaskCfg();
     const auth = await getServiceAuth();
