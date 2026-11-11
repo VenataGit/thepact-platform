@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо: Автоматизации за The Pact</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; --blue:#4a9fe0; --violet:#a78bfa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; }
+  button, input, select, textarea { font:inherit; color:inherit; }
+  header { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:30; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .wrap { max-width:1680px; margin:14px auto 40px; padding:0 20px; display:grid; grid-template-columns:290px 1fr; gap:14px; }
+  .side { background:var(--panel); border-radius:15px; padding:12px; align-self:start; position:sticky; top:62px; max-height:calc(100vh - 80px); overflow:auto; }
+  .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:10px 8px 6px; }
+  .side a { display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:9px; cursor:pointer; text-decoration:none; color:#cfd8dc; font-size:13.5px; }
+  .side a:hover { background:var(--hover); }
+  .side a.on { background:var(--green); color:#fff; font-weight:600; }
+  .side a .n { margin-left:auto; font-size:11px; color:var(--dim); }
+  .side a.on .n { color:#e8fff2; }
+  .panel { background:var(--panel); border-radius:15px; padding:22px 26px; min-width:0; }
+  h2 { font-size:22px; margin-bottom:4px; }
+  .lead { color:var(--sec); margin-bottom:16px; max-width:980px; }
+  .explain { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; padding:10px 14px; margin-bottom:16px; color:var(--sec); max-width:1100px; }
+  .explain b { color:var(--text); }
+  .btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:7px 14px; cursor:pointer; }
+  .btn:hover { background:rgba(255,255,255,.12); }
+  .btn.pri { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+  .btn.sm { padding:4px 10px; font-size:12.5px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .box { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 16px; }
+  .box h4 { font-size:14px; margin-bottom:8px; }
+  textarea { width:100%; min-height:420px; background:#0d1518; border:1px solid var(--border); border-radius:10px; padding:12px; font-family:Consolas,monospace; font-size:12.5px; resize:vertical; }
+  input[type=range] { width:260px; }
+  select, input[type=text], input[type=number] { background:#0d1518; border:1px solid var(--border); border-radius:8px; padding:6px 9px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:7px 9px; border-bottom:1px solid rgba(255,255,255,.07); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; font-size:12px; }
+  .ok { color:var(--green); } .warn { color:var(--amber); } .bad { color:var(--red); } .dim { color:var(--dim); }
+  .pill { display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:9px; background:rgba(255,255,255,.07); color:var(--sec); white-space:nowrap; }
+  .pill.g { background:rgba(70,163,116,.18); color:#7fd3a6; } .pill.a { background:rgba(245,166,35,.16); color:#ffc56b; }
+  .pill.r { background:rgba(229,83,75,.16); color:#ff9c95; } .pill.b { background:rgba(74,159,224,.16); color:#93c8f2; } .pill.v { background:rgba(167,139,250,.16); color:#c9b8ff; }
+  .issue { padding:8px 10px; border-radius:8px; margin-bottom:6px; background:rgba(255,255,255,.03); border-left:3px solid var(--dim); }
+  .issue.bad { border-left-color:var(--red); color:var(--text); } .issue.warn { border-left-color:var(--amber); color:var(--text); } .issue.ok { border-left-color:var(--green); color:var(--text); }
+  .issue small { display:block; color:var(--sec); margin-top:2px; }
+  .score { font-size:44px; font-weight:800; }
+  .cat-stage { margin-bottom:22px; }
+  .cat-stage h3 { font-size:15px; margin-bottom:8px; display:flex; gap:8px; align-items:center; }
+  .cat { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:10px; }
+  .item { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px 14px; cursor:pointer; }
+  .item:hover { border-color:rgba(70,163,116,.6); }
+  .item .t { font-weight:700; margin-bottom:4px; display:flex; gap:8px; align-items:flex-start; }
+  .item .t span:first-child { flex:1; }
+  .item .d { color:var(--sec); font-size:13px; }
+  .item .m { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
+  .item .more { display:none; margin-top:10px; font-size:13px; color:#cfd8dc; border-top:1px solid rgba(255,255,255,.07); padding-top:8px; }
+  .item.open .more { display:block; }
+  .item .more b { color:var(--text); }
+  .filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  .filters button { border:1px solid var(--border); background:none; color:var(--sec); padding:5px 11px; border-radius:16px; cursor:pointer; font-size:12.5px; }
+  .filters button.on { background:var(--green); border-color:var(--green); color:#fff; }
+  .kpi { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:16px; }
+  .kpi .box { text-align:center; } .kpi .v { font-size:26px; font-weight:800; } .kpi .l { font-size:12px; color:var(--sec); } .kpi .tr { font-size:12px; margin-top:2px; }
+  .bar { height:8px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; } .bar i { display:block; height:100%; background:var(--green); }
+  .sheet { background:#fff; color:#1b1f24; border-radius:10px; padding:22px 26px; }
+  .sheet h3 { font-size:18px; } .sheet table td, .sheet table th { border-bottom:1px solid #e3e6ea; color:#1b1f24; } .sheet .muted { color:#6a737d; }
+  .timeline { position:relative; padding-left:22px; }
+  .timeline .st { position:relative; padding:6px 0 12px; opacity:.35; transition:opacity .3s; }
+  .timeline .st.on { opacity:1; }
+  .timeline .st:before { content:""; position:absolute; left:-17px; top:11px; width:10px; height:10px; border-radius:50%; background:var(--dim); }
+  .timeline .st.on:before { background:var(--green); }
+  .timeline:before { content:""; position:absolute; left:9px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,.08); }
+  .chat { background:#0d1518; border:1px solid var(--border); border-radius:10px; padding:10px 12px; font-size:13px; margin-top:6px; }
+  .chat b { color:#93c8f2; }
+  @media (max-width:1100px) { .wrap { grid-template-columns:1fr; } .side { position:static; max-height:none; } .grid2, .grid3, .kpi { grid-template-columns:1fr 1fr; } }
+  @media print { header, .side, .noprint { display:none !important; } .wrap { display:block; } .panel { background:none; padding:0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚙️ Автоматизации за The Pact — демо</h1>
+  <span class="badge">демо · измислени данни · нищо не се записва</span>
+  <span class="dim" style="font-size:12.5px">Каталог с всичко, което може да се автоматизира + работещи прототипи. Истинската версия ще чете Basecamp, Z: и мрежите.</span>
+</header>
+<div class="wrap">
+  <nav class="side" id="side"></nav>
+  <main class="panel" id="main"></main>
+</div>
+
+<script>
+// ============================================================================
+// Данни: каталогът (същият като в документа във Vault-а и във видеото)
+// ============================================================================
+const STAGES = [
+  { id: 'sales', name: 'Продажби', ico: '💼' },
+  { id: 'onb', name: 'Нов клиент', ico: '🤝' },
+  { id: 'kp', name: 'Контент план', ico: '💡' },
+  { id: 'prod', name: 'Снимане', ico: '🎥' },
+  { id: 'post', name: 'Монтаж и качество', ico: '✂️' },
+  { id: 'pm', name: 'Клиент и публикуване', ico: '📣' },
+  { id: 'num', name: 'Числа, отчети, пари', ico: '📊' },
+  { id: 'team', name: 'Екип и дисциплина', ico: '👥' },
+];
+// p: приоритет 1–3 (3 = най-голям ефект), e: обем S/M/L, demo: ид на прототип
+const CAT = [
+  { s:'sales', t:'Формуляр от сайта → сделка в CRM', d:'Запитване от thepact.bg / Instagram влиза само като нова сделка със следваща стъпка „обади се“ до утре.', how:'Webhook от формата (сайт, Meta Lead Ads) → POST към CRM. Дубликати по телефон/имейл се сливат. Отговорникът получава известие.', why:'Нито едно запитване не се губи в чужда пощенска кутия; времето до първия разговор пада от дни до часове.', need:'Достъп до формата на сайта и Meta Business; адрес в CRM за приемане.', p:2, e:'S' },
+  { s:'sales', t:'Застояла сделка → готов текст за follow-up', d:'Сделка без движение над срока на етапа → AI чернова на съобщение до клиента + напомняне на продавача.', how:'Всяка сутрин CRM намира застоялите; AI опашката пише кратко съобщение по историята на сделката; продавачът го праща с 1 клик или редактира.', why:'Follow-up-ът е най-често пропусканото нещо в продажбите; тук струва 10 секунди.', need:'Само платформата (CRM + AI опашката).', p:2, e:'S' },
+  { s:'sales', t:'Оферта от CRM с 1 клик', d:'От сделката → PDF оферта по тарифите (Starter/Growth/Scale) с примерни видеа на клиенти от същата ниша.', how:'Шаблон + данни от сделката (ниша, брой видеа, мрежи) → PDF; линкът се праща от CRM и се вижда дали е отворен.', why:'Еднаква професионална оферта за минути; помага при вдигането на цените.', need:'Тарифите и 3–4 примерни кейса за ниша.', p:1, e:'M' },
+  { s:'onb', t:'Онбординг конвейер „Спечелена сделка“', d:'Сделка → „Спечелена“ = Basecamp проект от шаблона, клиентска карта, папки на Z: и в Drive, онбординг среща, първа КП карта — наведнъж.', how:'Платформата пуска веригата стъпка по стъпка (виж прототипа) и показва какво е готово; пропусната стъпка не блокира останалите.', why:'Днес това са ~10 ръчни действия на няколко души — и всяко може да се забрави.', need:'Шаблон на Basecamp проект; папките вече ги прави агентът на компютъра.', p:3, e:'M', demo:'onboarding' },
+  { s:'onb', t:'Въпросник за клиента → клиентска карта', d:'Клиентът попълва онлайн въпросник (цели, стил, кой одобрява, ограничения) → картата във Vault и в платформата се попълва сама.', how:'Форма в thepact.pro с личен линк за клиента → `_карта.md` + запис в базата → контент криейтърът получава известие.', why:'Продажбите не преписват; криейтърът започва без да пита.', need:'Списък с въпросите (вече го има в шаблона на картата).', p:2, e:'S' },
+  { s:'kp', t:'Проверка на контент плана преди клиента', d:'Автоматичен преглед по правилата: 10 видеа, Hook/Value/CTA, участници/локация/ресурси, формат на редовете, AI чистка, баланс на жанровете.', how:'При местене на КП картата към „Към Клиент“ (или с бутон) текстът минава проверката → коментар под картата с точните поправки.', why:'Правилата от процеса се спазват без Венци да чете всеки план; по-малко корекции от клиента.', need:'Само платформата. Прототипът по-долу вече работи с истински текст.', p:3, e:'S', demo:'kpcheck' },
+  { s:'kp', t:'Напомняне за одобрение на КП', d:'КП стои при клиента > 3 работни дни без отговор → напомняне на акаунта; > 5 → към Венци.', how:'Дневна проверка на колоната „Към Клиент“ + последния коментар на клиента.', why:'Планът не „виси“ и не измества снимките.', need:'Само платформата.', p:2, e:'S' },
+  { s:'prod', t:'Снимачен лист за деня', d:'Снимачен ден в календара → лист за видеографа: видеа, участници, локации, реквизит, реплики, час — на телефона и за печат.', how:'Събира картите на видеата за този ден (от календара и стъпката „Видеограф“) → страница + PDF; вечерта преди снимките идва в Basecamp.', why:'Нищо не се забравя на снимки; видеографът не рови в 10 карти.', need:'Само платформата (календарът вече е свързан).', p:3, e:'S', demo:'callsheet' },
+  { s:'prod', t:'Качен материал → картата тръгва сама', d:'Нови файлове в папката на видеото на Z: → стъпката „Видеограф“ се чеква, картата отива в Post-Production, монтажистът получава таг.', how:'Агентът на офис компютъра следи папките (както компресора); при нов материал праща сигнал на платформата.', why:'Маха ръчното „качих го“ и чакането между снимане и монтаж.', need:'Агентът на компютъра (вече има такъв за папките и компресора).', p:3, e:'M' },
+  { s:'prod', t:'Автоматично конвертиране в MXF', d:'Суровият материал се конвертира в MXF веднага след качване, без видеографът да чака.', how:'Същият агент пуска ffmpeg на нощни/свободни часове; резултатът — до оригинала.', why:'Спестява време на видеографа всеки снимачен ден.', need:'Офис компютърът (ffmpeg вече е там).', p:1, e:'S' },
+  { s:'post', t:'Разпределяне на монтажа по натовареност', d:'Нова карта в „Разпределение“ → предложение кой монтажист е най-свободен (по часовете от „Време“ и картите му).', how:'Брои отворените карти и часовете за седмицата на всеки; предлага, човек потвърждава с 1 клик.', why:'По-малко претоварени хора и закъснения.', need:'Данни от „Време“ за 1–2 месеца (вече се трупат).', p:2, e:'M' },
+  { s:'post', t:'Нов експорт → картата към преглед', d:'Нов файл в Exported Videos → коментар под картата с линк, картата отива на вътрешен преглед, тагва се ревюърът.', how:'Компресорът вече вижда новите експорти — добавяме съобщение към платформата.', why:'Маха „готово е, виж го“ съобщенията и чакането.', need:'Компресорът на компютъра + платформата.', p:3, e:'S' },
+  { s:'post', t:'Автоматична техническа проверка на видеото', d:'Преди преглед: резолюция, 9:16/16:9, продължителност ≤ 90 сек, сила на звука, тишина в началото, име по конвенцията, има ли субтитри.', how:'ffprobe + анализ на звука на компютъра → доклад под картата (виж прототипа). Hook-ът в първите 2 сек се проверява по транскрипцията.', why:'Хваща техническите грешки, преди да стигнат до лийда или клиента — нива 1–2 от QC.', need:'Офис компютърът + Whisper (вече го има).', p:3, e:'M', demo:'qc' },
+  { s:'post', t:'Субтитри автоматично', d:'Одобрено видео → SRT файл с Whisper, сложен в папката и прикачен към картата.', how:'Whisper на компютъра (large-v3 на видеокартата) → SRT; монтажистът само ги проверява.', why:'Субтитрите са задължителни; днес се правят на ръка.', need:'Офис компютърът.', p:2, e:'S' },
+  { s:'post', t:'Брояч на корекциите', d:'Колко рунда корекции има всяко видео — по клиент, по монтажист, по месец.', how:'Брои връщанията на картата назад и версиите v2/v3 в имената на файловете.', why:'Целта е под 2 корекции на видео — без брояч не знаем къде сме.', need:'Само платформата.', p:2, e:'S' },
+  { s:'pm', t:'Изпращане за одобрение + напомняне 24 ч', d:'Бутон „Прати на клиента“: видеото отива в клиентския проект със стандартния текст; без отговор 24 ч → напомняне.', how:'От картата: качване в Basecamp на клиента, тагване на одобряващия, таймер.', why:'Процесът казва „напомняне на 24 часа“ — сега зависи от памет.', need:'Само платформата.', p:2, e:'M' },
+  { s:'pm', t:'Пазач „клиентът чака отговор“', d:'Клиент е писал и не му е отговорено > 24 ч в работни часове → сигнал към акаунта, после към Венци.', how:'Вече е написано в PM агента, но е изключено — включваме го с правилата за работно време.', why:'Законът „отговор до 24 часа“ се следи от системата.', need:'Само включване и настройка.', p:3, e:'S' },
+  { s:'pm', t:'Текст и хаштагове за поста', d:'От сценария на видеото → AI чернова на описание, хаштагове и първи коментар за всяка мрежа.', how:'При одобрение AI опашката пише текста в стила на клиента; акаунтът го коригира.', why:'Спестява 10–15 мин на видео.', need:'Само платформата (AI опашката).', p:2, e:'S' },
+  { s:'pm', t:'Насрочване на публикуването', d:'Одобрено видео + текст → насрочено в Instagram/Facebook/TikTok/YouTube в най-добрия час за клиента.', how:'Meta Graph API, TikTok Content Posting API, YouTube API с достъпа на клиента.', why:'Маха ръчното качване във 4 мрежи.', need:'Одобрение на приложенията при Meta/TikTok и достъп до профилите на клиентите — най-тежката точка.', p:2, e:'L' },
+  { s:'num', t:'Отчет „Резултати“ с 1 клик', d:'В края на КП: гледания, ангажираност, нови последователи, топ видео — събрани сами от мрежите в готов отчет.', how:'Статистиките през API-тата на мрежите → PDF/съобщение в Message Board (виж прототипа).', why:'Днес се събират на ръка; отчетът е аргумент за подновяване.', need:'Достъп до статистиките на клиентските профили.', p:3, e:'M', demo:'results' },
+  { s:'num', t:'Печалба по клиент', d:'Цена на КП − (часове × ставка) = марж по клиент и по видео, всеки месец.', how:'Цената от CRM, часовете от „Време“ и Overtime, ставките от админа.', why:'Числото, което доказва дали €165 на видео е малко; кой клиент носи пари и кой яде капацитет.', need:'Ставките на хората и цената на всеки договор.', p:3, e:'S', demo:'scorecard' },
+  { s:'num', t:'Седмичен отчет с 6-те числа', d:'Всеки понеделник: предадени видеа, % навреме, корекции на видео, натовареност, доволство, приходи.', how:'Смята се от Basecamp, „Време“ и CRM → едно съобщение до Венци (и до операционния мениджър).', why:'Числата от процеса се гледат всяка седмица без никой да ги събира.', need:'Само платформата; доволството — кратка анкета към клиента.', p:3, e:'S', demo:'scorecard' },
+  { s:'num', t:'Фактуриране по състоянието на работата', d:'„Invoice Started/Completed“ → чернова на фактура и известие към счетоводството.', how:'Тригерите вече са в процеса; платформата праща данните към програмата за фактури или имейл до счетоводителя.', why:'Нито един КП не остава нефактуриран.', need:'Коя програма за фактури ползвате (има ли API).', p:2, e:'M' },
+  { s:'num', t:'Анкета за доволство след КП', d:'Кратка анкета (1–5 + коментар) към клиента след отчета → в седмичния отчет и в CRM.', how:'Линк в съобщението с отчета; отговорите се записват в платформата.', why:'„Доволство 4.2+“ е цел, но днес не се мери.', need:'Само платформата.', p:2, e:'S' },
+  { s:'team', t:'Стълбица на ескалациите', d:'Просрочена задача: ден 1 → човекът, ден 3 → лийдът, ден 5 → Венци. С едно съобщение на ден, не спам.', how:'Сутрешна проверка на сроковете по стъпките; всеки получава само своето (виж прототипа).', why:'На 29.10 имаше 49 просрочени задачи; днес никой не носи отговорност за тях автоматично.', need:'Кой е лийд на кой отдел.', p:3, e:'S', demo:'escalation' },
+  { s:'team', t:'Пазач на картите', d:'Карта без срок, без отговорник или с грешно име по конвенцията → коментар под нея и поправка с 1 клик.', how:'Проверка на всички карти на всеки час (снимката от PM агента вече ги има).', why:'„Задача без срок е мъртва задача“ — законът се пази от системата.', need:'Само платформата.', p:3, e:'S', demo:'guard' },
+  { s:'team', t:'Лична сутрешна задача за всеки', d:'Всеки получава в 9:00 своите задачи за деня и какво е просрочено при него — не целия екип.', how:'Като дневния ъпдейт, но по човек (текст или кратко видео).', why:'Всеки знае какво чака точно него, без да отваря таблото.', need:'Само платформата.', p:2, e:'S' },
+  { s:'team', t:'Онбординг на нов човек', d:'Нов служител → процесите на неговата роля като чеклист, достъпите, първите задачи.', how:'От „Процеси“ (вече има чеклисти по роля) + задача в Basecamp.', why:'Новият човек не зависи от Венци за първите седмици.', need:'Само платформата.', p:1, e:'S' },
+  { s:'team', t:'Напомняне за таймера', d:'Човек работи по карта (местене, коментари), но таймерът му е спрян → тихо напомняне в разширението.', how:'Разширението вижда активността; платформата вижда таймера.', why:'По-точни часове → по-точна печалба по клиент.', need:'Разширението и „Време“.', p:1, e:'S' },
+  { s:'team', t:'„Попитай The Pact“', d:'Екипът пита как се прави нещо → отговор от процесите, Vault-а и миналите отговори на Венци.', how:'Вече е планирано като „Дигитален Венци“ — чака отговорите на 7-те въпроса.', why:'Всеки отговорен въпрос е едно прекъсване на Венци по-малко.', need:'Решенията по плана.', p:3, e:'M' },
+];
+const BUILT = ['КП-Автоматизация (следващ КП)', 'КП разбиване на 10 карти', 'Датите назад от публикуването', 'Папките на Z: и Exported', 'Известия от Google Calendar', 'Известия от таблиците', 'Известие „Резултати“ + карта', 'Дневен доклад', 'Overtime обобщение 9:00', 'Content агент (идеи)', 'Компресор за клиента', 'Сигнали при повреда'];
+
+// ============================================================================
+// Навигация
+// ============================================================================
+const PAGES = [
+  { id: 'catalog', ico: '🗂️', name: 'Целият каталог', n: CAT.length },
+  { sep: 'Работещи прототипи' },
+  { id: 'kpcheck', ico: '✅', name: 'Проверка на контент план' },
+  { id: 'escalation', ico: '⏫', name: 'Стълбица на ескалациите' },
+  { id: 'guard', ico: '🛡️', name: 'Пазач на картите' },
+  { id: 'callsheet', ico: '🎬', name: 'Снимачен лист' },
+  { id: 'qc', ico: '🔎', name: 'Техническа проверка' },
+  { id: 'scorecard', ico: '📊', name: 'Седмичен отчет + печалба' },
+  { id: 'results', ico: '📈', name: 'Отчет „Резултати“' },
+  { id: 'onboarding', ico: '🤝', name: 'Онбординг конвейер' },
+];
+let page = (location.hash || '#catalog').slice(1);
+function nav() {
+  document.getElementById('side').innerHTML = PAGES.map((p) => p.sep ? `<h3>${p.sep}</h3>`
+    : `<a class="${p.id === page ? 'on' : ''}" href="#${p.id}"><span>${p.ico}</span><span>${p.name}</span>${p.n ? `<span class="n">${p.n}</span>` : ''}</a>`).join('');
+}
+window.addEventListener('hashchange', () => { page = location.hash.slice(1) || 'catalog'; render(); });
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function render() { nav(); (VIEWS[page] || VIEWS.catalog)(document.getElementById('main')); window.scrollTo(0, 0); }
+
+// ============================================================================
+// Изгледите
+// ============================================================================
+const VIEWS = {};
+let catFilter = 'all';
+VIEWS.catalog = (el) => {
+  const pr = (p) => '★'.repeat(p) + '☆'.repeat(3 - p);
+  const eff = { S: ['g', 'малко (дни)'], M: ['a', 'средно (1–2 седм.)'], L: ['r', 'голямо'] };
+  const list = CAT.filter((c) => catFilter === 'all' || (catFilter === 'top' ? c.p === 3 : catFilter === 'quick' ? c.e === 'S' && c.p >= 2 : catFilter === 'demo' ? c.demo : true));
+  el.innerHTML = `<h2>🗂️ Всичко, което може да се автоматизира</h2>
+  <p class="lead">${CAT.length} предложения, подредени по пътя на клиента — от запитването до фактурата. Кликни картичка за подробности (как работи, защо, какво трябва). ★★★ = най-голям ефект. Тези с „демо“ имат работещ прототип в менюто вляво.</p>
+  <div class="explain"><b>Вече работи (не е в списъка):</b> ${BUILT.join(' · ')}.</div>
+  <div class="filters">${[['all', 'Всички'], ['top', '★★★ Най-голям ефект'], ['quick', 'Бързи победи (малко работа)'], ['demo', 'С прототип']].map(([k, l]) => `<button class="${catFilter === k ? 'on' : ''}" data-f="${k}">${l}</button>`).join('')}</div>
+  ${STAGES.map((s) => { const items = list.filter((c) => c.s === s.id); if (!items.length) return '';
+    return `<div class="cat-stage"><h3>${s.ico} ${s.name} <span class="pill">${items.length}</span></h3><div class="cat">${items.map((c) => `
+      <div class="item">
+        <div class="t"><span>${esc(c.t)}</span><span class="warn" title="ефект">${pr(c.p)}</span></div>
+        <div class="d">${esc(c.d)}</div>
+        <div class="m"><span class="pill ${eff[c.e][0]}">обем: ${eff[c.e][1]}</span>${c.demo ? `<a class="pill b" href="#${c.demo}" onclick="event.stopPropagation()">▶ демо</a>` : ''}</div>
+        <div class="more"><p><b>Как работи:</b> ${esc(c.how)}</p><p style="margin-top:6px"><b>Как помага:</b> ${esc(c.why)}</p><p style="margin-top:6px"><b>Какво трябва:</b> ${esc(c.need)}</p></div>
+      </div>`).join('')}</div></div>`; }).join('')}`;
+  el.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { catFilter = b.dataset.f; render(); });
+  el.querySelectorAll('.item').forEach((it) => it.onclick = () => it.classList.toggle('open'));
+};
+
+// ---------- 1. Проверка на контент план (истинска) ----------
+const KP_SAMPLE = `Дата за публикуване на първо видео: 02.12.2026
+
+Видео 1 - 3 грешки при избора на матрак
+/Кадър: собственикът в магазина, светло, 9:16
+- Спал ли си някога на грешния матрак цели 10 години?
+- Ето трите грешки, които правят 8 от 10 клиента.
+/Участници: собственикът
+/Локация: магазина
+/Ресурси: 3 матрака, стойка
+
+Видео 2 - Тест: 100 кг върху матрака
+/Кадър: бавен каданс, тежестта пада
+- Какво става, когато 100 кг паднат върху матрак за 300 лв.?
+CTA: Запиши се за безплатен тест в магазина
+/Участници: продавач, клиент
+/Локация: склада
+
+Видео 3 — Ден от живота на продавача 😎
+• Сутрин отваря магазина
+• Пие кафе с колегите
+"Тук няма „обикновен“ ден", казва той.
+/Локация: магазина
+
+Видео 4 - POV: купуваш първия си матрак
+- POV: влизаш в магазина и не знаеш нищо за матраците.
+- Продавачът пита само 2 въпроса.
+CTA: Последвай за още
+/Участници: актьор, продавач
+/Локация: магазина
+/Ресурси: табела „POV“`;
+VIEWS.kpcheck = (el) => {
+  el.innerHTML = `<h2>✅ Проверка на контент план</h2>
+  <p class="lead">Това работи наистина: постави текста на истински КП (копиран от Basecamp) и проверката минава по правилата от процеса. В истинската версия същото става само, когато КП картата отиде към „Към Клиент“, и резултатът идва като коментар под картата.</p>
+  <div class="grid2"><div><div class="row noprint" style="margin-bottom:8px"><button class="btn sm" id="kpSample">Зареди пример</button><button class="btn sm" id="kpClear">Изчисти</button><span class="dim" style="font-size:12px">Проверява се, докато пишеш.</span></div><textarea id="kpText" spellcheck="false"></textarea></div><div id="kpOut"></div></div>`;
+  const ta = el.querySelector('#kpText');
+  ta.value = KP_SAMPLE;
+  el.querySelector('#kpSample').onclick = () => { ta.value = KP_SAMPLE; run(); };
+  el.querySelector('#kpClear').onclick = () => { ta.value = ''; run(); };
+  ta.oninput = run; run();
+  function run() { el.querySelector('#kpOut').innerHTML = kpCheck(ta.value); }
+};
+function kpCheck(text) {
+  const issues = []; // [sev, title, detail]
+  const lines = text.split(/\r?\n/);
+  const vids = []; let cur = null;
+  lines.forEach((l, i) => {
+    const m = l.match(/^\s*Видео\s*(\d+)\s*([-–—:])\s*(.*)$/i);
+    if (m) { cur = { n: +m[1], dash: m[2], title: m[3].trim(), line: i + 1, body: [] }; vids.push(cur); }
+    else if (cur) cur.body.push({ t: l, i: i + 1 });
+  });
+  if (!vids.length) return '<div class="issue bad">Не намирам секции „Видео N - Заглавие“.<small>Без тях КП разбиването не може да направи картите.</small></div>';
+  if (!/дата за публикуване/i.test(text)) issues.push(['bad', 'Липсва „Дата за публикуване на първо видео“', 'От нея се смятат всички срокове (16/11/6/1 работни дни назад).']);
+  if (vids.length !== 10) issues.push([vids.length < 10 ? 'warn' : 'warn', `Видеата са ${vids.length}, а пакетът е 10`, 'Ако е нарочно (по-малък пакет) — игнорирай.']);
+  const nums = vids.map((v) => v.n); nums.forEach((n, k) => { if (n !== k + 1) issues.push(['warn', `Номерацията се къса при „Видео ${n}“`, `Очаквах Видео ${k + 1}.`]); });
+  let cta = 0; const genres = {};
+  const G = [['how-to / информативно', /как |грешк|съвет|начин|стъпк|тест/i], ['скеч', /скеч|сценка|актьор/i], ['интервю / улица', /интервю|на улицата|анкета|питаме/i], ['POV / тренд', /\bPOV\b|тренд|challenge|игра/i], ['brand story', /историята|зад кадър|ден от живота|основател/i]];
+  vids.forEach((v) => {
+    const body = v.body.map((b) => b.t).join('\n'); const tag = `Видео ${v.n}`;
+    if (v.dash !== '-') issues.push(['bad', `${tag}: тирето в заглавието е „${v.dash}“`, 'Трябва „Видео N - Заглавие“ (обикновено тире с интервали) — иначе КП разбиването не го хваща.']);
+    if (!v.title) issues.push(['bad', `${tag}: няма заглавие`, '']);
+    if (v.title.length > 60) issues.push(['warn', `${tag}: заглавието е дълго (${v.title.length} знака)`, 'Правилото: кратко и ясно.']);
+    if (/[\u{1F300}-\u{1FAFF}\u2600-\u27BF#*_~|]/u.test(v.title)) issues.push(['warn', `${tag}: символи/емоджи в заглавието`, 'Заглавието е без символи — то става име на карта и на папка.']);
+    if (!/участници/i.test(body)) issues.push(['bad', `${tag}: няма „Участници“`, 'Видеографът трябва да знае кого да извика.']);
+    if (!/локаци/i.test(body)) issues.push(['bad', `${tag}: няма „Локация“`, '']);
+    if (!/ресурс|реквизит|необходим/i.test(body)) issues.push(['warn', `${tag}: няма „Ресурси“`, 'Какво трябва да се донесе на снимки.']);
+    const hook = v.body.find((b) => b.t.trim().startsWith('-'));
+    if (!hook) issues.push(['warn', `${tag}: няма реплика (ред с „-“)`, 'Hook-ът (първите 2 секунди) трябва да е написан.']);
+    else if (hook.t.length > 140) issues.push(['warn', `${tag}: първата реплика е дълга за hook`, 'Hook-ът трябва да се каже за ~2 секунди.']);
+    if (/\bCTA\b|последвай|абонирай|запиши се|коментирай/i.test(body)) cta++;
+    v.body.forEach((b) => {
+      const t = b.t.trim(); if (!t) return;
+      if (/^[•*●▪◦–]/.test(t)) issues.push(['bad', `${tag}, ред ${b.i}: „${t[0]}“ в началото`, '„-“ е за реплика, „/“ за описание на кадър — другите знаци чупят автоматизацията.']);
+      if (/—/.test(t)) issues.push(['warn', `${tag}, ред ${b.i}: дълго тире „—“`, 'AI чистка: замени с „-“.']);
+      if (/[„“"«»]/.test(t) && (t.match(/[„“"«»]/g) || []).length > 2) issues.push(['warn', `${tag}, ред ${b.i}: много кавички`, 'AI чистка: излишни кавички.']);
+      if (/\*\*|__/.test(t)) issues.push(['warn', `${tag}, ред ${b.i}: маркери **/__`, 'Форматирането се прави в Basecamp, не със звездички.']);
+    });
+    const g = G.find(([, re]) => re.test(v.title + ' ' + body)); genres[g ? g[0] : 'неразпознат'] = (genres[g ? g[0] : 'неразпознат'] || 0) + 1;
+  });
+  const ctaPct = Math.round(cta / vids.length * 100);
+  if (ctaPct > 50) issues.push(['warn', `CTA в ${cta} от ${vids.length} видеа (${ctaPct}%)`, 'Правилото: CTA само в ~30%, естествено.']);
+  const bad = issues.filter((i) => i[0] === 'bad').length, warn = issues.length - bad;
+  const score = Math.max(0, 100 - bad * 8 - warn * 3);
+  const col = score >= 85 ? 'ok' : score >= 60 ? 'warn' : 'bad';
+  return `<div class="box" style="margin-bottom:12px"><div class="row"><div class="score ${col}">${score}</div><div><b>${vids.length} видеа</b> · <span class="bad">${bad} грешки</span> · <span class="warn">${warn} предупреждения</span><br><span class="dim">CTA: ${ctaPct}% · Жанрове: ${Object.entries(genres).map(([k, v]) => `${k} ${v}`).join(', ')}</span></div></div></div>
+  ${issues.length ? issues.map(([s, t, d]) => `<div class="issue ${s}">${s === 'bad' ? '⛔' : '⚠️'} ${esc(t)}${d ? `<small>${esc(d)}</small>` : ''}</div>`).join('') : '<div class="issue ok">✅ Всичко е по правилата — може към клиента.</div>'}
+  <div class="chat"><b>Така ще изглежда коментарът под КП картата:</b><br>🤖 Проверка на КП: ${score}/100 — ${bad ? `${bad} неща за поправяне преди клиента` : 'готов за клиента'}${warn ? `, ${warn} препоръки` : ''}. Подробно в thepact.pro.</div>`;
+}
+
+// ---------- 2. Стълбица на ескалациите ----------
+const OVERDUE = [
+  { t: 'Пекарна Изгрев КП-4 - Видео 3 - Тестото', who: 'Ани (монтаж)', lead: 'Боби (лийд монтаж)', dept: 'Post', days: 1 },
+  { t: 'Автокъща Мотор КП-2 - Видео 7 - Тест драйв', who: 'Вики (видеограф)', lead: 'Гошо (лийд продукция)', dept: 'Production', days: 2 },
+  { t: 'Клиника Здраве КП-6 - Видео 1 - Първи преглед', who: 'Ани (монтаж)', lead: 'Боби (лийд монтаж)', dept: 'Post', days: 3 },
+  { t: 'Кафе Ъгъл КП-9', who: 'Дея (контент)', lead: 'Венци', dept: 'Pre', days: 4 },
+  { t: 'Фитнес Лъв КП-3 - Видео 9 - Клек', who: 'Ели (акаунт)', lead: 'Венци', dept: 'PM', days: 6 },
+  { t: 'Автокъща Мотор КП-2 - Видео 2 - Цени', who: 'Вики (видеограф)', lead: 'Гошо (лийд продукция)', dept: 'Production', days: 8 },
+];
+let escShift = 0;
+VIEWS.escalation = (el) => {
+  const rows = OVERDUE.map((o) => ({ ...o, d: o.days + escShift }));
+  const level = (d) => d >= 5 ? 3 : d >= 3 ? 2 : d >= 1 ? 1 : 0;
+  const by = {};
+  rows.forEach((r) => { const L = level(r.d); const to = L === 3 ? 'Венци' : L === 2 ? r.lead : r.who; (by[to] = by[to] || []).push({ ...r, L }); });
+  el.innerHTML = `<h2>⏫ Стълбица на ескалациите</h2>
+  <p class="lead">Всяка сутрин в 9:00 системата гледа сроковете по стъпките. <b>Ден 1</b> — пише само на човека. <b>Ден 3</b> — и на лийда на отдела. <b>Ден 5+</b> — и на Венци. Всеки получава <b>едно</b> съобщение на ден със своите неща, не по едно на задача.</p>
+  <div class="row noprint" style="margin-bottom:14px"><span>Премести деня:</span><input type="range" min="0" max="5" value="${escShift}" id="sh"><b>+${escShift} дни</b></div>
+  <div class="grid2"><div class="box"><h4>Просрочени задачи</h4><table><tr><th>Задача</th><th>Отговорник</th><th>Дни</th><th>Ниво</th></tr>
+  ${rows.map((r) => `<tr><td>${esc(r.t)}</td><td>${esc(r.who)}</td><td><b class="${r.d >= 5 ? 'bad' : r.d >= 3 ? 'warn' : ''}">${r.d}</b></td><td>${['—', '<span class="pill">човекът</span>', '<span class="pill a">+ лийд</span>', '<span class="pill r">+ Венци</span>'][level(r.d)]}</td></tr>`).join('')}</table></div>
+  <div><h4 style="margin-bottom:8px">Какво получава всеки тази сутрин</h4>${Object.entries(by).map(([to, list]) => `<div class="chat" style="margin-bottom:10px"><b>@${esc(to)}</b> — ${to === 'Венци' ? '🔴 Ескалирани към теб' : list.some((x) => x.L === 2 && x.lead === to) ? '🟠 В твоя отдел изостават' : '🟡 Изостава при теб'} (${list.length}):<br>${list.map((x) => `• ${esc(x.t)} — <b>${x.d} дни</b>${to !== x.who.split(' ')[0] && to !== x.who ? ` (${esc(x.who)})` : ''}`).join('<br>')}</div>`).join('')}</div></div>`;
+  el.querySelector('#sh').oninput = (e) => { escShift = +e.target.value; render(); };
+};
+
+// ---------- 3. Пазач на картите ----------
+const CARDS = [
+  { t: 'Пекарна Изгрев КП-4 - Видео 5 - Кроасан', due: '18.11', who: 'Ани', col: 'Монтаж' },
+  { t: 'Автокъща Мотор КП-2 - Видео 8', due: '', who: 'Вики', col: 'Снимане' },
+  { t: 'клиника здраве кп6 видео 2', due: '20.11', who: 'Ани', col: 'Монтаж' },
+  { t: 'Кафе Ъгъл - Кафе машината', due: '22.11', who: '', col: 'Разпределение' },
+  { t: 'Фитнес Лъв КП-3 - Видео 10 - Финал', due: '', who: '', col: 'Разпределение' },
+  { t: 'Пекарна Изгрев-РЕК-1', due: '25.11', who: 'Ели', col: 'Към клиент' },
+  { t: 'Автокъща Мотор КП-2 - Видео 9 - Сервиз', due: '19.11', who: 'Вики', col: 'Снимане' },
+];
+function guardIssues(c) {
+  const out = [];
+  if (!c.due) out.push(['bad', 'няма срок', 'Задача без срок е мъртва задача.', 'Сложи срок по датата за публикуване']);
+  if (!c.who) out.push(['bad', 'няма отговорник', 'Всяка карта — точно един човек.', 'Предложение: най-свободният от отдела']);
+  const ok = /^.+ (КП|РЕК|КМП)-\d+( - Видео \d+ - .+)?$/.test(c.t) || /^[^-]+ - .+$/.test(c.t) && !/(КП|кп)\s*\d/.test(c.t);
+  if (!ok) {
+    const fix = c.t.replace(/^(.+?)\s*[-]?\s*(рек|кп|кмп)\s*-?\s*(\d+)\s*(видео\s*(\d+))?\s*-?\s*(.*)$/i, (m, cl, p, n, v, vn, rest) =>
+      `${cl.replace(/\b\p{L}/gu, (x) => x.toUpperCase())} ${p.toUpperCase()}-${n}${vn ? ` - Видео ${vn}${rest ? ' - ' + rest : ''}` : ''}`);
+    out.push(['warn', 'името не е по конвенцията', '„Клиент КП-N - Видео M - Заглавие“ (интервали около тирето).', fix !== c.t ? `→ „${fix}“` : '']);
+  } else if (/Видео \d+$/.test(c.t)) out.push(['warn', 'видеото няма заглавие', 'От заглавието става името на папката.', '']);
+  return out;
+}
+VIEWS.guard = (el) => {
+  const all = CARDS.map((c) => ({ ...c, iss: guardIssues(c) }));
+  const bad = all.filter((c) => c.iss.length);
+  el.innerHTML = `<h2>🛡️ Пазач на картите</h2>
+  <p class="lead">На всеки час проверява всички карти (данните вече са в платформата от PM агента). Карта без срок, без отговорник или с име извън конвенцията получава <b>един</b> коментар с поправката — и бутон „Поправи“ в платформата.</p>
+  <div class="grid3" style="margin-bottom:14px"><div class="box"><div class="score">${all.length}</div><span class="dim">проверени карти</span></div><div class="box"><div class="score bad">${bad.length}</div><span class="dim">с проблем</span></div><div class="box"><div class="score ok">${all.length - bad.length}</div><span class="dim">наред</span></div></div>
+  <table><tr><th>Карта</th><th>Колона</th><th>Срок</th><th>Отговорник</th><th>Проблем</th><th></th></tr>
+  ${all.map((c, i) => `<tr><td>${esc(c.t)}</td><td class="dim">${c.col}</td><td>${c.due || '<span class="bad">—</span>'}</td><td>${c.who || '<span class="bad">—</span>'}</td>
+  <td>${c.iss.length ? c.iss.map(([s, t, d, f]) => `<div class="${s}">• ${t}${f ? ` <span class="dim">${esc(f)}</span>` : ''}</div>`).join('') : '<span class="ok">✓</span>'}</td>
+  <td>${c.iss.length ? `<button class="btn sm" data-fix="${i}">Поправи</button>` : ''}</td></tr>`).join('')}</table>
+  <div class="chat" id="gmsg" style="margin-top:12px"><b>Коментар под картата (пример):</b><br>🤖 Тази карта няма срок и отговорник. По датата за публикуване срокът за монтаж е 20.11; най-свободен в Post е Ани (3 карти тази седмица). Поправи с 1 клик: thepact.pro/…</div>`;
+  el.querySelectorAll('[data-fix]').forEach((b) => b.onclick = () => {
+    const c = CARDS[+b.dataset.fix];
+    guardIssues(c).forEach(([, t, , f]) => {
+      if (t === 'няма срок') c.due = '20.11';
+      if (t === 'няма отговорник') c.who = 'Ани';
+      if (t === 'името не е по конвенцията' && f.startsWith('→')) c.t = f.slice(3, -1);
+    });
+    render();
+  });
+};
+
+// ---------- 4. Снимачен лист ----------
+const SHOOT = [
+  { t: 'Пекарна Изгрев КП-4 - Видео 1 - Как се меси тестото', time: '09:00', loc: 'Пекарната, ул. Хлебна 5', who: 'майсторът, собственичката', res: 'брашно, престилки, статив за телефон', hook: 'Знаеш ли защо хлябът от магазина не мирише така?', shots: 'отблизо ръцете; бавен каданс брашно; лице на майстора' },
+  { t: 'Пекарна Изгрев КП-4 - Видео 2 - Сутрешната опашка', time: '09:40', loc: 'Пекарната — вход', who: '3 клиенти (питаме на място), собственичката', res: 'декларации за съгласие ×5', hook: 'В 7 сутринта тук има опашка. Ето защо.', shots: 'широк план на опашката; интервюта 3×; детайл витрина' },
+  { t: 'Пекарна Изгрев КП-4 - Видео 6 - POV: първият ти ден като пекар', time: '10:30', loc: 'Пекарната — фурната', who: 'актьор (Иво), майсторът', res: 'табела POV, бяла шапка', hook: 'POV: първият ти ден в пекарна и всичко гори.', shots: 'от гърдите (POV); реакции на майстора; финал с хляба' },
+];
+VIEWS.callsheet = (el) => {
+  el.innerHTML = `<h2>🎬 Снимачен лист за деня</h2>
+  <p class="lead">Вечерта преди снимачен ден системата събира картите на видеата от календара и прави лист: час, локация, хора, реквизит, hook и кадри. Идва на видеографа в Basecamp и се отваря на телефона; може и да се принтира.</p>
+  <div class="row noprint" style="margin-bottom:12px"><button class="btn pri" onclick="window.print()">🖨 Принтирай / PDF</button><span class="dim">Сряда, 19 ноември · Пекарна Изгрев · видеограф: Вики</span></div>
+  <div class="sheet"><h3>Снимки — сряда, 19 ноември</h3><p class="muted">Пекарна Изгрев · КП-4 · видеограф Вики · ${SHOOT.length} видеа · тръгване от офиса 08:15</p>
+  <table style="margin-top:12px"><tr><th>Час</th><th>Видео</th><th>Локация</th><th>Участници</th><th>Реквизит</th></tr>
+  ${SHOOT.map((s) => `<tr><td><b>${s.time}</b></td><td><b>${esc(s.t.split(' - ').slice(1).join(' - '))}</b><br><span class="muted">Hook: „${esc(s.hook)}“<br>Кадри: ${esc(s.shots)}</span></td><td>${esc(s.loc)}</td><td>${esc(s.who)}</td><td>${esc(s.res)}</td></tr>`).join('')}</table>
+  <p class="muted" style="margin-top:12px">Не забравяй: батерии ×4, микрофони ×2, светлина. Материалът — Z:\\Пекарна Изгрев\\Контент план 4\\Видео N\\ (папките вече са създадени).</p></div>`;
+};
+
+// ---------- 5. Техническа проверка (QC) ----------
+const QC_FILES = {
+  good: { name: 'Пекарна Изгрев КП-4 - Видео 1 v2 - със субтитри.mp4', w: 1080, h: 1920, dur: 41, lufs: -14.2, silence: 0.1, fps: 30, subs: true, hookWords: 'Знаеш ли защо хлябът от магазина' },
+  bad: { name: 'pekarna video3 FINAL final2.mp4', w: 1920, h: 1080, dur: 104, lufs: -21.5, silence: 1.6, fps: 25, subs: false, hookWords: '(тишина) ...днес ще ви покажем' },
+};
+let qcPick = 'bad';
+VIEWS.qc = (el) => {
+  const f = QC_FILES[qcPick];
+  const vert = f.h > f.w;
+  const checks = [
+    ['Име по конвенцията', /^.+ (КП|РЕК|КМП)-\d+ - Видео \d+( v\d+)?( - със субтитри)?\.(mp4|mov)$/.test(f.name), '„[Клиент] КП-X - Видео Y v2 - със субтитри“'],
+    ['Формат 9:16 за соц. мрежи', vert, `${f.w}×${f.h}`],
+    ['Минимум 1080p', Math.min(f.w, f.h) >= 1080, `${Math.min(f.w, f.h)}p`],
+    ['До ~90 секунди', f.dur <= 90, `${f.dur} сек`],
+    ['Сила на звука (около −14 LUFS)', Math.abs(f.lufs + 14) <= 2, `${f.lufs} LUFS`],
+    ['Без тишина в началото', f.silence < 0.5, `${f.silence} сек тишина`],
+    ['Hook в първите 2 секунди', !/тишина/.test(f.hookWords), `„${f.hookWords}“ (от транскрипцията)`],
+    ['Субтитри', f.subs, f.subs ? 'вградени' : 'няма — Whisper може да ги направи'],
+  ];
+  const fails = checks.filter((c) => !c[1]).length;
+  el.innerHTML = `<h2>🔎 Техническа проверка на видеото</h2>
+  <p class="lead">Нов експорт в „Exported Videos“ → компютърът в офиса го проверява (ffprobe за размер и продължителност, анализ на звука, Whisper за първите секунди) и пише доклада под картата. Това са нива 1–2 от качеството — хваща техническото, за да остане на хората само творческото.</p>
+  <div class="row noprint" style="margin-bottom:12px"><span>Пример:</span><button class="btn sm ${qcPick === 'good' ? 'pri' : ''}" data-q="good">✅ добро видео</button><button class="btn sm ${qcPick === 'bad' ? 'pri' : ''}" data-q="bad">⛔ видео с проблеми</button></div>
+  <div class="grid2"><div class="box"><h4>📁 ${esc(f.name)}</h4><table>${checks.map(([n, ok, d]) => `<tr><td>${ok ? '<span class="ok">✓</span>' : '<span class="bad">✕</span>'} ${n}</td><td class="dim">${esc(d)}</td></tr>`).join('')}</table></div>
+  <div><div class="chat"><b>Коментар под картата:</b><br>🤖 Техническа проверка: ${fails ? `<span class="bad">${fails} проблема</span> — върнато на монтажиста` : '<span class="ok">всичко е наред</span> — към вътрешен преглед'}.<br>${checks.filter((c) => !c[1]).map((c) => `• ${c[0]}: ${esc(c[2])}`).join('<br>')}${fails ? '' : '<br>@Боби — готово за преглед.'}</div>
+  <p class="dim" style="margin-top:10px;font-size:12.5px">Картата ${fails ? 'остава в „Монтаж“ с таг към монтажиста' : 'отива в „Вътрешен преглед“ и тагва лийда'} — автоматично.</p></div></div>`;
+  el.querySelectorAll('[data-q]').forEach((b) => b.onclick = () => { qcPick = b.dataset.q; render(); });
+};
+
+// ---------- 6. Седмичен отчет + печалба по клиент ----------
+const CLIENTS = [
+  { n: 'Пекарна Изгрев', price: 1650, videos: 10, hours: 46 },
+  { n: 'Автокъща Мотор', price: 1650, videos: 10, hours: 71 },
+  { n: 'Клиника Здраве', price: 2400, videos: 12, hours: 58 },
+  { n: 'Кафе Ъгъл', price: 1200, videos: 8, hours: 49 },
+  { n: 'Фитнес Лъв', price: 1650, videos: 10, hours: 38 },
+];
+let rate = 16;
+VIEWS.scorecard = (el) => {
+  const k = [['Предадени видеа', '27', '+4 спрямо м.с.', 'ok'], ['Навреме', '81%', 'цел 90%+', 'warn'], ['Корекции на видео', '1.7', 'цел под 2', 'ok'], ['Натовареност', '92%', 'цел 70–85%', 'bad'], ['Доволство', '4.4', 'цел 4.2+', 'ok'], ['Приходи (месец)', '€8 550', '78% от целта', 'warn']];
+  const rows = CLIENTS.map((c) => { const cost = c.hours * rate; const m = c.price - cost; return { ...c, cost, m, pv: m / c.videos, pct: Math.round(m / c.price * 100) }; }).sort((a, b) => a.pct - b.pct);
+  el.innerHTML = `<h2>📊 Седмичен отчет и печалба по клиент</h2>
+  <p class="lead">Всеки понеделник в 9:00 — едно съобщение с 6-те числа от процеса, сметнати от Basecamp, „Време“ и CRM. Под тях — маржът на всеки клиент: цената на договора минус часовете × ставка.</p>
+  <div class="kpi">${k.map(([l, v, t, c]) => `<div class="box"><div class="v">${v}</div><div class="l">${l}</div><div class="tr ${c}">${t}</div></div>`).join('')}</div>
+  <div class="box"><div class="row" style="justify-content:space-between"><h4>Печалба по клиент (месец)</h4><span class="noprint">Средна ставка €/час: <input type="number" id="rate" value="${rate}" style="width:70px"></span></div>
+  <table><tr><th>Клиент</th><th>Цена</th><th>Видеа</th><th>Часове</th><th>Разход</th><th>Марж</th><th>На видео</th><th style="width:22%">Марж %</th></tr>
+  ${rows.map((r) => `<tr><td><b>${r.n}</b></td><td>€${r.price}</td><td>${r.videos}</td><td>${r.hours}</td><td>€${r.cost}</td><td class="${r.m < 0 ? 'bad' : ''}">€${r.m}</td><td>€${Math.round(r.pv)}</td><td><div class="row"><div class="bar" style="flex:1"><i style="width:${Math.max(0, r.pct)}%;background:${r.pct < 20 ? 'var(--red)' : r.pct < 40 ? 'var(--amber)' : 'var(--green)'}"></i></div><b>${r.pct}%</b></div></td></tr>`).join('')}</table>
+  <p class="dim" style="margin-top:8px;font-size:12.5px">Извод от примера: „${esc(rows[0].n)}“ носи най-малко — ${rows[0].hours} часа за ${rows[0].videos} видеа. Това е разговорът за цената при подновяване.</p></div>`;
+  el.querySelector('#rate').onchange = (e) => { rate = Math.max(1, +e.target.value || 16); render(); };
+};
+
+// ---------- 7. Отчет „Резултати“ ----------
+VIEWS.results = (el) => {
+  const vids = [['Видео 4 - POV: първият ти ден като пекар', 'TikTok', 48200, 3100], ['Видео 1 - Как се меси тестото', 'Instagram', 21400, 1890], ['Видео 2 - Сутрешната опашка', 'TikTok', 18900, 640], ['Видео 7 - 3 вида брашно', 'Instagram', 9700, 520], ['Видео 9 - Историята на пекарната', 'Facebook', 6100, 410]];
+  const tv = vids.reduce((a, v) => a + v[2], 0);
+  el.innerHTML = `<h2>📈 Отчет „Резултати“ с 1 клик</h2>
+  <p class="lead">Днес платформата казва „време е за отчет“ и създава карта. Следващата стъпка: числата да идват сами от мрежите и отчетът да е готов — акаунтът само добавя едно изречение и го праща в Message Board.</p>
+  <div class="sheet"><h3>Пекарна Изгрев — резултати от КП-4</h3><p class="muted">01.10 – 03.11.2026 · 10 видеа · TikTok, Instagram, Facebook</p>
+  <div class="grid3" style="margin:14px 0"><div><div class="score">${(tv / 1000).toFixed(0)}K</div><span class="muted">гледания (топ 5)</span></div><div><div class="score">+1 240</div><span class="muted">нови последователи за 30 дни</span></div><div><div class="score">6.8%</div><span class="muted">средна ангажираност</span></div></div>
+  <table><tr><th>Видео</th><th>Мрежа</th><th>Гледания</th><th>Харесвания</th></tr>${vids.map((v) => `<tr><td>${v[0]}</td><td>${v[1]}</td><td>${v[2].toLocaleString('bg-BG')}</td><td>${v[3].toLocaleString('bg-BG')}</td></tr>`).join('')}</table>
+  <p style="margin-top:12px"><b>Най-гледано:</b> POV форматът (48K). <b>Най-много ангажираност:</b> същото видео. <span class="muted">Предложение за КП-5: още 2 POV видеа.</span></p></div>`;
+};
+
+// ---------- 8. Онбординг конвейер ----------
+const ONB = ['Сделката е „Спечелена“ в CRM', 'Basecamp проект от шаблона „Клиент“', 'Клиентска карта (Vault + платформата) от данните в CRM', 'Въпросник до клиента (личен линк)', 'Папки: Z:\\Клиент, Exported Videos\\Клиент, Google Drive\\Content Plan', 'Онбординг среща в календара + задача за акаунта', 'Първа КП карта в „Измисляне“ със срок', 'Клиентът в КП-Автоматизация и Content агента', 'Съобщение до екипа: „Нов клиент: …“ с отговорниците'];
+let onbStep = 0, onbTimer = null;
+VIEWS.onboarding = (el) => {
+  el.innerHTML = `<h2>🤝 Онбординг конвейер</h2>
+  <p class="lead">Продавачът мести сделката в „Спечелена“ — останалото става само, стъпка по стъпка. Ако някоя стъпка не мине (например папката вече я има), другите продължават и в CRM се вижда какво остава за човек.</p>
+  <div class="grid2"><div class="box"><h4>Сделка: Ресторант Котва · 10 видеа/месец · €2 500</h4><div class="row noprint" style="margin:8px 0 14px"><button class="btn pri" id="go">▶ Отбележи „Спечелена“</button><button class="btn sm" id="rs">Отначало</button></div>
+  <div class="timeline">${ONB.map((s, i) => `<div class="st ${i < onbStep ? 'on' : ''}">${i < onbStep ? '✅' : '⏳'} ${esc(s)}</div>`).join('')}</div></div>
+  <div>${onbStep >= ONB.length ? `<div class="chat"><b>Съобщение в Video Production:</b><br>🆕 Нов клиент: <b>Ресторант Котва</b> — 10 видеа/месец, старт 01.12.<br>Акаунт: Ели · Контент: Дея · Видеограф: Вики · Монтаж: Ани<br>Онбординг среща: пн 24.11, 11:00 · Първият КП: срок 28.11<br>Клиентската карта: thepact.pro/…</div>` : '<p class="dim">Натисни бутона — ще видиш какво прави системата и какво съобщение получава екипът.</p>'}
+  <div class="explain" style="margin-top:14px"><b>Днес:</b> ~10 ръчни действия на 3–4 души в различни системи, разпръснати в няколко дни. <b>С конвейера:</b> 1 клик, ~1 минута, нищо не се забравя.</div></div></div>`;
+  el.querySelector('#go').onclick = () => { if (onbTimer) return; onbTimer = setInterval(() => { onbStep++; if (onbStep >= ONB.length) { clearInterval(onbTimer); onbTimer = null; } render(); }, 450); };
+  el.querySelector('#rs').onclick = () => { clearInterval(onbTimer); onbTimer = null; onbStep = 0; render(); };
+};
+
+render();
+</script>
+</body>
+</html>
