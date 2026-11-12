@@ -398,7 +398,8 @@ ${CHECKER_FORMAT}`,
  * @returns {{ output: object, reviews: object[] }}
  */
 async function runStep(stepKey, ctx, chunk, usage, onProgress) {
-  const step = STEPS[stepKey];
+  // Ключ от STEPS или готова стъпка { title, expert, checker, input } (Контент стратегия агентът).
+  const step = typeof stepKey === 'string' ? STEPS[stepKey] : stepKey;
   const input = step.input(ctx, chunk);
   let output = await callJson({ system: step.expert.system, user: input, effort: 'medium', usage });
   const reviews = [];

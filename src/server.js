@@ -59,6 +59,7 @@ const { initDevQueue } = require('./services/dev-queue');
 const { initDevChat } = require('./services/dev-chat');
 const { initCrmReminders } = require('./services/crm-reminders');
 const { initContentAgent } = require('./services/content-agent/trigger');
+const { initStrategyAgent } = require('./services/strategy-agent');
 const { initPcWatch } = require('./services/pc-watch');
 const { initOvertimeDigest } = require('./services/overtime-digest');
 const { initSystemWatch } = require('./services/system-watch');
@@ -81,6 +82,7 @@ setTimeout(() => {
   initDevChat();
   initCrmReminders();
   initContentAgent();
+  initStrategyAgent();
   initPcWatch();
   initOvertimeDigest();
   initSystemWatch();

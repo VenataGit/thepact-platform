@@ -922,6 +922,7 @@ function caStepsHtml(steps) {
     if (s.learned != null) extra.push('научени: ' + s.learned);
     if (s.outliers != null) extra.push('успешни видеа: ' + s.outliers);
     if (s.count != null) extra.push('идеи: ' + s.count);
+    if (s.note && !(s.errors && s.errors.length)) extra.push(s.note);
     if (s.errors && s.errors.length) extra.push('⚠ ' + s.errors.join('; '));
     var issues = (s.open_issues || []).map(function (i) { return '<li>' + (i.n ? 'Видео ' + esc(i.n) + ': ' : '') + esc(i.problem || '') + '</li>'; }).join('');
     return '<div class="ca-step"><div><strong>' + esc(s.title) + '</strong> ' + badge + '</div>' +

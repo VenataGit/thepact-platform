@@ -43,6 +43,9 @@ module.exports = {
   // Docs & Files → „Контент планове - Архив" в същия проект. Тук отиват архивните
   // документи, когато КП картата се разбие на задачи (Венци, 22.08.2026).
   BASECAMP_KP_ARCHIVE_VAULT_ID: parseInt(process.env.BASECAMP_KP_ARCHIVE_VAULT_ID) || 10229066691,
+  // Docs & Files → „Клиентски карти" (Video Production) — папка на клиент. Там Контент
+  // стратегия агентът чете картата и качва стратегията (Венци, 12.11.2026).
+  BASECAMP_CLIENT_CARDS_VAULT_ID: parseInt(process.env.BASECAMP_CLIENT_CARDS_VAULT_ID) || 10151518466,
   // Emails that are always granted the 'admin' role on login (bootstraps admin without DB
   // access; only ever upgrades, never demotes). Comma-separated env override.
   ADMIN_EMAILS: (process.env.ADMIN_EMAILS || 'kalchev@thepact.bg').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),

@@ -12,6 +12,7 @@ var PAGE_TOGGLES = [
   { id: 'history', label: 'История' },
   { id: 'crm', label: 'CRM' },
   { id: 'content', label: 'Content агент' },
+  { id: 'strategy', label: 'Контент стратегия' },
   { id: 'time-report', label: 'Време' },
   { id: 'client-report', label: 'Статистика' },
   { id: 'task-completions', label: 'Готови задачи' },
@@ -104,6 +105,8 @@ function router() {
       return id ? renderCrmDeal(el, id) : renderCrm(el);
     // Content агент: клиент / пускане / настройки — всичко е пълна страница.
     case 'content': return caRoute(el, parts);
+    // Контент стратегия агент: списък / проект / пускане — пълни страници.
+    case 'strategy': return csRoute(el, parts);
     case 'premiere': return renderPremiere(el);
     case 'board-logic': return renderBoardLogic(el);
     case 'time-report': return renderTimeReport(el);
