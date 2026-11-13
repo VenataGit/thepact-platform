@@ -95,6 +95,48 @@ async function catalogBatch(usage) {
   return { done: false, assigned, created };
 }
 
+/**
+ * Слива почти еднаквите формати (агент „Редактор на каталога" + проверител): видеата на
+ * слетите отиват при оставащия, а празните формати се махат. До 3 минавания.
+ */
+async function consolidate(usage) {
+  let merged = 0;
+  for (let pass = 0; pass < 3; pass++) {
+    const formats = await query(
+      `SELECT f.id, f.name, f.description, COUNT(fv.video_id)::int AS videos
+         FROM ca_formats f LEFT JOIN ca_format_videos fv ON fv.format_id = f.id
+        GROUP BY f.id ORDER BY videos DESC, f.id`
+    );
+    if (formats.length <= 30) break;
+    const { output } = await runStep('format_merge', { formats }, null, usage);
+    const exists = new Set(formats.map((f) => f.id));
+    const used = new Set();
+    let passMerged = 0;
+    for (const m of (output.merges || [])) {
+      const keep = Number(m.keep_id);
+      const ids = (m.merge_ids || []).map(Number).filter((id) => exists.has(id) && id !== keep && !used.has(id));
+      if (!exists.has(keep) || used.has(keep) || !ids.length) continue;
+      used.add(keep); ids.forEach((id) => used.add(id));
+      await execute('UPDATE ca_format_videos SET format_id = $1 WHERE format_id = ANY($2::int[])', [keep, ids]);
+      await execute(
+        `UPDATE ca_formats SET name = COALESCE(NULLIF($2, ''), name), description = COALESCE(NULLIF($3, ''), description),
+                how_to = COALESCE(NULLIF($4, ''), how_to), updated_at = NOW() WHERE id = $1`,
+        [keep, String(m.name || '').slice(0, 80), String(m.description || '').slice(0, 400), String(m.how_to || '').slice(0, 600)]
+      );
+      // Само форматите, останали без видеа след сливането (създадени от агента).
+      await execute(
+        'DELETE FROM ca_formats f WHERE f.id = ANY($1::int[]) AND NOT EXISTS (SELECT 1 FROM ca_format_videos v WHERE v.format_id = f.id)',
+        [ids]
+      );
+      passMerged += ids.length;
+    }
+    merged += passMerged;
+    if (!passMerged) break;
+  }
+  if (merged) console.log(`[content-agent formats] слети ${merged} формата`);
+  return merged;
+}
+
 /** Каталогизира до MAX_BATCHES партиди. Едно пускане наведнъж. Никога не хвърля. */
 async function runCatalog({ maxBatches = MAX_BATCHES } = {}) {
   if (running) return { skipped: 'running' };
@@ -108,6 +150,7 @@ async function runCatalog({ maxBatches = MAX_BATCHES } = {}) {
       total.assigned += r.assigned; total.created += r.created; total.batches += 1;
     }
     if (total.batches) console.log(`[content-agent formats] ${total.assigned} видеа в каталога, ${total.created} нови формата`);
+    total.merged = await consolidate({});
     return total;
   } catch (e) {
     console.error('[content-agent formats]', e.message);
@@ -150,4 +193,4 @@ async function list({ examples = 6 } = {}) {
   return { formats: formats.map((f) => ({ ...f, examples: by[f.id] || [] })), pending: await pendingCount(), running };
 }
 
-module.exports = { runCatalog, runInBackground, list, pendingCount, isRunning: () => running };
+module.exports = { runCatalog, runInBackground, list, pendingCount, consolidate, isRunning: () => running };
