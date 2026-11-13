@@ -220,7 +220,7 @@ async function hunt({ limit = 20, budgetMs = 40 * 60_000 } = {}) {
             AND v.analysis IS NULL AND v.analyzed_at IS NULL
             AND (v.duration_sec IS NULL OR v.duration_sec <= 180)
           ORDER BY v.profile_id, v.outlier_score DESC) x
-        ORDER BY (x.published_at > NOW() - interval '60 days') DESC NULLS LAST, x.outlier_score DESC
+        ORDER BY (x.published_at > NOW() - interval '60 days') DESC NULLS LAST, (COALESCE(x.duration_sec, 60) <= 75) DESC, x.outlier_score DESC
         LIMIT $1`,
       [limit]
     );

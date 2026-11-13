@@ -199,10 +199,12 @@ async function analyzeOne(v, usage = {}) {
       if (meta.duration && meta.duration > MAX_DURATION + 30) throw new Error(`видеото е ${meta.duration} сек — не е кратко`);
       meta.cuts = await sceneCuts(file);
       frameList = await frames(file, dir, meta.duration || 30);
+      // Само първите 90 сек звук: кукичката и форматът са в началото, а Whisper на VPS-а
+      // (2 ядра) иначе отнема минути за по-дълго видео.
       const mp3 = path.join(dir, 'a.mp3');
       if (!(await hasAudio(file))) meta.transcript = '';
       else try {
-        await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', file, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '48k', '-y', mp3], 60_000);
+        await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', file, '-t', '90', '-vn', '-ac', '1', '-ar', '16000', '-b:a', '48k', '-y', mp3], 60_000);
         const tr = await transcribe(mp3);
         meta.transcript = tr.text;
       } catch (e) {
