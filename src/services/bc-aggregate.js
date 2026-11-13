@@ -524,7 +524,7 @@ async function listClientNames(token, account) {
 }
 
 module.exports = {
-  mapLimit, mapCard, stepDueOf, loadStructure, loadBoardCards, invalidateBoard,
+  mapLimit, mapCard, stepDueOf, loadStepRules, loadStructure, loadBoardCards, invalidateBoard,
   parseClientKp, videoNumberOf, aggregateAll, listClientNames, boardRank, sortBoards,
   normClientKey, getHiddenClientNames, setHiddenClientNames, autoRestoreHiddenClients,
 };
