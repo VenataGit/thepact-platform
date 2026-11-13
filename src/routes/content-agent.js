@@ -10,6 +10,7 @@ const scout = require('../services/content-agent/scout');
 const pipeline = require('../services/content-agent/pipeline');
 const caHistory = require('../services/content-agent/history');
 const discover = require('../services/content-agent/discover');
+const formats = require('../services/content-agent/formats');
 const agg = require('../services/bc-aggregate');
 const { getUserAuth } = require('../services/basecamp-token');
 const imports = require('../services/content-agent/imports');
@@ -29,6 +30,19 @@ router.use(requireAuth, (req, res, next) => {
 const fail = (res, e, code = 500) => { console.error('[content-agent api]', e.message); res.status(code).json({ error: e.message }); };
 const who = (req) => (req.user && req.user.name) || '';
 const clientId = (req) => parseInt(req.params.id, 10);
+
+// ---------- каталог с формати ----------
+
+router.get('/formats', async (req, res) => {
+  try { res.json(await formats.list()); } catch (e) { fail(res, e); }
+});
+
+// Ръчно: каталогизирай чакащите анализирани видеа (фоново).
+router.post('/formats/refresh', async (req, res) => {
+  if (formats.isRunning()) return res.json({ started: false, running: true });
+  formats.runInBackground();
+  res.json({ started: true });
+});
 
 // ---------- клиенти ----------
 

@@ -195,6 +195,7 @@ async function runNight({ only } = {}) {
       }
     }
     console.log(`[content-agent nightly] ${Math.round((Date.now() - started) / 60000)} мин, ${used} ед. · ${summary.join(' · ')}`);
+    require('./formats').runInBackground(); // новото влиза и в каталога с формати
     return { clients: clients.length, units: used, summary };
   } finally {
     running = false;

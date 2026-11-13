@@ -30,15 +30,17 @@ async function exportChanges({ since, afterId = 0, limit = 500 }) {
     [sinceIso, Number(afterId) || 0, lim]
   );
   // Профилите и клиентите са малко — идват цели всеки път.
-  const [profiles, clients] = await Promise.all([
+  const [profiles, clients, formatRows, formatVideos] = await Promise.all([
     query(`SELECT id, client_id, platform, url, handle, label, role, active, topics, lang, source, stats, last_scraped_at, created_at
              FROM ca_profiles ORDER BY id`),
     query(`SELECT c.id, c.name, c.is_active, s.terms
              FROM kp_clients c LEFT JOIN ca_search s ON s.client_id = c.id ORDER BY c.id`),
+    query('SELECT id, name, description, how_to, created_at, updated_at FROM ca_formats ORDER BY id'),
+    query('SELECT video_id, format_id, note FROM ca_format_videos WHERE format_id IS NOT NULL ORDER BY video_id'),
   ]);
   const last = videos[videos.length - 1];
   return {
-    videos, profiles, clients,
+    videos, profiles, clients, formats: formatRows, format_videos: formatVideos,
     next: last ? { since: last.changed_key, after_id: last.id } : { since: sinceIso, after_id: Number(afterId) || 0 },
     done: videos.length < lim,
   };

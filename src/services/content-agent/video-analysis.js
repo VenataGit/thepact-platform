@@ -272,6 +272,8 @@ function analyzeTop(clientId, { limit = 6, budgetMs = 6 * 60_000, usage } = {}) 
       busyClients.delete(clientId);
     }
     if (res.analyzed || res.failed) console.log(`[content-agent video] клиент ${clientId}: анализирани ${res.analyzed}, неуспешни ${res.failed}`);
+    // Новоанализираните видеа влизат в каталога с формати (фоново).
+    if (res.analyzed) require('./formats').runInBackground();
     return res;
   });
   chain = job.catch(() => {});

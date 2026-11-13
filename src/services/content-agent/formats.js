@@ -1,0 +1,153 @@
+// Content агент — каталог с формати.
+//
+// Анализаторът на видео вече казва за всяко успешно видео какво се прави в него
+// (формат, кукичка, структура). Тук агентът „Каталогизатор на формати" (+ проверител)
+// ги подрежда в общ каталог: всяко видео отива в съществуващ формат или (ако наистина е
+// друго) в нов — с име от няколко думи, кратко описание и как да се ползва за клиент.
+// Видеата стават примерите към формата. Пуска се фоново след анализа на видеата и след
+// нощното търсене, и ръчно от раздел „Формати".
+const { query, queryOne, execute } = require('../../db/pool');
+const store = require('./store');
+const { runStep } = require('./agents');
+
+const BATCH = 25;
+const MAX_BATCHES = 8;      // на едно пускане — до 200 видеа
+let running = false;
+
+/** Колко анализирани успешни видеа още не са минали през каталога. */
+async function pendingCount() {
+  await store.ensureSchema();
+  const r = await queryOne(
+    `SELECT COUNT(*)::int AS n FROM ca_videos v
+      WHERE v.analysis IS NOT NULL AND v.outlier_score >= 2
+        AND NOT EXISTS (SELECT 1 FROM ca_format_videos f WHERE f.video_id = v.id)`
+  );
+  return r.n;
+}
+
+async function catalogBatch(usage) {
+  const videos = await query(
+    `SELECT v.id, v.platform, v.caption, v.outlier_score, v.analysis
+       FROM ca_videos v
+      WHERE v.analysis IS NOT NULL AND v.outlier_score >= 2
+        AND NOT EXISTS (SELECT 1 FROM ca_format_videos f WHERE f.video_id = v.id)
+      ORDER BY v.outlier_score DESC LIMIT $1`,
+    [BATCH]
+  );
+  if (!videos.length) return { done: true, assigned: 0, created: 0 };
+  const formats = await query(
+    `SELECT f.id, f.name, f.description, COUNT(fv.video_id)::int AS examples
+       FROM ca_formats f LEFT JOIN ca_format_videos fv ON fv.format_id = f.id
+      GROUP BY f.id ORDER BY examples DESC, f.id`
+  );
+  const ctx = {
+    formats: formats.map((f) => ({ id: f.id, name: f.name, description: f.description, examples: f.examples })),
+    videos: videos.map((v) => {
+      const a = v.analysis || {};
+      const h = a.hook || {};
+      return {
+        video_id: v.id, platform: v.platform,
+        format: a.format, hook_archetype: h.archetype, hook_spoken: h.spoken, hook_visual: h.visual,
+        structure: Array.isArray(a.structure) ? a.structure.slice(0, 5) : a.structure,
+        why_it_works: a.why_it_works, partial: !!(a.meta && a.meta.partial),
+        caption: String(v.caption || '').slice(0, 200),
+      };
+    }),
+  };
+  const { output } = await runStep('formats', ctx, null, usage);
+
+  // Новите формати първо — после разпределението.
+  const keyToId = {};
+  let created = 0;
+  for (const nf of (output.new_formats || [])) {
+    const name = String(nf.name || '').trim().slice(0, 80);
+    if (!name || !nf.key) continue;
+    const same = formats.find((f) => f.name.toLowerCase() === name.toLowerCase());
+    if (same) { keyToId[nf.key] = same.id; continue; }
+    const row = await queryOne(
+      'INSERT INTO ca_formats (name, description, how_to) VALUES ($1,$2,$3) RETURNING id',
+      [name, String(nf.description || '').slice(0, 400), String(nf.how_to || '').slice(0, 600)]
+    );
+    keyToId[nf.key] = row.id;
+    created += 1;
+  }
+  const validIds = new Set([...formats.map((f) => f.id), ...Object.values(keyToId)]);
+  const ids = new Set(videos.map((v) => v.id));
+  let assigned = 0;
+  for (const a of (output.assign || [])) {
+    const vid = Number(a.video_id);
+    if (!ids.has(vid)) continue;
+    let fid = a.format_id != null ? Number(a.format_id) : (a.new_format_key ? keyToId[a.new_format_key] : null);
+    if (fid != null && !validIds.has(fid)) fid = null;
+    await execute(
+      `INSERT INTO ca_format_videos (video_id, format_id, note) VALUES ($1,$2,$3)
+       ON CONFLICT (video_id) DO UPDATE SET format_id = EXCLUDED.format_id, note = EXCLUDED.note`,
+      [vid, fid, String(a.note || '').slice(0, 300)]
+    );
+    ids.delete(vid);
+    if (fid != null) assigned += 1;
+  }
+  // Пропуснатите от агента — маркирани като прегледани без формат, за да не зациклим.
+  for (const vid of ids) {
+    await execute('INSERT INTO ca_format_videos (video_id, format_id) VALUES ($1, NULL) ON CONFLICT DO NOTHING', [vid]);
+  }
+  if (created) await execute('UPDATE ca_formats SET updated_at = NOW() WHERE id = ANY($1::int[])', [Object.values(keyToId)]);
+  return { done: false, assigned, created };
+}
+
+/** Каталогизира до MAX_BATCHES партиди. Едно пускане наведнъж. Никога не хвърля. */
+async function runCatalog({ maxBatches = MAX_BATCHES } = {}) {
+  if (running) return { skipped: 'running' };
+  running = true;
+  const total = { assigned: 0, created: 0, batches: 0 };
+  try {
+    await store.ensureSchema();
+    for (let i = 0; i < maxBatches; i++) {
+      const r = await catalogBatch({});
+      if (r.done) break;
+      total.assigned += r.assigned; total.created += r.created; total.batches += 1;
+    }
+    if (total.batches) console.log(`[content-agent formats] ${total.assigned} видеа в каталога, ${total.created} нови формата`);
+    return total;
+  } catch (e) {
+    console.error('[content-agent formats]', e.message);
+    return { ...total, error: e.message };
+  } finally {
+    running = false;
+  }
+}
+
+function runInBackground() {
+  setImmediate(() => runCatalog().catch(() => {}));
+}
+
+/** Каталогът за екрана: форматите с брой, среден скор, платформи и най-добрите примери. */
+async function list({ examples = 6 } = {}) {
+  await store.ensureSchema();
+  const formats = await query(
+    `SELECT f.id, f.name, f.description, f.how_to, f.created_at, f.updated_at,
+            COUNT(fv.video_id)::int AS count, ROUND(AVG(v.outlier_score)::numeric, 1) AS avg_score,
+            ARRAY_REMOVE(ARRAY_AGG(DISTINCT v.platform), NULL) AS platforms
+       FROM ca_formats f
+       JOIN ca_format_videos fv ON fv.format_id = f.id
+       JOIN ca_videos v ON v.id = fv.video_id
+      GROUP BY f.id
+      ORDER BY count DESC, avg_score DESC NULLS LAST`
+  );
+  const ex = await query(
+    `SELECT * FROM (
+       SELECT fv.format_id, fv.note, v.id, v.platform, v.url, v.views, v.outlier_score, v.caption,
+              v.analysis->'hook'->>'spoken' AS hook_spoken, p.label, p.handle,
+              ROW_NUMBER() OVER (PARTITION BY fv.format_id ORDER BY v.outlier_score DESC) AS rn
+         FROM ca_format_videos fv JOIN ca_videos v ON v.id = fv.video_id
+         LEFT JOIN ca_profiles p ON p.id = v.profile_id
+        WHERE fv.format_id IS NOT NULL) x
+      WHERE rn <= $1`,
+    [examples]
+  );
+  const by = {};
+  for (const e of ex) (by[e.format_id] = by[e.format_id] || []).push(e);
+  return { formats: formats.map((f) => ({ ...f, examples: by[f.id] || [] })), pending: await pendingCount(), running };
+}
+
+module.exports = { runCatalog, runInBackground, list, pendingCount, isRunning: () => running };
