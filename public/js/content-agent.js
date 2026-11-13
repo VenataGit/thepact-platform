@@ -188,54 +188,92 @@ function caTopTabs(active) {
 }
 
 // ---------- каталог с формати (#/content/formats) ----------
-// Общ за всички клиенти: от всяко анализирано успешно видео агентът „Каталогизатор на
-// формати" разбира какъв е форматът — име от няколко думи, описание, как да се снима за
-// клиент — и закача видеото като пример. Расте с всяко пускане, търсене и нощ.
+// Общ за всички клиенти. Сбит списък: всеки формат на един ред — име, какво точно се вижда
+// („pitch", като описание на тренд), категория, брой видеа; клик разгъва описанието,
+// „за наш клиент" и примерите. Търсене + филтър по категория.
+// „Намери нови формати" — Ловецът анализира още успешни видеа от библиотеката (кадри +
+// звук) и ги подрежда в каталога; „Подреди" — само подреждането на вече анализираните.
+_ca.fmtCat = '';
 async function renderContentFormats(el) {
   caShell(el, '🧩 Формати',
-    'Популярни формати от успешните видеа (много над нормата на профила си), които сме намерили и анализирали — общи за всички клиенти. ' +
-    'Всеки формат е описан с няколко думи, с примерни видеа и как да се ползва за наш клиент. Каталогът расте сам с всяко пускане, търсене и нощ.');
+    'Популярни формати от успешните видеа (много над нормата на профила си) — общи за всички клиенти. Всеки ред: какво точно се прави във видеото, ' +
+    'категория и колко примера има. Клик върху ред показва как да го ползваме за наш клиент и примерните видеа.');
   try {
     var d = await caApi('GET', '/formats');
     _ca.formats = d.formats;
+    var cats = {};
+    d.formats.forEach(function (f) { var c = f.category || 'Друго'; cats[c] = (cats[c] || 0) + 1; });
+    var lh = d.last_hunt;
     var html = caTopTabs('formats') + '<div class="ca-toolbar">' +
-      '<input class="ca-input ca-search" id="caFmtSearch" placeholder="Търси формат…" oninput="caFilterFormats()">' +
+      '<input class="ca-input ca-search" id="caFmtSearch" placeholder="Търси: сочи, преди и след, рецепта…" oninput="caFilterFormats()">' +
       '<span class="ca-spacer"></span><span class="ca-dim ca-small">' + d.formats.length + ' формата' +
       (d.pending ? ' · ' + d.pending + ' видеа чакат подреждане' : '') + '</span> ' +
-      '<button class="btn btn-sm" ' + (d.running ? 'disabled' : '') + ' onclick="caRefreshFormats()">' + (d.running ? '⏳ Подреждам…' : '🔄 Подреди новите видеа') + '</button></div>';
+      '<button class="btn btn-primary btn-sm" ' + (d.hunting ? 'disabled' : '') + ' onclick="caHuntFormats()" title="Агентът анализира още успешни видеа от библиотеката (кадри + звук) и намира нови формати — без нов разход за Apify">' +
+        (d.hunting ? '⏳ Търся нови формати… (до 40 мин)' : '🔎 Намери нови формати') + '</button> ' +
+      '<button class="btn btn-ghost btn-sm" ' + (d.running ? 'disabled' : '') + ' onclick="caRefreshFormats()">' + (d.running ? '⏳ Подреждам…' : '🔄 Подреди') + '</button></div>' +
+      (lh && lh.at ? '<div class="ca-dim ca-small ca-hunt">Последно търсене: ' + esc(caDate(lh.at)) + ' · анализирани ' + (lh.analyzed || 0) + ' видеа · нови формати ' + (lh.new_formats || 0) +
+        (lh.error ? ' · ⚠ ' + esc(lh.error) : '') + '</div>' : '') +
+      '<div class="ca-chips"><button class="ca-chip' + (!_ca.fmtCat ? ' ca-chip--on' : '') + '" data-cat="" onclick="caFmtCat(\'\')">Всички (' + d.formats.length + ')</button>' +
+      Object.keys(cats).sort().map(function (c) {
+        return '<button class="ca-chip' + (_ca.fmtCat === c ? ' ca-chip--on' : '') + '" data-cat="' + esc(c) + '" onclick="caFmtCat(' + jsq(c) + ')">' + esc(c) + ' (' + cats[c] + ')</button>';
+      }).join('') + '</div>';
     if (!d.formats.length) {
-      html += '<div class="ca-panel ca-dim">Още няма формати. Натисни „Подреди новите видеа" — агентът ще разпредели анализираните видеа по формати (отнема няколко минути).</div>';
+      html += '<div class="ca-panel ca-dim">Още няма формати. Натисни „Намери нови формати".</div>';
     } else {
-      html += '<div class="ca-formats" id="caFormats">' + d.formats.map(caFormatCard).join('') + '</div>';
+      html += '<div class="ca-panel ca-fmtlist" id="caFormats">' + d.formats.map(caFormatRow).join('') + '</div>';
     }
     caBody(html);
-    if (d.running) _ca.poll = setTimeout(function () { if (location.hash === '#/content/formats') renderContentFormats(el); }, 20000);
+    caFilterFormats();
+    if (d.running || d.hunting) _ca.poll = setTimeout(function () { if (location.hash === '#/content/formats') renderContentFormats(el); }, 20000);
   } catch (e) { caBody('<div class="ca-err">' + esc(e.message) + '</div>'); }
 }
 
-function caFormatCard(f) {
+function caFormatRow(f) {
   var plats = (f.platforms || []).map(function (p) { return CA_PLATFORMS[p] || p; }).join(', ');
-  return '<div class="ca-panel ca-format" data-q="' + esc((f.name + ' ' + f.description + ' ' + f.how_to).toLowerCase()) + '">' +
-    '<div class="ca-format__h"><span class="ca-format__n">' + esc(f.name) + '</span>' +
-      '<span class="ca-pill ca-pill--ok">' + f.count + ' видеа</span>' +
-      (f.avg_score ? '<span class="ca-dim ca-small">средно ' + esc(f.avg_score) + '× над нормата</span>' : '') +
-      (plats ? '<span class="ca-dim ca-small">· ' + esc(plats) + '</span>' : '') + '</div>' +
-    (f.description ? '<div class="ca-format__d">' + esc(f.description) + '</div>' : '') +
-    (f.how_to ? '<div class="ca-hint"><strong>За наш клиент:</strong> ' + esc(f.how_to) + '</div>' : '') +
-    '<div class="ca-format__ex">' + (f.examples || []).map(function (v) {
-      return '<div class="ca-format__v"><span class="ca-score ' + (v.outlier_score >= 10 ? 'ca-score--hot' : v.outlier_score >= 5 ? 'ca-score--good' : 'ca-score--ok') + '">' + Number(v.outlier_score).toFixed(1) + '×</span> ' +
-        '<a href="' + esc(v.url) + '" target="_blank" rel="noopener">' + esc(CA_PLATFORMS[v.platform] || v.platform) + ' · ' + esc(v.label || v.handle || 'видео') + '</a>' +
-        '<span class="ca-dim"> · ' + caNum(v.views) + ' гледания</span>' +
-        (v.note ? '<div class="ca-dim ca-small">' + esc(v.note) + '</div>' : (v.hook_spoken ? '<div class="ca-dim ca-small">„' + esc(String(v.hook_spoken).slice(0, 140)) + '“</div>' : '')) +
-        '</div>';
-    }).join('') + '</div></div>';
+  var q = [f.name, f.pitch, f.description, f.how_to, f.category].join(' ').toLowerCase();
+  return '<details class="ca-fmt" data-q="' + esc(q) + '" data-cat="' + esc(f.category || 'Друго') + '">' +
+    '<summary><span class="ca-fmt__n">' + esc(f.name) + '</span>' +
+      '<span class="ca-fmt__p">' + esc(f.pitch || f.description || '') + '</span>' +
+      '<span class="ca-fmt__m">' + (f.category ? '<span class="ca-tag">' + esc(f.category) + '</span>' : '') +
+        '<span class="ca-pill ca-pill--ok">' + f.count + ' видеа</span>' +
+        (f.avg_score ? '<span class="ca-dim ca-small">' + esc(f.avg_score) + '×</span>' : '') + '</span></summary>' +
+    '<div class="ca-fmt__b">' +
+      (f.description ? '<div class="ca-format__d">' + esc(f.description) + '</div>' : '') +
+      (f.how_to ? '<div class="ca-hint"><strong>За наш клиент:</strong> ' + esc(f.how_to) + '</div>' : '') +
+      (plats ? '<div class="ca-dim ca-small">Платформи: ' + esc(plats) + '</div>' : '') +
+      '<div class="ca-format__ex">' + (f.examples || []).map(function (v) {
+        return '<div class="ca-format__v"><span class="ca-score ' + (v.outlier_score >= 10 ? 'ca-score--hot' : v.outlier_score >= 5 ? 'ca-score--good' : 'ca-score--ok') + '">' + Number(v.outlier_score).toFixed(1) + '×</span> ' +
+          '<a href="' + esc(v.url) + '" target="_blank" rel="noopener">' + esc(CA_PLATFORMS[v.platform] || v.platform) + ' · ' + esc(v.label || v.handle || 'видео') + '</a>' +
+          '<span class="ca-dim"> · ' + caNum(v.views) + ' гледания</span>' +
+          (v.note ? '<div class="ca-dim ca-small">' + esc(v.note) + '</div>' : (v.hook_spoken ? '<div class="ca-dim ca-small">„' + esc(String(v.hook_spoken).slice(0, 140)) + '“</div>' : '')) +
+          '</div>';
+      }).join('') + '</div></div></details>';
+}
+
+function caFmtCat(c) {
+  _ca.fmtCat = c;
+  document.querySelectorAll('.ca-chips .ca-chip').forEach(function (b) {
+    b.classList.toggle('ca-chip--on', b.getAttribute('data-cat') === c);
+  });
+  caFilterFormats();
 }
 
 function caFilterFormats() {
-  var q = (document.getElementById('caFmtSearch').value || '').toLowerCase().trim();
-  document.querySelectorAll('#caFormats .ca-format').forEach(function (c) {
-    c.style.display = !q || c.getAttribute('data-q').indexOf(q) >= 0 ? '' : 'none';
+  var el = document.getElementById('caFmtSearch');
+  var q = ((el && el.value) || '').toLowerCase().trim();
+  document.querySelectorAll('#caFormats .ca-fmt').forEach(function (c) {
+    var okQ = !q || c.getAttribute('data-q').indexOf(q) >= 0;
+    var okC = !_ca.fmtCat || c.getAttribute('data-cat') === _ca.fmtCat;
+    c.style.display = okQ && okC ? '' : 'none';
   });
+}
+
+async function caHuntFormats() {
+  try {
+    var r = await caApi('POST', '/formats/hunt');
+    showToast(r.running ? 'Вече търся' : 'Търся нови формати — анализирам видеа, до 40 мин. Можеш да затвориш страницата.', 'success', 6000);
+    renderContentFormats(document.getElementById('pageContent'));
+  } catch (e) { showToast(e.message, 'error'); }
 }
 
 async function caRefreshFormats() {

@@ -38,6 +38,13 @@ router.get('/formats', async (req, res) => {
   try { res.json(await formats.list()); } catch (e) { fail(res, e); }
 });
 
+// Ловецът на формати: анализира още успешни видеа от библиотеката и ги подрежда (фоново).
+router.post('/formats/hunt', async (req, res) => {
+  if (formats.isHunting()) return res.json({ started: false, running: true });
+  formats.hunt().catch(() => {});
+  res.json({ started: true });
+});
+
 // Ръчно: каталогизирай чакащите анализирани видеа (фоново).
 router.post('/formats/refresh', async (req, res) => {
   if (formats.isRunning()) return res.json({ started: false, running: true });

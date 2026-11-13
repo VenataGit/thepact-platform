@@ -10,7 +10,7 @@ let schemaReady = null;
 function ensureSchema() {
   if (!schemaReady) {
     const dir = path.join(__dirname, '..', '..', '..', 'db', 'migrations');
-    const sql = ['059_content_agent.sql', '060_content_agent_history.sql', '061_content_agent_library.sql', '062_content_agent_video_analysis.sql', '063_content_agent_imports.sql', '064_content_agent_spend.sql', '065_content_agent_nightly.sql', '069_content_agent_formats.sql', '070_content_agent_trends.sql']
+    const sql = ['059_content_agent.sql', '060_content_agent_history.sql', '061_content_agent_library.sql', '062_content_agent_video_analysis.sql', '063_content_agent_imports.sql', '064_content_agent_spend.sql', '065_content_agent_nightly.sql', '069_content_agent_formats.sql', '070_content_agent_trends.sql', '071_content_agent_format_pitch.sql']
       .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
     schemaReady = execute(sql).catch((e) => { schemaReady = null; throw e; });
   }

@@ -11,6 +11,8 @@ const store = require('./store');
 const { runStep } = require('./agents');
 
 const BATCH = 25;
+const CATEGORIES = ['Хумор и скеч', 'Съвет и обучение', 'Продукт и демо', 'Преди и след', 'Процес и изработка',
+  'POV и разпознаване', 'Тест и предизвикателство', 'Отговор и реакция', 'Естетика и атмосфера', 'Разказ и мистерия'];
 const MAX_BATCHES = 8;      // на едно пускане — до 200 видеа
 let running = false;
 
@@ -65,8 +67,9 @@ async function catalogBatch(usage) {
     const same = formats.find((f) => f.name.toLowerCase() === name.toLowerCase());
     if (same) { keyToId[nf.key] = same.id; continue; }
     const row = await queryOne(
-      'INSERT INTO ca_formats (name, description, how_to) VALUES ($1,$2,$3) RETURNING id',
-      [name, String(nf.description || '').slice(0, 400), String(nf.how_to || '').slice(0, 600)]
+      'INSERT INTO ca_formats (name, description, how_to, pitch, category) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [name, String(nf.description || '').slice(0, 400), String(nf.how_to || '').slice(0, 600),
+       String(nf.pitch || '').slice(0, 300), CATEGORIES.includes(nf.category) ? nf.category : '']
     );
     keyToId[nf.key] = row.id;
     created += 1;
@@ -120,7 +123,7 @@ async function consolidate(usage) {
       await execute('UPDATE ca_format_videos SET format_id = $1 WHERE format_id = ANY($2::int[])', [keep, ids]);
       await execute(
         `UPDATE ca_formats SET name = COALESCE(NULLIF($2, ''), name), description = COALESCE(NULLIF($3, ''), description),
-                how_to = COALESCE(NULLIF($4, ''), how_to), updated_at = NOW() WHERE id = $1`,
+                how_to = COALESCE(NULLIF($4, ''), how_to), pitch = '', updated_at = NOW() WHERE id = $1`,
         [keep, String(m.name || '').slice(0, 80), String(m.description || '').slice(0, 400), String(m.how_to || '').slice(0, 600)]
       );
       // Само форматите, останали без видеа след сливането (създадени от агента).
@@ -137,6 +140,39 @@ async function consolidate(usage) {
   return merged;
 }
 
+/**
+ * Кратко, конкретно описание („pitch") + категория за форматите без тях (и за слетите —
+ * сливането чисти pitch-а, за да се опише наново цялата група). По 15 наведнъж.
+ */
+async function describe(usage) {
+  let done = 0;
+  for (let pass = 0; pass < 6; pass++) {
+    const fs = await query("SELECT id, name, description FROM ca_formats WHERE pitch = '' ORDER BY id LIMIT 15");
+    if (!fs.length) break;
+    const ex = await query(
+      `SELECT * FROM (SELECT fv.format_id, v.analysis->'hook'->>'visual' AS visual, v.analysis->'hook'->>'spoken' AS spoken,
+              v.analysis->'hook'->>'on_screen' AS on_screen, v.analysis->>'format' AS format,
+              ROW_NUMBER() OVER (PARTITION BY fv.format_id ORDER BY v.outlier_score DESC) AS rn
+         FROM ca_format_videos fv JOIN ca_videos v ON v.id = fv.video_id WHERE fv.format_id = ANY($1::int[])) x WHERE rn <= 3`,
+      [fs.map((f) => f.id)]
+    );
+    const formats = fs.map((f) => ({ ...f, examples: ex.filter((e) => e.format_id === f.id).map(({ format_id, rn, ...r }) => r) }));
+    const { output } = await runStep('format_describe', { formats }, null, usage);
+    const ids = new Set(fs.map((f) => f.id));
+    let n = 0;
+    for (const o of (output.formats || [])) {
+      const id = Number(o.id);
+      if (!ids.has(id) || !String(o.pitch || '').trim()) continue;
+      await execute('UPDATE ca_formats SET pitch = $2, category = $3, updated_at = NOW() WHERE id = $1',
+        [id, String(o.pitch).slice(0, 300), CATEGORIES.includes(o.category) ? o.category : 'Друго']);
+      n += 1;
+    }
+    done += n;
+    if (!n) break;
+  }
+  return done;
+}
+
 /** Каталогизира до MAX_BATCHES партиди. Едно пускане наведнъж. Никога не хвърля. */
 async function runCatalog({ maxBatches = MAX_BATCHES } = {}) {
   if (running) return { skipped: 'running' };
@@ -151,12 +187,62 @@ async function runCatalog({ maxBatches = MAX_BATCHES } = {}) {
     }
     if (total.batches) console.log(`[content-agent formats] ${total.assigned} видеа в каталога, ${total.created} нови формата`);
     total.merged = await consolidate({});
+    total.described = await describe({});
     return total;
   } catch (e) {
     console.error('[content-agent formats]', e.message);
     return { ...total, error: e.message };
   } finally {
     running = false;
+  }
+}
+
+// ---------- Ловец на формати ----------
+// Бутон „Намери нови формати": анализира още от успешните видеа, които вече имаме, но не са
+// гледани (TikTok/Instagram — пълен анализ с кадри и звук; най-свежите и най-успешните,
+// по едно на профил за разнообразие), после ги подрежда в каталога. Без нов Apify разход.
+let hunting = false;
+let lastHunt = null;
+
+async function hunt({ limit = 20, budgetMs = 40 * 60_000 } = {}) {
+  if (hunting) return { skipped: 'running' };
+  hunting = true;
+  const started = Date.now();
+  const res = { at: new Date().toISOString(), analyzed: 0, failed: 0 };
+  try {
+    await store.ensureSchema();
+    const va = require('./video-analysis');
+    const list = await query(
+      `SELECT * FROM (
+         SELECT DISTINCT ON (v.profile_id) v.*
+           FROM ca_videos v JOIN ca_profiles p ON p.id = v.profile_id
+          WHERE p.active AND v.platform IN ('tiktok','instagram') AND v.outlier_score >= 3
+            AND v.analysis IS NULL AND v.analyzed_at IS NULL
+            AND (v.duration_sec IS NULL OR v.duration_sec <= 180)
+          ORDER BY v.profile_id, v.outlier_score DESC) x
+        ORDER BY (x.published_at > NOW() - interval '60 days') DESC NULLS LAST, x.outlier_score DESC
+        LIMIT $1`,
+      [limit]
+    );
+    for (const v of list) {
+      if (Date.now() - started > budgetMs) break;
+      const r = await va.analyzeOne(v, {});
+      if (r.ok) res.analyzed += 1; else res.failed += 1;
+    }
+    const before = (await queryOne('SELECT COUNT(*)::int AS n FROM ca_formats')).n;
+    const cat = await runCatalog();
+    res.formats_before = before;
+    res.formats_after = (await queryOne('SELECT COUNT(*)::int AS n FROM ca_formats')).n;
+    res.new_formats = cat.created || 0;
+    res.minutes = Math.round((Date.now() - started) / 60000);
+    console.log(`[content-agent formats] Ловец: анализирани ${res.analyzed}, нови формати ${res.new_formats}, каталог ${res.formats_after}`);
+    return res;
+  } catch (e) {
+    res.error = e.message;
+    return res;
+  } finally {
+    lastHunt = res;
+    hunting = false;
   }
 }
 
@@ -168,7 +254,7 @@ function runInBackground() {
 async function list({ examples = 6 } = {}) {
   await store.ensureSchema();
   const formats = await query(
-    `SELECT f.id, f.name, f.description, f.how_to, f.created_at, f.updated_at,
+    `SELECT f.id, f.name, f.description, f.how_to, f.pitch, f.category, f.created_at, f.updated_at,
             COUNT(fv.video_id)::int AS count, ROUND(AVG(v.outlier_score)::numeric, 1) AS avg_score,
             ARRAY_REMOVE(ARRAY_AGG(DISTINCT v.platform), NULL) AS platforms
        FROM ca_formats f
@@ -190,7 +276,7 @@ async function list({ examples = 6 } = {}) {
   );
   const by = {};
   for (const e of ex) (by[e.format_id] = by[e.format_id] || []).push(e);
-  return { formats: formats.map((f) => ({ ...f, examples: by[f.id] || [] })), pending: await pendingCount(), running };
+  return { formats: formats.map((f) => ({ ...f, examples: by[f.id] || [] })), pending: await pendingCount(), running, hunting, last_hunt: lastHunt, categories: CATEGORIES };
 }
 
-module.exports = { runCatalog, runInBackground, list, pendingCount, consolidate, isRunning: () => running };
+module.exports = { runCatalog, runInBackground, list, pendingCount, consolidate, describe, hunt, isRunning: () => running, isHunting: () => hunting };

@@ -35,7 +35,7 @@ async function exportChanges({ since, afterId = 0, limit = 500 }) {
              FROM ca_profiles ORDER BY id`),
     query(`SELECT c.id, c.name, c.is_active, s.terms
              FROM kp_clients c LEFT JOIN ca_search s ON s.client_id = c.id ORDER BY c.id`),
-    query('SELECT id, name, description, how_to, created_at, updated_at FROM ca_formats ORDER BY id'),
+    query('SELECT id, name, description, how_to, pitch, category, created_at, updated_at FROM ca_formats ORDER BY id'),
     query('SELECT video_id, format_id, note FROM ca_format_videos WHERE format_id IS NOT NULL ORDER BY video_id'),
   ]);
   const last = videos[videos.length - 1];

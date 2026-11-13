@@ -146,3 +146,21 @@
 .ca-format__ex { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
 .ca-format__v { padding: 4px 0; font-size: 12.5px; }
 .ca-format__v a { color: var(--accent); text-decoration: none; }
+
+/* --- сбит списък с формати --- */
+.ca-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.ca-chip { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); border-radius: 20px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.ca-chip:hover { color: var(--text); border-color: var(--accent); }
+.ca-chip--on { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+.ca-hunt { margin: -4px 0 8px; }
+.ca-fmtlist { padding: 4px 14px; }
+.ca-fmt { border-top: 1px solid var(--border); }
+.ca-fmt:first-child { border-top: none; }
+.ca-fmt summary { display: grid; grid-template-columns: minmax(160px, 230px) 1fr auto; gap: 12px; align-items: center; padding: 9px 0; cursor: pointer; list-style: none; }
+.ca-fmt summary::-webkit-details-marker { display: none; }
+.ca-fmt summary:hover .ca-fmt__n { color: var(--accent); }
+.ca-fmt__n { font-weight: 700; color: #fff; font-size: 13.5px; }
+.ca-fmt__p { color: var(--text); font-size: 13px; line-height: 1.4; }
+.ca-fmt__m { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.ca-fmt__b { padding: 0 0 12px 0; }
+@media (max-width: 900px) { .ca-fmt summary { grid-template-columns: 1fr; gap: 4px; } }
