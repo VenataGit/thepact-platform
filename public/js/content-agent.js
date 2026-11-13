@@ -18,6 +18,7 @@ function caRoute(el, parts) {
   if (parts[1] === 'settings') return renderContentSettings(el);
   if (parts[1] === 'run') return renderContentRun(el, parseInt(parts[2], 10));
   if (parts[1] === 'formats') return renderContentFormats(el);
+  if (parts[1] === 'trends') return renderContentTrends(el, parseInt(parts[2], 10) || null);
   var id = parseInt(parts[1], 10);
   if (id) return renderContentClient(el, id, parts[2] || null);
   return renderContentList(el);
@@ -182,7 +183,8 @@ async function caHideClient(ev, id, hidden) {
 function caTopTabs(active) {
   return '<div class="ca-tabs ca-toptabs">' +
     '<a class="ca-tab' + (active === 'clients' ? ' ca-tab--on' : '') + '" href="#/content">👥 Клиенти</a>' +
-    '<a class="ca-tab' + (active === 'formats' ? ' ca-tab--on' : '') + '" href="#/content/formats">🧩 Формати</a></div>';
+    '<a class="ca-tab' + (active === 'formats' ? ' ca-tab--on' : '') + '" href="#/content/formats">🧩 Формати</a>' +
+    '<a class="ca-tab' + (active === 'trends' ? ' ca-tab--on' : '') + '" href="#/content/trends">🔥 Трендове</a></div>';
 }
 
 // ---------- каталог с формати (#/content/formats) ----------
@@ -241,6 +243,64 @@ async function caRefreshFormats() {
     var r = await caApi('POST', '/formats/refresh');
     showToast(r.running ? 'Вече подреждам' : 'Подреждам новите видеа по формати — няколко минути', 'success', 5000);
     renderContentFormats(document.getElementById('pageContent'));
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ---------- трендове (#/content/trends) ----------
+// Бутон „Търси трендове сега": Google Trends (България + САЩ), най-гледаното в YouTube,
+// какво избухва в нашата библиотека → агент „Ловец на трендове" (+ проверител) → трендове
+// с идеи за нашите клиенти. Всяко търсене се пази — може да се гледат и по-старите.
+var CA_LIFESPAN = { 'дни': 'ca-pill--warn', 'седмици': 'ca-pill--ok', 'вечнозелен': '' };
+
+async function renderContentTrends(el, id) {
+  caShell(el, '🔥 Трендове',
+    'Какво е вайръл в момента и как да го ползваме за видеа на клиентите. Сигналите са безплатни: какво търсят хората днес в България и САЩ (Google Trends), ' +
+    'най-гледаното в YouTube и видеата, които избухнаха при нас последните 2 седмици. Агентът маха трагедиите и политиката — остават само неща, към които бранд може да се закачи.');
+  try {
+    var d = await caApi('GET', '/trends' + (id ? '?id=' + id : ''));
+    var cur = d.current;
+    var html = caTopTabs('trends') + '<div class="ca-toolbar">' +
+      '<button class="btn btn-primary btn-sm" ' + (d.running ? 'disabled' : '') + ' onclick="caScanTrends()">' + (d.running ? '⏳ Търся трендове… (1-3 мин)' : '🔎 Търси трендове сега') + '</button>' +
+      '<span class="ca-spacer"></span>' +
+      (d.scans.length ? '<select class="ca-input ca-export" onchange="location.hash=\'#/content/trends/\'+this.value">' + d.scans.map(function (s) {
+        return '<option value="' + s.id + '"' + (cur && cur.id === s.id ? ' selected' : '') + '>' + esc(caDate(s.created_at)) + (s.status === 'done' ? ' · ' + s.count + ' тренда' : s.status === 'error' ? ' · грешка' : ' · търси…') + '</option>';
+      }).join('') + '</select>' : '') + '</div>';
+    if (!cur) html += '<div class="ca-panel ca-dim">Още няма търсене. Натисни „Търси трендове сега".</div>';
+    else if (cur.status === 'running') html += '<div class="ca-panel ca-dim">Агентът търси… страницата се опреснява сама.</div>';
+    else if (cur.status === 'error') html += '<div class="ca-err">' + esc(cur.error) + '</div>';
+    else {
+      html += (cur.summary ? '<div class="ca-panel"><div class="ca-panel__t">Днес доминира</div>' + esc(cur.summary) +
+        '<div class="ca-dim ca-small">Търсено ' + esc(caDate(cur.created_at)) + (cur.created_by ? ' от ' + esc(cur.created_by) : '') + '</div></div>' : '') +
+        '<div class="ca-formats">' + (cur.items || []).map(caTrendCard).join('') + '</div>';
+    }
+    caBody(html);
+    if (d.running || (cur && cur.status === 'running')) _ca.poll = setTimeout(function () { if (location.hash.indexOf('#/content/trends') === 0) renderContentTrends(el, null); }, 15000);
+  } catch (e) { caBody('<div class="ca-err">' + esc(e.message) + '</div>'); }
+}
+
+function caTrendCard(t) {
+  var fits = (t.fits || []).filter(function (f) { return f && f.client; });
+  return '<div class="ca-panel ca-format">' +
+    '<div class="ca-format__h"><span class="ca-format__n">' + esc(t.name || '') + '</span>' +
+      (t.lifespan ? '<span class="ca-pill ' + (CA_LIFESPAN[t.lifespan] || '') + '">' + esc(t.lifespan) + '</span>' : '') +
+      (t.where ? '<span class="ca-dim ca-small">' + esc(t.where) + '</span>' : '') + '</div>' +
+    (t.what ? '<div class="ca-format__d">' + esc(t.what) + '</div>' : '') +
+    (t.why_now ? '<div class="ca-hint"><strong>Защо сега:</strong> ' + esc(t.why_now) + '</div>' : '') +
+    (t.how_to ? '<div class="ca-hint"><strong>Как се закачаме:</strong> ' + esc(t.how_to) + '</div>' : '') +
+    (fits.length ? '<div class="ca-format__ex">' + fits.map(function (f) {
+      return '<div class="ca-format__v"><strong>' + esc(f.client) + ':</strong> ' + esc(f.idea || '') + '</div>';
+    }).join('') + '</div>' : '') +
+    ((t.sources || []).length ? '<div class="ca-dim ca-small">Сигнали: ' + (t.sources || []).filter(function (u) { return /^https?:\/\//.test(u); }).slice(0, 4).map(function (u, i) {
+      return '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + (i + 1) + '</a>';
+    }).join(' · ') + '</div>' : '') + '</div>';
+}
+
+async function caScanTrends() {
+  try {
+    var r = await caApi('POST', '/trends/scan');
+    showToast(r.running ? 'Вече търся' : 'Търся трендове — 1-3 минути', 'success', 5000);
+    location.hash = '#/content/trends';
+    renderContentTrends(document.getElementById('pageContent'), null);
   } catch (e) { showToast(e.message, 'error'); }
 }
 

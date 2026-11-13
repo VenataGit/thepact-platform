@@ -11,6 +11,7 @@ const pipeline = require('../services/content-agent/pipeline');
 const caHistory = require('../services/content-agent/history');
 const discover = require('../services/content-agent/discover');
 const formats = require('../services/content-agent/formats');
+const trends = require('../services/content-agent/trends');
 const agg = require('../services/bc-aggregate');
 const { getUserAuth } = require('../services/basecamp-token');
 const imports = require('../services/content-agent/imports');
@@ -41,6 +42,22 @@ router.get('/formats', async (req, res) => {
 router.post('/formats/refresh', async (req, res) => {
   if (formats.isRunning()) return res.json({ started: false, running: true });
   formats.runInBackground();
+  res.json({ started: true });
+});
+
+// ---------- трендове ----------
+
+router.get('/trends', async (req, res) => {
+  try {
+    const l = await trends.list();
+    const id = parseInt(req.query.id, 10) || ((l.scans.find((s) => s.status === 'done') || l.scans[0] || {}).id);
+    res.json({ ...l, current: id ? await trends.get(id) : null });
+  } catch (e) { fail(res, e); }
+});
+
+router.post('/trends/scan', async (req, res) => {
+  if (trends.isRunning()) return res.json({ started: false, running: true });
+  trends.scan({ by: who(req) }).catch(() => {});
   res.json({ started: true });
 });
 
