@@ -4,12 +4,14 @@
 //   #/strategy            — всички проекти (новите и чакащите отгоре)
 //   #/strategy/p/49469953 — един проект: пускане + история
 //   #/strategy/run/12     — едно пускане: стъпките и готовата стратегия
+//   #/strategy/admin      — админ меню: скриване/триене на проекти, които не са клиенти
 // Стиловете са на Content агента (content-agent.css, класовете ca-*).
 var _cs = { poll: null, showDone: true, showHidden: false };
 var CS_STATUS = { queued: 'чака', running: 'работи…', done: 'готово', error: 'грешка' };
 
 function csRoute(el, parts) {
   if (_cs.poll) { clearTimeout(_cs.poll); _cs.poll = null; }
+  if (parts[1] === 'admin') return renderStrategyAdmin(el);
   if (parts[1] === 'run') return renderStrategyRun(el, parseInt(parts[2], 10));
   if (parts[1] === 'p' && parts[2]) return renderStrategyProject(el, String(parts[2]).replace(/\D/g, ''));
   return renderStrategyList(el);
@@ -62,7 +64,8 @@ async function renderStrategyList(el) {
     var html = '<div class="ca-toolbar"><input class="ca-input ca-search" id="caSearch" placeholder="Търси клиент…" oninput="csFilter()">' +
       '<span class="ca-spacer"></span>' +
       (caIsAdmin() && hiddenN ? '<label class="ca-check ca-check--inline"><input type="checkbox"' + (_cs.showHidden ? ' checked' : '') + ' onchange="_cs.showHidden=this.checked;router()"> Покажи скритите (' + hiddenN + ')</label>' : '') +
-      '<button class="btn btn-ghost btn-sm" onclick="csDetect()">↻ Провери за нови проекти</button></div>';
+      '<button class="btn btn-ghost btn-sm" onclick="csDetect()">↻ Провери за нови проекти</button>' +
+      (caIsAdmin() ? '<a class="btn btn-ghost btn-sm" href="#/strategy/admin">⚙ Админ</a>' : '') + '</div>';
     if (!d.projects.length) html += '<div class="ca-panel ca-dim">Още няма засечени проекти — първото засичане е до минута след старта на сървъра. Натисни „Провери за нови проекти".</div>';
     groups.forEach(function (g) {
       if (!g[1].length) return;
@@ -98,6 +101,53 @@ async function csDetect() {
 async function csHide(ev, pid, hidden) {
   ev.preventDefault(); ev.stopPropagation();
   try { await csApi('PATCH', '/projects/' + pid, { hidden: hidden }); router(); } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ---------- админ меню ----------
+// Всички засечени проекти. „Изтрий" = не е клиент (вътрешен проект и т.н.) — не излиза
+// никъде, дори в скритите, и засичането не го връща. „Възстанови" го връща.
+
+async function renderStrategyAdmin(el) {
+  csShell(el, '⚙ Контент стратегия — админ',
+    'Проектите, които агентът е засякъл в Basecamp. Изтрий тези, които не са клиенти (вътрешни проекти и т.н.) — няма да излизат никъде и няма да се появят пак. ' +
+    'Пусканията им остават и проектът може да се възстанови от „Изтрити".', '#/strategy');
+  if (!caIsAdmin()) { caBody('<div class="ca-err">Само за админ.</div>'); return; }
+  try {
+    var d = await csApi('GET', '/admin/projects');
+    var live = d.projects.filter(function (p) { return !p.removed; });
+    var gone = d.projects.filter(function (p) { return p.removed; });
+    var row = function (p) {
+      return '<tr data-name="' + esc((p.client + ' ' + p.name).toLowerCase()) + '"><td><strong>' + esc(p.client) + '</strong></td>' +
+        '<td class="ca-cap">' + esc(p.name) + (p.bc_active ? '' : ' <span class="ca-dim">(архивиран в Basecamp)</span>') + '</td>' +
+        '<td>' + (p.status === 'done' ? '✅ има стратегия' : 'без стратегия') + (p.runs ? ' · ' + p.runs + ' пускания' : '') + '</td>' +
+        '<td class="ca-nowrap">' + (p.removed
+          ? '<span class="ca-dim">изтрит' + (p.removed_by ? ' от ' + esc(p.removed_by) : '') + ' ' + esc(caDate(p.removed_at)) + '</span> ' +
+            '<button class="btn btn-ghost btn-sm" onclick="csRestore(\'' + esc(p.project_id) + '\')">Възстанови</button>'
+          : '<button class="btn btn-ghost btn-sm" onclick="csHide(event,\'' + esc(p.project_id) + '\',' + (p.hidden ? 'false' : 'true') + ')">' + (p.hidden ? 'Покажи' : 'Скрий') + '</button> ' +
+            '<button class="btn btn-ghost btn-sm" style="color:var(--card-red,#c66)" onclick="csRemove(\'' + esc(p.project_id) + '\',' + jsq(p.client) + ')">🗑 Изтрий</button>') + '</td></tr>';
+    };
+    var table = function (rows) {
+      return '<table class="ca-table"><thead><tr><th>Клиент</th><th>Проект в Basecamp</th><th>Стратегия</th><th></th></tr></thead><tbody>' + rows.map(row).join('') + '</tbody></table>';
+    };
+    caBody('<div class="ca-toolbar"><input class="ca-input ca-search" id="csAdmSearch" placeholder="Търси проект…" oninput="csAdmFilter()"><span class="ca-spacer"></span>' +
+      '<button class="btn btn-ghost btn-sm" onclick="csDetect()">↻ Провери за нови проекти</button></div>' +
+      '<div class="ca-panel"><div class="ca-panel__t">Проекти · ' + live.length + '</div>' + (live.length ? table(live) : '<div class="ca-dim">Няма.</div>') + '</div>' +
+      (gone.length ? '<div class="ca-panel"><div class="ca-panel__t">🗑 Изтрити · ' + gone.length + '</div>' + table(gone) + '</div>' : ''));
+  } catch (e) { caBody('<div class="ca-err">' + esc(e.message) + '</div>'); }
+}
+
+function csAdmFilter() {
+  var q = (document.getElementById('csAdmSearch').value || '').toLowerCase().trim();
+  document.querySelectorAll('.ca-table tbody tr').forEach(function (tr) { tr.style.display = !q || tr.getAttribute('data-name').indexOf(q) >= 0 ? '' : 'none'; });
+}
+
+async function csRemove(pid, name) {
+  if (!confirm('Да изтрия ли „' + name + '" от Контент стратегия? Няма да излиза никъде (и в скритите), а засичането няма да го върне. Може да се възстанови от „Изтрити".')) return;
+  try { await csApi('DELETE', '/projects/' + pid); showToast('Изтрит', 'success'); router(); } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function csRestore(pid) {
+  try { await csApi('POST', '/projects/' + pid + '/restore'); showToast('Възстановен', 'success'); router(); } catch (e) { showToast(e.message, 'error'); }
 }
 
 // ---------- един проект ----------

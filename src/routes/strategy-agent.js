@@ -3,7 +3,7 @@
 // проект (вътрешен/ненужен) — само админ.
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { query, queryOne, execute } = require('../db/pool');
 const store = require('../services/strategy-agent/store');
 const pipeline = require('../services/strategy-agent/pipeline');
@@ -21,6 +21,7 @@ router.get('/projects', async (req, res) => {
       `SELECT p.*, (SELECT row_to_json(x) FROM (SELECT r.id, r.status, r.created_at, r.finished_at, r.requested_by
                                                   FROM cs_runs r WHERE r.project_id = p.project_id ORDER BY r.id DESC LIMIT 1) x) AS last_run
          FROM cs_projects p JOIN bc_projects b ON b.project_id = p.project_id AND b.active = TRUE
+        WHERE NOT p.removed
         ORDER BY p.is_new DESC, p.detected_at DESC, p.name`
     );
     res.json({ projects: rows.map((p) => ({ ...p, client: p.client_name || store.clientNameFromProject(p.name), plan: store.planFromProject(p.name) })) });
@@ -63,8 +64,42 @@ router.post('/projects/:pid/run', express.json({ limit: '1mb' }), async (req, re
   try {
     const p = await store.getProject(pid(req));
     if (!p) return res.status(404).json({ error: 'Проектът не е намерен.' });
+    if (p.removed) return res.status(400).json({ error: 'Проектът е изтрит от Контент стратегия (админ меню).' });
     const id = await pipeline.createRun({ projectId: p.project_id, notes: String(req.body.notes || ''), requestedBy: (req.user && req.user.name) || '' });
     res.json({ id });
+  } catch (e) { fail(res, e); }
+});
+
+// ---------- админ меню (#/strategy/admin) ----------
+// Всички проекти, вкл. скритите и изтритите. „Изтрий" = проектът не е клиент (вътрешен
+// и т.н.) — не излиза никъде, засичането не го връща. Пусканията му остават в базата,
+// а „Възстанови" го връща.
+router.get('/admin/projects', requireAdmin, async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT p.*, COALESCE(b.active, FALSE) AS bc_active,
+              (SELECT COUNT(*) FROM cs_runs r WHERE r.project_id = p.project_id)::int AS runs
+         FROM cs_projects p LEFT JOIN bc_projects b ON b.project_id = p.project_id
+        ORDER BY p.removed, p.hidden, p.name`
+    );
+    res.json({ projects: rows.map((p) => ({ ...p, client: p.client_name || store.clientNameFromProject(p.name) })) });
+  } catch (e) { fail(res, e); }
+});
+
+router.delete('/projects/:pid', requireAdmin, async (req, res) => {
+  try {
+    await execute(
+      "UPDATE cs_projects SET removed = TRUE, removed_by = $2, removed_at = NOW(), updated_at = NOW() WHERE project_id = $1",
+      [pid(req), (req.user && req.user.name) || '']
+    );
+    res.json({ ok: true });
+  } catch (e) { fail(res, e); }
+});
+
+router.post('/projects/:pid/restore', requireAdmin, async (req, res) => {
+  try {
+    await execute("UPDATE cs_projects SET removed = FALSE, removed_by = '', removed_at = NULL, updated_at = NOW() WHERE project_id = $1", [pid(req)]);
+    res.json({ ok: true });
   } catch (e) { fail(res, e); }
 });
 
