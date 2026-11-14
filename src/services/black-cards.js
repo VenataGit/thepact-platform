@@ -332,12 +332,14 @@ function isWorkday(ymd) {
 }
 
 // dryRun → само сглобява съобщението, не праща и не пипа състоянието.
-async function runBlackCards({ now = new Date(), dryRun = false, force = false } = {}) {
+// testTo = person_id → пробно съобщение: тагнат и абонат е само той, останалите имена са
+// с удебелен текст (никой друг не получава известие), състоянието не се пипа.
+async function runBlackCards({ now = new Date(), dryRun = false, force = false, testTo = null } = {}) {
   const cfg = await loadConfig();
   if (!cfg.enabled && !dryRun) return { skipped: 'disabled' };
   if (!cfg.ids) throw new Error('Невалиден линк към Message Board: ' + cfg.boardUrl);
   const today = sofiaDate(now);
-  if (!force && !dryRun && !isWorkday(today)) return { skipped: 'non-working day' };
+  if (!force && !dryRun && !testTo && !isWorkday(today)) return { skipped: 'non-working day' };
 
   const rules = await loadStepRules();
   const rows = await loadCards();
@@ -347,10 +349,13 @@ async function runBlackCards({ now = new Date(), dryRun = false, force = false }
   try { prev = JSON.parse((await getSetting('black_cards_state')) || 'null'); } catch { prev = null; }
   const cleared = await clearedSince(prev, rowsById, rules, today);
 
-  const people = await query('SELECT person_id, name, title, attachable_sgid, active FROM bc_people');
+  let people = await query('SELECT person_id, name, title, attachable_sgid, active FROM bc_people');
   const auth = dryRun ? null : await getServiceAuth();
   const botName = /thepactalerts/i;
   const team = people.filter((p) => p.active && !botName.test(p.name || ''));
+  const notify = testTo ? people.filter((p) => String(p.person_id) === String(testTo)) : team;
+  if (testTo && !notify.length) throw new Error('Няма човек с person_id ' + testTo);
+  if (testTo) people = people.map((p) => (String(p.person_id) === String(testTo) ? p : { ...p, attachable_sgid: null }));
 
   let analysis = null, analysisError = null;
   try {
@@ -359,12 +364,14 @@ async function runBlackCards({ now = new Date(), dryRun = false, force = false }
   } catch (err) { analysisError = err.message; }
   if (analysisError) console.error('[black-cards] анализ:', analysisError);
 
-  const msg = buildMessage({ today, black, cleared, analysis, analysisError, people, team });
+  const msg = buildMessage({ today, black, cleared, analysis, analysisError, people, team: notify });
+  if (testTo) msg.subject = '🧪 ПРОБНО — ' + msg.subject;
   if (dryRun) return { dryRun: true, black: black.length, cleared: cleared.length, analysisError, msg };
 
   await bc.createMessage(auth.token, auth.account, cfg.ids.project, cfg.ids.board, {
-    ...msg, subscriptions: team.map((p) => Number(p.person_id)),
+    ...msg, subscriptions: notify.map((p) => Number(p.person_id)),
   });
+  if (testTo) return { black: black.length, cleared: cleared.length, analysisError, sent: true, test: true };
   // чак след успешно пращане
   await saveSetting('black_cards_state', JSON.stringify({
     at: now.toISOString(),
