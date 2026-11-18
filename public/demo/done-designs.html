@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо: 5 дизайна за бутона „Готово"</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; }
+  button { font:inherit; color:inherit; }
+  header { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:30; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .wrap { max-width:1500px; margin:14px auto 40px; padding:0 20px; display:grid; grid-template-columns:300px 1fr; gap:14px; }
+  .side { background:var(--panel); border-radius:15px; padding:12px; align-self:start; position:sticky; top:62px; }
+  .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:10px 8px 6px; }
+  .side a { display:flex; gap:10px; align-items:center; padding:9px 10px; border-radius:9px; cursor:pointer; color:#cfd8dc; font-size:13.5px; }
+  .side a:hover { background:var(--hover); }
+  .side a.on { background:var(--green); color:#fff; font-weight:600; }
+  .side a .n { width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,.1); display:grid; place-items:center; font-size:12px; flex:none; }
+  .side .common { margin:14px 8px 4px; color:var(--sec); font-size:12.5px; }
+  .side .common li { margin:4px 0 4px 16px; }
+  .panel { background:var(--panel); border-radius:15px; padding:22px 26px; min-width:0; }
+  h2 { font-size:22px; margin-bottom:4px; }
+  .lead { color:var(--sec); margin-bottom:14px; max-width:980px; }
+  .facts { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .fact { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:8px 12px; font-size:13px; }
+  .fact b { color:var(--green); }
+  .pc { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; max-width:1100px; }
+  .pc div { background:rgba(255,255,255,.04); border-radius:10px; padding:10px 14px; font-size:13px; color:var(--sec); }
+  .pc h4 { font-size:13px; color:var(--text); margin-bottom:4px; }
+  .pc li { margin-left:16px; }
+  .try { color:var(--amber); font-size:13px; margin-bottom:8px; }
+  .reset { float:right; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:4px 10px; cursor:pointer; font-size:12.5px; }
+
+  /* ---------- макет на Basecamp задача (светъл, като истинския) ---------- */
+  .bc { position:relative; background:#f6f2ef; border-radius:12px; height:560px; overflow:hidden; color:#283c46; font-family:-apple-system,"Segoe UI",Roboto,sans-serif; }
+  .bc-nav { height:44px; background:#fff; border-bottom:1px solid #e6e0db; display:flex; align-items:center; gap:18px; padding:0 20px; font-size:13px; color:#5b6b73; }
+  .bc-nav b { color:#283c46; }
+  .bc-page { background:#fff; margin:22px auto; width:min(760px, 92%); border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); padding:26px 34px; height:470px; overflow:hidden; }
+  .bc-crumb { font-size:12px; color:#8a9aa2; margin-bottom:10px; }
+  .bc-title { font-size:26px; font-weight:800; margin-bottom:14px; display:flex; align-items:center; gap:12px; }
+  .bc-meta { font-size:13px; color:#5b6b73; margin-bottom:16px; }
+  .bc-line { height:10px; background:#eee8e3; border-radius:5px; margin:10px 0; }
+  .bc-comment { display:flex; gap:10px; margin-top:22px; }
+  .bc-av { width:32px; height:32px; border-radius:50%; background:#c9b8a8; flex:none; }
+
+  .demo { display:none; }
+  .demo.on { display:block; }
+
+  /* общо за плаващите варианти */
+  .float { position:absolute; right:22px; bottom:22px; z-index:5; user-select:none; }
+
+  /* 1 — Едно копче */
+  .d1 { border:0; border-radius:999px; padding:14px 22px; font-size:16px; font-weight:800; cursor:pointer;
+        background:#fff; color:#283c46; box-shadow:0 6px 20px rgba(0,0,0,.18); border:2px solid #d5dde1; transition:all .18s; }
+  .d1:hover { border-color:#46a374; }
+  .d1.done { background:#46a374; color:#fff; border-color:#46a374; }
+  .d1-undo { position:absolute; right:0; bottom:58px; background:#283c46; color:#fff; font-size:12.5px; padding:6px 10px; border-radius:8px; white-space:nowrap; }
+  .d1-undo button { background:none; border:0; color:#9fe0bd; text-decoration:underline; cursor:pointer; margin-left:6px; }
+
+  /* 2 — Кръгла отметка */
+  .d2 { width:64px; height:64px; border-radius:50%; cursor:pointer; display:grid; place-items:center; font-size:30px; font-weight:900;
+        background:#fff; color:#c3ccd1; border:3px dashed #c3ccd1; box-shadow:0 6px 20px rgba(0,0,0,.16); transition:all .2s; }
+  .d2:hover { color:#46a374; border-color:#46a374; }
+  .d2.done { background:#46a374; color:#fff; border:3px solid #46a374; animation:pop .35s; }
+  .d2-tip { position:absolute; right:74px; top:50%; transform:translateY(-50%); background:#283c46; color:#fff; font-size:12.5px; padding:6px 10px; border-radius:8px; white-space:nowrap; opacity:0; transition:opacity .15s; pointer-events:none; }
+  .float:hover .d2-tip { opacity:1; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.18)} 100%{transform:scale(1)} }
+
+  /* 3 — Лента долу */
+  .d3 { position:absolute; left:0; right:0; bottom:0; z-index:5; background:#fff; border-top:1px solid #e6e0db; box-shadow:0 -4px 16px rgba(0,0,0,.06);
+        display:flex; align-items:center; justify-content:center; gap:16px; padding:12px 20px; font-size:14px; }
+  .d3 button { border:0; border-radius:999px; padding:9px 20px; font-weight:800; cursor:pointer; background:#46a374; color:#fff; font-size:14px; }
+  .d3.done { background:#e9f6ef; color:#1e7a4c; }
+  .d3 .lnk { background:none; color:#5b6b73; text-decoration:underline; padding:0; font-weight:400; font-size:13px; }
+
+  /* 4 — Свито / разгънато (като сега, без времето) */
+  .d4-pill { border:0; border-radius:999px; padding:11px 18px; font-size:15px; font-weight:800; cursor:pointer; display:inline-flex; gap:8px; align-items:center;
+             background:#fff; color:#283c46; border:1px solid rgba(0,0,0,.12); box-shadow:0 4px 14px rgba(0,0,0,.14); }
+  .d4-pill .ck { width:20px; height:20px; border-radius:50%; border:2px solid #c3ccd1; display:inline-grid; place-items:center; font-size:12px; }
+  .d4-pill.done .ck { background:#46a374; border-color:#46a374; color:#fff; }
+  .d4-card { width:280px; background:#fff; border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.2); overflow:hidden; }
+  .d4-head { background:#283c46; color:#fff; padding:10px 14px; font-weight:800; font-size:14px; display:flex; justify-content:space-between; cursor:pointer; }
+  .d4-head span { font-weight:400; font-size:11.5px; opacity:.7; }
+  .d4-body { padding:14px; }
+  .d4-task { font-size:13px; color:#5b6b73; margin-bottom:12px; }
+  .d4-big { width:100%; border:2px solid #46a374; background:#fff; color:#1e7a4c; border-radius:10px; padding:12px; font-size:15px; font-weight:800; cursor:pointer; }
+  .d4-big.done { background:#46a374; color:#fff; }
+  .d4-note { font-size:11.5px; color:#8a9aa2; margin-top:8px; text-align:center; }
+
+  /* 5 — В самата задача, до заглавието */
+  .d5 { display:inline-flex; align-items:center; gap:8px; border:2px solid #d5dde1; background:#fff; border-radius:999px; padding:5px 14px 5px 6px; cursor:pointer; font-size:14px; font-weight:700; color:#5b6b73; transition:all .18s; }
+  .d5 .bx { width:24px; height:24px; border-radius:50%; border:2px solid #c3ccd1; display:grid; place-items:center; font-size:13px; color:transparent; }
+  .d5:hover { border-color:#46a374; color:#1e7a4c; }
+  .d5.done { background:#e9f6ef; border-color:#46a374; color:#1e7a4c; }
+  .d5.done .bx { background:#46a374; border-color:#46a374; color:#fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>✓ Бутонът „Готово" — 5 дизайна</h1>
+  <span class="badge">демо · нищо не се записва</span>
+</header>
+
+<div class="wrap">
+  <nav class="side">
+    <h3>Вариант</h3>
+    <a data-d="1" class="on"><span class="n">1</span>Едно голямо копче</a>
+    <a data-d="2"><span class="n">2</span>Кръгла отметка</a>
+    <a data-d="3"><span class="n">3</span>Лента долу</a>
+    <a data-d="4"><span class="n">4</span>Свито / разгънато</a>
+    <a data-d="5"><span class="n">5</span>До заглавието на задачата</a>
+    <h3>Еднакво за всички</h3>
+    <ul class="common">
+      <li>Таймерът и всичко за времето изчезва.</li>
+      <li>Отметката е само твоя — другите не я виждат.</li>
+      <li>Пази се по името на задачата — не се губи при местене между отделите.</li>
+      <li>Отчетът „Готови задачи" в платформата остава същият.</li>
+      <li>Плаващите (1–4) се местят с задържане и влачене, както сега.</li>
+    </ul>
+  </nav>
+
+  <main class="panel">
+    <!-- 1 -->
+    <section class="demo on" id="d1">
+      <h2>1 · Едно голямо копче</h2>
+      <p class="lead">В ъгъла стои само едно копче: „Готово?". Цъкаш го и става зелено „✓ Готово". Няма прозорче, което да се отваря, няма заглавие, няма какво да се обърка.</p>
+      <div class="facts"><span class="fact">Цъквания: <b>1</b></span><span class="fact">Място на екрана: <b>малко</b></span><span class="fact">Сгрешил си: „Отмени" за 5 сек</span></div>
+      <div class="pc"><div><h4>Плюсове</h4><ul><li>Най-простото — ясно е без обяснение.</li><li>Вижда се от пръв поглед дали си го отбелязал.</li></ul></div>
+        <div><h4>Минуси</h4><ul><li>Лесно се цъква без да искаш — затова има „Отмени".</li></ul></div></div>
+      <p class="try">Пробвай: цъкни копчето долу вдясно. <button class="reset" data-reset>↺ Начало</button></p>
+      <div class="bc" data-mock></div>
+    </section>
+
+    <!-- 2 -->
+    <section class="demo" id="d2">
+      <h2>2 · Кръгла отметка</h2>
+      <p class="lead">Кръг с отметка в ъгъла, като чекбокс в списък със задачи. Празен (на пунктир) = не е готово. Цъкаш и се запълва в зелено. Като задържиш мишката отгоре, пише какво прави.</p>
+      <div class="facts"><span class="fact">Цъквания: <b>1</b></span><span class="fact">Място на екрана: <b>най-малко</b></span><span class="fact">Сгрешил си: цъкаш пак</span></div>
+      <div class="pc"><div><h4>Плюсове</h4><ul><li>Почти не заема място и не пречи.</li><li>Всеки познава отметката от списъците със задачи.</li></ul></div>
+        <div><h4>Минуси</h4><ul><li>Без надпис — новите хора може да не разберат веднага какво е (има подсказка при посочване).</li></ul></div></div>
+      <p class="try">Пробвай: посочи и цъкни кръга долу вдясно. <button class="reset" data-reset>↺ Начало</button></p>
+      <div class="bc" data-mock></div>
+    </section>
+
+    <!-- 3 -->
+    <section class="demo" id="d3">
+      <h2>3 · Лента долу</h2>
+      <p class="lead">Тънка лента по долния ръб на задачата с въпрос „Свърши ли своята част?" и зелен бутон. След цъкане лентата казва кога си я отбелязал.</p>
+      <div class="facts"><span class="fact">Цъквания: <b>1</b></span><span class="fact">Място на екрана: <b>цяла ширина, ниска</b></span><span class="fact">Сгрешил си: „отмени" в лентата</span></div>
+      <div class="pc"><div><h4>Плюсове</h4><ul><li>Най-ясно казва какво се иска от теб.</li><li>Показва и кога си отбелязал.</li></ul></div>
+        <div><h4>Минуси</h4><ul><li>Заема ред от екрана и не се мести.</li><li>Може да покрие нещо от Basecamp най-долу.</li></ul></div></div>
+      <p class="try">Пробвай: цъкни „✓ Готово" в лентата. <button class="reset" data-reset>↺ Начало</button></p>
+      <div class="bc" data-mock></div>
+    </section>
+
+    <!-- 4 -->
+    <section class="demo" id="d4">
+      <h2>4 · Свито / разгънато (като сега, без времето)</h2>
+      <p class="lead">Най-близо до това, което имате сега. Свито е едно копче „Моята част" с кръгче, което става зелено, щом си отбелязал. Цъкаш и се разгъва в малко прозорче с голям бутон „Готово". <b>Двоен клик</b> върху тъмната лента горе го свива обратно.</p>
+      <div class="facts"><span class="fact">Цъквания: <b>2</b> (отвори + Готово)</span><span class="fact">Място на екрана: <b>малко</b>, докато е свито</span><span class="fact">Сгрешил си: цъкаш пак</span></div>
+      <div class="pc"><div><h4>Плюсове</h4><ul><li>Нищо ново за свикване — хората вече го познават.</li><li>Има място за името на задачата, ако е нужно.</li></ul></div>
+        <div><h4>Минуси</h4><ul><li>Едно цъкване повече от останалите.</li></ul></div></div>
+      <p class="try">Пробвай: цъкни копчето → „Готово" → двоен клик върху тъмната лента. <button class="reset" data-reset>↺ Начало</button></p>
+      <div class="bc" data-mock></div>
+    </section>
+
+    <!-- 5 -->
+    <section class="demo" id="d5">
+      <h2>5 · До заглавието на задачата</h2>
+      <p class="lead">Нищо не плава по екрана. До самото заглавие на задачата се появява „○ Готово". Цъкаш го и става зелено. Изглежда като част от Basecamp.</p>
+      <div class="facts"><span class="fact">Цъквания: <b>1</b></span><span class="fact">Място на екрана: <b>нула</b> — няма плаващо копче</span><span class="fact">Сгрешил си: цъкаш пак</span></div>
+      <div class="pc"><div><h4>Плюсове</h4><ul><li>Не закрива нищо и не трябва да се мести.</li><li>Стои точно там, където гледаш — до името на задачата.</li></ul></div>
+        <div><h4>Минуси</h4><ul><li>Скролнеш ли надолу (напр. в дълги коментари), копчето остава горе.</li><li>Ако Basecamp смени дизайна си, може да се наложи да го наместя.</li></ul></div></div>
+      <p class="try">Пробвай: цъкни „Готово" до заглавието. <button class="reset" data-reset>↺ Начало</button></p>
+      <div class="bc" data-mock></div>
+    </section>
+  </main>
+</div>
+
+<script>
+(() => {
+  const TASK = 'Лемониста КП-3 — Видео 2 „Лимонада за всеки сезон"';
+  const now = () => new Date().toLocaleTimeString('bg-BG', { hour: '2-digit', minute: '2-digit' });
+
+  function mockPage(withBadge) {
+    return '<div class="bc-nav"><b>Basecamp</b><span>Home</span><span>Lineup</span><span>Pings</span><span>Hey!</span><span>Activity</span><span>My Stuff</span></div>' +
+      '<div class="bc-page"><div class="bc-crumb">Лемониста › Production</div>' +
+      '<div class="bc-title"><span>' + TASK + '</span>' + (withBadge ? '<span data-slot></span>' : '') + '</div>' +
+      '<div class="bc-meta">Assigned to: Иван · Due on: 21 ноември</div>' +
+      '<div class="bc-line" style="width:92%"></div><div class="bc-line" style="width:84%"></div><div class="bc-line" style="width:70%"></div>' +
+      '<div class="bc-comment"><div class="bc-av"></div><div style="flex:1"><div class="bc-line" style="width:40%"></div><div class="bc-line" style="width:90%"></div><div class="bc-line" style="width:76%"></div></div></div>' +
+      '<div class="bc-comment"><div class="bc-av" style="background:#a9bfcf"></div><div style="flex:1"><div class="bc-line" style="width:35%"></div><div class="bc-line" style="width:82%"></div></div></div>' +
+      '</div>';
+  }
+
+  const builders = {
+    1(mock) {
+      mock.innerHTML = mockPage(false);
+      const f = document.createElement('div'); f.className = 'float';
+      let done = false, undoTimer = 0;
+      const draw = () => {
+        f.innerHTML = '';
+        const b = document.createElement('button');
+        b.className = 'd1' + (done ? ' done' : '');
+        b.textContent = done ? '✓ Готово' : 'Готово?';
+        b.onclick = () => {
+          done = !done; draw();
+          if (done) {
+            const u = document.createElement('div'); u.className = 'd1-undo';
+            u.innerHTML = 'Отбелязано като готово<button>Отмени</button>';
+            u.querySelector('button').onclick = () => { done = false; draw(); };
+            f.append(u); clearTimeout(undoTimer); undoTimer = setTimeout(() => u.remove(), 5000);
+          }
+        };
+        f.append(b);
+      };
+      draw(); mock.append(f);
+    },
+    2(mock) {
+      mock.innerHTML = mockPage(false);
+      const f = document.createElement('div'); f.className = 'float';
+      let done = false;
+      const draw = () => {
+        f.innerHTML = '<div class="d2-tip">' + (done ? 'Отбелязал си я като готова · цъкни, за да махнеш' : 'Отбележи като готово') + '</div>';
+        const b = document.createElement('div'); b.className = 'd2' + (done ? ' done' : ''); b.textContent = '✓';
+        b.onclick = () => { done = !done; draw(); };
+        f.append(b);
+      };
+      draw(); mock.append(f);
+    },
+    3(mock) {
+      mock.innerHTML = mockPage(false);
+      const bar = document.createElement('div');
+      let done = false, at = '';
+      const draw = () => {
+        bar.className = 'd3' + (done ? ' done' : '');
+        bar.innerHTML = done
+          ? '<span>✓ Отбеляза своята част като готова днес в ' + at + '</span><button class="lnk">отмени</button>'
+          : '<span>Свърши ли своята част по тази задача?</span><button>✓ Готово</button>';
+        bar.querySelector('button').onclick = () => { done = !done; at = now(); draw(); };
+      };
+      draw(); mock.append(bar);
+    },
+    4(mock) {
+      mock.innerHTML = mockPage(false);
+      const f = document.createElement('div'); f.className = 'float';
+      let done = false, open = false;
+      const draw = () => {
+        f.innerHTML = '';
+        if (!open) {
+          const p = document.createElement('button'); p.className = 'd4-pill' + (done ? ' done' : '');
+          p.innerHTML = '<span class="ck">' + (done ? '✓' : '') + '</span>' + (done ? 'Готово' : 'Моята част');
+          p.onclick = () => { open = true; draw(); };
+          f.append(p); return;
+        }
+        const c = document.createElement('div'); c.className = 'd4-card';
+        c.innerHTML = '<div class="d4-head">Моята част <span>двоен клик = свий</span></div>' +
+          '<div class="d4-body"><div class="d4-task">' + TASK + '</div>' +
+          '<button class="d4-big' + (done ? ' done' : '') + '">' + (done ? '✓ Готово (ти)' : '✓ Отбележи като готово') + '</button>' +
+          '<div class="d4-note">' + (done ? 'цъкни пак, ако е по грешка' : 'цъкни, щом си свършил своята част') + '</div></div>';
+        c.querySelector('.d4-head').ondblclick = () => { open = false; draw(); };
+        c.querySelector('.d4-big').onclick = () => { done = !done; draw(); };
+        f.append(c);
+      };
+      draw(); mock.append(f);
+    },
+    5(mock) {
+      mock.innerHTML = mockPage(true);
+      const slot = mock.querySelector('[data-slot]');
+      let done = false;
+      const draw = () => {
+        slot.innerHTML = '';
+        const b = document.createElement('span'); b.className = 'd5' + (done ? ' done' : '');
+        b.title = done ? 'Отбелязал си я · цъкни, за да махнеш' : 'Отбележи своята част като готова';
+        b.innerHTML = '<span class="bx">✓</span>' + (done ? 'Готово' : 'Готово?');
+        b.onclick = () => { done = !done; draw(); };
+        slot.append(b);
+      };
+      draw();
+    }
+  };
+
+  const build = (n) => builders[n](document.querySelector('#d' + n + ' [data-mock]'));
+  for (const n of Object.keys(builders)) build(n);
+
+  document.querySelectorAll('[data-reset]').forEach((b) => {
+    b.onclick = () => build(b.closest('section').id.slice(1));
+  });
+
+  const show = (n) => {
+    document.querySelectorAll('.side a').forEach((a) => a.classList.toggle('on', a.dataset.d === n));
+    document.querySelectorAll('.demo').forEach((s) => s.classList.toggle('on', s.id === 'd' + n));
+    history.replaceState(null, '', '#' + n);
+  };
+  document.querySelectorAll('.side a').forEach((a) => { a.onclick = () => show(a.dataset.d); });
+  const h = location.hash.slice(1);
+  if (builders[h]) show(h);
+})();
+</script>
+</body>
+</html>
