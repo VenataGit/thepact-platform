@@ -95,7 +95,8 @@ router.get('/status', requireAuth, async (req, res) => {
     if (!cardId) return res.status(400).json({ error: 'bc_card_id е задължителен' });
     const row = await findMine(req.user.userId, cardId, req.query.title);
     if (row) await relink(row, cardId, req.query.url);
-    res.json({ done: !!row, occurredAt: row ? row.occurred_at : null });
+    const who = await whoMarked(cardId, req.query.title, req.user.userId);
+    res.json({ done: !!row, occurredAt: row ? row.occurred_at : null, who });
   } catch (err) {
     console.error('[task-completions status]', err.message);
     res.status(500).json({ error: 'Вътрешна грешка' });
@@ -215,6 +216,39 @@ async function userPositions() {
 
 // същото нормализиране на заглавието като findMine()
 const TITLE_SQL = `btrim(regexp_replace(t.title, E'[ \\t\\r\\n]+', ' ', 'g'))`;
+
+// Кой е отбелязал задачата и от кой отдел — за подсказката върху кръглата отметка
+// в разширението (Венци, 19.11.2026: „Pre-Production - Ventsislav Kalchev").
+// Отделът е същият като в отчета: позицията на човека → отдел (⚙ Настройки). Ако
+// човекът още няма позиция — дъската, на която е била картата, когато е цъкнал.
+// Скритите от отчета хора не се показват и тук.
+async function whoMarked(cardId, title, meId) {
+  const key = titleKey(title);
+  const [cfg, positions, rows] = await Promise.all([
+    loadConfig(),
+    userPositions(),
+    query(
+      `SELECT DISTINCT ON (t.user_id) t.user_id, u.name, t.occurred_at, s.board_title
+         FROM task_completions t
+         JOIN users u ON u.id = t.user_id
+         LEFT JOIN LATERAL (SELECT board_title FROM bc_cards_snap WHERE card_id = t.bc_card_id LIMIT 1) s ON TRUE
+        WHERE t.bc_card_id = $1 OR ($2 <> '' AND ${TITLE_SQL} = $2)
+        ORDER BY t.user_id, t.occurred_at`,
+      [cardId, key]
+    ),
+  ]);
+  const hidden = new Set(cfg.hidden);
+  const rank = (d) => (DEPARTMENTS.indexOf(d) + 1) || 99;
+  return rows
+    .filter((r) => !hidden.has(r.user_id) || r.user_id === meId)
+    .map((r) => {
+      const p = positions.get(r.user_id) || {};
+      let department = deptOfPosition(cfg, p.position_id, p.position_name);
+      if (department === NO_DEPT) department = r.board_title || '';
+      return { name: p.name || r.name || '', department, me: r.user_id === meId, at: r.occurred_at };
+    })
+    .sort((a, b) => rank(a.department) - rank(b.department) || new Date(a.at) - new Date(b.at));
+}
 
 // GET /api/task-completions/report?from=YYYY-MM-DD&to=YYYY-MM-DD — класация по
 // човек (+ позиция и отдел) за периода и списъкът с отметките.

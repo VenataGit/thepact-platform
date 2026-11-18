@@ -67,6 +67,27 @@ describe('GET /api/task-completions/status', () => {
   });
 });
 
+describe('кой е отбелязал задачата (подсказката в разширението)', () => {
+  it('връща имената с отдела, подредени по отдели', async () => {
+    mockDb.query.mockImplementation(async (sql) => {
+      if (/DISTINCT ON/.test(sql)) {
+        return [
+          { user_id: 7, name: 'Kristina Georgieva', occurred_at: '2026-11-02T10:00:00Z', board_title: 'Production' },
+          { user_id: 8, name: 'Ventsislav Kalchev', occurred_at: '2026-11-03T10:00:00Z', board_title: 'Pre-Production' },
+        ];
+      }
+      return [];
+    });
+    const res = await request(app).get('/api/task-completions/status')
+      .query({ bc_card_id: '222', title: 'Видео 3' }).set('Cookie', cookie);
+    expect(res.status).toBe(200);
+    expect(res.body.who.map((w) => w.department + ' - ' + w.name)).toEqual([
+      'Pre-Production - Ventsislav Kalchev',
+      'Production - Kristina Georgieva',
+    ]);
+  });
+});
+
 describe('POST /api/task-completions/toggle', () => {
   it('отметка, намерена по заглавие на стария номер, се маха', async () => {
     mockDb.queryOne.mockResolvedValueOnce({ id: 9, bc_card_id: '111' });
