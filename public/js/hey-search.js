@@ -136,6 +136,13 @@ function isPlatformOwner() {
   return !!(typeof currentUser !== 'undefined' && currentUser && currentUser.is_owner);
 }
 
+// Overtime засега е само за хората с позиция „Видеограф" (Екип и роли) + собственика,
+// за да не виждат останалите инструменти, които не ползват (Венци, 19.11.2026).
+function canSeeOvertime() {
+  if (typeof currentUser === 'undefined' || !currentUser) return false;
+  return !!currentUser.is_owner || /видеограф/i.test(currentUser.position_name || '');
+}
+
 // Менюто „Още" (подредба по Венци, 19.11.2026): горе — общите страници; под линията —
 // само админските. Линията се показва само ако човекът има админски точки.
 function populateMore(el) {
@@ -150,7 +157,6 @@ function populateMore(el) {
       ${isPageOff('kp-auto') ? '' : `<a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()">КП Автоматизация</a>`}
       <a class="nav-dropdown__item" href="#" onclick="event.preventDefault();showKpSplit()">Създай задачи по КП</a>
       ${(currentUser && !isPageOff('task-completions')) ? `<a class="nav-dropdown__item" href="#/task-completions" onclick="closeAllDropdowns()">Готови задачи</a>` : ''}
-      ${(currentUser && !isPageOff('overtime')) ? `<a class="nav-dropdown__item" href="#/overtime" onclick="closeAllDropdowns()">Overtime</a>` : ''}
       ${(currentUser && !isPageOff('processes')) ? `<a class="nav-dropdown__item" href="#/processes" onclick="closeAllDropdowns()">Процеси</a>` : ''}
       <a class="nav-dropdown__item" href="#/release-notes" onclick="closeAllDropdowns()">Какво ново</a>
       <!-- Води към страницата на разширението (какво може + какво ново), а самото
@@ -165,6 +171,8 @@ function populateMore(el) {
       ${isPageOff('client-schedule') ? '' : `<a class="nav-dropdown__item" href="#/client-schedule" onclick="closeAllDropdowns()">Клиент — график</a>`}
       ${isPageOff('premiere') ? '' : `<a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()">Premiere Downgrade</a>`}
       <span id="moreCrmSlot"></span>
+      <!-- Overtime винаги последно; вижда се само от видеографите (+ собственика). Венци, 19.11.2026 -->
+      ${(canSeeOvertime() && !isPageOff('overtime')) ? `<a class="nav-dropdown__item" href="#/overtime" onclick="closeAllDropdowns()">Overtime</a>` : ''}
     </div>
     ${adminItems ? `<div class="nav-dropdown__section" style="border-top:1px solid var(--border)">${adminItems}
     </div>` : ''}

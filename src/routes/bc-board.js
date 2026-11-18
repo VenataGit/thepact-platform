@@ -90,6 +90,38 @@ router.put('/prefs', requireAuth, async (req, res) => {
   }
 });
 
+// „Моите задачи" (Венци, 19.11.2026): всеки човек си избира ЕДНА колона (дъска +
+// колона от Video Production) и я вижда като отделна страница — най-вече от телефон.
+// Пази се в user_prefs под собствен ключ, за да не се бие с dash_prefs на таблото.
+const MY_TASKS_KEY = 'my_tasks';
+router.get('/my-tasks', requireAuth, async (req, res) => {
+  try {
+    const row = await queryOne('SELECT value FROM user_prefs WHERE user_id = $1 AND key = $2', [req.user.userId, MY_TASKS_KEY]);
+    let v = null;
+    try { v = row && row.value ? JSON.parse(row.value) : null; } catch { v = null; }
+    res.json({ board: v && v.board ? String(v.board) : null, column: v && v.column ? String(v.column) : null });
+  } catch (err) {
+    console.error('[bc-board my-tasks]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+router.put('/my-tasks', requireAuth, async (req, res) => {
+  try {
+    const p = req.body || {};
+    const id = (v) => (v != null && /^\d{1,20}$/.test(String(v)) ? String(v) : null);
+    const clean = { board: id(p.board), column: id(p.column) };
+    if (!clean.board || !clean.column) return res.status(400).json({ error: 'Избери дъска и колона' });
+    await execute(
+      'INSERT INTO user_prefs (user_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()',
+      [req.user.userId, MY_TASKS_KEY, JSON.stringify(clean)]
+    );
+    res.json({ ok: true, ...clean });
+  } catch (err) {
+    console.error('[bc-board my-tasks]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/bc-board/boards-config — admin: ALL card tables in Video Production
 // (unfiltered, straight from Basecamp) + which are globally enabled. New card
 // tables show up here automatically — future-proof for new processes.

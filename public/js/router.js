@@ -119,7 +119,13 @@ function router() {
     case 'time-report': return renderTimeReport(el);
     case 'client-report': return renderClientReport(el);
     case 'task-completions': return renderTaskCompletionsReport(el);
-    case 'overtime': return renderOvertime(el, parts[1] || null);
+    case 'overtime':
+      // Overtime засега е само за видеографите (+ собственика) — Венци, 19.11.2026.
+      if (currentUser && !canSeeOvertime()) { location.hash = '#/dashboard'; return; }
+      return renderOvertime(el, parts[1] || null);
+    // „Моите задачи" — само избраната колона на човека (аватар → Моите задачи).
+    case 'my-tasks': return renderMyTasks(el);
+    case 'my-settings': return renderMySettings(el);
     case 'processes': return renderProcesses(el, parts[1] || null, parts[2] || null);
     default: return renderDashboard(el);
   }

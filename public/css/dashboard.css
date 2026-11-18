@@ -388,3 +388,24 @@
   .dash-board { flex-direction: row; min-height: calc(100vh - 150px); }
   .dash-col.collapsed { flex: 0 0 40px; }
 }
+
+/* ===== „Моите задачи" + „Моите настройки" (#/my-tasks, #/my-settings) — 19.11.2026 ===== */
+.mt-wrap { max-width: 640px; margin: 0 auto; padding: 18px 14px 40px; }
+.mt-h1 { font-size: 20px; font-weight: 700; color: #fff; margin: 0 0 4px; }
+.mt-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.mt-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.mt-dim { color: var(--text-dim); font-size: 13px; }
+.mt-panel { background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 12px; padding: 18px; color: var(--text); font-size: 14px; }
+.mt-cards { display: flex; flex-direction: column; gap: 6px; }
+.mt-cards .dash-card { padding: 10px 10px; }
+.mt-cards .dash-card__title { font-size: 15px; }
+.mt-count { color: var(--text-dim); font-size: 12px; margin-bottom: 2px; }
+.mt-label { font-weight: 600; color: #fff; margin-bottom: 10px; }
+.mt-step { font-size: 12px; color: var(--text-dim); margin: 12px 0 6px; }
+.mt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mt-chip { background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); border-radius: 16px; padding: 7px 12px; font-size: 13px; cursor: pointer; }
+.mt-chip--on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mt-cols { display: flex; flex-direction: column; gap: 2px; }
+.mt-col { display: flex; align-items: center; gap: 8px; padding: 8px 6px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.mt-col:hover { background: var(--bg-hover); }
+.profile-links { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
