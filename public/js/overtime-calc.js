@@ -79,7 +79,45 @@
     return { total: b - a, ot, parts: real, nextDay };
   }
 
-  const api = { calc, dayOff, holidays, easter, hhmm, toMin, addDays };
+  // „Минус време" (Венци, 19.11.2026): админът записва на човек закъснение, тръгване по-рано,
+  // отсъствие в работно време или ръчно часове. kind: late | early | absence | other.
+  //   late    — at = кога е дошъл     → at − 10:00
+  //   early   — at = кога си е тръгнал → 19:00 − at
+  //   absence — from–to                 → припокриването с 10:00–19:00, най-много 8 ч
+  //   other   — minutes (ръчно)
+  // → { minutes, label } или { error }
+  const DED_KINDS = { late: 'Закъснение', early: 'Тръгнал по-рано', absence: 'Отсъствие', other: 'Друго' };
+  function deduction(o) {
+    o = o || {};
+    const kind = o.kind;
+    if (!DED_KINDS[kind]) return { error: 'Избери тип.' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(o.date || '')) || isNaN(parseD(o.date))) return { error: 'Избери дата.' };
+    if (kind === 'other') {
+      const m = Math.round(Number(o.minutes));
+      if (!(m > 0)) return { error: 'Напиши колко часа/минути.' };
+      if (m > 24 * 60) return { error: 'Най-много 24 ч наведнъж.' };
+      return { minutes: m, label: 'ръчно' };
+    }
+    if (dayOff(o.date)) return { error: 'Почивен ден (' + dayOff(o.date) + ') — няма работно време. Ползвай „Друго".' };
+    if (kind === 'late' || kind === 'early') {
+      const a = toMin(o.at);
+      if (isNaN(a)) return { error: kind === 'late' ? 'Кога е дошъл?' : 'Кога си е тръгнал?' };
+      if (kind === 'late') {
+        if (a <= WORK_FROM) return { error: 'Преди 10:00 не е закъснение.' };
+        return { minutes: Math.min(a, WORK_TO) - WORK_FROM, label: 'дошъл в ' + hhmm(a) + ' вместо 10:00' };
+      }
+      if (a >= WORK_TO) return { error: 'След 19:00 не е тръгване по-рано.' };
+      return { minutes: WORK_TO - Math.max(a, WORK_FROM), label: 'тръгнал в ' + hhmm(a) + ' вместо 19:00' };
+    }
+    const f = toMin(o.from), t = toMin(o.to);
+    if (isNaN(f) || isNaN(t)) return { error: 'Попълни „От" и „До".' };
+    if (t <= f) return { error: '„До" трябва да е след „От".' };
+    const overlap = Math.max(0, Math.min(t, WORK_TO) - Math.max(f, WORK_FROM));
+    if (!overlap) return { error: 'Интервалът е извън работното време (10:00–19:00).' };
+    return { minutes: Math.min(overlap, 8 * 60), label: 'отсъствал ' + hhmm(f) + '–' + hhmm(t) };
+  }
+
+  const api = { calc, dayOff, holidays, easter, hhmm, toMin, addDays, deduction, DED_KINDS };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.OvertimeCalc = api;
 })(typeof window !== 'undefined' ? window : this);

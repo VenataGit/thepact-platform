@@ -15,7 +15,7 @@ const express = require('express');
 const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
-const { calc } = require('../../public/js/overtime-calc');
+const { calc, deduction } = require('../../public/js/overtime-calc');
 
 const KINDS = ['Снимки', 'Пътуване', 'Събитие', 'Монтаж', 'Техника / подготовка', 'Друго'];
 const COMP = ['pay', 'rest'];
@@ -52,6 +52,24 @@ function ensureSchema() {
           created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           deleted_at    TIMESTAMPTZ
         )`))
+      .then(() => execute(`
+        CREATE TABLE IF NOT EXISTS overtime_deductions (
+          id          BIGSERIAL PRIMARY KEY,
+          user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          work_date   DATE NOT NULL,
+          kind        TEXT NOT NULL,
+          time_a      TEXT NOT NULL DEFAULT '',
+          time_b      TEXT NOT NULL DEFAULT '',
+          minutes     INTEGER NOT NULL,
+          label       TEXT NOT NULL DEFAULT '',
+          note        TEXT NOT NULL DEFAULT '',
+          created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          deleted_at  TIMESTAMPTZ
+        )`))
+      .then(() => execute(
+        'CREATE INDEX IF NOT EXISTS idx_overtime_deductions_user_date ON overtime_deductions (user_id, work_date DESC)'
+      ))
       .then(() => execute(`
         CREATE TABLE IF NOT EXISTS overtime_access (
           user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -105,12 +123,27 @@ router.get('/', requireAuth, async (req, res) => {
         ORDER BY o.work_date DESC, o.time_from DESC, o.id DESC`,
       [from, to, onlyUser]
     );
-    // Списъкът с хора за филтъра (само за админ) — всички, които някога са въвели overtime.
+    // „Минус време" — същият период и същото правило кой какво вижда (човекът вижда своето).
+    const deductions = await query(
+      `SELECT d.id, d.user_id, u.name, to_char(d.work_date, 'YYYY-MM-DD') AS work_date, d.kind, d.time_a, d.time_b,
+              d.minutes, d.label, d.note, d.created_at, c.name AS created_by_name
+         FROM overtime_deductions d
+         JOIN users u ON u.id = d.user_id
+         LEFT JOIN users c ON c.id = d.created_by
+        WHERE d.deleted_at IS NULL
+          AND d.work_date BETWEEN $1::date AND $2::date
+          AND ($3::int IS NULL OR d.user_id = $3::int)
+        ORDER BY d.work_date DESC, d.id DESC`,
+      [from, to, onlyUser]
+    );
+    // Списъкът с хора за филтъра (само за админ) — всички с overtime или минус време.
     const people = all ? await query(
-      `SELECT DISTINCT u.id, u.name FROM overtime_entries o JOIN users u ON u.id = o.user_id
-        WHERE o.deleted_at IS NULL ORDER BY u.name`
+      `SELECT DISTINCT u.id, u.name FROM users u
+        WHERE u.id IN (SELECT user_id FROM overtime_entries WHERE deleted_at IS NULL)
+           OR u.id IN (SELECT user_id FROM overtime_deductions WHERE deleted_at IS NULL)
+        ORDER BY u.name`
     ) : [];
-    res.json({ admin, scope: all ? 'all' : 'mine', entries: rows, people, kinds: KINDS });
+    res.json({ admin, scope: all ? 'all' : 'mine', entries: rows, deductions, people, kinds: KINDS });
   } catch (err) {
     console.error('[overtime] list', err.message);
     res.status(500).json({ error: 'Грешка при зареждане' });
@@ -243,6 +276,53 @@ router.put('/digest-settings', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('[overtime] digest settings save', err.message);
     res.status(500).json({ error: 'Грешка при запис' });
+  }
+});
+
+// ---------- „Минус време" (Венци, 19.11.2026) — записва и трие само админ / пуснат ----------
+// POST /api/overtime/deductions { user_id, date, kind, at?, from?, to?, minutes?, note }
+router.post('/deductions', requireAuth, requireManager, async (req, res) => {
+  try {
+    await ensureSchema();
+    const b = req.body || {};
+    const userId = parseInt(b.user_id, 10);
+    if (!userId) return res.status(400).json({ error: 'Избери човек.' });
+    const u = await queryOne('SELECT id FROM users WHERE id = $1 AND is_active = TRUE', [userId]);
+    if (!u) return res.status(404).json({ error: 'Няма такъв активен човек.' });
+    const input = {
+      kind: String(b.kind || ''), date: String(b.date || '').slice(0, 10),
+      at: String(b.at || '').slice(0, 5), from: String(b.from || '').slice(0, 5), to: String(b.to || '').slice(0, 5),
+      minutes: Number(b.minutes)
+    };
+    const r = deduction(input);
+    if (r.error) return res.status(400).json({ error: r.error });
+    if (input.date > sofiaToday()) return res.status(400).json({ error: 'Датата е в бъдещето.' });
+    const note = String(b.note || '').trim().slice(0, 4000);
+    const ta = input.kind === 'absence' ? input.from : (input.kind === 'other' ? '' : input.at);
+    const tb = input.kind === 'absence' ? input.to : '';
+    const row = await queryOne(
+      `INSERT INTO overtime_deductions (user_id, created_by, work_date, kind, time_a, time_b, minutes, label, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [userId, req.user.userId, input.date, input.kind, ta, tb, r.minutes, r.label, note]
+    );
+    res.json({ ok: true, id: row.id, minutes: r.minutes });
+  } catch (err) {
+    console.error('[overtime] deduction create', err.message);
+    res.status(500).json({ error: 'Грешка при запис' });
+  }
+});
+
+// DELETE /api/overtime/deductions/:id — меко триене.
+router.delete('/deductions/:id', requireAuth, requireManager, async (req, res) => {
+  try {
+    await ensureSchema();
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'Невалиден запис' });
+    await execute('UPDATE overtime_deductions SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL', [id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[overtime] deduction delete', err.message);
+    res.status(500).json({ error: 'Грешка при триене' });
   }
 });
 

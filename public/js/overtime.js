@@ -7,6 +7,9 @@
 // 02.11.2026 (2): #/overtime е „Моят overtime" за ВСЕКИ (и за админ). Всички служители
 // се виждат само в #/overtime/admin — бутон „🔒 Админ" само за role = admin. Там са и
 // бележките на админа (напр. „дойде 3 ч по-късно след overtime-а").
+// 19.11.2026: „➖ Минус време" — админът/пуснатият записва на човек закъснение, тръгване
+// по-рано, отсъствие или ръчно часове (сметката: OvertimeCalc.deduction). Човекът вижда
+// своето в „Моят overtime"; остатък = overtime − минус. Записва и трие само админ.
 
 let _otState = { range: 'month', user: 0, data: null, clients: null, adminView: false };
 
@@ -109,6 +112,35 @@ async function renderOvertime(el, sub) {
       <div class="tr-tiles" id="otTiles"></div>
       <div class="tr-box" id="otPeopleBox" style="display:none"><h3>По човек</h3><div id="otPeople"></div></div>
       <div class="tr-box"><div id="otList"><div class="tr-empty">Зареждане…</div></div></div>
+      <div class="tr-box" id="otMinusBox"${adminView ? '' : ' style="display:none"'}>
+        <h3>➖ Минус време${adminView ? '' : ' <span class="tr-dim" style="font-weight:400">— записано от админ</span>'}</h3>
+        ${adminView ? `<div class="ot-form-grid">
+          <div>
+            <div class="ot-row">
+              <label class="ot-f">Човек<select id="otmUser"><option value="">— избери —</option>${people.map((p) => '<option value="' + p.id + '">' + esc(p.name) + '</option>').join('')}</select></label>
+              <label class="ot-f" style="flex:0 0 160px">Дата<input type="date" id="otmDate" value="${today}" max="${today}"></label>
+            </div>
+            <div class="ot-row">
+              <label class="ot-f">Какво<select id="otmKind">
+                <option value="late">Закъснение</option>
+                <option value="early">Тръгнал по-рано</option>
+                <option value="absence">Отсъствие (от–до)</option>
+                <option value="other">Друго (ръчно часове)</option>
+              </select></label>
+              <label class="ot-f" data-mk="late">Дошъл в<input type="time" id="otmAtLate" value="11:00"></label>
+              <label class="ot-f" data-mk="early" style="display:none">Тръгнал в<input type="time" id="otmAtEarly" value="17:00"></label>
+              <label class="ot-f" data-mk="absence" style="display:none">От<input type="time" id="otmFrom" value="13:00"></label>
+              <label class="ot-f" data-mk="absence" style="display:none">До<input type="time" id="otmTo" value="15:00"></label>
+              <label class="ot-f" data-mk="other" style="display:none">Часове<input type="number" id="otmH" min="0" max="24" value="1"></label>
+              <label class="ot-f" data-mk="other" style="display:none">Минути<input type="number" id="otmM" min="0" max="59" step="5" value="0"></label>
+            </div>
+            <label class="ot-f">Информация (по желание)<textarea id="otmNote" maxlength="4000" placeholder="напр. Дойде в 13:00 след overtime-а предния ден, без да го е отбелязал"></textarea></label>
+            <button class="tr-apply" id="otmSave">Запиши минус</button>
+          </div>
+          <div><div id="otmCalc"></div><p class="tr-dim ot-rules">Минутите се смятат спрямо работното време 10:00–19:00. Отсъствие се брои само в работното време и е най-много 8 ч на ден. За почивен ден ползвай „Друго“. Човекът вижда записа при себе си, а остатъкът (overtime − минус) се смята автоматично.</p></div>
+        </div>` : ''}
+        <div id="otMinusList"></div>
+      </div>
       ${adminView ? `<div class="tr-box ot-notes">
         <h3>📝 Бележки на админа <span class="tr-dim" style="font-weight:400">— виждат се само от админи</span></h3>
         <div class="ot-row">
@@ -125,7 +157,13 @@ async function renderOvertime(el, sub) {
   ['otDate', 'otFrom', 'otTo'].forEach((id) => document.getElementById(id).addEventListener('input', upd));
   upd();
   document.getElementById('otSave').addEventListener('click', otSave);
-  if (adminView) document.getElementById('otnSave').addEventListener('click', otSaveNote);
+  if (adminView) {
+    document.getElementById('otnSave').addEventListener('click', otSaveNote);
+    document.getElementById('otmSave').addEventListener('click', otSaveMinus);
+    ['otmDate', 'otmKind', 'otmAtLate', 'otmAtEarly', 'otmFrom', 'otmTo', 'otmH', 'otmM'].forEach((id) =>
+      document.getElementById(id).addEventListener('input', otRenderMinusCalc));
+    otRenderMinusCalc();
+  }
   el.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.r === 'custom') {
       // първо показва полетата (с текущия период вътре); зарежда чак с „Покажи"
@@ -248,24 +286,33 @@ function otRenderAll() {
   }
 
   const rows = d.entries || [];
+  const ded = d.deductions || [];
   const sum = (list) => list.reduce((s, e) => s + (Number(e.ot_minutes) || 0), 0);
+  const dsum = (list) => list.reduce((s, e) => s + (Number(e.minutes) || 0), 0);
+  const net = sum(rows) - dsum(ded);
   document.getElementById('otTiles').innerHTML = [
     [otFmtH(sum(rows)), 'overtime общо'],
     [otFmtH(sum(rows.filter((e) => e.comp === 'pay'))), '💰 за плащане'],
     [otFmtH(sum(rows.filter((e) => e.comp === 'rest'))), '🏖 за почивка'],
+    [(dsum(ded) ? '− ' : '') + otFmtH(dsum(ded)), '➖ минус време'],
+    ['<span class="' + (net < 0 ? 'ot-neg' : '') + '">' + otFmtNet(net) + '</span>', '= остатък (overtime − минус)'],
     [rows.length, 'записа']
   ].map((t) => '<div class="tr-tile"><div class="tr-tile__num">' + t[0] + '</div><div class="tr-tile__label">' + t[1] + '</div></div>').join('');
+  otRenderMinus(admin);
 
   // Админ, „Всички хора": обобщение по човек — клик филтрира.
   const pbox = document.getElementById('otPeopleBox');
-  if (admin && !_otState.user && rows.length) {
+  if (admin && !_otState.user && (rows.length || ded.length)) {
     const by = {};
-    rows.forEach((e) => { (by[e.user_id] = by[e.user_id] || { id: e.user_id, name: e.name, list: [] }).list.push(e); });
-    const ppl = Object.values(by).sort((a, b) => sum(b.list) - sum(a.list));
+    const slot = (e) => (by[e.user_id] = by[e.user_id] || { id: e.user_id, name: e.name, list: [], minus: [] });
+    rows.forEach((e) => slot(e).list.push(e));
+    ded.forEach((e) => slot(e).minus.push(e));
+    const ppl = Object.values(by).sort((a, b) => (sum(b.list) - dsum(b.minus)) - (sum(a.list) - dsum(a.minus)));
     pbox.style.display = '';
-    document.getElementById('otPeople').innerHTML = '<table class="tr-table ot-table"><tr><th>Човек</th><th class="ot-num">Записи</th><th class="ot-num">Overtime</th><th class="ot-num">💰 Плащане</th><th class="ot-num">🏖 Почивка</th></tr>' +
-      ppl.map((p) => '<tr class="tc-user-row" data-u="' + p.id + '"><td>' + esc(p.name) + '</td><td class="ot-num">' + p.list.length + '</td><td class="ot-num"><b>' + otFmtH(sum(p.list)) + '</b></td><td class="ot-num">' +
-        otFmtH(sum(p.list.filter((e) => e.comp === 'pay'))) + '</td><td class="ot-num">' + otFmtH(sum(p.list.filter((e) => e.comp === 'rest'))) + '</td></tr>').join('') + '</table>';
+    document.getElementById('otPeople').innerHTML = '<table class="tr-table ot-table"><tr><th>Човек</th><th class="ot-num">Записи</th><th class="ot-num">Overtime</th><th class="ot-num">💰 Плащане</th><th class="ot-num">🏖 Почивка</th><th class="ot-num">➖ Минус</th><th class="ot-num">= Остатък</th></tr>' +
+      ppl.map((p) => { const n = sum(p.list) - dsum(p.minus); return '<tr class="tc-user-row" data-u="' + p.id + '"><td>' + esc(p.name) + '</td><td class="ot-num">' + p.list.length + '</td><td class="ot-num">' + otFmtH(sum(p.list)) + '</td><td class="ot-num">' +
+        otFmtH(sum(p.list.filter((e) => e.comp === 'pay'))) + '</td><td class="ot-num">' + otFmtH(sum(p.list.filter((e) => e.comp === 'rest'))) + '</td>' +
+        '<td class="ot-num">' + (p.minus.length ? '− ' + otFmtH(dsum(p.minus)) : '—') + '</td><td class="ot-num"><b class="' + (n < 0 ? 'ot-neg' : '') + '">' + otFmtNet(n) + '</b></td></tr>'; }).join('') + '</table>';
     pbox.querySelectorAll('[data-u]').forEach((tr) => tr.addEventListener('click', () => { _otState.user = Number(tr.dataset.u); otLoad(); }));
   } else pbox.style.display = 'none';
 
@@ -288,6 +335,77 @@ function otRenderAll() {
         '<td>' + (canDel ? '<button class="ot-del" data-del="' + e.id + '" title="Изтрий записа">Изтрий</button>' : '') + '</td></tr>';
     }).join('') + '</table>';
   list.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => otDelete(Number(b.dataset.del))));
+}
+
+function otFmtNet(m) { return (m < 0 ? '− ' : '') + otFmtH(Math.abs(m)); }
+
+const OT_DED_KINDS = { late: 'Закъснение', early: 'Тръгнал по-рано', absence: 'Отсъствие', other: 'Друго' };
+
+function otMinusInput() {
+  const v = (id) => document.getElementById(id).value;
+  const kind = v('otmKind');
+  return {
+    user_id: Number(v('otmUser')) || null, date: v('otmDate'), kind,
+    at: kind === 'late' ? v('otmAtLate') : (kind === 'early' ? v('otmAtEarly') : ''),
+    from: v('otmFrom'), to: v('otmTo'),
+    minutes: (Number(v('otmH')) || 0) * 60 + (Number(v('otmM')) || 0),
+    note: v('otmNote').trim()
+  };
+}
+
+function otRenderMinusCalc() {
+  const box = document.getElementById('otmCalc');
+  if (!box || !window.OvertimeCalc) return;
+  const inp = otMinusInput();
+  document.querySelectorAll('[data-mk]').forEach((l) => { l.style.display = l.dataset.mk === inp.kind ? '' : 'none'; });
+  const r = OvertimeCalc.deduction(inp);
+  box.innerHTML = r.error
+    ? '<div class="ot-calc ot-calc--zero"><div class="tr-dim">' + esc(r.error) + '</div></div>'
+    : '<div class="ot-calc ot-calc--minus"><div class="tr-dim">Минус</div><div class="ot-calc__big">− ' + otFmtH(r.minutes) + '</div><div class="tr-dim">' + esc(r.label) + '</div></div>';
+}
+
+async function otSaveMinus() {
+  const btn = document.getElementById('otmSave');
+  const body = otMinusInput();
+  if (!body.user_id) { showToast('Избери човек.', 'error'); return; }
+  const r0 = OvertimeCalc.deduction(body);
+  if (r0.error) { showToast(r0.error, 'error', 5000); return; }
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/overtime/deductions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { showToast(d.error || 'Грешка при запис', 'error', 5000); return; }
+    showToast('Записано: − ' + otFmtH(d.minutes), 'success');
+    document.getElementById('otmNote').value = '';
+    const { from } = otRange(_otState.range);
+    if (from && body.date < from) _otState.range = body.date.slice(0, 4) === from.slice(0, 4) ? 'year' : 'all';
+    await otLoad();
+  } finally { btn.disabled = false; }
+}
+
+function otRenderMinus(admin) {
+  const box = document.getElementById('otMinusBox');
+  const host = document.getElementById('otMinusList');
+  if (!box || !host) return;
+  const ded = (_otState.data && _otState.data.deductions) || [];
+  if (!admin) box.style.display = ded.length ? '' : 'none';
+  if (!ded.length) { host.innerHTML = '<div class="tr-empty">Няма минус време за този период.</div>'; return; }
+  const showName = admin && !_otState.user;
+  host.innerHTML = '<table class="tr-table ot-table" style="margin-top:8px"><tr><th>Дата</th>' + (showName ? '<th>Човек</th>' : '') +
+    '<th>Какво</th><th class="ot-num">Минус</th><th>Записал</th>' + (admin ? '<th></th>' : '') + '</tr>' +
+    ded.map((e) => '<tr><td class="ot-nowrap">' + otFmtDate(e.work_date) + '</td>' + (showName ? '<td>' + esc(e.name) + '</td>' : '') +
+      '<td><b>' + esc(OT_DED_KINDS[e.kind] || e.kind) + '</b>' + (e.label && e.kind !== 'other' ? ' <span class="tr-dim">— ' + esc(e.label) + '</span>' : '') +
+        (e.note ? '<div class="ot-note">' + esc(e.note) + '</div>' : '') + '</td>' +
+      '<td class="ot-num"><b class="ot-neg">− ' + otFmtH(e.minutes) + '</b></td>' +
+      '<td class="ot-nowrap tr-dim">' + esc(e.created_by_name || '—') + ', ' + new Date(e.created_at).toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</td>' +
+      (admin ? '<td><button class="ot-del" data-mdel="' + Number(e.id) + '">Изтрий</button></td>' : '') + '</tr>').join('') + '</table>';
+  host.querySelectorAll('[data-mdel]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Да изтрия ли записа за минус време?')) return;
+    const x = await fetch('/api/overtime/deductions/' + b.dataset.mdel, { method: 'DELETE' });
+    if (!x.ok) { showToast('Грешка при триене', 'error'); return; }
+    showToast('Изтрито', 'success');
+    otLoad();
+  }));
 }
 
 async function otSave() {

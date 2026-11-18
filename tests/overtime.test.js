@@ -226,3 +226,59 @@ describe('настройки на известията (digest-settings)', () =>
     expect(saved.overtime_digest_tags).toBe('["9001","9002"]');
   });
 });
+
+describe('минус време (overtime_deductions)', () => {
+  it.each([
+    [{ kind: 'late', date: '2026-11-18', at: '12:30' }, 150],
+    [{ kind: 'early', date: '2026-11-18', at: '16:15' }, 165],
+    [{ kind: 'absence', date: '2026-11-18', from: '09:00', to: '20:00' }, 480],
+    [{ kind: 'absence', date: '2026-11-18', from: '13:00', to: '15:30' }, 150],
+    [{ kind: 'other', date: '2026-11-22', minutes: 90 }, 90]
+  ])('сметка %o = %i мин', (inp, m) => {
+    expect(calc.deduction(inp).minutes).toBe(m);
+  });
+  it.each([
+    [{ kind: 'late', date: '2026-11-18', at: '09:50' }],
+    [{ kind: 'early', date: '2026-11-18', at: '19:30' }],
+    [{ kind: 'late', date: '2026-11-22', at: '12:00' }], // неделя
+    [{ kind: 'absence', date: '2026-11-18', from: '20:00', to: '22:00' }],
+    [{ kind: 'other', date: '2026-11-18', minutes: 0 }]
+  ])('отказва %o', (inp) => {
+    expect(calc.deduction(inp).error).toBeTruthy();
+  });
+
+  it('служител не може да записва минус → 403', async () => {
+    const res = await request(app).post('/api/overtime/deductions').set('Cookie', member)
+      .send({ user_id: 2, date: '2026-11-18', kind: 'late', at: '12:00' });
+    expect(res.status).toBe(403);
+    expect((await request(app).delete('/api/overtime/deductions/1').set('Cookie', member)).status).toBe(403);
+  });
+  it('админ записва — минутите ги смята сървърът', async () => {
+    mockDb.queryOne.mockResolvedValueOnce({ id: 2 }).mockResolvedValueOnce({ id: 11 });
+    const res = await request(app).post('/api/overtime/deductions').set('Cookie', admin)
+      .send({ user_id: 2, date: '2026-11-18', kind: 'late', at: '12:30', minutes: 9999, note: ' след overtime ' });
+    expect(res.status).toBe(200);
+    expect(res.body.minutes).toBe(150);
+    const ins = mockDb.queryOne.mock.calls.find((c) => /INSERT INTO overtime_deductions/.test(c[0]));
+    expect(ins[1]).toEqual([2, ADMIN_USER.id, '2026-11-18', 'late', '12:30', '', 150, 'дошъл в 12:30 вместо 10:00', 'след overtime']);
+  });
+  it('невалидно → 400, без човек → 400', async () => {
+    mockDb.queryOne.mockResolvedValueOnce({ id: 2 });
+    expect((await request(app).post('/api/overtime/deductions').set('Cookie', admin)
+      .send({ user_id: 2, date: '2026-11-18', kind: 'late', at: '09:00' })).status).toBe(400);
+    expect((await request(app).post('/api/overtime/deductions').set('Cookie', admin)
+      .send({ date: '2026-11-18', kind: 'late', at: '12:00' })).status).toBe(400);
+  });
+  it('служителят вижда своето минус време в GET (само своето)', async () => {
+    mockDb.query.mockImplementation(async (sql) => (/FROM overtime_deductions d/.test(sql) ? [{ id: 1, user_id: 2, minutes: 60 }] : []));
+    const res = await request(app).get('/api/overtime?scope=all').set('Cookie', member);
+    expect(res.body.deductions).toEqual([{ id: 1, user_id: 2, minutes: 60 }]);
+    const call = mockDb.query.mock.calls.find((c) => /FROM overtime_deductions d/.test(c[0]));
+    expect(call[1][2]).toBe(MEMBER_USER.id);
+  });
+  it('админ трие (меко)', async () => {
+    const res = await request(app).delete('/api/overtime/deductions/5').set('Cookie', admin);
+    expect(res.status).toBe(200);
+    expect(mockDb.execute.mock.calls.find((c) => /UPDATE overtime_deductions SET deleted_at/.test(c[0]))[1]).toEqual([5]);
+  });
+});

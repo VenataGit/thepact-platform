@@ -261,3 +261,6 @@ tr.tc-inactive td { opacity: 0.6; }
 .ot-note-item { border-top: 1px solid rgba(255, 255, 255, 0.06); padding: 8px 2px; }
 .ot-note-item__head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .ot-note-item__head .ot-del { margin-left: auto; }
+.ot-neg { color: #ff8f88; }
+.ot-calc--minus { background: rgba(229, 83, 75, 0.08); border-color: rgba(229, 83, 75, 0.35); }
+.ot-calc--minus .ot-calc__big { color: #ff8f88; }
