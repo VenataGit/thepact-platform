@@ -165,6 +165,27 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Middleware: само собственикът на платформата (Венци — имейлите в config.ADMIN_EMAILS).
+// Content агент и Контент стратегия засега са само за него (Венци, 19.11.2026).
+// Имейлът се чете живо от базата (кеш 60 сек), не от токена.
+const ownerCache = new Map(); // userId -> { owner, checkedAt }
+function isOwnerEmail(email) {
+  return !!email && config.ADMIN_EMAILS.includes(String(email).trim().toLowerCase());
+}
+function requireOwner(req, res, next) {
+  const id = req.user?.userId;
+  if (!id) return res.status(403).json({ error: 'Достъпът е само за собственика' });
+  const c = ownerCache.get(id);
+  const done = (owner) => owner ? next() : res.status(403).json({ error: 'Достъпът е само за собственика' });
+  if (c && Date.now() - c.checkedAt < ACTIVE_CHECK_TTL) return done(c.owner);
+  const { queryOne: qo } = require('../db/pool');
+  qo('SELECT email FROM users WHERE id = $1', [id]).then((u) => {
+    const owner = isOwnerEmail(u?.email);
+    ownerCache.set(id, { owner, checkedAt: Date.now() });
+    done(owner);
+  }).catch(() => res.status(500).json({ error: 'Auth check failed' }));
+}
+
 // Verify JWT from cookie string (for WebSocket upgrade)
 function verifyFromCookieHeader(cookieHeader) {
   if (!cookieHeader) return null;
@@ -181,6 +202,6 @@ function verifyFromCookieHeader(cookieHeader) {
 
 module.exports = {
   COOKIE_NAME, signToken, setTokenCookie, clearTokenCookie,
-  requireAuth, requireModerator, requireMiniAdmin, requireAdmin, verifyFromCookieHeader,
+  requireAuth, requireModerator, requireMiniAdmin, requireAdmin, requireOwner, isOwnerEmail, verifyFromCookieHeader,
   invalidateUserCache, refreshUserCache, clearExtensionTokenCache
 };

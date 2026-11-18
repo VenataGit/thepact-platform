@@ -130,37 +130,44 @@ async function markAllHeyRead(e) {
   } catch {}
 }
 
+// Собственикът на платформата (Венци) — само той вижда Content агент, Контент стратегия
+// и Настройки (Венци, 19.11.2026). Флагът идва от /auth/status; сървърът също пази.
+function isPlatformOwner() {
+  return !!(typeof currentUser !== 'undefined' && currentUser && currentUser.is_owner);
+}
+
+// Менюто „Още" (подредба по Венци, 19.11.2026): горе — общите страници; под линията —
+// само админските. Линията се показва само ако човекът има админски точки.
 function populateMore(el) {
-  el.innerHTML = `
-    <div class="nav-dropdown__section">
-      ${isPageOff('clients') ? '' : `<a class="nav-dropdown__item" href="#/clients" onclick="closeAllDropdowns()">Клиенти</a>`}
-      ${isPageOff('client-schedule') ? '' : `<a class="nav-dropdown__item" href="#/client-schedule" onclick="closeAllDropdowns()">Клиент — график</a>`}
-      <a class="nav-dropdown__item" href="#" onclick="event.preventDefault();showKpSplit()">Създай задачи по КП</a>
-      ${isPageOff('kp-auto') ? '' : `<a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()">КП-Автоматизация</a>`}
-      ${isPageOff('create-task') ? '' : `<a class="nav-dropdown__item" href="#/create-task" onclick="closeAllDropdowns()">Създаване на задачи</a>`}
-      ${isPageOff('premiere') ? '' : `<a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()">Premiere Downgrade</a>`}
-      ${isPageOff('board-logic') ? '' : `<a class="nav-dropdown__item" href="#/board-logic" onclick="closeAllDropdowns()">Логика на табло</a>`}
-      ${isPageOff('history') ? '' : `<a class="nav-dropdown__item" href="#/history" onclick="closeAllDropdowns()">История</a>`}
+  const owner = isPlatformOwner();
+  const adminItems = owner ? `
       ${isPageOff('content') ? '' : `<a class="nav-dropdown__item" href="#/content" onclick="closeAllDropdowns()">Content агент</a>`}
       ${isPageOff('strategy') ? '' : `<a class="nav-dropdown__item" href="#/strategy" onclick="closeAllDropdowns()">Контент стратегия</a>`}
-      <span id="moreCrmSlot"></span>
-    </div>
-    <div class="nav-dropdown__section" style="border-top:1px solid var(--border)">
+      <a class="nav-dropdown__item" href="#/admin" onclick="return sgOpenSettings(event)">Настройки</a>` : '';
+  el.innerHTML = `
+    <div class="nav-dropdown__section">
+      ${isPageOff('create-task') ? '' : `<a class="nav-dropdown__item" href="#/create-task" onclick="closeAllDropdowns()">Създаване на задачи</a>`}
+      ${isPageOff('kp-auto') ? '' : `<a class="nav-dropdown__item" href="#/kp-auto" onclick="closeAllDropdowns()">КП Автоматизация</a>`}
+      <a class="nav-dropdown__item" href="#" onclick="event.preventDefault();showKpSplit()">Създай задачи по КП</a>
+      ${(currentUser && !isPageOff('task-completions')) ? `<a class="nav-dropdown__item" href="#/task-completions" onclick="closeAllDropdowns()">Готови задачи</a>` : ''}
+      ${(currentUser && !isPageOff('overtime')) ? `<a class="nav-dropdown__item" href="#/overtime" onclick="closeAllDropdowns()">Overtime</a>` : ''}
+      ${(currentUser && !isPageOff('processes')) ? `<a class="nav-dropdown__item" href="#/processes" onclick="closeAllDropdowns()">Процеси</a>` : ''}
+      <a class="nav-dropdown__item" href="#/release-notes" onclick="closeAllDropdowns()">Какво ново</a>
       <!-- Води към страницата на разширението (какво може + какво ново), а самото
            инсталиране става с бутона вътре в нея — там е и линкът към Web Store,
            където разширението е unlisted и се стига само по линк. Нов таб, за да
            не изхвърля човека от платформата. -->
       <a class="nav-dropdown__item" href="/extension.html" target="_blank" rel="noopener" onclick="closeAllDropdowns()">Chrome разширение</a>
-      <a class="nav-dropdown__item" href="/folder-access.html" target="_blank" rel="noopener" onclick="closeAllDropdowns()">Отваряне на папки</a>
-      <a class="nav-dropdown__item" href="#/release-notes" onclick="closeAllDropdowns()">Какво ново</a>
-      ${(currentUser?.role === 'admin' && !isPageOff('time-report')) ? `<a class="nav-dropdown__item" href="#/time-report" onclick="closeAllDropdowns()">Време</a>` : ''}
-      ${(currentUser?.role === 'admin' && !isPageOff('client-report')) ? `<a class="nav-dropdown__item" href="#/client-report" onclick="closeAllDropdowns()">Статистика</a>` : ''}
-      ${(currentUser && !isPageOff('task-completions')) ? `<a class="nav-dropdown__item" href="#/task-completions" onclick="closeAllDropdowns()">Готови задачи</a>` : ''}
-      ${(currentUser && !isPageOff('overtime')) ? `<a class="nav-dropdown__item" href="#/overtime" onclick="closeAllDropdowns()">Overtime</a>` : ''}
-      ${(currentUser && !isPageOff('processes')) ? `<a class="nav-dropdown__item" href="#/processes" onclick="closeAllDropdowns()">Процеси</a>` : ''}
-      <!-- Настройките се виждат от всички; отварят се само с админ права (sgOpenSettings). -->
-      <a class="nav-dropdown__item" href="#/admin" onclick="return sgOpenSettings(event)">Настройки</a>
+      ${isPageOff('history') ? '' : `<a class="nav-dropdown__item" href="#/history" onclick="closeAllDropdowns()">История</a>`}
+      ${isPageOff('board-logic') ? '' : `<a class="nav-dropdown__item" href="#/board-logic" onclick="closeAllDropdowns()">Логика на табло</a>`}
+      <!-- Изключени от Настройки → Функции и страници към 19.11.2026; излизат тук, ако се включат. -->
+      ${isPageOff('clients') ? '' : `<a class="nav-dropdown__item" href="#/clients" onclick="closeAllDropdowns()">Клиенти</a>`}
+      ${isPageOff('client-schedule') ? '' : `<a class="nav-dropdown__item" href="#/client-schedule" onclick="closeAllDropdowns()">Клиент — график</a>`}
+      ${isPageOff('premiere') ? '' : `<a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()">Premiere Downgrade</a>`}
+      <span id="moreCrmSlot"></span>
     </div>
+    ${adminItems ? `<div class="nav-dropdown__section" style="border-top:1px solid var(--border)">${adminItems}
+    </div>` : ''}
   `;
   // CRM се вижда само от хора с поименен достъп (crm_access). Отговорът се пази в
   // crm.js, така че след първото отваряне точката се появява без изчакване.

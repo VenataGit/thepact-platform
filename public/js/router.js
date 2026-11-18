@@ -39,6 +39,13 @@ function router() {
     return;
   }
 
+  // Content агент и Контент стратегия — засега само за собственика (Венци, 19.11.2026).
+  if ((page === 'content' || page === 'strategy') && currentUser && !currentUser.is_owner) {
+    if (typeof showToast === 'function') showToast('Тази страница засега е достъпна само за администратора.', 'error', 4000);
+    location.hash = '#/dashboard';
+    return;
+  }
+
   // Highlight active nav
   document.querySelectorAll('.nav__link').forEach(el => el.classList.remove('active'));
   const activeNav = document.querySelector(`[data-nav="${page}"]`) || document.querySelector(`[data-nav="dashboard"]`);

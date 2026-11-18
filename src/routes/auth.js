@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const router = express.Router();
 const { queryOne } = require('../db/pool');
-const { signToken, setTokenCookie, clearTokenCookie, requireAuth } = require('../middleware/auth');
+const { signToken, setTokenCookie, clearTokenCookie, requireAuth, isOwnerEmail } = require('../middleware/auth');
 const config = require('../config');
 
 // POST /auth/login
@@ -50,6 +50,8 @@ router.get('/status', requireAuth, async (req, res) => {
      WHERE u.id = $1`,
     [req.user.userId]
   );
+  // is_owner: Венци (config.ADMIN_EMAILS) — само той вижда Content агент, Контент стратегия и Настройки.
+  if (user) user.is_owner = isOwnerEmail(user.email);
   res.json({ authenticated: true, user });
 });
 

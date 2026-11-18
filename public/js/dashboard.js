@@ -952,6 +952,12 @@ window.addEventListener('resize', () => {
   dashRenderBoards();
 });
 
+function dashIsPhone() {
+  const ua = navigator.userAgent || '';
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS се представя като Mac
+}
+
 // Open a card on its own page in Basecamp, in a new tab.
 // Ляв бутон: както досега — нов раздел отпред, направо в задачата.
 // Ctrl/⌘/Shift + клик: не пипаме — браузърът сам отваря раздел/прозорец на заден план.
@@ -961,6 +967,10 @@ function dashOpenCard(e, el) {
   if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;
   const url = el.getAttribute('data-url');
   if (!url) return;
+  // Телефон: Basecamp приложението прихваща линка, а нов раздел (_blank) оставаше празен
+  // в Chrome след връщане. Затова там пускаме истинския тап по <a> в СЪЩИЯ раздел —
+  // приложението пак се отваря, а платформата си остава на мястото. (Венци, 19.11.2026)
+  if (dashIsPhone()) { el.removeAttribute('target'); return; }
   e.preventDefault(); // картата е <a> — иначе разделът ще се отвори два пъти
   window.open(url, '_blank', 'noopener');
 }

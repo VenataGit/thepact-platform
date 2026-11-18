@@ -3,12 +3,13 @@
 // проект (вътрешен/ненужен) — само админ.
 const express = require('express');
 const router = express.Router();
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin, requireOwner } = require('../middleware/auth');
 const { query, queryOne, execute } = require('../db/pool');
 const store = require('../services/strategy-agent/store');
 const pipeline = require('../services/strategy-agent/pipeline');
 
-router.use(requireAuth, (req, res, next) => {
+// Засега само за Венци (собственика) — Венци, 19.11.2026.
+router.use(requireAuth, requireOwner, (req, res, next) => {
   store.ensureSchema().then(() => next()).catch((e) => res.status(500).json({ error: `Базата не е готова: ${e.message}` }));
 });
 
