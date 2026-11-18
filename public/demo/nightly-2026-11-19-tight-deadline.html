@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо Н1.3: Реалистичен график при тесен срок</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; --blue:#4a9fe0; --violet:#a78bfa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; }
+  button, input, select { font:inherit; color:inherit; }
+  header { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:30; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .wrap { max-width:1680px; margin:14px auto 40px; padding:0 20px; display:grid; grid-template-columns:290px 1fr; gap:14px; }
+  .side { background:var(--panel); border-radius:15px; padding:12px; align-self:start; position:sticky; top:62px; }
+  .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:10px 8px 6px; }
+  .side a { display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:9px; cursor:pointer; text-decoration:none; color:#cfd8dc; font-size:13.5px; }
+  .side a:hover { background:var(--hover); }
+  .side a.on { background:var(--green); color:#fff; font-weight:600; }
+  .side p { color:var(--dim); font-size:12px; margin:10px 8px; }
+  .panel { background:var(--panel); border-radius:15px; padding:22px 26px; min-width:0; }
+  h2 { font-size:22px; margin-bottom:4px; }
+  .lead { color:var(--sec); margin-bottom:16px; max-width:980px; }
+  .explain { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; padding:10px 14px; margin-bottom:16px; color:var(--sec); max-width:1100px; }
+  .explain b { color:var(--text); }
+  .btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:7px 14px; cursor:pointer; }
+  .btn:hover { background:rgba(255,255,255,.12); }
+  .btn.pri { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .box { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 16px; }
+  .box h4 { font-size:14px; margin-bottom:10px; }
+  input[type=date], input[type=text], select { background:#0d1518; border:1px solid var(--border); border-radius:8px; padding:6px 9px; }
+  label.f { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--sec); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:7px 9px; border-bottom:1px solid rgba(255,255,255,.07); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; font-size:12px; }
+  .ok { color:var(--green); } .warn { color:var(--amber); } .bad { color:var(--red); } .dim { color:var(--dim); }
+  .pill { display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:9px; background:rgba(255,255,255,.07); color:var(--sec); white-space:nowrap; }
+  .pill.g { background:rgba(70,163,116,.18); color:#7fd3a6; } .pill.a { background:rgba(245,166,35,.16); color:#ffc56b; }
+  .pill.r { background:rgba(229,83,75,.16); color:#ff9c95; } .pill.x { background:#000; color:#ddd; border:1px solid #444; }
+  .alert { border-radius:10px; padding:12px 14px; margin:14px 0; border:1px solid; }
+  .alert.r { border-color:rgba(229,83,75,.5); background:rgba(229,83,75,.08); }
+  .alert.a { border-color:rgba(245,166,35,.5); background:rgba(245,166,35,.08); }
+  .alert.g { border-color:rgba(70,163,116,.5); background:rgba(70,163,116,.08); }
+  .alert b { color:var(--text); }
+  .choice { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .choice label { flex:1; min-width:260px; display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.12); cursor:pointer; }
+  .choice label.on { border-color:var(--green); background:rgba(70,163,116,.08); }
+  .choice small { display:block; color:var(--sec); }
+  .lane { position:relative; height:74px; margin:8px 0 18px; border-radius:8px; background:rgba(255,255,255,.03); }
+  .lane .today { position:absolute; top:-6px; bottom:-6px; width:2px; background:var(--blue); }
+  .lane .today span { position:absolute; top:-16px; left:-18px; font-size:11px; color:#93c8f2; white-space:nowrap; }
+  .lane .past { position:absolute; top:0; bottom:0; left:0; background:repeating-linear-gradient(45deg,rgba(229,83,75,.07) 0 8px,transparent 8px 16px); border-radius:8px 0 0 8px; }
+  .lane .dot { position:absolute; top:12px; transform:translateX(-50%); text-align:center; font-size:11px; width:56px; }
+  .lane .dot i { display:block; width:20px; height:20px; line-height:18px; font-style:normal; font-size:11px; font-weight:700; color:#fff; border-radius:50%; margin:0 auto 3px; background:var(--green); }
+  .lane .dot:nth-child(even) { top:2px; } .lane .dot:nth-child(even) b { position:absolute; top:44px; left:0; right:0; }
+  .legend { font-size:12px; color:var(--sec); margin-top:-10px; }
+  .lane .dot.late i { background:#000; border:2px solid var(--red); }
+  .lane .dot.pub i { background:var(--violet); border-radius:3px; }
+  .lane .dot b { display:block; font-size:11.5px; }
+  .k { font-size:30px; font-weight:800; }
+  .split { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+  .split .box { text-align:center; } .split .l { color:var(--sec); font-size:12.5px; }
+  @media (max-width:900px) { .wrap { grid-template-columns:1fr; } .side { position:static; } .grid2, .split { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>⏱️ Реалистичен график при тесен срок</h1>
+  <span class="badge">Нощен анализ · Н1.3 · демо с измислени данни</span>
+</header>
+<div class="wrap">
+  <nav class="side">
+    <h3>Демо</h3>
+    <a data-p="create">① При създаване на задача</a>
+    <a data-p="black">② Черни карти: родени черни отделно</a>
+    <p>Нищо от това не е в платформата. Клиентите и картите са измислени.</p>
+  </nav>
+  <main class="panel" id="main"></main>
+</div>
+<script>
+'use strict';
+// Стъпките и отстъпът им назад от публикуването в работни дни (като в платформата).
+const STEPS = [
+  { t: 'Готов сценарий', off: 16 },
+  { t: 'Заснет материал', off: 11 },
+  { t: 'Приключен монтаж', off: 6 },
+  { t: 'Качване/Насрочване', off: 1 },
+];
+const NEED = STEPS[0].off;
+const HOL = new Set(['2026-12-24', '2026-12-25', '2026-12-26', '2026-12-31', '2027-01-01', '2027-03-03']);
+
+function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function parse(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function isWork(d) { const w = d.getDay(); return w !== 0 && w !== 6 && !HOL.has(iso(d)); }
+function addWork(d, n) { const r = new Date(d); let k = 0; const s = n < 0 ? -1 : 1; while (k < Math.abs(n)) { r.setDate(r.getDate() + s); if (isWork(r)) k++; } return r; }
+function workBetween(a, b) { let n = 0; const r = new Date(a); while (r < b) { r.setDate(r.getDate() + 1); if (isWork(r) && r <= b) n++; } return n; }
+const BG = ['нд', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+function fmt(d) { return BG[d.getDay()] + ' ' + String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0'); }
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+const st = { today: '2026-11-19', due: '2026-11-26', title: 'Пекарна Слънце КП-4 - Видео 7 - Три грешки при тестото', mode: 'compress' };
+
+// Сегашното поведение: назад от публикуването, без значение дали датата вече е минала.
+function planNow(due) { return STEPS.map((s) => ({ t: s.t, d: addWork(due, -s.off) })); }
+// Предложението: ако не се побира — стъпките се сгъстяват пропорционално между утре и публикуването.
+function planCompressed(today, due) {
+  const avail = workBetween(today, due); // работни дни от утре до публикуването включително
+  if (avail >= NEED + 0) return { fits: true, avail, plan: planNow(due) };
+  if (avail < STEPS.length + 1) return { fits: false, impossible: true, avail };
+  let prev = Infinity;
+  const plan = STEPS.map((s, i) => {
+    // най-рано утре (avail-1 дни преди публикуването), качването — поне ден преди него
+    let off = 1 + Math.round((s.off - 1) * (avail - 2) / (NEED - 1));
+    off = Math.max(off, STEPS.length - i);
+    if (off >= prev) off = prev - 1;
+    prev = off;
+    return { t: s.t, d: addWork(due, -off), off };
+  });
+  return { fits: false, avail, plan };
+}
+
+function lane(plan, today, due, label) {
+  const first = plan.reduce((m, p) => (p.d < m ? p.d : m), today);
+  const start = addWork(first, -2), end = addWork(due, 1);
+  const span = end - start;
+  const x = (d) => Math.max(1, Math.min(99, (d - start) / span * 100));
+  const tx = x(today);
+  return `<div class="dim" style="font-size:12px;margin-bottom:22px">${label}</div>
+  <div class="lane"><div class="past" style="width:${tx}%"></div>
+    <div class="today" style="left:${tx}%"><span>днес ${fmt(today)}</span></div>
+    ${plan.map((p, i) => `<div class="dot ${p.d < today ? 'late' : ''}" style="left:${x(p.d)}%"><i>${i + 1}</i><b>${fmt(p.d)}</b></div>`).join('')}
+    <div class="dot pub" style="left:${x(due)}%"><i>▶</i><b>${fmt(due)}</b></div>
+  </div><div class="legend">1 сценарий · 2 снимки · 3 монтаж · 4 качване · ▶ публикуване · черно = в миналото</div>`;
+}
+
+function renderCreate() {
+  const today = parse(st.today), due = parse(st.due);
+  const now = planNow(due);
+  const late = now.filter((p) => p.d < today).length;
+  const c = planCompressed(today, due);
+  const earliest = addWork(today, NEED);
+  let verdict, proposed;
+  if (c.fits) {
+    verdict = `<div class="alert g">✅ <b>Срокът се побира.</b> Нужни са ${NEED} работни дни, има ${c.avail}. Датите се слагат както днес — назад от публикуването.</div>`;
+    proposed = now;
+  } else if (c.impossible) {
+    verdict = `<div class="alert r">⛔ <b>Невъзможен срок.</b> До публикуването има ${c.avail} работни дни — не стигат дори по един ден на стъпка. Предлагам публикуване най-рано на <b>${fmt(earliest)}</b>.</div>`;
+    proposed = planNow(earliest);
+  } else {
+    verdict = `<div class="alert a">⚠️ <b>Тесен срок: нужни са ${NEED} работни дни, има ${c.avail}.</b> Днес платформата ще сложи ${late} от 4 стъпки в миналото — картата се ражда черна още в първия ден.
+      <div class="choice">
+        <label class="${st.mode === 'compress' ? 'on' : ''}"><input type="radio" name="m" value="compress" ${st.mode === 'compress' ? 'checked' : ''}><span><b>Запази датата на публикуване</b><small>Стъпките се сгъстяват в оставащите ${c.avail} дни. Всички в екипа виждат, че срокът е сгъстен.</small></span></label>
+        <label class="${st.mode === 'move' ? 'on' : ''}"><input type="radio" name="m" value="move" ${st.mode === 'move' ? 'checked' : ''}><span><b>Премести публикуването на ${fmt(earliest)}</b><small>Най-ранната дата с нормално темпо (${NEED} работни дни). Клиентът трябва да се съгласи.</small></span></label>
+      </div></div>`;
+    proposed = st.mode === 'move' ? planNow(earliest) : c.plan;
+  }
+  const pdue = (!c.fits && (c.impossible || st.mode === 'move')) ? earliest : due;
+  const rows = STEPS.map((s, i) => {
+    const a = now[i].d, b = proposed[i].d;
+    return `<tr><td>${esc(s.t)}</td><td class="${a < today ? 'bad' : ''}">${fmt(a)}${a < today ? ' · в миналото' : ''}</td><td class="${b < today ? 'bad' : 'ok'}">${fmt(b)}</td></tr>`;
+  }).join('') + `<tr><td><b>Публикуване</b></td><td>${fmt(due)}</td><td><b>${fmt(pdue)}</b></td></tr>`;
+
+  document.getElementById('main').innerHTML = `
+  <h2>① При създаване на задача</h2>
+  <p class="lead">Платформата слага датите на стъпките назад от публикуването: сценарий 16 работни дни преди, снимки 11, монтаж 6, качване 1. Ако до публикуването остават по-малко дни, днес стъпките просто падат в миналото и картата е черна още в деня, в който е създадена.</p>
+  <div class="explain"><b>Какво наблюдавах (19.11):</b> от 147 активни просрочени карти <b>75</b> са били с дати в миналото още в деня на създаването си. За последните 45 дни така са се родили 52% от новите карти. Пробвай с различни дати отдолу.</div>
+  <div class="box" style="margin-bottom:14px">
+    <div class="row">
+      <label class="f" style="flex:1;min-width:320px">Заглавие<input type="text" id="tt" value="${esc(st.title)}"></label>
+      <label class="f">Днес<input type="date" id="td" value="${st.today}"></label>
+      <label class="f">Публикуване (Due)<input type="date" id="dd" value="${st.due}"></label>
+      <div class="row" style="align-self:flex-end">
+        <button class="btn" data-q="5">+5 дни</button><button class="btn" data-q="12">+12 дни</button><button class="btn" data-q="30">+30 дни</button>
+      </div>
+    </div>
+    ${verdict}
+  </div>
+  <div class="grid2">
+    <div class="box"><h4>Как е днес</h4>${lane(now, today, due, 'Назад от публикуването, без проверка')}</div>
+    <div class="box"><h4>С предложението</h4>${lane(proposed, today, pdue, c.fits ? 'Без промяна' : (st.mode === 'move' || c.impossible ? 'Публикуването е преместено' : 'Сгъстено между утре и публикуването'))}</div>
+  </div>
+  <div class="box" style="margin-top:14px"><h4>Датите на стъпките</h4>
+    <table><tr><th>Стъпка</th><th>Днес</th><th>С предложението</th></tr>${rows}</table>
+    <p class="dim" style="margin-top:8px;font-size:12.5px">${!c.fits && st.mode === 'compress' && !c.impossible ? 'Под картата отива коментар: „⚠️ Сгъстен срок — нужни 16 работни дни, има ' + c.avail + '.“ Черните карти я броят като рискова, не като закъсняла.' : 'Почивните дни и празниците се пропускат, както и сега.'}</p>
+  </div>`;
+  const m = document.getElementById('main');
+  m.querySelector('#td').onchange = (e) => { st.today = e.target.value; renderCreate(); };
+  m.querySelector('#dd').onchange = (e) => { st.due = e.target.value; renderCreate(); };
+  m.querySelector('#tt').oninput = (e) => { st.title = e.target.value; };
+  m.querySelectorAll('[data-q]').forEach((b) => b.onclick = () => { const d = parse(st.today); d.setDate(d.getDate() + Number(b.dataset.q)); st.due = iso(d); renderCreate(); });
+  m.querySelectorAll('input[name=m]').forEach((r) => r.onchange = () => { st.mode = r.value; renderCreate(); });
+}
+
+const CARDS = [
+  { t: 'Пекарна Слънце КП-4 - Видео 2 - Хлябът за 5 минути', who: 'Мария', step: 'Заснет материал', late: 3, born: false },
+  { t: 'Пекарна Слънце КП-4 - Видео 7 - Три грешки при тестото', who: 'Иво', step: 'Готов сценарий', late: 5, born: true, need: 16, had: 5 },
+  { t: 'Авто Ред КП-9 - Видео 1 - Зимни гуми', who: 'Петя', step: 'Приключен монтаж', late: 2, born: false },
+  { t: 'Авто Ред КП-9 - Видео 4 - Чистачките', who: 'Иво', step: 'Готов сценарий', late: 8, born: true, need: 16, had: 2 },
+  { t: 'Зъбна клиника Усмивка КП-2 - Видео 3', who: 'Никола', step: 'Заснет материал', late: 6, born: true, need: 16, had: 9 },
+  { t: 'Фитнес Сила КП-12 - Видео 10 - Гърбът', who: 'Мария', step: 'Качване/Насрочване', late: 1, born: false },
+  { t: 'Зъбна клиника Усмивка КП-2 - Видео 6', who: 'Петя', step: 'Готов сценарий', late: 4, born: true, need: 16, had: 7 },
+  { t: 'Фитнес Сила КП-12 - Видео 3 - Клек', who: 'Никола', step: 'Приключен монтаж', late: 9, born: false },
+];
+function renderBlack() {
+  const born = CARDS.filter((c) => c.born), real = CARDS.filter((c) => !c.born);
+  const row = (c) => `<tr><td>${esc(c.t)}</td><td>${esc(c.who)}</td><td>${esc(c.step)}</td><td class="bad">${c.late} ${c.late === 1 ? "ден" : "дни"}</td>
+    <td>${c.born ? `<span class="pill a">родена черна · имаше ${c.had} от ${c.need} дни</span>` : '<span class="pill x">закъсня по пътя</span>'}</td></tr>`;
+  document.getElementById('main').innerHTML = `
+  <h2>② Черни карти: родените черни отделно</h2>
+  <p class="lead">Съобщението „Черни карти“ в 10:00 днес слага в един списък и картите, които наистина са закъснели, и тези, които никога не са имали шанс. Предложението ги разделя — анализът и таговете отиват първо към истинските закъснения.</p>
+  <div class="explain"><b>Реалните числа от 19.11:</b> 147 активни карти с просрочена стъпка, от тях 75 са родени черни. Тук данните са измислени, но в същото съотношение.</div>
+  <div class="split">
+    <div class="box"><div class="k">${CARDS.length}</div><div class="l">черни карти днес (един списък)</div></div>
+    <div class="box"><div class="k bad">${real.length}</div><div class="l">закъснели по пътя — тук има какво да се гони</div></div>
+    <div class="box"><div class="k warn">${born.length}</div><div class="l">родени черни — проблемът е в срока, не в човека</div></div>
+  </div>
+  <div class="box" style="margin-bottom:14px"><h4>🔴 Закъснели по пътя</h4><table><tr><th>Карта</th><th>Кой</th><th>Стъпка</th><th>Закъснение</th><th></th></tr>${real.map(row).join('')}</table></div>
+  <div class="box"><h4>🟠 Родени черни (тесен срок от самото начало)</h4><table><tr><th>Карта</th><th>Кой</th><th>Стъпка</th><th>Закъснение</th><th></th></tr>${born.map(row).join('')}</table>
+  <p class="dim" style="margin-top:8px;font-size:12.5px">За тях въпросът е към този, който е дал срока: да се премести публикуването или да се приеме сгъстеният график.</p></div>`;
+}
+
+function show() {
+  const p = (location.hash || '#create').slice(1) === 'black' ? 'black' : 'create';
+  document.querySelectorAll('.side a').forEach((a) => a.classList.toggle('on', a.dataset.p === p));
+  if (p === 'black') renderBlack(); else renderCreate();
+}
+document.querySelectorAll('.side a').forEach((a) => a.onclick = () => { location.hash = a.dataset.p; });
+window.addEventListener('hashchange', show);
+show();
+</script>
+</body>
+</html>
