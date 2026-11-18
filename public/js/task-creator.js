@@ -7,7 +7,9 @@
 // Локацията на файловете е задължителна и се вижда под заглавието, докато пишеш.
 // Картите се създават от бот профила ThePactAlerts — кой ги е поръчал се пази в
 // платформата (Настройки → Създаване на задачи).
-var _tcr = { init: null, busy: false, locTimer: null, locSeq: 0 };
+// Локацията може да е автоматична (от заглавието + папките се правят сами) или ръчна
+// — човекът сам пише пътя (Венци, 18.11.2026).
+var _tcr = { init: null, busy: false, locTimer: null, locSeq: 0, locMode: 'auto' };
 
 async function renderTaskCreator(el) {
   setBreadcrumb([{ label: 'Създаване на задачи', href: '#/create-task' }]);
@@ -86,7 +88,17 @@ function tcrLocation() {
   _tcr.locTimer = setTimeout(tcrLocationNow, 250);
 }
 
+function tcrSetLocMode(mode) {
+  _tcr.locMode = mode === 'manual' ? 'manual' : 'auto';
+  var man = document.getElementById('tcrLocManual');
+  var box = document.getElementById('tcrLoc');
+  if (man) man.style.display = _tcr.locMode === 'manual' ? '' : 'none';
+  if (box) box.style.display = _tcr.locMode === 'manual' ? 'none' : '';
+  if (_tcr.locMode === 'auto') tcrLocation();
+}
+
 async function tcrLocationNow() {
+  if (_tcr.locMode === 'manual') return;
   var box = document.getElementById('tcrLoc');
   var title = ((document.getElementById('tcrTitle') || {}).value || '').trim();
   if (!box) return;
@@ -127,7 +139,18 @@ function tcrSingleForm(d) {
       '<span class="tcr-note">Изборът слага името в началото на заглавието — точно както е записано другаде. Клиентът и КП-то се четат оттам.</span></label>' +
     '<label class="tcr-field"><span class="tcr-label">Име на задачата</span>' +
       '<input type="text" id="tcrTitle" class="tcr-input" maxlength="200" placeholder="напр. Fornetti КП-4 - Видео 3 - Заглавие" oninput="tcrLocation()"></label>' +
-    '<div class="tcr-field"><span class="tcr-label">Локация на файловете (влиза автоматично)</span><div id="tcrLoc"></div></div>' +
+    '<div class="tcr-field"><span class="tcr-label">Локация на файловете</span>' +
+      '<span class="tcr-locmode">' +
+        '<label><input type="radio" name="tcrLocMode" value="auto"' + (_tcr.locMode !== 'manual' ? ' checked' : '') + ' onchange="tcrSetLocMode(this.value)"> Автоматично — от заглавието, папките се създават сами</label>' +
+        '<label><input type="radio" name="tcrLocMode" value="manual"' + (_tcr.locMode === 'manual' ? ' checked' : '') + ' onchange="tcrSetLocMode(this.value)"> Ръчно — сам слагам локацията</label>' +
+      '</span>' +
+      '<div id="tcrLoc"' + (_tcr.locMode === 'manual' ? ' style="display:none"' : '') + '></div>' +
+      '<div id="tcrLocManual"' + (_tcr.locMode === 'manual' ? '' : ' style="display:none"') + '>' +
+        '<textarea id="tcrLocFiles" class="tcr-input" rows="2" maxlength="1000" placeholder="Локация на файлове — пълният път до папката"></textarea>' +
+        '<textarea id="tcrLocExported" class="tcr-input" rows="2" maxlength="1000" style="margin-top:6px" placeholder="Локация на експортираното видео (по желание)"></textarea>' +
+        '<span class="tcr-note">Влиза най-горе в описанието точно както е написано. При ръчна локация папките НЕ се създават автоматично, а заглавието може да е в свободна форма.</span>' +
+      '</div>' +
+    '</div>' +
     '<label class="tcr-field"><span class="tcr-label">Описание</span>' +
       '<textarea id="tcrContent" class="tcr-input tcr-textarea" rows="10">' + esc(d.singleTemplate || '') + '</textarea>' +
       '<span class="tcr-note">Шаблонът е попълнен предварително — замени ХХХ-тата. Ако не ти трябва, изтрий го.</span></label>' +
@@ -209,11 +232,17 @@ async function tcrCreateSingle() {
     if (el && el.value) stepDates[s.key] = el.value;
   });
   var due = (document.getElementById('tcrDate_publish') || {}).value || '';
+  var manual = _tcr.locMode === 'manual';
+  var locFiles = manual ? ((document.getElementById('tcrLocFiles') || {}).value || '').trim() : '';
+  var locExported = manual ? ((document.getElementById('tcrLocExported') || {}).value || '').trim() : '';
+  if (manual && !locFiles) { tcrResult('<div class="tcr-err">Напиши локацията на файловете или избери „Автоматично".</div>'); return; }
   await tcrPost('/api/task-creator/single', {
     title: title,
     content: (document.getElementById('tcrContent') || {}).value || '',
     boardId: boardId, columnId: columnId,
     dueOn: due || null, stepDates: stepDates,
+    locationMode: manual ? 'manual' : 'auto',
+    locationFiles: locFiles, locationExported: locExported,
   });
 }
 
@@ -250,7 +279,7 @@ async function tcrPost(url, body) {
 // човек да пусне няколко задачи една след друга. Описанието се връща на шаблона,
 // не на празно, защото следващата задача пак тръгва от него.
 function tcrClearForm() {
-  ['tcrTitle', 'tcrClient'].forEach(function (id) {
+  ['tcrTitle', 'tcrClient', 'tcrLocFiles', 'tcrLocExported'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });

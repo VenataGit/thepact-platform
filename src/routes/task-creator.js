@@ -87,6 +87,15 @@ router.get('/dates', requireAuth, async (req, res) => {
 // затова такова заглавие не се приема.
 const LOCATION_HINT = 'Заглавието трябва да е „Клиент КП-4 - Видео 3 - Име" или „Клиент - Име на задачата" (тире с интервал от двете страни) — оттам се прави локацията на файловете.';
 
+// Ръчно въведената локация — същите заглавия като автоматичната, текстът ред по ред.
+function manualLocationLines(files, exported) {
+  const block = (heading, text) => [bch.mark(heading)].concat(
+    String(text).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => bch.esc(l)));
+  let out = block('Локация на файлове:', files);
+  if (exported) out = out.concat(block('Локация на експортираното видео:', exported));
+  return out;
+}
+
 // GET /api/task-creator/location?title=… — прегледът на локацията във формата.
 router.get('/location', requireAuth, (req, res) => {
   const p = fp.pathsForTitle(clean(req.query.title, MAX_TITLE));
@@ -105,7 +114,13 @@ router.post('/single', requireAuth, async (req, res) => {
     const boardId = String(req.body?.boardId || '');
     const columnId = String(req.body?.columnId || '');
     if (!boardId || !columnId) return res.status(400).json({ error: 'Избери дъска и колона.' });
-    if (!fp.pathsForTitle(title)) return res.status(400).json({ error: LOCATION_HINT });
+    // Ръчна локация (Венци, 18.11.2026): човекът сам пише пътя — тогава заглавието е
+    // свободно и папките НЕ се поръчват на агента в офиса.
+    const manualLoc = req.body?.locationMode === 'manual';
+    const locFiles = clean(req.body?.locationFiles, 1000);
+    const locExported = clean(req.body?.locationExported, 1000);
+    if (manualLoc && !locFiles) return res.status(400).json({ error: 'Напиши локацията на файловете.' });
+    if (!manualLoc && !fp.pathsForTitle(title)) return res.status(400).json({ error: LOCATION_HINT });
 
     const cfg = await tc.loadTaskCfg();
     const auth = await getServiceAuth();
@@ -134,7 +149,7 @@ router.post('/single', requireAuth, async (req, res) => {
     const split = fp.splitForLocation(contentText);
     const content = bch.block(bch.join([
       bch.lines(split.before),
-      fp.locationLines(title),
+      manualLoc ? manualLocationLines(locFiles, locExported) : fp.locationLines(title),
       bch.lines(split.after),
     ]));
     const card = await bc.createCard(auth.token, auth.account, struct.projectId, column.id, {
@@ -144,7 +159,7 @@ router.post('/single', requireAuth, async (req, res) => {
     });
 
     // Папките ги прави агентът в офиса — тук само записваме заявката (никога не хвърля).
-    await fq.enqueue({ cardId: card.id, title });
+    if (!manualLoc) await fq.enqueue({ cardId: card.id, title });
 
     const stepErrors = [];
     const stepsByTitle = {};

@@ -145,6 +145,8 @@
 .tcr-loc { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; line-height: 1.5; color: var(--text); word-break: break-all; }
 .tcr-loc__h { color: var(--yellow); font-weight: 600; margin-top: 4px; }
 .tcr-loc__h:first-child { margin-top: 0; }
+.tcr-locmode { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text); margin-bottom: 8px; }
+.tcr-locmode label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .tcr-ok { color: var(--green); font-size: 14px; font-weight: 600; padding: 10px 0 2px; }
 .tcr-ok a { color: var(--accent); }
 /* Историята в админ панела */
