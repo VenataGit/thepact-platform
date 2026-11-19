@@ -7,6 +7,7 @@ const config = require('../config');
 const { keyMatches } = require('../middleware/machine-key');
 const { syncCardDates } = require('../services/bc-date-sync');
 const sheetAlerts = require('../services/sheet-alerts');
+const devQueue = require('../services/dev-queue');
 
 router.post('/basecamp/:secret', (req, res) => {
   if (!keyMatches(req.params.secret, config.BASECAMP_WEBHOOK_SECRET)) {
@@ -17,6 +18,8 @@ router.post('/basecamp/:secret', (req, res) => {
   try {
     const rec = (req.body && req.body.recording) || {};
     const kind = (req.body && req.body.kind) || '';
+    // Личният проект на Венци (dev-опашката): задача/коментар → веднага полл на опашката.
+    if (devQueue.onWebhook(rec.bucket && rec.bucket.id)) return;
     // We subscribe to Kanban::Card only, but guard against step events just in case (no loops).
     if (rec.id && !/step/i.test(kind)) {
       syncCardDates(rec.id)

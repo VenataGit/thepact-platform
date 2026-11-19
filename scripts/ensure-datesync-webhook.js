@@ -9,12 +9,17 @@
 //
 //   node scripts/ensure-datesync-webhook.js          # регистрира/поправя
 //   node scripts/ensure-datesync-webhook.js --dry    # само показва какво има
+//   node scripts/ensure-datesync-webhook.js --dev-queue   # личният проект на Венци (dev-опашката):
+//       задачи + коментари → незабавен полл на опашката (services/dev-queue.js → kick)
 const config = require('../src/config');
 const bc = require('../src/services/basecamp');
 const { query } = require('../src/db/pool');
 const { getUserAuth } = require('../src/services/basecamp-token');
 
-const TYPES = ['Kanban::Card']; // само карти — стъпките си ги пише ботът, иначе се зацикля
+const DEV_QUEUE = process.argv.includes('--dev-queue');
+const TYPES = DEV_QUEUE
+  ? ['Todo', 'Comment']
+  : ['Kanban::Card']; // само карти — стъпките си ги пише ботът, иначе се зацикля
 const DRY = process.argv.includes('--dry');
 
 // Адресът на платформата идва от OAuth redirect-а — така не се въвежда домейн на две места.
@@ -49,7 +54,11 @@ async function main() {
 
   const admin = await adminUserId();
   const { token, account } = await getUserAuth(admin.id);
-  const projectId = config.BASECAMP_TEAM_PROJECT_ID;
+  let projectId = config.BASECAMP_TEAM_PROJECT_ID;
+  if (DEV_QUEUE) {
+    const rows = await query("SELECT value FROM settings WHERE key = 'dev_queue_bc_project'");
+    projectId = parseInt(rows[0] && rows[0].value) || 47742842;
+  }
   const base = `${bc.API_BASE}/${account}/buckets/${projectId}/webhooks`;
   console.log(`Проект ${projectId}, от името на ${admin.name} <${admin.email}>`);
 

@@ -18,8 +18,21 @@ const { query, queryOne, execute } = require('../db/pool');
 const bc = require('./basecamp');
 const { getServiceAuth } = require('./basecamp-token');
 
+const EventEmitter = require('events');
+
 const TZ = 'Europe/Sofia';
 let running = false;
+
+// Почти мигновен режим (19.11.2026): Basecamp webhook за личния проект → kick() →
+// пълен pollOnce след кратка пауза (събира няколко събития в един полл). Ако полл
+// вече върви, след него тръгва още един — събитието не се губи. Щом в опашката има
+// чакаща задача, waitForWork() (long-poll-ът на watcher-а) се събужда веднага.
+// Cron-ът на 2 мин остава като предпазна мрежа (изпуснат webhook, рестарт).
+const bus = new EventEmitter();
+bus.setMaxListeners(50);
+let kickTimer = null;
+let rerun = false;
+let queueProject = 47742842; // кеш от loadCfg — за бърза проверка в webhook приемника
 
 function initDevQueue() {
   try {
@@ -52,6 +65,37 @@ async function loadCfg() {
     staleMinutes: parseInt(s.dev_queue_stale_minutes) || 240,    // заседнал running → ретрай
     skipLists: new Set(skip),                                    // листи само за четене от човек
   };
+}
+
+function kick() {
+  if (kickTimer) return;
+  kickTimer = setTimeout(() => {
+    kickTimer = null;
+    if (running) { rerun = true; return; }
+    pollOnce().catch((err) => console.error('[dev-queue] kick poll error:', err.message));
+  }, 2000);
+  if (kickTimer.unref) kickTimer.unref(); // не държи процеса жив (тестове)
+}
+
+// Webhook от Basecamp: събитие в проекта на опашката → kick. Връща true, ако е наше.
+function onWebhook(bucketId) {
+  if (!bucketId || Number(bucketId) !== Number(queueProject)) return false;
+  kick();
+  return true;
+}
+
+async function hasPending() {
+  return !!(await queryOne("SELECT 1 AS x FROM dev_tasks WHERE status = 'pending' LIMIT 1"));
+}
+
+// Long-poll за watcher-а: true веднага щом има чакаща задача, false след ms.
+async function waitForWork(ms) {
+  if (await hasPending()) return true;
+  return new Promise((resolve) => {
+    const on = () => { clearTimeout(t); resolve(true); };
+    const t = setTimeout(() => { bus.off('work', on); resolve(false); }, ms);
+    bus.once('work', on);
+  });
 }
 
 function isBot(comment) {
@@ -100,6 +144,7 @@ async function pollOnce() {
   running = true;
   try {
     const cfg = await loadCfg();
+    queueProject = cfg.project;
     if (!cfg.enabled) return;
 
     // 1) Stale recovery ПЪРВО — чисто DB стъпка, работи и при паднал Basecamp/токен.
@@ -212,6 +257,11 @@ async function pollOnce() {
     }
   } finally {
     running = false;
+    hasPending().then((yes) => { if (yes) bus.emit('work'); }).catch(() => {});
+    if (rerun) {
+      rerun = false;
+      setImmediate(() => pollOnce().catch((err) => console.error('[dev-queue] rerun poll error:', err.message)));
+    }
   }
 }
 
@@ -236,8 +286,19 @@ async function claimNext() {
     } catch (e) {
       console.error('[dev-queue] start comment:', e.message); // не блокира работата
     }
+  } else if (task.reply_html) {
+    // Продължение след коментар — кратко „видях" веднага, за да не се чуди дали е стигнал.
+    // last_comment_id НЕ се мести: коментар от Венци, дошъл междувременно, не бива да се прескочи
+    // (редовете на бота и без това се филтрират в диалога).
+    try {
+      const auth = await getServiceAuth();
+      await bc.createComment(auth.token, auth.account, task.bc_project_id, task.bc_todo_id,
+        '<p>🤖 Видях коментара — започвам.</p>');
+    } catch (e) {
+      console.error('[dev-queue] ack comment:', e.message);
+    }
   }
   return task;
 }
 
-module.exports = { initDevQueue, pollOnce, claimNext };
+module.exports = { initDevQueue, pollOnce, claimNext, kick, onWebhook, waitForWork };

@@ -34,6 +34,18 @@ router.get('/next', async (req, res) => {
   }
 });
 
+// Long-poll: watcher-ът виси тук до 25 сек (под таймаута на Nginx) и получава
+// { work: true } веднага щом има чакаща задача — без да чака следващия си цикъл.
+router.get('/wait', async (req, res) => {
+  try {
+    const sec = Math.min(Math.max(parseInt(req.query.timeout) || 25, 1), 25);
+    const work = await dq.waitForWork(sec * 1000);
+    res.json({ work });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Валиден ли е callback-ът за текущия claim? (задача + running + верен attempt)
 async function loadClaimed(req, res) {
   const task = await queryOne('SELECT * FROM dev_tasks WHERE id = $1', [req.params.id]);
