@@ -216,7 +216,7 @@ async function loadBoardCards(token, account, cardTableId) {
       const oh = await bc.getColumnCards(token, account, projectId, list.on_hold.id);
       onHoldCards = oh.map((c) => { const m = mapCard(c, stepPrefix, mapOpts); m.onHold = true; return m; });
     }
-    return { id: list.id, cards: cards.map((c) => mapCard(c, stepPrefix, mapOpts)), onHoldCards };
+    return { id: list.id, title: list.title, isDone: /DoneColumn/i.test(list.type || ''), cards: cards.map((c) => mapCard(c, stepPrefix, mapOpts)), onHoldCards };
   });
   const result = { at: Date.now(), cardTableId: table.id, columns };
   cardsCache.set(key, result);
