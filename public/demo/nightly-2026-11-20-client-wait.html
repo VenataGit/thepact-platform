@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо Н2: Поток на картите и „Чакаме клиента“</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; --blue:#4a9fe0; --violet:#a78bfa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; }
+  button, input, select, textarea { font:inherit; color:inherit; }
+  header { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:30; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .wrap { max-width:1680px; margin:14px auto 40px; padding:0 20px; display:grid; grid-template-columns:290px 1fr; gap:14px; }
+  .side { background:var(--panel); border-radius:15px; padding:12px; align-self:start; position:sticky; top:62px; }
+  .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:10px 8px 6px; }
+  .side a { display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:9px; cursor:pointer; text-decoration:none; color:#cfd8dc; font-size:13.5px; }
+  .side a:hover { background:var(--hover); }
+  .side a.on { background:var(--green); color:#fff; font-weight:600; }
+  .side p { color:var(--dim); font-size:12px; margin:10px 8px; }
+  .panel { background:var(--panel); border-radius:15px; padding:22px 26px; min-width:0; }
+  h2 { font-size:22px; margin-bottom:4px; }
+  .lead { color:var(--sec); margin-bottom:16px; max-width:1000px; }
+  .explain { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; padding:10px 14px; margin-bottom:16px; color:var(--sec); max-width:1100px; }
+  .explain b { color:var(--text); }
+  .btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:5px 12px; cursor:pointer; font-size:13px; }
+  .btn:hover { background:rgba(255,255,255,.12); }
+  .btn.pri { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+  .box { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 16px; }
+  .box h4 { font-size:14px; margin-bottom:10px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:7px 9px; border-bottom:1px solid rgba(255,255,255,.07); vertical-align:middle; }
+  th { color:var(--dim); font-weight:600; font-size:12px; }
+  .ok { color:var(--green); } .warn { color:var(--amber); } .bad { color:var(--red); } .dim { color:var(--dim); }
+  .pill { display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:9px; background:rgba(255,255,255,.07); color:var(--sec); white-space:nowrap; }
+  .pill.g { background:rgba(70,163,116,.18); color:#7fd3a6; } .pill.a { background:rgba(245,166,35,.16); color:#ffc56b; }
+  .pill.r { background:rgba(229,83,75,.16); color:#ff9c95; } .pill.b { background:rgba(74,159,224,.16); color:#93c8f2; } .pill.x { background:#000; color:#ddd; border:1px solid #444; }
+  .flow { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin:8px 0 18px; }
+  .stage { position:relative; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px 14px; }
+  .stage.client { border-color:rgba(74,159,224,.45); background:rgba(74,159,224,.06); }
+  .stage .nm { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+  .stage .k { font-size:30px; font-weight:800; margin:2px 0; }
+  .stage .l { font-size:12.5px; color:var(--sec); }
+  .stage .bar { height:6px; border-radius:3px; background:rgba(255,255,255,.08); margin-top:8px; overflow:hidden; display:flex; }
+  .stage .bar i { display:block; height:100%; }
+  .stage:not(:last-child)::after { content:'→'; position:absolute; right:-12px; top:40%; color:var(--dim); font-size:14px; }
+  .split { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+  .split .box { text-align:center; } .split .k { font-size:30px; font-weight:800; } .split .l { color:var(--sec); font-size:12.5px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .cl { margin-bottom:12px; }
+  .cl summary { cursor:pointer; list-style:none; display:flex; gap:12px; align-items:center; padding:10px 14px; border-radius:10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
+  .cl summary::-webkit-details-marker { display:none; }
+  .cl summary b { font-size:14.5px; flex:1; }
+  .cl[open] summary { border-radius:10px 10px 0 0; }
+  .cl .in { border:1px solid rgba(255,255,255,.08); border-top:0; border-radius:0 0 10px 10px; padding:8px 12px 12px; }
+  .msg { background:#0d1518; border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:10px; white-space:pre-wrap; color:#cfd8dc; font-size:13px; }
+  .note { font-size:12.5px; color:var(--sec); margin-top:8px; }
+  .hbar { display:flex; align-items:center; gap:8px; font-size:12.5px; margin:5px 0; }
+  .hbar span:first-child { width:150px; color:var(--sec); }
+  .hbar .t { flex:1; height:16px; background:rgba(255,255,255,.05); border-radius:4px; position:relative; }
+  .hbar .t i { position:absolute; top:0; bottom:0; left:0; border-radius:4px; background:var(--green); }
+  .hbar .t i.p80 { background:rgba(70,163,116,.3); }
+  select { background:#0d1518; border:1px solid var(--border); border-radius:8px; padding:5px 8px; }
+  @media (max-width:1000px) { .wrap { grid-template-columns:1fr; } .side { position:static; } .flow, .split, .grid2 { grid-template-columns:1fr; } .stage::after { display:none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔀 Поток на картите · кой кого чака</h1>
+  <span class="badge">Нощен анализ · Н2.1–Н2.3 · демо с измислени данни</span>
+</header>
+<div class="wrap">
+  <nav class="side">
+    <h3>Демо</h3>
+    <a data-p="flow">① Потокът: къде стоят картите</a>
+    <a data-p="client">② Чакаме клиента</a>
+    <a data-p="black">③ Черни карти: „ние“ и „клиентът“</a>
+    <p>Клиентите и картите са измислени. Съотношенията са като в истинските данни от 20.11.2026.</p>
+  </nav>
+  <main class="panel" id="main"></main>
+</div>
+<script>
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const dn = (n) => n + ' ' + (n === 1 ? 'ден' : 'дни');
+
+// Етапите — числата следват реалните съотношения (измислени, но в същия порядък).
+const STAGES = [
+  { nm: 'Сценарий', k: 28, med: 7, p80: 22, team: 1, client: 7, note: 'Pre-Production' },
+  { nm: 'Снимки', k: 52, med: 6, p80: 16, team: 16, client: 0, note: 'Production' },
+  { nm: 'Монтаж', k: 58, med: 8, p80: 19, team: 0, client: 0, note: 'Post-Production' },
+  { nm: 'При клиента', k: 77, med: 14, p80: 41, team: 0, client: 45, note: '„Към Клиент“ + „Изчакване“', isClient: 1 },
+  { nm: 'Качване', k: 19, med: 2, p80: 6, team: 1, client: 0, note: '„Качване/Насрочване“' },
+];
+
+function renderFlow() {
+  const maxP = Math.max(...STAGES.map((s) => s.p80));
+  document.getElementById('main').innerHTML = `
+  <h2>① Потокът: къде стоят картите и колко дълго</h2>
+  <p class="lead">Една страница, която отговаря на „къде се трупа работата“. Всяка кутия е етап; числото е колко видеа са в него сега; лентата отдолу — колко от тях са просрочени <span class="bad">по наша вина</span> и колко <span style="color:#93c8f2">чакат клиента</span>.</p>
+  <div class="explain"><b>За да работи, трябва Н2.1:</b> днес дневникът на етапите не вижда как картата минава от отдел в отдел (Basecamp ѝ дава нов номер) и не пише смяната на колона. След поправката „колко дни стои в етапа“ се смята сам — и за минали месеци (историята от 02.09 може да се възстанови).</div>
+  <div class="flow">${STAGES.map((s) => `
+    <div class="stage${s.isClient ? ' client' : ''}">
+      <div class="nm">${s.nm}</div>
+      <div class="k">${s.k}</div>
+      <div class="l">видеа · обикновено ${dn(s.med)} в етапа</div>
+      <div class="l">${s.team ? `<span class="bad">${s.team} просрочени (ние)</span>` : '<span class="ok">0 просрочени (ние)</span>'}${s.client ? ` · <span style="color:#93c8f2">${s.client} чакат клиента</span>` : ''}</div>
+      <div class="bar"><i style="width:${s.team / s.k * 100}%;background:var(--red)"></i><i style="width:${s.client / s.k * 100}%;background:var(--blue)"></i></div>
+      <div class="l dim" style="margin-top:6px;font-size:11.5px">${s.note}</div>
+    </div>`).join('')}
+  </div>
+  <div class="grid2">
+    <div class="box"><h4>⏱️ Колко дни стои видеото във всеки етап</h4>
+      ${STAGES.map((s) => `<div class="hbar"><span>${s.nm}</span><div class="t"><i class="p80" style="width:${s.p80 / maxP * 100}%"></i><i style="width:${s.med / maxP * 100}%${s.isClient ? ';background:var(--blue)' : ''}"></i></div><span style="width:110px">${s.med} / ${s.p80} дни</span></div>`).join('')}
+      <p class="note">Плътно — обикновено (медиана); бледо — 8 от 10 видеа са по-бързи от това. Най-дългият етап не е нашият — при клиента.</p></div>
+    <div class="box"><h4>📌 Какво се вижда от тази страница</h4>
+      <table>
+        <tr><td>Монтажът е <b class="ok">напред</b>: 36 видеа чакат разпределение, но най-ранният им срок е след 5 дни.</td></tr>
+        <tr><td>Снимките имат <b class="bad">16 просрочени</b> — 13 от тях в колони „Външни“ и „Студио“ (без насрочен ден в календара).</td></tr>
+        <tr><td>При клиента: <b style="color:#93c8f2">77 видеа</b>, 41 вече след датата за публикуване, 36 без нито един коментар от 7+ дни.</td></tr>
+        <tr><td>„Изчакване“: обикновено <b class="warn">35 дни</b>; най-старата карта е от август.</td></tr>
+      </table></div>
+  </div>`;
+}
+
+const CLIENTS = [
+  { c: 'Клиника Алфа', am: 'Ралица', cards: [
+    { t: 'КП-5 · Видео 3 · Как протича консултацията', col: 'Към Клиент', since: 21, past: 9, last: 12 },
+    { t: 'КП-4 · Видео 1 · Мит или истина', col: 'Изчакване', since: 47, past: 34, last: 26 },
+    { t: 'КП-4 · Видео 6 · Пет въпроса', col: 'Към Клиент', since: 6, past: 0, last: 2 } ] },
+  { c: 'Фитнес Бета', am: 'Ралица', cards: [
+    { t: 'КП-5 · Видео 2 · Интервю с треньор', col: 'Към Клиент', since: 14, past: 9, last: 9 },
+    { t: 'КП-5 · Видео 4 · Новата зала', col: 'Към Клиент', since: 12, past: 8, last: 8 },
+    { t: 'КП-5 · Видео 6 · Защо при нас', col: 'Към Клиент', since: 8, past: 2, last: 3 } ] },
+  { c: 'Онлайн магазин Гама', am: 'Кристиан', cards: [
+    { t: 'Видео 1 · Разход или инвестиция', col: 'Към Клиент', since: 74, past: 70, last: 23 },
+    { t: 'Видео 2 · Етапи на растеж', col: 'Към Клиент', since: 74, past: 70, last: 23 } ] },
+  { c: 'Финанси Делта', am: 'Кристиан', cards: [
+    { t: 'Кампания · Видео 1 · Ремаркетинг', col: 'Към Клиент', since: 71, past: 69, last: 9 },
+    { t: 'Кампания · Видео 3 · Офисите', col: 'Към Клиент', since: 71, past: 69, last: 9 } ] },
+  { c: 'Игри Епсилон', am: 'Ралица', cards: [
+    { t: 'Шорт 1 · Командир', col: 'Изчакване', since: 36, past: 23, last: 36 },
+    { t: 'Шорт 2 · Карн', col: 'Изчакване', since: 36, past: 23, last: null } ] },
+];
+const REASONS = ['чака одобрение', 'чака материали от клиента', 'чака корекции от нас', 'чака дата за публикуване', '— без причина —'];
+
+function renderClient() {
+  const all = CLIENTS.flatMap((x) => x.cards);
+  const past = all.filter((c) => c.past > 0).length, quiet = all.filter((c) => c.last === null || c.last >= 7).length;
+  document.getElementById('main').innerHTML = `
+  <h2>② Чакаме клиента</h2>
+  <p class="lead">Всички видеа в „Към Клиент“ и „Изчакване“, групирани по клиент. При всяко — откога е при клиента, с колко е минала датата за публикуване и кога е бил последният коментар. Акаунтът получава този списък в понеделник; с бутона праща готово напомняне в проекта на клиента.</p>
+  <div class="explain"><b>Реалните числа от 20.11:</b> 77 видеа при клиента, 41 след датата за публикуване, 36 от тях без коментар от 7+ дни. Най-старото: 70 дни след датата. Каталогът от 11.11 има „Изпращане + напомняне 24 ч“ (1–2 седмици); това тук е по-лекият първи ход — само списък, часовник и готов текст.</div>
+  <div class="split">
+    <div class="box"><div class="k" style="color:#93c8f2">${all.length}</div><div class="l">видеа при клиента (в демото)</div></div>
+    <div class="box"><div class="k bad">${past}</div><div class="l">вече след датата за публикуване</div></div>
+    <div class="box"><div class="k warn">${quiet}</div><div class="l">без коментар от 7+ дни — никой не гони</div></div>
+  </div>
+  ${CLIENTS.map((x, i) => {
+    const worst = Math.max(...x.cards.map((c) => c.past));
+    return `<details class="cl"${i < 2 ? ' open' : ''}><summary><b>${esc(x.c)}</b><span class="pill">${x.cards.length} видеа</span>${worst ? `<span class="pill r">до ${dn(worst)} след датата</span>` : '<span class="pill g">в срок</span>'}<span class="dim">акаунт: ${esc(x.am)}</span></summary>
+    <div class="in"><table><tr><th>Видео</th><th>Колона</th><th>При клиента</th><th>Датата за публикуване</th><th>Последен коментар</th><th>Причина (при „Изчакване“)</th></tr>
+    ${x.cards.map((c) => `<tr><td>${esc(c.t)}</td><td>${esc(c.col)}</td><td>${dn(c.since)}</td>
+      <td>${c.past ? `<span class="pill r">мина преди ${dn(c.past)}</span>` : '<span class="pill g">предстои</span>'}</td>
+      <td>${c.last === null ? '<span class="pill x">никога</span>' : c.last >= 7 ? `<span class="pill a">преди ${dn(c.last)}</span>` : `преди ${dn(c.last)}`}</td>
+      <td>${c.col === 'Изчакване' ? `<select>${REASONS.map((r, k) => `<option${k === (c.last === null ? 4 : 1) ? ' selected' : ''}>${r}</option>`).join('')}</select>` : '<span class="dim">—</span>'}</td></tr>`).join('')}
+    </table>
+    <div style="margin-top:10px"><button class="btn pri" data-r="${i}">✉️ Подготви напомняне</button> <span class="dim" style="font-size:12.5px">нищо не се праща без човек</span></div>
+    <div id="m${i}"></div></div></details>`;
+  }).join('')}`;
+  document.querySelectorAll('[data-r]').forEach((b) => b.onclick = () => {
+    const x = CLIENTS[+b.dataset.r];
+    const lines = x.cards.filter((c) => c.col === 'Към Клиент').map((c) => '• ' + c.t + (c.past ? ' (планирано за преди ' + dn(c.past) + ')' : ''));
+    document.getElementById('m' + b.dataset.r).innerHTML = `<div class="msg">Здравейте! Тези видеа са готови и чакат вашето одобрение:\n${esc(lines.join('\n') || '• (няма видеа в „Към Клиент“)')}\n\nЩе се радваме на обратна връзка до четвъртък, за да ги публикуваме тази седмица. Ако има корекции — пишете директно под видеото.</div>
+      <p class="note">В реалната версия: акаунтът редактира и натиска „Публикувай“ → коментар в проекта на клиента. Платформата помни кога е пратено и брои дните наново.</p>`;
+  });
+}
+
+const BLACK = [
+  { t: 'Клиника Алфа · КП-4 · Видео 1', col: 'PM → Изчакване', late: 34, who: 'клиентът' },
+  { t: 'Онлайн магазин Гама · Видео 1', col: 'PM → Към Клиент', late: 70, who: 'клиентът' },
+  { t: 'Финанси Делта · Видео 3', col: 'PM → Към Клиент', late: 69, who: 'клиентът' },
+  { t: 'Фитнес Бета · КП-5 · Видео 2', col: 'PM → Към Клиент', late: 9, who: 'клиентът' },
+  { t: 'Игри Епсилон · Шорт 1', col: 'PM → Изчакване', late: 23, who: 'клиентът' },
+  { t: 'Пекарна Зета · КП-10 · Видео 4', col: 'Production → Външни', late: 12, who: 'видеограф' },
+  { t: 'Строител Ета · КП-11 · Видео 2', col: 'Production → Студио', late: 43, who: 'видеограф' },
+  { t: 'Бюти Тета · КП-12 · Видео 1', col: 'Pre-Production → Измисляне', late: 3, who: 'криейтър' },
+];
+function renderBlack() {
+  const ours = BLACK.filter((b) => b.who !== 'клиентът'), cl = BLACK.filter((b) => b.who === 'клиентът');
+  const row = (b) => `<tr><td>${esc(b.t)}</td><td>${esc(b.col)}</td><td class="bad">${dn(b.late)}</td><td>${b.who === 'клиентът' ? '<span class="pill b">чакаме клиента</span>' : '<span class="pill x">' + esc(b.who) + '</span>'}</td></tr>`;
+  document.getElementById('main').innerHTML = `
+  <h2>③ Черни карти: „закъсняваме ние“ и „чакаме клиента“</h2>
+  <p class="lead">Днес съобщението „Черни карти“ в 10:00 слага в един списък и видеата, които екипът не е довършил, и тези, които са готови и чакат клиента. Предложението ги разделя: таговете и анализът отиват към нашите закъснения, а клиентските — с един ред към акаунта.</p>
+  <div class="explain"><b>Реалните числа от 20.11:</b> 74 карти с просрочена стъпка; 52 от тях (70%) стоят в „Към Клиент“ / „Изчакване“ — работата е свършена. Нашите закъснения са 22, почти всичките в снимките. (Отделно от „родените черни“ от Н1.3 — двете разделяния се допълват.)</div>
+  <div class="split">
+    <div class="box"><div class="k">74</div><div class="l">черни карти днес (един списък)</div></div>
+    <div class="box"><div class="k bad">22</div><div class="l">закъсняваме ние — тук има какво да се гони</div></div>
+    <div class="box"><div class="k" style="color:#93c8f2">52</div><div class="l">чакаме клиента — към акаунта, не към изпълнителя</div></div>
+  </div>
+  <div class="box" style="margin-bottom:14px"><h4>🔴 Закъсняваме ние (пример)</h4><table><tr><th>Карта</th><th>Къде</th><th>Закъснение</th><th>Чий ход</th></tr>${ours.map(row).join('')}</table></div>
+  <div class="box"><h4>🔵 Чакаме клиента (пример)</h4><table><tr><th>Карта</th><th>Къде</th><th>След датата</th><th>Чий ход</th></tr>${cl.map(row).join('')}</table>
+  <p class="note">Тези отиват в списъка „Чакаме клиента“ (②) — един ред на клиент към акаунта, без таг към монтажиста.</p></div>`;
+}
+
+function show() {
+  const h = (location.hash || '#flow').slice(1);
+  const p = ['flow', 'client', 'black'].includes(h) ? h : 'flow';
+  document.querySelectorAll('.side a').forEach((a) => a.classList.toggle('on', a.dataset.p === p));
+  ({ flow: renderFlow, client: renderClient, black: renderBlack })[p]();
+}
+document.querySelectorAll('.side a').forEach((a) => a.onclick = () => { location.hash = a.dataset.p; });
+window.addEventListener('hashchange', show);
+show();
+</script>
+</body>
+</html>
