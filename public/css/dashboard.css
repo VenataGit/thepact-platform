@@ -306,7 +306,7 @@
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 .dash-card__timer:hover { background: rgba(255,255,255,0.16); color: var(--text); }
-.dash-card__assignee { font-size: 10px; color: var(--text-secondary); }
+.dash-card__assignee { font-size: 11px; color: var(--text-secondary); min-width: 0; overflow-wrap: anywhere; } /* целият ред е за назначените (19.11.2026) */
 
 /* Deadline color states — wired to the shared themeable deadline backgrounds
    (Админ → DEADLINE ФОНОВЕ), the same vars the kanban board uses. */

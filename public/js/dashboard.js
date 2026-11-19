@@ -709,14 +709,9 @@ function renderDashCard(card) {
     colorClass = diff < 0 ? 'dash-card--overdue' : diff === 0 ? 'dash-card--today' : diff <= 3 ? 'dash-card--soon' : 'dash-card--ok';
   }
   const noDate = !effDue && !card.completed && !isPrio; // needs a date — flag until one is set
-  const assignee = card.assignees && card.assignees[0] ? esc(card.assignees[0].name.split(' ')[0]) : '';
-  // Зелено чекче до таймера, щом стъпката на дъската, в която стои картата, е чекната.
-  // `dueStepDone` идва от сървъра и е сметнат САМО по стъпката на тази дъска, така че
-  // Pre-Production не светва от чекнат монтаж и обратно. Показва се и когато стъпката е
-  // без дата (тогава картата е „Няма дата") — отметката си е отметка. (Венци, 25.08.2026)
-  const stepDoneMark = card.dueStepDone && !card.completed
-    ? '<span class="dash-card__stepdone" title="' + esc(card.dueStep || 'Стъпката на тази колона') + ' — чекната">' + DASH_CHECK_SVG + '</span>'
-    : '';
+  // Без бутона за таймера и чекчето (махнати по молба на Венци, 19.11.2026) — редът долу
+  // е само за назначените хора, с пълните имена. Няма ли назначен — редът изобщо го няма.
+  const assignee = (card.assignees || []).map((a) => esc((a && a.name) || '')).filter(Boolean).join(', ');
   // Режим „Дата за публикуване": датата вече не идва от стъпка, тя си е Due On —
   // тогава tooltip-ът обяснява това вместо да сочи (грешно) към стъпката на отдела.
   const dueTip = _dashPublishMode
@@ -744,13 +739,7 @@ function renderDashCard(card) {
     '<div class="dash-card__title">' + esc(card.title) + '</div>' +
     due +
     firstPub +
-    '<div class="dash-card__actions">' +
-      '<span class="dash-card__actions-left">' +
-        '<button class="dash-card__timer" onclick="dashCardTimer(event, \'' + card.id + '\')" title="Следене на времето">' + DASH_CLOCK_SVG + '</button>' +
-        stepDoneMark +
-      '</span>' +
-      (assignee ? '<span class="dash-card__assignee">' + assignee + '</span>' : '') +
-    '</div>' +
+    (assignee ? '<div class="dash-card__actions"><span class="dash-card__assignee">👤 ' + assignee + '</span></div>' : '') +
   '</' + tag + '>';
 }
 
