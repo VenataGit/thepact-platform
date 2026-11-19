@@ -446,11 +446,21 @@ async function dashSyncBoardTimer(boardId) {
   if (!_dashCards[boardId]) return;
   const now = new Date(); now.setHours(0, 0, 0, 0);
   let hasOverdue = false;
-  Object.values(_dashCards[boardId]).forEach((cards) => cards.forEach((c) => {
-    const d = c.dueOn ? _parseDateMidnight(c.dueOn) : null;
-    // Просрочието се мери само по датата — както и цветът на картата. (Венци, 25.08.2026)
-    if (d && d < now && !c.completed) hasOverdue = true;
-  }));
+  // Само нормалните колони: Done и „Not now" са скрити на таблото, а една забравена карта
+  // в тях държеше лентата червена, без на таблото да има черна карта. (Венци, 19.11.2026)
+  const board = ((_dashStruct && _dashStruct.boards) || []).find((x) => String(x.id) === String(boardId));
+  const skipCols = new Set(((board && board.columns) || [])
+    .filter((c) => c.isDone || /not\s*now/i.test(c.title || '') || /\bdone\b|готово/i.test(c.title || ''))
+    .map((c) => String(c.id)));
+  Object.entries(_dashCards[boardId]).forEach(([colId, cards]) => {
+    if (skipCols.has(String(colId))) return;
+    cards.forEach((c) => {
+      const d = c.dueOn ? _parseDateMidnight(c.dueOn) : null;
+      // Просрочието се мери само по датата — както и цветът на картата (Венци, 25.08.2026).
+      // Приоритетната карта е бяла, не черна — не спира таймера.
+      if (d && d < now && !c.completed && !c.priority) hasOverdue = true;
+    });
+  });
   try {
     const res = await fetch('/api/timers/boards/sync', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
