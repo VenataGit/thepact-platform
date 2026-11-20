@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо Н3: Процесите срещу реалността</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; --blue:#4a9fe0; --violet:#a78bfa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; }
+  button, input, select, textarea { font:inherit; color:inherit; }
+  header { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:30; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .wrap { max-width:1680px; margin:14px auto 40px; padding:0 20px; display:grid; grid-template-columns:290px 1fr; gap:14px; }
+  .side { background:var(--panel); border-radius:15px; padding:12px; align-self:start; position:sticky; top:62px; }
+  .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:10px 8px 6px; }
+  .side a { display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:9px; cursor:pointer; text-decoration:none; color:#cfd8dc; font-size:13.5px; }
+  .side a:hover { background:var(--hover); }
+  .side a.on { background:var(--green); color:#fff; font-weight:600; }
+  .side p { color:var(--dim); font-size:12px; margin:10px 8px; }
+  .panel { background:var(--panel); border-radius:15px; padding:22px 26px; min-width:0; }
+  h2 { font-size:22px; margin-bottom:4px; }
+  .lead { color:var(--sec); margin-bottom:16px; max-width:1000px; }
+  .explain { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; padding:10px 14px; margin-bottom:16px; color:var(--sec); max-width:1100px; }
+  .explain b { color:var(--text); }
+  .btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:5px 12px; cursor:pointer; font-size:13px; }
+  .btn:hover { background:rgba(255,255,255,.12); }
+  .btn.pri { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+  .box { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 16px; }
+  .box h4 { font-size:14px; margin-bottom:10px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:7px 9px; border-bottom:1px solid rgba(255,255,255,.07); vertical-align:middle; }
+  th { color:var(--dim); font-weight:600; font-size:12px; }
+  .ok { color:var(--green); } .warn { color:var(--amber); } .bad { color:var(--red); } .dim { color:var(--dim); }
+  .pill { display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:9px; background:rgba(255,255,255,.07); color:var(--sec); white-space:nowrap; }
+  .pill.g { background:rgba(70,163,116,.18); color:#7fd3a6; } .pill.a { background:rgba(245,166,35,.16); color:#ffc56b; }
+  .pill.r { background:rgba(229,83,75,.16); color:#ff9c95; } .pill.b { background:rgba(74,159,224,.16); color:#93c8f2; } .pill.x { background:#000; color:#ddd; border:1px solid #444; }
+  .flow { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin:8px 0 18px; }
+  .stage { position:relative; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px 14px; }
+  .stage.client { border-color:rgba(74,159,224,.45); background:rgba(74,159,224,.06); }
+  .stage .nm { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+  .stage .k { font-size:30px; font-weight:800; margin:2px 0; }
+  .stage .l { font-size:12.5px; color:var(--sec); }
+  .stage .bar { height:6px; border-radius:3px; background:rgba(255,255,255,.08); margin-top:8px; overflow:hidden; display:flex; }
+  .stage .bar i { display:block; height:100%; }
+  .stage:not(:last-child)::after { content:'→'; position:absolute; right:-12px; top:40%; color:var(--dim); font-size:14px; }
+  .split { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+  .split .box { text-align:center; } .split .k { font-size:30px; font-weight:800; } .split .l { color:var(--sec); font-size:12.5px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .cl { margin-bottom:12px; }
+  .cl summary { cursor:pointer; list-style:none; display:flex; gap:12px; align-items:center; padding:10px 14px; border-radius:10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
+  .cl summary::-webkit-details-marker { display:none; }
+  .cl summary b { font-size:14.5px; flex:1; }
+  .cl[open] summary { border-radius:10px 10px 0 0; }
+  .cl .in { border:1px solid rgba(255,255,255,.08); border-top:0; border-radius:0 0 10px 10px; padding:8px 12px 12px; }
+  .msg { background:#0d1518; border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:10px; white-space:pre-wrap; color:#cfd8dc; font-size:13px; }
+  .note { font-size:12.5px; color:var(--sec); margin-top:8px; }
+  .hbar { display:flex; align-items:center; gap:8px; font-size:12.5px; margin:5px 0; }
+  .hbar span:first-child { width:150px; color:var(--sec); }
+  .hbar .t { flex:1; height:16px; background:rgba(255,255,255,.05); border-radius:4px; position:relative; }
+  .hbar .t i { position:absolute; top:0; bottom:0; left:0; border-radius:4px; background:var(--green); }
+  .hbar .t i.p80 { background:rgba(70,163,116,.3); }
+  select { background:#0d1518; border:1px solid var(--border); border-radius:8px; padding:5px 8px; }
+  @media (max-width:1000px) { .wrap { grid-template-columns:1fr; } .side { position:static; } .flow, .split, .grid2 { grid-template-columns:1fr; } .stage::after { display:none; } }
+  .steps { display:flex; flex-direction:column; gap:8px; }
+  .step { display:grid; grid-template-columns:34px 1fr 170px 230px; gap:12px; align-items:center; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px 14px; }
+  .step .n { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.08); display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--sec); }
+  .step .t { font-weight:600; } .step .s { font-size:12px; color:var(--dim); }
+  .meter { height:8px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; } .meter i { display:block; height:100%; }
+  .pct { font-size:13px; font-weight:700; margin-bottom:4px; }
+  .who { font-size:12px; color:var(--sec); }
+  .proc-head { display:flex; gap:16px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+  .score { font-size:28px; font-weight:800; }
+  .gap { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px 16px; margin-bottom:10px; }
+  .gap .q { font-weight:600; margin-bottom:6px; } .gap .w { font-size:12px; color:var(--dim); }
+  .real { margin-top:8px; background:rgba(70,163,116,.08); border-left:3px solid var(--green); padding:8px 12px; border-radius:6px; font-size:13px; color:#cfe9db; }
+  .gap .acts { display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap; }
+  .gap.done { opacity:.6; } .gap.done .q { text-decoration:line-through; }
+  .mt { display:grid; grid-template-columns:1fr 380px; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--border); border-left:4px solid var(--amber); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+  .card.red { border-left-color:var(--red); } .card.cok { border-left-color:var(--green); }
+  .card .ttl { font-weight:600; font-size:13.5px; } .card .meta { font-size:12px; color:var(--dim); margin-top:4px; display:flex; justify-content:space-between; gap:8px; }
+  .card a, .howto a, a.lnk { color:#93c8f2; text-decoration:none; cursor:pointer; } .card a:hover { text-decoration:underline; }
+  .chk label { display:flex; gap:9px; align-items:flex-start; padding:6px 2px; border-bottom:1px solid rgba(255,255,255,.06); font-size:13px; cursor:pointer; }
+  .chk input { margin-top:3px; accent-color:var(--green); }
+  .tag { font-size:11px; padding:1px 7px; border-radius:8px; background:rgba(74,159,224,.16); color:#93c8f2; margin-left:6px; }
+  .howto { position:fixed; right:24px; bottom:24px; width:420px; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px 18px; box-shadow:0 10px 40px rgba(0,0,0,.5); display:none; z-index:40; }
+  .howto.on { display:block; }
+  @media (max-width:1000px) { .step { grid-template-columns:30px 1fr; } .mt { grid-template-columns:1fr; } .howto { left:12px; right:12px; width:auto; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>📖 Процесите срещу реалността</h1>
+  <span class="badge">Нощен анализ · Н3.1, Н3.3, Н3.5 · демо с измислени данни</span>
+</header>
+<div class="wrap">
+  <nav class="side">
+    <h3>Демо</h3>
+    <a data-p="score">① Спазване до всяка стъпка</a>
+    <a data-p="gaps">② Дупки: „реалността казва“</a>
+    <a data-p="mine">③ Моите задачи + процесът</a>
+    <p>Хората и картите са измислени. Процентите са в същия порядък като истинските данни от 21.11.2026 (последните 30–60 дни).</p>
+  </nav>
+  <main class="panel" id="main"></main>
+</div>
+<div class="howto" id="howto"></div>
+<script>
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const col = (p) => p == null ? 'var(--dim)' : p >= 80 ? 'var(--green)' : p >= 40 ? 'var(--amber)' : 'var(--red)';
+
+const PROCS = {
+  shoot: { name: 'Снимачен ден', dept: '🎬 Заснемане', steps: [
+    { t: 'Вечерта преди: прочети сценариите', s: 'не се мери' },
+    { t: 'Провери техниката', s: 'не се мери' },
+    { t: 'Хвърли файловете в папката на видеото', s: 'нов материал в папката до 1 ден след снимката', p: 72, who: 'Видеографите' },
+    { t: 'Отметни „Production – Заснет материал“', s: 'отметнато, когато картата стигне Post-Production', p: 79, who: 'Петя 20 · Мира (монтаж) 16 · Ралица (акаунт) 14', warn: 'отмята се, но наполовина не от видеографа' },
+    { t: '„Отбележи като готово“ в разширението', s: 'запис в разширението за картата', p: 64, who: 'Видеографите' },
+    { t: 'Премести картата в Post-Production', s: 'картата се появява в Post-Production', p: 96, who: 'Видеографите, Мира' },
+  ] },
+  edit: { name: 'Монтаж на едно видео', dept: '✂️ Монтаж', steps: [
+    { t: 'Лийд монтажистът разпределя видеата', s: 'картата излиза от „Разпределение“', p: 100, who: 'Мира' },
+    { t: 'Коментар „започнат монтаж“', s: 'такъв коментар в картата', p: 0, who: '—', warn: '0 за 60 дни → махаме или автоматично?' },
+    { t: 'Вътрешен преглед: таг към лийда с файла', s: 'таг към лийда + отговор', p: 91, who: 'Камен → Мира (221 карти) · Боян → Мира (103)' },
+    { t: 'Отметни „Приключен монтаж“', s: 'отметнато, когато картата стигне PM', p: 76, who: 'Мира 43 · Камен 35 · Ралица 9' },
+    { t: 'Премести в PM → Към Клиент + таг към акаунта', s: 'картата се появява в PM', p: 97, who: 'Монтажистите' },
+  ] },
+  upload: { name: 'Качване и насрочване', dept: '📋 Акаунт', steps: [
+    { t: 'Провери къде се качва', s: 'не се мери' },
+    { t: 'Качи / насрочи с copy-то от картата', s: 'не се мери' },
+    { t: 'Отметни „Качване/Насрочване“', s: 'отметнато при Done', p: 4, who: 'Петя — 6 от 165', warn: 'Done се натиска винаги → отметката да е автоматична' },
+    { t: '„Отбележи като готово“ и Done', s: 'картата е в Done', p: 100, who: 'Ралица' },
+  ] },
+};
+let cur = 'shoot';
+function renderScore() {
+  const P = PROCS[cur];
+  const meas = P.steps.filter((s) => s.p != null), good = meas.filter((s) => s.p >= 80).length;
+  document.getElementById('main').innerHTML = `
+  <h2>① Спазване до всяка стъпка</h2>
+  <p class="lead">Отваряш процес в „Процеси“ и до всяка стъпка, която може да се мери от Basecamp, стои колко често се прави (последните 30 дни) и кой реално я прави. Числата се смятат нощем от снимката на Basecamp — никой не попълва нищо.</p>
+  <div class="explain"><b>Истински числа от 21.11:</b> „Качване/Насрочване“ е отметнато в 6 от 165 готови карти; „Заснет материал“ — в 79%, но наполовина от монтажа и акаунта; коментар „започнат монтаж“ — 0 за 60 дни; вътрешният преглед при лийд монтажиста — в над 300 карти за месец, макар процесът да пита „кой го прави“.</div>
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">${Object.entries(PROCS).map(([k, p]) => `<button class="btn ${k === cur ? 'pri' : ''}" data-k="${k}">${esc(p.dept)} · ${esc(p.name)}</button>`).join('')}</div>
+  <div class="proc-head"><div><div class="dim" style="font-size:12px">${esc(P.dept)}</div><div style="font-size:18px;font-weight:700">${esc(P.name)}</div></div>
+    <div class="box" style="padding:8px 14px"><span class="score" style="color:${col(good / meas.length * 100)}">${good} от ${meas.length}</span> <span class="dim">измерими стъпки се спазват (80%+)</span></div>
+    <span class="pill">месец назад: ${Math.max(0, good - 1)} от ${meas.length}</span></div>
+  <div class="steps">${P.steps.map((s, i) => `<div class="step"><div class="n">${i + 1}</div>
+    <div><div class="t">${esc(s.t)}</div><div class="s">${esc(s.s)}${s.warn ? ` · <span class="warn">⚠ ${esc(s.warn)}</span>` : ''}</div></div>
+    <div>${s.p == null ? '<span class="pill">не се мери</span>' : `<div class="pct" style="color:${col(s.p)}">${s.p}%</div><div class="meter"><i style="width:${Math.max(s.p, 2)}%;background:${col(s.p)}"></i></div>`}</div>
+    <div class="who">${s.who ? '👤 ' + esc(s.who) : ''}${s.p != null ? '<br><a class="lnk" style="font-size:11.5px">виж 3 примерни карти →</a>' : ''}</div></div>`).join('')}</div>
+  <p class="note">Зелено — 80% и нагоре, жълто 40–80%, червено под 40%. Червеното не значи „хората са виновни“ — често значи, че правилото е излишно или трябва да го прави системата (Н3.2).</p>`;
+  document.querySelectorAll('[data-k]').forEach((b) => b.onclick = () => { cur = b.dataset.k; renderScore(); });
+}
+
+const GAPS = [
+  { q: 'Кой прави вътрешния преглед на монтажа?', w: 'Вътрешен преглед · стъпка 2', due: '24.11', real: 'Лийд монтажистът: за 30 дни монтажистите са го тагнали с готовия файл в 324 карти, той е върнал бележки или „готово“ в 211.', rule: 'Вътрешният преглед го прави лийд монтажистът; монтажистът го тагва с файла.' },
+  { q: 'Кой изпраща версията със субтитри на клиента?', w: 'Субтитри · стъпка 4', due: '24.11', real: 'Акаунтът: 112 коментара за субтитри за 30 дни; лийд монтажистът ги разпределя (235).', rule: 'Версията със субтитри я изпраща акаунтът.' },
+  { q: 'Как се отбелязва, че една идея е реклама?', w: 'Нов клиент в КП-Автоматизация · стъпка 3', due: '01.12', real: 'На практика: „Реклама“ в заглавието на видеото в КП-то (11 карти за 60 дни). Префиксът „РЕК-N“ (папка „Реклами N“) съществува в системата, но е ползван 0 пъти.', rule: 'Реклама в КП-то: „Видео N - Реклама - Заглавие“.' },
+  { q: 'Графичните постове и снимките — как се следят?', w: 'Нов клиент в КП-Автоматизация · стъпка 4', due: '01.12', real: 'Отделни карти „Клиент - Статичен пост / Карусел - …“ извън КП-то (12 за 60 дни).', rule: 'Постовете са отделни карти „Клиент - Статичен пост - Тема“.' },
+  { q: 'Производственият календар не се ползва', w: 'Насрочване на снимачен ден · стъпка 5', due: '24.11', real: 'Снимките са в Google календара „Production“: 60 събития, 51 известия в Basecamp за 30 дни. Вътрешният календар — 0 бъдещи записа.', rule: 'Снимачният ден се слага в Google календара „Production“.' },
+  { q: 'Задачите при клиента ги прави акаунтът на ръка', w: 'Изпращане към клиента · стъпка 2', due: '08.12', real: '312 задачи за 60 дни, от трима души (лийд монтажист 119, акаунт 116, ръководител 69).', rule: null },
+];
+const accepted = new Set();
+function renderGaps() {
+  document.getElementById('main').innerHTML = `
+  <h2>② Дупки: „реалността казва“</h2>
+  <p class="lead">В „🚧 Дупки за оправяне“ до всяка дупка излиза какво показва Basecamp. Ако реалността вече е отговорила — „Приеми като правило“ маха „ДУПКА:“ от стъпката и пише новото правило (нова версия на процеса). Всеки понеделник 3 дупки отиват при ръководителя — не 37 наведнъж.</p>
+  <div class="split">
+    <div class="box"><div class="k">${37 - accepted.size}</div><div class="l">дупки (33 на 05.11 → 37 на 21.11)</div></div>
+    <div class="box"><div class="k ok">6</div><div class="l">с отговор от реалността</div></div>
+    <div class="box"><div class="k">${accepted.size}</div><div class="l">приети в демото</div></div>
+  </div>
+  ${GAPS.map((g, i) => `<div class="gap ${accepted.has(i) ? 'done' : ''}"><div class="q">🕳 ${esc(g.q)}</div><div class="w">${esc(g.w)} · собственик: ръководителят · срок: ${g.due}</div>
+    <div class="real">📊 <b>Реалността казва:</b> ${esc(g.real)}</div>
+    <div class="acts">${accepted.has(i) ? `<span class="ok">✓ Прието: „${esc(g.rule)}“ — процесът е с нова версия</span>` : g.rule ? `<button class="btn pri" data-a="${i}">Приеми като правило</button><span class="dim" style="font-size:12px">„${esc(g.rule)}“</span><button class="btn">Не — ще решим друго</button>` : '<span class="pill a">реалността показва проблема, не отговора → към каталога („Изпращане за одобрение“)</span>'}</div></div>`).join('')}
+  <div class="box" style="margin-top:14px"><h4>📨 Понеделник 09:00 → ръководителят (пример)</h4><div class="dim">„3 дупки тази седмица: ① Кой прави вътрешния преглед — реалността: лийд монтажистът (324 карти). Приемаме ли? ② … ③ …“ — с връзка към всяка.</div></div>`;
+  document.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => { accepted.add(+b.dataset.a); renderGaps(); });
+}
+
+const CARDS = [
+  { t: 'Пекарна Зета КП-10 - Видео 4 - Кой помни повече', due: 'снимки до 24.11', cls: '' },
+  { t: 'Фитнес Бета КП-5 - Видео 9 - Новата зала', due: 'снимки до 22.11', cls: 'red' },
+  { t: 'Клиника Алфа КП-6 - Видео 2 - Как протича консултацията', due: 'снимки до 27.11', cls: 'cok' },
+  { t: 'Строител Ета КП-11 - Видео 3 - Плочки за баня', due: 'снимки до 28.11', cls: 'cok' },
+];
+const CHECK = ['Вечерта преди: прочети сценариите и провери проповете (въпроси до 17:00)', 'Провери техниката', 'На място: кадър и звук', 'Снимай по сценария; „Неприкосновеното“ не става → двата варианта', 'Файловете — в папката на видеото СЪЩИЯ ден', 'Премести картата в Post-Production (стъпката се отмята сама)'];
+function renderMine() {
+  document.getElementById('main').innerHTML = `
+  <h2>③ Моите задачи + процесът</h2>
+  <p class="lead">„Моите задачи“ (от 19.11) вече знае колоната на човека — значи и ролята му. До картите излиза „Моят процес“ (чеклистът за ролята), а на всяка карта — „📖 Как се прави“ към процеса за колоната. Без да се търси в „Още → Процеси“.</p>
+  <div class="explain"><b>Защо:</b> страницата „Процеси“ се отваря по 0–10 пъти на ден след първата седмица (20.11 — нито веднъж). Чеклистите по роля съществуват, но никой не стига до тях.</div>
+  <div class="mt"><div><div class="dim" style="font-size:12px;margin-bottom:8px">📋 Моите задачи · Production → Петя</div>
+    ${CARDS.map((c, i) => `<div class="card ${c.cls}"><div class="ttl">${esc(c.t)}</div><div class="meta"><span>${esc(c.due)}</span><a data-h="${i}">📖 Как се прави</a></div></div>`).join('')}</div>
+    <div class="box"><h4>🎬 Моят процес: Видеограф <span class="tag">Снимачен ден</span></h4><div class="chk">${CHECK.map((c) => `<label><input type="checkbox"> ${esc(c)}</label>`).join('')}</div>
+    <p class="note">Отметките тук са само за човека (напомняне), не пишат в Basecamp. „Пълният процес →“ води към #/processes.</p></div></div>`;
+  document.querySelectorAll('[data-h]').forEach((a) => a.onclick = () => {
+    const c = CARDS[+a.dataset.h], h = document.getElementById('howto');
+    h.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>📖 Как се прави — Снимачен ден</b><a id="hx">✕</a></div><div class="dim" style="font-size:12px;margin-bottom:8px">${esc(c.t)}</div>
+      <ol style="padding-left:18px;font-size:13px;color:var(--sec)">${CHECK.map((x) => `<li style="margin-bottom:4px">${esc(x)}</li>`).join('')}</ol>
+      <div class="note">⚠ Въпросите към криейтъра — в картата до 17:00 предния ден. · <a>Отвори целия процес →</a></div>`;
+    h.classList.add('on'); document.getElementById('hx').onclick = () => h.classList.remove('on');
+  });
+  if (location.search.includes('open')) document.querySelector('[data-h="1"]').click();
+}
+
+function show() {
+  const h = (location.hash || '#score').slice(1);
+  const p = ['score', 'gaps', 'mine'].includes(h) ? h : 'score';
+  document.getElementById('howto').classList.remove('on');
+  document.querySelectorAll('.side a').forEach((a) => a.classList.toggle('on', a.dataset.p === p));
+  ({ score: renderScore, gaps: renderGaps, mine: renderMine })[p]();
+}
+document.querySelectorAll('.side a').forEach((a) => a.onclick = () => { location.hash = a.dataset.p; });
+window.addEventListener('hashchange', show);
+show();
+</script>
+</body>
+</html>
