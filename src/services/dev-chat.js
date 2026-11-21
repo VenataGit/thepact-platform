@@ -76,6 +76,11 @@ async function pollOnce() {
   running = true;
   try {
     const cfg = await loadCfg();
+    // Backstop: заседнал running (watcher убит по средата / login счупен) → обратно в
+    // опашката. Прагът е над лимита на сесията (60 мин), за да не пре-claim-нем жив run.
+    await execute(
+      "UPDATE dev_chat SET status = 'pending', updated_at = NOW() WHERE status = 'running' AND updated_at < NOW() - INTERVAL '70 minutes'"
+    );
     try { await pollPings(); } catch (e) { console.error('[dev-chat] pings:', e.message); }
     if (!cfg.enabled) return;
     await pollCampfire(cfg);
@@ -86,11 +91,6 @@ async function pollOnce() {
 
 async function pollCampfire(cfg) {
   {
-    // Backstop: заседнал running (watcher убит по средата / login счупен) → обратно в
-    // опашката. Прагът е над лимита на сесията (60 мин), за да не пре-claim-нем жив run.
-    await execute(
-      "UPDATE dev_chat SET status = 'pending', updated_at = NOW() WHERE status = 'running' AND updated_at < NOW() - INTERVAL '70 minutes'"
-    );
 
     const auth = await getServiceAuth();
     const lines = await bc.getCampfireLines(auth.token, auth.account, cfg.project, cfg.chat, 2);
