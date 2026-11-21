@@ -66,8 +66,9 @@ router.post('/:id(\\d+)/complete', async (req, res) => {
           "SELECT string_agg(key || '=' || value, ',') AS s FROM settings WHERE key IN ('dev_chat_bc_project','dev_chat_bc_chat')"
         );
         const map = Object.fromEntries(String(cfg?.s || '').split(',').filter(Boolean).map((kv) => kv.split('=')));
-        const project = parseInt(map.dev_chat_bc_project) || 47742842;
-        const chat = parseInt(map.dev_chat_bc_chat) || 10005689776;
+        // Съобщение от Ping → отговорът е в същия Ping; иначе — Campfire чатът.
+        const project = Number(msg.reply_bucket) || parseInt(map.dev_chat_bc_project) || 47742842;
+        const chat = Number(msg.reply_chat) || parseInt(map.dev_chat_bc_chat) || 10005689776;
         const auth = await getServiceAuth();
         await bc.createCampfireLine(auth.token, auth.account, project, chat, toCampfire(text));
       } catch (e) {

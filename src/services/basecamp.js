@@ -583,6 +583,15 @@ async function createMessage(token, account, projectId, boardId, { subject, cont
 // Post a line to a Campfire chat. Content is rich text — <bc-attachment sgid>
 // mentions work and notify the mentioned people (closest thing to a Ping the
 // public API offers; real Pings/DMs are not exposed by Basecamp).
+// Pings (в API-то „Circles“): активните Pings, в които е токенът. Не е paginated.
+// Редовете се четат/пишат с getCampfireLines/createCampfireLine (bucket = id-то на Ping-а).
+async function getPings(token, account) {
+  const r = await bcFetch(`${API_BASE}/${account}/circles.json`, { headers: headers({ Authorization: `Bearer ${token}` }) });
+  if (r.status === 403) return []; // Pings са изключени за акаунта
+  if (!r.ok) throw new Error(`Basecamp pings failed (${r.status})`);
+  return r.json();
+}
+
 async function createCampfireLine(token, account, projectId, chatId, content) {
   const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/chats/${chatId}/lines.json`, {
     method: 'POST',
@@ -691,6 +700,7 @@ module.exports = {
   getRecordingsSince,
   createMessage,
   createCampfireLine,
+  getPings,
   createComment,
   setSubscription,
   downloadFile,
