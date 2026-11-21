@@ -170,3 +170,31 @@
 /* Колона от Production (над търсенето) + сгънатият „Останалият екип" */
 .pc-sidebar__col { margin-bottom: 6px; cursor: pointer; }
 .pc-people__more > summary { cursor: pointer; list-style: revert; }
+
+/* Календар на избраното видео (панелът с хората) */
+.pc-people__cal { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; color: var(--text-dim); }
+.pc-people__cal select { flex: 1; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; font-size: 12px; }
+
+/* ⚙️ Настройки на производствения календар (#/calendar/settings) — цяла страница */
+.pcs-page { padding: 16px 20px 40px; }
+.pcs-hdr { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.pcs-hdr h2 { margin: 0; font-size: 18px; color: var(--text); }
+.pcs-note { padding: 10px 14px; border-radius: 8px; background: var(--bg-hover); color: var(--text-secondary); font-size: 13px; margin-bottom: 14px; }
+.pcs-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .pcs-grid { grid-template-columns: 1fr; } }
+.pcs-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+.pcs-card h3 { margin: 0 0 6px; font-size: 15px; color: var(--text); }
+.pcs-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin: 0 0 12px; }
+.pcs-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.pcs-row__main { flex: 1; min-width: 0; font-size: 13px; color: var(--text); }
+.pcs-sub { font-size: 11px; margin-top: 3px; }
+.pcs-ok { color: var(--green, #46a374); }
+.pcs-warn { color: var(--red, #c0392b); }
+.pcs-dim { color: var(--text-dim); font-size: 11px; }
+.pcs-select, .pcs-input { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+.pcs-select { max-width: 240px; }
+.pcs-input { flex: 1; min-width: 0; }
+.pcs-add { display: flex; gap: 8px; align-items: center; padding-top: 12px; border-top: 1px solid var(--border); margin-bottom: 8px; }
+.pcs-list { display: flex; flex-direction: column; gap: 2px; max-height: 60vh; overflow-y: auto; }
+.pcs-check { display: flex; align-items: center; gap: 8px; padding: 5px 2px; font-size: 13px; color: var(--text); cursor: pointer; }
+.pcs-check .pcs-dim { margin-left: auto; text-align: right; }

@@ -100,7 +100,7 @@ function router() {
     case 'reports': return renderReports(el);
     case 'bookmarks': return renderBookmarks(el);
     case 'kp-auto': return renderKpAuto(el, parts[1] || null);
-    case 'calendar': return renderCalendar(el);
+    case 'calendar': return renderCalendar(el, parts[1] || null);
     case 'column': return id ? renderColumnView(el, id) : renderDashboard(el);
     case 'trash': return renderTrash(el);
     case 'release-notes': return renderReleaseNotes(el);

@@ -118,6 +118,22 @@ function ensureSchema() {
     schemaReady = Promise.all([
       execute('ALTER TABLE bc_production_calendar ADD COLUMN IF NOT EXISTS google_calendar_id TEXT'),
       execute('ALTER TABLE gcal_feeds ADD COLUMN IF NOT EXISTS can_write BOOLEAN'),
+      // Чий е календарът (Basecamp човек) — пуснеш ли карта в него, човекът се назначава.
+      execute('ALTER TABLE gcal_feeds ADD COLUMN IF NOT EXISTS pc_person_id BIGINT'),
+      // Мини админите на производствения календар (общи за целия календар).
+      execute(`
+        CREATE TABLE IF NOT EXISTS pc_mini_admins (
+          user_id    INTEGER PRIMARY KEY,
+          granted_by INTEGER,
+          granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`),
+      // Видеографи, отбелязани ръчно (над тези по длъжност в Basecamp).
+      execute(`
+        CREATE TABLE IF NOT EXISTS pc_videographers (
+          person_id  BIGINT PRIMARY KEY,
+          added_by   INTEGER,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`),
       // Дневник: кой какво е направил в производствения календар.
       execute(`
         CREATE TABLE IF NOT EXISTS bc_production_calendar_log (
@@ -240,7 +256,7 @@ async function listCalendars() {
   await ensureSchema();
   const defaultId = await getTargetCalendarId();
   const feeds = await query(
-    'SELECT google_calendar_id AS id, name, can_write FROM gcal_feeds WHERE enabled = true ORDER BY id'
+    'SELECT google_calendar_id AS id, name, can_write, pc_person_id FROM gcal_feeds WHERE enabled = true ORDER BY id'
   );
 
   const out = feeds.map((f) => ({
@@ -248,10 +264,11 @@ async function listCalendars() {
     name: f.name || f.id,
     is_default: f.id === defaultId,
     can_write: f.can_write,
+    person_id: f.pc_person_id && f.id !== defaultId ? String(f.pc_person_id) : null,
   }));
   // Производственият календар присъства винаги, дори да не е добавен като feed.
   if (defaultId && !out.some((c) => c.id === defaultId)) {
-    out.unshift({ id: defaultId, name: 'Производствен календар', is_default: true, can_write: true });
+    out.unshift({ id: defaultId, name: 'Производствен календар', is_default: true, can_write: true, person_id: null });
   }
 
   // Неизвестен достъп → проверява се веднъж и се запомня.
@@ -459,17 +476,43 @@ router.post('/', requireAuth, async (req, res) => {
       entry.google_calendar_event_id = null;
     }
 
-    syncCalToGCal(entry.google_calendar_event_id ? 'update' : 'create', entry).catch((e) => console.error('[GCal bc]', e.message));
+    // Календар на човек → той се назначава (assignee + таг с деня, часа и
+    // продължителността). Преместена от календара на друг → другият се маха.
+    const owners = await calendarOwners();
+    const owner = owners[targetCal] || null;
+    const prevOwner = prev ? (owners[prevCal] || null) : null;
+    const add = owner && owner !== prevOwner ? [{ personId: owner }] : [];
+    let remove = [];
+    if (prevOwner && prevOwner !== owner) {
+      remove = (await query(
+        'SELECT id FROM bc_production_calendar_people WHERE entry_id = $1 AND person_id = $2',
+        [entry.id, prevOwner]
+      )).map((r) => r.id);
+    }
+
+    const syncing = syncCalToGCal(entry.google_calendar_event_id ? 'update' : 'create', entry).catch((e) => console.error('[GCal bc]', e.message));
 
     const when = humanWhen(scheduledDate, entry.start_minute);
     const calName = await calendarNameOf(targetCal);
     logAction(req, prev ? 'reschedule' : 'add', entry,
       (prev ? 'пренасрочи за ' : 'добави за ') + when + (calName ? ' · ' + calName : ''));
 
+    let people = null, warnings = [];
+    if (add.length || remove.length) {
+      // Събитието трябва да е създадено, преди applyPeople да го обнови — иначе
+      // и двете страни биха създали ново събитие в Google (дубликат).
+      await syncing;
+      const fresh = await queryOne('SELECT * FROM bc_production_calendar WHERE id = $1', [entry.id]);
+      const r = await applyPeople(req, fresh || entry, add, remove);
+      people = r.people; warnings = r.warnings;
+    }
+
     res.status(201).json({
       id: entry.id, card_id: entry.basecamp_card_id, card_title: entry.card_title, card_url: entry.card_url,
       scheduled_date: scheduledDate, start_minute: entry.start_minute, duration_minutes: entry.duration_minutes,
       calendar_id: targetCal,
+      people: people || await peopleOf(entry.id),
+      warnings,
     });
   } catch (err) {
     console.error('[bc-calendar post]', err.message);
@@ -561,9 +604,14 @@ router.get('/people', requireAuth, async (req, res) => {
       "SELECT person_id, name, title, avatar_url FROM bc_people WHERE active = TRUE AND name <> '' ORDER BY name"
     );
     const external = await query('SELECT id, name FROM bc_external_people ORDER BY name');
+    const extraVg = await videographerIds();
     res.json({
-      team: bcPeople.map((p) => ({ person_id: String(p.person_id), name: p.name, title: p.title, avatar_url: p.avatar_url })),
+      team: bcPeople.map((p) => ({
+        person_id: String(p.person_id), name: p.name, title: p.title, avatar_url: p.avatar_url,
+        videographer: isVideographer(p, extraVg),
+      })),
       external,
+      canManage: await canManage(req),
     });
   } catch (err) {
     console.error('[bc-calendar people]', err.message);
@@ -724,9 +772,183 @@ function humanSlot(entry) {
   const names = ['неделя', 'понеделник', 'вторник', 'сряда', 'четвъртък', 'петък', 'събота'];
   const pad = (n) => String(n).padStart(2, '0');
   const hm = (min) => pad(Math.floor(min / 60)) + ':' + pad(min % 60);
-  const end = entry.start_minute + (entry.duration_minutes || 60);
-  return `${names[dow]}, ${d}.${m}.${y}, ${hm(entry.start_minute)} – ${hm(end)}`;
+  const dur = entry.duration_minutes || 60;
+  const end = entry.start_minute + dur;
+  return `${names[dow]}, ${d}.${m}.${y}, ${hm(entry.start_minute)} – ${hm(end)} (${humanDuration(dur)})`;
 }
+
+// 90 → „1 ч. 30 мин", 120 → „2 ч.", 45 → „45 мин"
+function humanDuration(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return [h ? h + ' ч.' : '', m ? m + ' мин' : ''].filter(Boolean).join(' ') || '0 мин';
+}
+
+// ─── настройки на календара (⚙️, мини админ) ──────────────────────────────────
+// Мини админът е общ за целия производствен календар: добавя календари, казва
+// чий е всеки календар и кои хора са видеографи. Мини админи дава само пълният
+// админ. Видеограф = длъжност в Basecamp (Videographer / Head of Production)
+// ИЛИ ръчно отбелязан тук.
+
+const VIDEOGRAPHER_TITLE = /videograph|видеограф|head of production/i;
+function isVideographer(p, extraSet) {
+  return VIDEOGRAPHER_TITLE.test(p.title || '') || (!!extraSet && extraSet.has(String(p.person_id)));
+}
+async function videographerIds() {
+  await ensureSchema();
+  return new Set((await query('SELECT person_id FROM pc_videographers')).map((r) => String(r.person_id)));
+}
+
+const isFullAdmin = (req) => !!(req.user && req.user.role === 'admin');
+async function canManage(req) {
+  if (isFullAdmin(req)) return true;
+  try {
+    await ensureSchema();
+    return !!(await queryOne('SELECT 1 FROM pc_mini_admins WHERE user_id = $1', [req.user.userId]));
+  } catch (e) { return false; }
+}
+async function requireManage(req, res, next) {
+  if (await canManage(req)) return next();
+  res.status(403).json({ error: 'Само мини админ на производствения календар.' });
+}
+
+// { calendarId: personId } — чий е календарът.
+async function calendarOwners() {
+  const out = {};
+  for (const c of await listCalendars()) if (c.person_id) out[c.id] = c.person_id;
+  return out;
+}
+
+// Calendar ID („…@group.calendar.google.com“) или embed/share линк с ?src=.
+function parseCalendarInput(input) {
+  const v = String(input || '').trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) {
+    try { return new URL(v).searchParams.get('src') || null; } catch (e) { return null; }
+  }
+  return v.includes('@') ? v : null;
+}
+
+// GET /api/bc-calendar/settings — всичко за страницата ⚙️ Настройки.
+router.get('/settings', requireAuth, async (req, res) => {
+  try {
+    await ensureSchema();
+    const manage = await canManage(req);
+    const fullAdmin = isFullAdmin(req);
+    const defaultId = await getTargetCalendarId();
+    const feeds = await query(
+      'SELECT id AS feed_id, google_calendar_id AS id, name, enabled, can_write, last_error, pc_person_id FROM gcal_feeds ORDER BY id'
+    );
+    const calendars = feeds.map((f) => ({
+      feed_id: f.feed_id, id: f.id, name: f.name || f.id, enabled: f.enabled, can_write: f.can_write,
+      last_error: f.last_error, is_default: f.id === defaultId,
+      person_id: f.pc_person_id ? String(f.pc_person_id) : null,
+    }));
+    if (defaultId && !calendars.some((c) => c.id === defaultId)) {
+      calendars.unshift({ feed_id: null, id: defaultId, name: 'Производствен календар', enabled: true, can_write: true, is_default: true, person_id: null });
+    }
+    const extraVg = await videographerIds();
+    const people = (await query(
+      "SELECT person_id, name, title, avatar_url FROM bc_people WHERE active = TRUE AND name <> '' ORDER BY name"
+    )).map((p) => ({
+      person_id: String(p.person_id), name: p.name, title: p.title || '', avatar_url: p.avatar_url,
+      by_title: VIDEOGRAPHER_TITLE.test(p.title || ''), extra: extraVg.has(String(p.person_id)),
+    }));
+    const admins = await query(
+      `SELECT u.id, u.name, u.role, a.user_id IS NOT NULL AS granted
+         FROM users u LEFT JOIN pc_mini_admins a ON a.user_id = u.id
+        WHERE u.is_active IS NOT FALSE ORDER BY u.name`
+    );
+    res.json({
+      canManage: manage, fullAdmin,
+      serviceEmail: getServiceAccountEmail() || '',
+      calendars, people,
+      admins: admins.map((u) => ({ id: u.id, name: u.name, granted: u.role === 'admin' || u.granted, is_admin: u.role === 'admin' })),
+    });
+  } catch (err) {
+    console.error('[bc-calendar settings]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/bc-calendar/settings/calendars { calendar, personId? } — нов календар.
+router.post('/settings/calendars', requireAuth, requireManage, async (req, res) => {
+  try {
+    await ensureSchema();
+    const calendarId = parseCalendarInput(req.body && req.body.calendar);
+    if (!calendarId) return res.status(400).json({ error: 'Подай Calendar ID (…@group.calendar.google.com) или линк със src=.' });
+    const { checkCalendarAccess } = require('../services/gcal-alerts');
+    const access = await checkCalendarAccess(calendarId);
+    const personId = /^\d+$/.test(String((req.body && req.body.personId) || '')) ? String(req.body.personId) : null;
+    const feed = await queryOne(
+      `INSERT INTO gcal_feeds (google_calendar_id, name, last_error, pc_person_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (google_calendar_id) DO UPDATE SET last_error = $3, enabled = TRUE,
+         pc_person_id = COALESCE($4, gcal_feeds.pc_person_id)
+       RETURNING id, name`,
+      [calendarId, access.name || '', access.ok ? null : access.error, personId]
+    );
+    await listCalendars(); // научава веднага дали може да се пише в него
+    logAction(req, 'settings', {}, 'добави календар „' + (feed.name || calendarId) + '“');
+    res.json({ ok: true, access });
+  } catch (err) {
+    console.error('[bc-calendar settings add]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/bc-calendar/settings/calendars/:feedId { personId | null } — чий е календарът.
+router.put('/settings/calendars/:feedId', requireAuth, requireManage, async (req, res) => {
+  try {
+    await ensureSchema();
+    const raw = req.body ? req.body.personId : null;
+    const personId = raw && /^\d+$/.test(String(raw)) ? String(raw) : null;
+    const feed = await queryOne('UPDATE gcal_feeds SET pc_person_id = $2 WHERE id = $1 RETURNING name, google_calendar_id', [req.params.feedId, personId]);
+    if (!feed) return res.status(404).json({ error: 'Няма такъв календар.' });
+    const p = personId ? await queryOne('SELECT name FROM bc_people WHERE person_id = $1', [personId]) : null;
+    logAction(req, 'settings', {}, '„' + (feed.name || feed.google_calendar_id) + '“ → ' + (p ? p.name : 'общ календар'));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[bc-calendar settings owner]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/bc-calendar/settings/videographers/:personId { on } — ръчен видеограф.
+router.put('/settings/videographers/:personId', requireAuth, requireManage, async (req, res) => {
+  try {
+    await ensureSchema();
+    const pid = String(req.params.personId);
+    if (!/^\d+$/.test(pid)) return res.status(400).json({ error: 'bad person' });
+    if (req.body && req.body.on) {
+      await execute('INSERT INTO pc_videographers (person_id, added_by) VALUES ($1, $2) ON CONFLICT DO NOTHING', [pid, req.user.userId]);
+    } else {
+      await execute('DELETE FROM pc_videographers WHERE person_id = $1', [pid]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[bc-calendar settings vg]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/bc-calendar/settings/admins/:userId { granted } — само пълният админ.
+router.put('/settings/admins/:userId', requireAuth, async (req, res) => {
+  if (!isFullAdmin(req)) return res.status(403).json({ error: 'Мини админ дава само админ.' });
+  try {
+    await ensureSchema();
+    const uid = parseInt(req.params.userId, 10);
+    if (!uid) return res.status(400).json({ error: 'bad user' });
+    if (req.body && req.body.granted) {
+      await execute('INSERT INTO pc_mini_admins (user_id, granted_by) VALUES ($1, $2) ON CONFLICT DO NOTHING', [uid, req.user.userId]);
+    } else {
+      await execute('DELETE FROM pc_mini_admins WHERE user_id = $1', [uid]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[bc-calendar settings admins]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Basecamp линк → „smart deep-link" мост на платформата (/go/basecamp/...).
 // Тапнат от Google Calendar, той отваря нативното приложение на телефона (ако е инсталирано)
@@ -771,3 +993,4 @@ async function syncCalToGCal(action, entry) {
 }
 
 module.exports = router;
+module.exports._test = { humanSlot, humanDuration, isVideographer, parseCalendarInput };

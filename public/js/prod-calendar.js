@@ -19,6 +19,7 @@ var _prodCal = {
   selectedId: null, // видеото, на което се разпределят хора (панелът вляво)
   draft:     null, // { entryId, picks: { ключ: { personId } | { name } } } — отметнатите, още незаписани
   focus:     null, // '<bc:id>' | '<ext:име>' — показва само снимките на този човек
+  canManage: false, // мини админ на календара (⚙️ Настройки)
   column:    localStorage.getItem('thepact-pc-column') || '', // колоната от Production, чиито карти са вляво ('' = всички)
 };
 
@@ -47,10 +48,36 @@ function _pcVisibleCals() {
 }
 
 function _pcTargetCal() {
+  // Избран човек със собствен календар → новите карти отиват там.
+  var own = _pcFocusCals().filter(function(id) {
+    return _prodCal.calendars.some(function(c) { return c.id === id && c.can_write; });
+  });
+  if (own.length) return own[0];
   var id = null;
   try { id = localStorage.getItem(PC_LS_TARGET); } catch (e) {}
   var hit = _prodCal.calendars.find(function(c) { return c.id === id && c.can_write; });
   return hit ? hit.id : _pcDefaultCalId();
+}
+
+// Календарите на избрания човек (свързани с него от ⚙️ Настройки).
+function _pcFocusCals() {
+  var f = _prodCal.focus;
+  if (!f || f.indexOf('bc:') !== 0) return [];
+  var pid = f.slice(3);
+  return _prodCal.calendars.filter(function(c) { return c.person_id && String(c.person_id) === pid; })
+    .map(function(c) { return c.id; });
+}
+
+// Избран човек → виждат се САМО неговите неща: видеата, на които е назначен, и
+// всичко в неговия календар. Общите календари не се показват.
+function _pcEntryVisible(e) {
+  if (!_prodCal.focus) return true;
+  return _pcHasPerson(e, _prodCal.focus) || _pcFocusCals().indexOf(e.calendar_id) >= 0;
+}
+
+// Кои календари да се четат от Google: при избран човек — само неговите.
+function _pcActiveCals() {
+  return _prodCal.focus ? _pcFocusCals() : _pcVisibleCals();
 }
 
 function _pcCalColor(calId) {
@@ -152,6 +179,7 @@ async function pcCreateEntry(cardId, date, startMin, durMin) {
     entry.scheduled_date = (entry.scheduled_date || '').toString().split('T')[0];
     // POST does not echo dl_class — carry it from the card so the block colors correctly.
     if (entry.dl_class == null) entry.dl_class = card ? card.dl_class : 'dl-none';
+    if (entry.warnings && entry.warnings.length) alert('Насрочено, но:\n' + entry.warnings.join('\n'));
     // POST upserts (ON CONFLICT card id) — replace in place rather than duplicate
     // if this card already has an entry (e.g. a fast double-drop before refresh).
     var ei = _prodCal.entries.findIndex(function(e) { return e.id === entry.id || String(e.card_id) === String(entry.card_id); });
@@ -212,9 +240,16 @@ async function pcLoadExternal(force) {
   if (!force && _prodCal.external[key]) return;
   var end = new Date(_prodCal.weekStart);
   end.setDate(end.getDate() + 6);
+  var cals = _pcActiveCals();
+  if (!cals.length) { // избран човек без собствен календар → няма какво да се чете
+    var had = (_prodCal.external[key] || []).length;
+    _prodCal.external[key] = [];
+    if (had) _pcRefreshWeekView();
+    return;
+  }
   try {
     var res = await fetch('/api/bc-calendar/external?from=' + key + '&to=' + _pcDate(end) +
-      '&calendars=' + encodeURIComponent(_pcVisibleCals().join(',')));
+      '&calendars=' + encodeURIComponent(cals.join(',')));
     if (!res.ok) return;
     var data = await res.json();
     var events = data.events || [];
@@ -280,7 +315,7 @@ function _pcRedrawCol(dateStr) {
   if (!col) return;
   col.querySelectorAll('.pc-event').forEach(function(el) { el.remove(); });
   _prodCal.entries
-    .filter(function(e) { return e.scheduled_date === dateStr; })
+    .filter(function(e) { return e.scheduled_date === dateStr && _pcEntryVisible(e); })
     .sort(function(a, b) { return a.start_minute - b.start_minute; })
     .forEach(function(entry) { col.insertAdjacentHTML('beforeend', _pcEventHtml(entry)); });
 }
@@ -354,8 +389,7 @@ function _pcEventHtml(entry) {
   var short  = entry.duration_minutes < 30;
   var people = entry.people || [];
   var cls = 'pc-event' +
-    (_prodCal.selectedId === entry.id ? ' pc-event--selected' : '') +
-    (_prodCal.focus && !_pcHasPerson(entry, _prodCal.focus) ? ' pc-event--faded' : '');
+    (_prodCal.selectedId === entry.id ? ' pc-event--selected' : '');
   return '<div class="' + cls + '" data-entry-id="' + entry.id + '" data-card-id="' + entry.card_id + '"' +
     ' data-url="' + esc(entry.card_url || '') + '"' +
     ' style="' + _pcLaneStyle(entry) + 'top:' + top + 'px;height:' + height + 'px;background:' + color + '"' +
@@ -472,6 +506,10 @@ function _pcWeekHtml() {
   var DAY_BG   = ['Нд', 'Пон', 'Вт', 'Ср', 'Чет', 'Пет', 'Съб'];
   var MON_BG   = ['яну','фев','мар','апр','май','юни','юли','авг','сеп','окт','ное','дек'];
   var external = _pcExternal();
+  if (_prodCal.focus) {
+    var fc = _pcFocusCals();
+    external = external.filter(function(e) { return fc.indexOf(e.calendar_id) >= 0; });
+  }
 
   // ── day headers (+ целодневните Google събития) ──
   var hdr = '<div class="pc-week-hdr"><div class="pc-time-gutter"></div>';
@@ -506,7 +544,7 @@ function _pcWeekHtml() {
     // по час, всички участници в застъпването се свиват на равни писти.
     var dayItems = [];
     _prodCal.entries.forEach(function(e) {
-      if (e.scheduled_date !== ds) return;
+      if (e.scheduled_date !== ds || !_pcEntryVisible(e)) return;
       e._ext = false; e._s = e.start_minute; e._e = e.start_minute + e.duration_minutes;
       dayItems.push(e);
     });
@@ -554,6 +592,7 @@ function _pcToolbarHtml() {
     _pcCalendarPickerHtml() +
     _pcPersonFilterHtml() +
     _pcHistoryHtml() +
+    (_prodCal.canManage ? '<a class="btn btn-sm btn-ghost" href="#/calendar/settings" title="Календари, чий е всеки, видеографи, мини админи">⚙️ Настройки</a>' : '') +
     '<span style="flex:1"></span>' +
     '<span class="pc-toolbar__hint">Влачи карта от панела → пусни в деня · Клик на видео → хора · Дръж долния ръб за продължителност · 📅 = от Google Calendar</span>' +
     '</div>'
@@ -563,6 +602,7 @@ function _pcToolbarHtml() {
 // „Хора“ — избираш човек по име и в календара остават ярки само неговите снимки
 // (същото като 👁 в панела с хората). Видеографите са най-отгоре.
 function _pcIsVideographer(p) {
+  if (typeof p.videographer === 'boolean') return p.videographer; // по длъжност или ръчно от ⚙️
   return /videograph|видеограф|head of production/i.test(p.title || '');
 }
 
@@ -588,8 +628,15 @@ function _pcPersonFilterHtml() {
 
 function pcSetFocus(key) {
   _prodCal.focus = key || null;
+  _pcAfterFocus();
+}
+
+function _pcAfterFocus() {
+  _prodCal.external = {}; // кешът е за друг набор календари
   _pcRenderSidebar();
   _pcRefreshWeekView();
+  _pcRefreshToolbar();
+  pcLoadExternal();
 }
 
 function _pcRefreshToolbar() {
@@ -639,7 +686,7 @@ function _pcCalendarPickerHtml() {
 // Кой какво е пипал в календара. Зарежда се чак при отваряне на панела, за да
 // не тежи на самия изглед.
 
-var _PC_ACTION_ICONS = { add: '➕', reschedule: '🔀', move: '↔️', resize: '↕️', remove: '↩️', assign: '👤', unassign: '👤' };
+var _PC_ACTION_ICONS = { add: '➕', reschedule: '🔀', move: '↔️', resize: '↕️', remove: '↩️', assign: '👤', unassign: '👤', settings: '⚙️' };
 
 function _pcHistoryHtml() {
   return '<details class="pc-cal-picker pc-history" ontoggle="if(this.open){_pcPlaceHistory(this);pcLoadHistory()}">' +
@@ -686,7 +733,7 @@ async function pcLoadHistory() {
         '<span class="pc-history__icon">' + (_PC_ACTION_ICONS[r.action] || '•') + '</span>' +
         '<span class="pc-history__text">' +
           '<strong>' + esc(r.user_name || 'някой') + '</strong> ' + esc(r.details || r.action) +
-          '<span class="pc-history__card"> · ' + esc(r.card_title || ('Карта ' + r.basecamp_card_id)) + '</span>' +
+          (r.card_title || r.basecamp_card_id ? '<span class="pc-history__card"> · ' + esc(r.card_title || ('Карта ' + r.basecamp_card_id)) + '</span>' : '') +
         '</span>' +
         '<span class="pc-history__ago" title="' + esc(new Date(r.created_at).toLocaleString('bg-BG')) + '">' + esc(_pcAgo(r.created_at)) + '</span>' +
       '</div>';
@@ -845,7 +892,7 @@ function _pcPeoplePanelHtml(entry) {
 
   // Фокусът е върху видеографите; останалите са в сгънато меню — отворено само ако
   // някой от тях вече е отметнат, за да не се скрие назначен човек.
-  var bcRow = function(p) { return _pcPersonRowHtml({ kind: 'bc', person_id: p.person_id, name: p.name, title: p.title, avatar_url: p.avatar_url }, entry); };
+  var bcRow = function(p) { return _pcPersonRowHtml({ kind: 'bc', person_id: p.person_id, name: p.name, title: p.title, avatar_url: p.avatar_url, videographer: p.videographer }, entry); };
   var vgRows = _prodCal.team.filter(_pcIsVideographer).map(bcRow).join('');
   var restList = _prodCal.team.filter(function(p) { return !_pcIsVideographer(p); });
   var restRows = restList.map(bcRow).join('');
@@ -855,6 +902,7 @@ function _pcPeoplePanelHtml(entry) {
       '<button class="pc-people__back" onclick="pcSelectEntry(null,null)">← Карти за снимки</button>' +
       '<div class="pc-sidebar__title pc-people__title">' + esc(entry.card_title || '') + '</div>' +
       '<div class="pc-people__when">' + when + '</div>' +
+      _pcEntryCalendarHtml(entry) +
       (entry.card_url ? '<a class="pc-people__open" href="' + esc(entry.card_url) + '" target="_blank" rel="noopener">Отвори в Basecamp ↗</a>' : '') +
     '</div>' +
     '<div class="pc-sidebar__list">' +
@@ -882,6 +930,41 @@ function _pcPeoplePanelHtml(entry) {
     '</div>';
 }
 
+// „Календар:" на избраното видео — преместване в календара на друг човек.
+// Сървърът маха стария човек и назначава (и тагва) новия.
+function _pcEntryCalendarHtml(entry) {
+  var cals = _prodCal.calendars.filter(function(c) { return c.can_write; });
+  if (cals.length < 2) return '';
+  var cur = entry.calendar_id || _pcDefaultCalId();
+  return '<label class="pc-people__cal">Календар: <select onchange="pcMoveToCalendar(' + entry.id + ', this.value)">' +
+    cals.map(function(c) {
+      return '<option value="' + esc(c.id) + '"' + (c.id === cur ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+    }).join('') + '</select></label>';
+}
+
+async function pcMoveToCalendar(entryId, calId) {
+  var entry = _prodCal.entries.find(function(e) { return e.id === entryId; });
+  if (!entry) return;
+  try {
+    var res = await fetch('/api/bc-calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cardId: entry.card_id, title: entry.card_title, url: entry.card_url,
+        scheduledDate: entry.scheduled_date, startMinute: entry.start_minute,
+        durationMinutes: entry.duration_minutes, calendarId: calId,
+      }),
+    });
+    if (!res.ok) { showToast && showToast('Не стана преместването', 'error'); return; }
+    var data = await res.json();
+    entry.calendar_id = data.calendar_id;
+    _prodCal.draft = null;
+    _pcAfterSave(entry, data, 'Преместено');
+    _pcRenderSidebar();
+    _pcRefreshWeekView();
+  } catch (e) {}
+}
+
 async function pcLoadPeople() {
   try {
     var res = await fetch('/api/bc-calendar/people');
@@ -889,6 +972,7 @@ async function pcLoadPeople() {
     var data = await res.json();
     _prodCal.team = data.team || [];
     _prodCal.extPeople = data.external || [];
+    _prodCal.canManage = !!data.canManage;
     if (_prodCal.selectedId) _pcRenderSidebar();
     _pcRefreshToolbar();
   } catch (e) {}
@@ -915,9 +999,7 @@ function pcSelectEntry(e, entryId) {
 
 function pcFocusPerson(key) {
   _prodCal.focus = _prodCal.focus === key ? null : key;
-  _pcRenderSidebar();
-  _pcRefreshWeekView();
-  _pcRefreshToolbar();
+  _pcAfterFocus();
 }
 
 function _pcPersonPayload(el) {
@@ -1063,9 +1145,10 @@ function _pcFullRender(el) {
 
 // ─── main entry point (overrides renderCalendar in app.js) ───────────────────
 
-async function renderCalendar(el) {
+async function renderCalendar(el, sub) {
   setBreadcrumb(null);
   el.className = 'full-width';
+  if (sub === 'settings') return renderPcSettings(el);
 
   // init week to current Monday
   if (!_prodCal.weekStart) {
@@ -1311,4 +1394,122 @@ function pcOpenExternal(e) {
   e.stopPropagation();
   var url = (e.currentTarget && e.currentTarget.dataset.url) || '';
   if (url) window.open(url, '_blank', 'noopener');
+}
+
+// ─── ⚙️ Настройки на производствения календар (#/calendar/settings) ──────────
+// Цяла страница. Мини админът (общ за целия календар) добавя календари, казва чий
+// е всеки и кои са видеографи. Мини админи дава само пълният админ.
+
+var _pcSet = null;
+
+async function renderPcSettings(el) {
+  pcStopPolling();
+  el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-dim)">Зареждане…</div>';
+  try {
+    var res = await fetch('/api/bc-calendar/settings');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _pcSet = await res.json();
+  } catch (e) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--red)">Грешка при зареждане</div>';
+    return;
+  }
+  el.innerHTML = _pcSettingsHtml();
+}
+
+function _pcSettingsHtml() {
+  var d = _pcSet, ro = !d.canManage;
+  var dis = ro ? ' disabled' : '';
+  var personOpts = function(sel) {
+    var vg = d.people.filter(function(p) { return p.by_title || p.extra; });
+    var rest = d.people.filter(function(p) { return !(p.by_title || p.extra); });
+    var o = function(p) { return '<option value="' + esc(p.person_id) + '"' + (p.person_id === sel ? ' selected' : '') + '>' + esc(p.name) + '</option>'; };
+    return '<option value="">— общ календар (без човек) —</option>' +
+      (vg.length ? '<optgroup label="Видеографи">' + vg.map(o).join('') + '</optgroup>' : '') +
+      (rest.length ? '<optgroup label="Останалият екип">' + rest.map(o).join('') + '</optgroup>' : '');
+  };
+
+  var cals = d.calendars.map(function(c) {
+    var state = c.can_write === true ? '<span class="pcs-ok">може да се добавят карти</span>'
+      : c.can_write === false ? '<span class="pcs-warn">само четене — дай на бота „Make changes to events“</span>'
+      : '<span class="pcs-dim">достъпът още не е проверен</span>';
+    return '<div class="pcs-row">' +
+      '<div class="pcs-row__main"><strong>' + esc(c.name) + '</strong>' + (c.is_default ? ' <span class="pcs-dim">(основен)</span>' : '') +
+        (c.enabled === false ? ' <span class="pcs-dim">(изключен)</span>' : '') +
+        '<div class="pcs-sub">' + state + (c.last_error ? ' · <span class="pcs-warn">' + esc(c.last_error) + '</span>' : '') + '</div></div>' +
+      (c.feed_id
+        ? '<select class="pcs-select" onchange="pcsSetOwner(' + c.feed_id + ', this.value)"' + dis + '>' + personOpts(c.person_id) + '</select>'
+        : '<span class="pcs-dim">общ</span>') +
+    '</div>';
+  }).join('');
+
+  var vgRows = d.people.map(function(p) {
+    var on = p.by_title || p.extra;
+    return '<label class="pcs-check">' +
+      '<input type="checkbox"' + (on ? ' checked' : '') + (p.by_title || ro ? ' disabled' : '') +
+      ' onchange="pcsSetVideographer(' + jsq(p.person_id) + ', this.checked)">' +
+      '<span>' + esc(p.name) + '</span><span class="pcs-dim">' + esc(p.title) + (p.by_title ? ' · по длъжност' : '') + '</span></label>';
+  }).join('');
+
+  var admins = d.admins.map(function(u) {
+    return '<label class="pcs-check">' +
+      '<input type="checkbox"' + (u.granted ? ' checked' : '') + (u.is_admin || !d.fullAdmin ? ' disabled' : '') +
+      ' onchange="pcsSetAdmin(' + u.id + ', this.checked)">' +
+      '<span>' + esc(u.name) + '</span>' + (u.is_admin ? '<span class="pcs-dim">админ</span>' : '') + '</label>';
+  }).join('');
+
+  return '<div class="pcs-page">' +
+    '<div class="pcs-hdr"><a class="btn btn-sm btn-ghost" href="#/calendar">← Към календара</a>' +
+      '<h2>⚙️ Настройки — Производствен календар</h2></div>' +
+    (ro ? '<div class="pcs-note">Можеш само да разглеждаш. Промени правят мини админите на календара.</div>' : '') +
+    '<div class="pcs-grid">' +
+    '<section class="pcs-card"><h3>📆 Календари и чий е всеки</h3>' +
+      '<p class="pcs-desc">Пуснеш ли карта в календара на човек, той става assignee и ботът го тагва в картата с деня, часа и продължителността. Преместиш ли я в календара на друг, първият се маха, а новият се тагва. Календар без човек е общ.</p>' +
+      cals +
+      (ro ? '' :
+        '<div class="pcs-add"><input id="pcsNewCal" class="pcs-input" placeholder="Calendar ID (…@group.calendar.google.com) или линк">' +
+        '<select id="pcsNewOwner" class="pcs-select">' + personOpts(null) + '</select>' +
+        '<button class="btn btn-sm btn-primary" onclick="pcsAddCalendar()">Добави</button></div>' +
+        '<p class="pcs-desc">Нов календар: създай го в Google Calendar → Settings and sharing → сподели го с <code>' + esc(d.serviceEmail || 'service account-а') + '</code> с права <strong>„Make changes to events“</strong> → копирай Calendar ID-то оттам.</p>') +
+    '</section>' +
+    '<section class="pcs-card"><h3>🎥 Видеографи</h3>' +
+      '<p class="pcs-desc">Видеографите са най-отгоре при назначаване и в менюто с хората. Тези по длъжност в Basecamp са отметнати сами. Тук можеш да отметнеш още хора.</p>' +
+      '<div class="pcs-list">' + vgRows + '</div>' +
+    '</section>' +
+    '<section class="pcs-card"><h3>🛡 Мини админи</h3>' +
+      '<p class="pcs-desc">Мини админът е общ за целия производствен календар и може да променя всичко на тази страница. ' + (d.fullAdmin ? 'Отметни кой да е мини админ.' : 'Мини админи дава само админ.') + '</p>' +
+      '<div class="pcs-list">' + admins + '</div>' +
+    '</section>' +
+    '</div></div>';
+}
+
+async function _pcsSend(url, method, body) {
+  var res = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  var data = {};
+  try { data = await res.json(); } catch (e) {}
+  if (!res.ok) { showToast((data && data.error) || 'Грешка', 'error'); return null; }
+  return data;
+}
+
+async function pcsSetOwner(feedId, personId) {
+  if (await _pcsSend('/api/bc-calendar/settings/calendars/' + feedId, 'PUT', { personId: personId || null })) showToast('Запазено');
+  _prodCal.calendars = []; // календарът ще ги прочете наново
+}
+
+async function pcsSetVideographer(personId, on) {
+  if (await _pcsSend('/api/bc-calendar/settings/videographers/' + encodeURIComponent(personId), 'PUT', { on: on })) showToast('Запазено');
+}
+
+async function pcsSetAdmin(userId, granted) {
+  if (await _pcsSend('/api/bc-calendar/settings/admins/' + userId, 'PUT', { granted: granted })) showToast('Запазено');
+}
+
+async function pcsAddCalendar() {
+  var inp = document.getElementById('pcsNewCal');
+  var owner = document.getElementById('pcsNewOwner');
+  if (!inp || !inp.value.trim()) return;
+  var data = await _pcsSend('/api/bc-calendar/settings/calendars', 'POST', { calendar: inp.value.trim(), personId: owner ? owner.value : null });
+  if (!data) return;
+  if (data.access && !data.access.ok) showToast('Добавен, но Google не го дава: ' + (data.access.error || ''), 'error');
+  else showToast('Календарът е добавен');
+  renderPcSettings(document.getElementById('pageContent'));
 }
