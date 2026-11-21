@@ -62,13 +62,35 @@ async function resolveClientProject(client) {
       [client.bc_project_id]
     );
     if (saved) return saved;
+    // Ръчно потвърдената връзка (КП-Автоматизация → Настройки) никога не се подменя
+    // от авто-съвпадение по име — ако проектът го няма, по-добре нищо.
+    let confirmed = client.bc_project_confirmed;
+    if (confirmed === undefined) {
+      const row = await queryOne('SELECT bc_project_confirmed FROM kp_clients WHERE id = $1', [client.id]).catch(() => null);
+      confirmed = row && row.bc_project_confirmed;
+    }
+    if (confirmed) return null;
   }
-  const teamId = String(config.BASECAMP_TEAM_PROJECT_ID);
-  const projects = (await query('SELECT project_id, name FROM bc_projects WHERE active = TRUE'))
-    .filter((p) => String(p.project_id) !== teamId);
-  const target = normName(client.name);
-  if (!target) return null;
+  const hit = matchProjectByName(client.name, await listClientProjects());
+  if (!hit) return null; // 0 = няма, >1 = двусмислено → по-добре нищо
 
+  // Запомняме съвпадението, за да не се пресмята всеки път (потвърждава се в Настройки).
+  await execute('UPDATE kp_clients SET bc_project_id = $1 WHERE id = $2 AND bc_project_confirmed IS NOT TRUE', [hit.project_id, client.id])
+    .catch(() => { /* не е критично */ });
+  return hit;
+}
+
+// Клиентските проекти (без Video Production) от снапшота на Basecamp.
+async function listClientProjects() {
+  const teamId = String(config.BASECAMP_TEAM_PROJECT_ID);
+  return (await query('SELECT project_id, name FROM bc_projects WHERE active = TRUE ORDER BY name'))
+    .filter((p) => String(p.project_id) !== teamId);
+}
+
+// Съвпадение по име: точно → започва с/съдържа името. Само еднозначно, иначе null.
+function matchProjectByName(name, projects) {
+  const target = normName(name);
+  if (!target) return null;
   let hits = projects.filter((p) => normName(p.name) === target);
   if (!hits.length) {
     hits = projects.filter((p) => {
@@ -76,12 +98,7 @@ async function resolveClientProject(client) {
       return n.startsWith(target + ' ') || n === target || n.split(' ').includes(target);
     });
   }
-  if (hits.length !== 1) return null; // 0 = няма, >1 = двусмислено → по-добре нищо
-
-  // Запомняме съвпадението, за да не се пресмята всеки път (и да може да се коригира в БД).
-  await execute('UPDATE kp_clients SET bc_project_id = $1 WHERE id = $2', [hits[0].project_id, client.id])
-    .catch(() => { /* не е критично */ });
-  return hits[0];
+  return hits.length === 1 ? hits[0] : null;
 }
 
 // ---------- материал от проекта на клиента ----------
@@ -353,7 +370,7 @@ function postKpCommentInBackground(params) {
 }
 
 module.exports = {
-  loadCommentConfig, resolveClientProject, gatherClientContext, contextToPrompt, contextIsEmpty,
+  loadCommentConfig, resolveClientProject, listClientProjects, matchProjectByName, gatherClientContext, contextToPrompt, contextIsEmpty,
   buildComment, postKpComment, postKpCommentInBackground,
   normName, plainText, bgDate,
 };

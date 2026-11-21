@@ -372,6 +372,96 @@ router.delete('/clients/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// ---------- Настройки → Свързване на клиент с Basecamp проект ----------
+// Целта (Венци, 21.11.2026): 100% сигурност, че всичко „за клиента" отива в
+// НЕГОВИЯ проект. Авто-съвпадението по име (kp-comment.resolveClientProject) остава
+// като предложение, но потвърдената тук връзка е окончателна и не се подменя.
+let linkSchema = null;
+function ensureLinkColumn() {
+  if (!linkSchema) {
+    linkSchema = execute('ALTER TABLE kp_clients ADD COLUMN IF NOT EXISTS bc_project_confirmed BOOLEAN NOT NULL DEFAULT FALSE')
+      .catch((e) => { linkSchema = null; throw e; });
+  }
+  return linkSchema;
+}
+
+// GET /api/kp/project-links — клиентите + свързаният/предложеният проект + всички клиентски проекти.
+router.get('/project-links', requireAuth, async (req, res) => {
+  try {
+    await ensureLinkColumn();
+    const kpComment = require('../services/kp-comment');
+    const projects = await kpComment.listClientProjects();
+    const byId = new Map(projects.map((p) => [String(p.project_id), p]));
+    const clients = await query(
+      'SELECT id, name, paused, bc_project_id, bc_project_confirmed FROM kp_clients WHERE active = true ORDER BY paused, name'
+    );
+    const links = clients.map((c) => {
+      const linked = c.bc_project_id ? byId.get(String(c.bc_project_id)) : null;
+      const suggestion = linked ? null : kpComment.matchProjectByName(c.name, projects);
+      return {
+        id: c.id, name: c.name, paused: !!c.paused,
+        project_id: c.bc_project_id ? String(c.bc_project_id) : null,
+        project_name: linked ? linked.name : null,
+        project_missing: !!(c.bc_project_id && !linked), // свързан, но проектът вече не се вижда
+        confirmed: !!c.bc_project_confirmed,
+        suggestion: suggestion ? { project_id: String(suggestion.project_id), name: suggestion.name } : null,
+      };
+    });
+    res.json({
+      clients: links,
+      projects: projects.map((p) => ({ project_id: String(p.project_id), name: p.name })),
+      account: require('../config').BASECAMP_ACCOUNT_ID,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/kp/clients/:id/bc-project { project_id | null } — ръчно (потвърдено) свързване.
+// Един проект = един клиент: ако проектът вече е потвърден за друг клиент → 409.
+router.put('/clients/:id/bc-project', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await ensureLinkColumn();
+    const client = await queryOne('SELECT id, name FROM kp_clients WHERE id = $1 AND active = true', [req.params.id]);
+    if (!client) return res.status(404).json({ error: 'Няма такъв клиент.' });
+    const raw = req.body && req.body.project_id;
+    const projectId = raw ? String(raw).replace(/\D/g, '') : '';
+    let projectName = '';
+    if (projectId) {
+      const p = await queryOne('SELECT project_id, name FROM bc_projects WHERE project_id = $1 AND active = TRUE', [projectId]);
+      if (!p) return res.status(400).json({ error: 'Този Basecamp проект не е намерен.' });
+      projectName = p.name;
+      const taken = await queryOne(
+        'SELECT name FROM kp_clients WHERE bc_project_id = $1 AND bc_project_confirmed = TRUE AND active = true AND id <> $2',
+        [projectId, client.id]
+      );
+      if (taken) return res.status(409).json({ error: `Проектът „${projectName}" вече е свързан с клиента „${taken.name}".` });
+      // Непотвърдено авто-съвпадение към същия проект при друг клиент се изчиства.
+      await execute(
+        'UPDATE kp_clients SET bc_project_id = NULL WHERE bc_project_id = $1 AND bc_project_confirmed IS NOT TRUE AND id <> $2',
+        [projectId, client.id]
+      );
+      await execute(
+        'UPDATE kp_clients SET bc_project_id = $1, bc_project_confirmed = TRUE, updated_at = NOW() WHERE id = $2',
+        [projectId, client.id]
+      );
+    } else {
+      await execute(
+        'UPDATE kp_clients SET bc_project_id = NULL, bc_project_confirmed = FALSE, updated_at = NOW() WHERE id = $1',
+        [client.id]
+      );
+    }
+    await execute(
+      'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
+      [req.user.name || 'Unknown', projectId ? 'link_bc_project' : 'unlink_bc_project', client.name,
+       projectId ? `${projectName} (${projectId})` : '']
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/kp/preview-dates?firstDate=YYYY-MM-DD&videoCount=N
 router.get('/preview-dates', requireAuth, async (req, res) => {
   try {

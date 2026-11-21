@@ -178,8 +178,15 @@ describe('kp-comment: кой е проектът на клиента', () => {
     expect(p.project_id).toBe('777');
     // запомня съвпадението за следващия път
     expect(mockDb.execute).toHaveBeenCalledWith(
-      'UPDATE kp_clients SET bc_project_id = $1 WHERE id = $2', ['777', 2]
+      'UPDATE kp_clients SET bc_project_id = $1 WHERE id = $2 AND bc_project_confirmed IS NOT TRUE', ['777', 2]
     );
+  });
+
+  test('потвърдената връзка не се подменя от авто-съвпадение, ако проектът го няма', async () => {
+    mockDb.queryOne.mockResolvedValueOnce(null);
+    const p = await kc.resolveClientProject({ id: 4, name: 'Cineland', bc_project_id: '999', bc_project_confirmed: true });
+    expect(p).toBeNull();
+    expect(mockDb.query).not.toHaveBeenCalled();
   });
 
   test('точното съвпадение бие частичното', async () => {

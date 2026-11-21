@@ -21,9 +21,10 @@ function kpModeOf(c) {
           parseInt(c.publish_interval_days, 10) === KP_STD_INTERVAL) ? 'standard' : 'custom';
 }
 
-async function renderKpAuto(el) {
+async function renderKpAuto(el, sub) {
   setBreadcrumb(null);
   el.className = 'full-width';
+  if (sub === 'settings') return renderKpSettings(el);
   el.innerHTML = '<div class="home-content-box home-content-box--wide"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--text-dim)">Зареждане...</div></div></div>';
   await loadKpAuto(el);
 }
@@ -135,6 +136,7 @@ async function loadKpAuto(el) {
       '<div class="kp-auto-header">' +
         '<h2 class="kp-auto-title">📋 КП-Автоматизация ' + destHtml + '</h2>' +
         '<div style="display:flex;gap:6px;align-items:center">' + adminLink +
+        '<a class="btn btn-sm" href="#/kp-auto/settings" title="Настройки: свързване на клиент с Basecamp проект">⚙ Настройки</a>' +
         '<button class="btn btn-primary" onclick="showKpClientForm()">+ Нов клиент</button></div>' +
       '</div>' +
       warningHtml +
@@ -385,3 +387,91 @@ function deleteKpClientNow(clientId, clientName) {
 }
 
 // ==================== BOOKMARKS ====================
+
+// ==================== КП-АВТОМАТИЗАЦИЯ → НАСТРОЙКИ ====================
+// Свързване на клиент с Basecamp проект (Венци, 21.11.2026): всичко, което се прави
+// „за клиента", трябва със 100% сигурност да отиде в НЕГОВИЯ проект. Авто-съвпадението
+// по име е само предложение — истината е потвърдената тук връзка.
+var _kpLinks = null;
+
+async function renderKpSettings(el) {
+  el.innerHTML = '<div class="home-content-box home-content-box--wide"><div class="kp-auto-wrap"><div style="text-align:center;padding:40px;color:var(--text-dim)">Зареждане...</div></div></div>';
+  try {
+    var res = await fetch('/api/kp/project-links');
+    var data = await res.json();
+    if (!res.ok) throw new Error((data && data.error) || 'Неуспешно зареждане');
+    _kpLinks = data;
+  } catch (err) {
+    el.innerHTML = '<div class="home-content-box home-content-box--wide"><div style="text-align:center;padding:40px;color:var(--red)">Грешка: ' + esc(err.message) + '</div></div>';
+    return;
+  }
+  var isAdmin = currentUser && currentUser.role === 'admin';
+  var clients = _kpLinks.clients || [];
+  var projects = _kpLinks.projects || [];
+  var bcUrl = function (pid) { return 'https://3.basecamp.com/' + esc(_kpLinks.account || '') + '/projects/' + esc(pid); };
+
+  var done = clients.filter(function (c) { return c.confirmed && c.project_id && !c.project_missing; }).length;
+  var rows = clients.map(function (c) {
+    var status, cur;
+    if (c.project_id && c.project_missing) {
+      status = '<span style="color:var(--red)">⚠ Проектът вече не се вижда в Basecamp</span>';
+    } else if (c.project_id && c.confirmed) {
+      status = '<span style="color:#46a374">✓ Потвърдено</span>';
+    } else if (c.project_id) {
+      status = '<span style="color:#e8a030">Авто (по име) — непотвърдено</span>';
+    } else if (c.suggestion) {
+      status = '<span style="color:#e8a030">Предложение: ' + esc(c.suggestion.name) + '</span>';
+    } else {
+      status = '<span style="color:var(--text-dim)">Не е свързан</span>';
+    }
+    cur = c.project_id || (c.suggestion && c.suggestion.project_id) || '';
+    var opts = '<option value="">— не е свързан —</option>' + projects.map(function (p) {
+      return '<option value="' + esc(p.project_id) + '"' + (p.project_id === cur ? ' selected' : '') + '>' + esc(p.name) + '</option>';
+    }).join('');
+    var openLink = c.project_id && !c.project_missing
+      ? ' <a class="btn btn-sm btn-ghost" href="' + bcUrl(c.project_id) + '" target="_blank" rel="noopener" title="Отваря проекта в Basecamp">↗</a>' : '';
+    var control = isAdmin
+      ? '<select class="input" id="kpLinkSel' + c.id + '" style="min-width:240px">' + opts + '</select> ' +
+        '<button class="btn btn-sm btn-primary" onclick="saveKpProjectLink(' + c.id + ')">' + (c.confirmed ? 'Запази' : '✓ Потвърди') + '</button>' + openLink
+      : (c.project_name ? esc(c.project_name) + openLink : '—');
+    return '<tr' + (c.paused ? ' style="opacity:.55"' : '') + '>' +
+      '<td class="kp-td"><strong>' + esc(c.name) + '</strong>' + (c.paused ? ' <span style="color:var(--text-dim)">⏸</span>' : '') + '</td>' +
+      '<td class="kp-td">' + control + '</td>' +
+      '<td class="kp-td">' + status + '</td>' +
+    '</tr>';
+  }).join('');
+
+  el.innerHTML = '<div class="home-content-box home-content-box--wide"><div class="kp-auto-wrap">' +
+    '<div class="kp-auto-header">' +
+      '<h2 class="kp-auto-title">⚙ КП-Автоматизация — Настройки</h2>' +
+      '<a class="btn btn-sm" href="#/kp-auto">← Към клиентите</a>' +
+    '</div>' +
+    '<h3 style="margin:0 0 6px;font-size:15px">Свързване на клиент с Basecamp проект</h3>' +
+    '<p style="margin:0 0 12px;color:var(--text-dim);font-size:13px">Всичко, което ботовете правят „за клиента", отива в потвърдения тук проект. ' +
+      'Предложенията по име са само ориентир — провери и натисни „Потвърди". Един проект може да е свързан само с един клиент. ' +
+      '<strong>' + done + ' от ' + clients.length + '</strong> клиента са потвърдени.' +
+      (isAdmin ? '' : ' Промени може да прави само админ.') + '</p>' +
+    (clients.length === 0
+      ? '<div style="text-align:center;padding:40px;color:var(--text-dim)">Няма клиенти.</div>'
+      : '<div class="kp-table-wrap"><table class="kp-table"><thead><tr>' +
+          '<th class="kp-th">Клиент</th><th class="kp-th">Basecamp проект</th><th class="kp-th">Статус</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>') +
+  '</div></div>';
+}
+
+async function saveKpProjectLink(clientId) {
+  var sel = document.getElementById('kpLinkSel' + clientId);
+  if (!sel) return;
+  try {
+    var res = await fetch('/api/kp/clients/' + clientId + '/bc-project', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: sel.value || null }),
+    });
+    var json = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(json.error || 'Грешка при запис');
+    if (typeof showToast === 'function') showToast(sel.value ? 'Свързано и потвърдено' : 'Връзката е премахната', 'success');
+    renderKpSettings(document.getElementById('pageContent') || sel.closest('.full-width'));
+  } catch (err) {
+    if (typeof showToast === 'function') showToast(err.message, 'error'); else alert(err.message);
+  }
+}

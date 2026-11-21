@@ -99,7 +99,7 @@ function router() {
     case 'history': return renderHistory(el, parts[1] || null);
     case 'reports': return renderReports(el);
     case 'bookmarks': return renderBookmarks(el);
-    case 'kp-auto': return renderKpAuto(el);
+    case 'kp-auto': return renderKpAuto(el, parts[1] || null);
     case 'calendar': return renderCalendar(el);
     case 'column': return id ? renderColumnView(el, id) : renderDashboard(el);
     case 'trash': return renderTrash(el);
