@@ -28,7 +28,7 @@
 .prod-cal-detail__item span { color: var(--text-dim); font-size: 11px; margin-left: auto; }
 
 /* ==================== PRODUCTION CALENDAR (WEEK VIEW) ==================== */
-.pc-wrap { display: flex; height: calc(100vh - 120px); max-width: 1500px; margin: 0 auto; background: var(--pc-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+.pc-wrap { display: flex; height: calc(100vh - 120px); margin: 0; background: var(--pc-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
 
 /* Sidebar */
 .pc-sidebar { width: 300px; min-width: 260px; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--pc-sidebar-bg); }
@@ -71,12 +71,12 @@
 .pc-body { flex: 1; overflow-y: auto; overflow-x: hidden; display: flex; position: relative; }
 
 /* Time labels */
-.pc-times { width: 52px; flex-shrink: 0; position: relative; min-height: 960px; }
+.pc-times { width: 52px; flex-shrink: 0; position: relative; min-height: 1440px; }
 .pc-time-label { position: absolute; right: 6px; font-size: 10px; color: var(--text-dim); transform: translateY(-50%); white-space: nowrap; }
 
 /* Day columns */
 .pc-days { flex: 1; display: flex; min-width: 0; }
-.pc-day-col { flex: 1; border-left: 1px solid var(--border); position: relative; min-height: 960px; }
+.pc-day-col { flex: 1; border-left: 1px solid var(--border); position: relative; min-height: 1440px; }
 .pc-day-col.drag-over { background: var(--pc-today-bg); }
 
 /* Grid lines */
@@ -166,3 +166,7 @@
 .pc-person__check { color: var(--accent); font-weight: 700; font-size: 12px; }
 .pc-people__add { margin: 6px 8px; }
 .pc-people__hint { margin: 10px 12px; font-size: 11px; line-height: 1.5; color: var(--text-dim); }
+
+/* Колона от Production (над търсенето) + сгънатият „Останалият екип" */
+.pc-sidebar__col { margin-bottom: 6px; cursor: pointer; }
+.pc-people__more > summary { cursor: pointer; list-style: revert; }

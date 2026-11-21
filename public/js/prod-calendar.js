@@ -19,6 +19,7 @@ var _prodCal = {
   selectedId: null, // видеото, на което се разпределят хора (панелът вляво)
   draft:     null, // { entryId, picks: { ключ: { personId } | { name } } } — отметнатите, още незаписани
   focus:     null, // '<bc:id>' | '<ext:име>' — показва само снимките на този човек
+  column:    localStorage.getItem('thepact-pc-column') || '', // колоната от Production, чиито карти са вляво ('' = всички)
 };
 
 // ─── избор на календари ───────────────────────────────────────────────────────
@@ -99,8 +100,8 @@ var _pcResize = {
 };
 
 var PC_PX_MIN   = 1;   // 1 pixel = 1 minute → 60px per hour
-var PC_H0       = 6;   // visible start: 06:00
-var PC_H1       = 22;  // visible end:   22:00
+var PC_H0       = 0;   // visible start: 00:00 (цялото денонощие — и за много ранни/късни снимки)
+var PC_H1       = 24;  // visible end:   24:00
 var PC_SNAP     = 15;  // snap to 15-minute grid
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -423,6 +424,7 @@ function _pcSidebarHtml(searchQ) {
   var visible = [];
   _prodCal.cards.forEach(function(c) {
     if (scheduledIds.has(String(c.id))) return;
+    if (_prodCal.column && c.column !== _prodCal.column) return;
     if (q && !(c.title || '').toLowerCase().includes(q)) return;
     visible.push(c);
   });
@@ -456,7 +458,7 @@ function _pcSidebarHtml(searchQ) {
         : '') +
       '</div>';
   });
-  return html || '<div class="pc-empty-msg">Всички карти са насрочени</div>';
+  return html || '<div class="pc-empty-msg">' + (_prodCal.column ? 'Няма ненасрочени карти в „' + esc(_prodCal.column) + '“' : 'Всички карти са насрочени') + '</div>';
 }
 
 function _pcWeekHtml() {
@@ -468,6 +470,7 @@ function _pcWeekHtml() {
   }
   var todayStr = _pcDate(new Date());
   var DAY_BG   = ['Нд', 'Пон', 'Вт', 'Ср', 'Чет', 'Пет', 'Съб'];
+  var MON_BG   = ['яну','фев','мар','апр','май','юни','юли','авг','сеп','окт','ное','дек'];
   var external = _pcExternal();
 
   // ── day headers (+ целодневните Google събития) ──
@@ -478,7 +481,8 @@ function _pcWeekHtml() {
     var allDay  = external.filter(function(e) { return e.all_day && e.date === ds; });
     hdr +=
       '<div class="pc-day-hdr' + (isToday ? ' today' : '') + '">' +
-      '<div class="pc-day-hdr__name">' + DAY_BG[d.getDay()] + '</div>' +
+      '<div class="pc-day-hdr__name">' + DAY_BG[d.getDay()] +
+        ((d === days[0] || d.getDate() === 1) ? ' · ' + MON_BG[d.getMonth()] : '') + '</div>' +
       '<div class="pc-day-hdr__num' + (isToday ? ' today-num' : '') + '">' + d.getDate() + '</div>' +
       allDay.map(_pcExtAllDayHtml).join('') +
       '</div>';
@@ -542,24 +546,55 @@ function _pcWeekHtml() {
 }
 
 function _pcToolbarHtml() {
-  var end    = new Date(_prodCal.weekStart);
-  end.setDate(end.getDate() + 6);
-  var MONTHS = ['Яну','Фев','Мар','Апр','Май','Юни','Юли','Авг','Сеп','Окт','Ное','Дек'];
-  var s      = _prodCal.weekStart;
-  var title  = s.getDate() + ' ' + MONTHS[s.getMonth()] + ' – ' +
-               end.getDate() + ' ' + MONTHS[end.getMonth()] + ' ' + end.getFullYear();
   return (
     '<div class="pc-toolbar">' +
     '<button class="btn btn-sm btn-ghost" onclick="pcNavWeek(-1)">← Предишна</button>' +
     '<button class="btn btn-sm btn-ghost" onclick="pcNavToday()">Днес</button>' +
     '<button class="btn btn-sm btn-ghost" onclick="pcNavWeek(1)">Следваща →</button>' +
-    '<span class="pc-toolbar__title">' + title + '</span>' +
     _pcCalendarPickerHtml() +
+    _pcPersonFilterHtml() +
     _pcHistoryHtml() +
     '<span style="flex:1"></span>' +
     '<span class="pc-toolbar__hint">Влачи карта от панела → пусни в деня · Клик на видео → хора · Дръж долния ръб за продължителност · 📅 = от Google Calendar</span>' +
     '</div>'
   );
+}
+
+// „Хора“ — избираш човек по име и в календара остават ярки само неговите снимки
+// (същото като 👁 в панела с хората). Видеографите са най-отгоре.
+function _pcIsVideographer(p) {
+  return /videograph|видеограф|head of production/i.test(p.title || '');
+}
+
+function _pcPersonFilterHtml() {
+  var team = _prodCal.team || [];
+  if (!team.length && !_prodCal.extPeople.length) return '';
+  var opt = function(key, name) {
+    return '<option value="' + esc(key) + '"' + (_prodCal.focus === key ? ' selected' : '') + '>' + esc(name) + '</option>';
+  };
+  var vg = team.filter(_pcIsVideographer), rest = team.filter(function(p) { return !_pcIsVideographer(p); });
+  var group = function(label, list) {
+    return list.length ? '<optgroup label="' + label + '">' + list.map(function(p) { return opt('bc:' + p.person_id, p.name); }).join('') + '</optgroup>' : '';
+  };
+  return '<label class="pc-cal-target" title="Покажи само снимките на този човек">👤' +
+    '<select onchange="pcSetFocus(this.value)">' +
+    '<option value="">Всички хора</option>' +
+    group('Видеографи', vg) + group('Останалият екип', rest) +
+    (_prodCal.extPeople.length
+      ? '<optgroup label="Външни">' + _prodCal.extPeople.map(function(x) { return opt('ext:' + String(x.name).toLowerCase(), x.name); }).join('') + '</optgroup>'
+      : '') +
+    '</select></label>';
+}
+
+function pcSetFocus(key) {
+  _prodCal.focus = key || null;
+  _pcRenderSidebar();
+  _pcRefreshWeekView();
+}
+
+function _pcRefreshToolbar() {
+  var toolbar = document.querySelector('.pc-toolbar');
+  if (toolbar) toolbar.outerHTML = _pcToolbarHtml();
 }
 
 // „Календари" (кои виждам) + „Добавяй в" (къде отива новата карта).
@@ -668,9 +703,37 @@ function _pcSidebarInner() {
   _prodCal.selectedId = null;
   return '<div class="pc-sidebar__hdr">' +
       '<div class="pc-sidebar__title">Карти за снимки</div>' +
+      _pcColumnSelectHtml() +
       '<input class="pc-sidebar__search" id="pcSearch" placeholder="Търси карта…" oninput="pcFilterCards(this.value)">' +
     '</div>' +
     '<div class="pc-sidebar__list" id="pcSidebarList">' + _pcSidebarHtml() + '</div>';
+}
+
+// Колоните от таблото Production (Разпределение, Външни, Студио, Вики…) в реда
+// на таблото — избраната оставя вляво само нейните карти. Изборът е личен.
+function _pcColumnNames() {
+  var seen = {}, out = [];
+  _prodCal.cards.forEach(function(c) {
+    if (c.column && !seen[c.column]) { seen[c.column] = true; out.push(c.column); }
+  });
+  return out;
+}
+
+function _pcColumnSelectHtml() {
+  var cols = _pcColumnNames();
+  if (_prodCal.column && cols.indexOf(_prodCal.column) < 0) cols.push(_prodCal.column);
+  return '<select class="pc-sidebar__search pc-sidebar__col" title="Колона от таблото Production" onchange="pcSetColumn(this.value)">' +
+    '<option value="">Всички колони</option>' +
+    cols.map(function(c) {
+      return '<option value="' + esc(c) + '"' + (c === _prodCal.column ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('') +
+    '</select>';
+}
+
+function pcSetColumn(col) {
+  _prodCal.column = col || '';
+  try { localStorage.setItem('thepact-pc-column', _prodCal.column); } catch (e) {}
+  _pcRefreshSidebarCard();
 }
 
 function _pcRenderSidebar() {
@@ -780,6 +843,14 @@ function _pcPeoplePanelHtml(entry) {
   var diff = _pcDraftDiff(entry);
   var changes = diff.add.length + diff.remove.length;
 
+  // Фокусът е върху видеографите; останалите са в сгънато меню — отворено само ако
+  // някой от тях вече е отметнат, за да не се скрие назначен човек.
+  var bcRow = function(p) { return _pcPersonRowHtml({ kind: 'bc', person_id: p.person_id, name: p.name, title: p.title, avatar_url: p.avatar_url }, entry); };
+  var vgRows = _prodCal.team.filter(_pcIsVideographer).map(bcRow).join('');
+  var restList = _prodCal.team.filter(function(p) { return !_pcIsVideographer(p); });
+  var restRows = restList.map(bcRow).join('');
+  var restOpen = restList.some(function(p) { return picks['bc:' + p.person_id]; });
+
   return '<div class="pc-sidebar__hdr">' +
       '<button class="pc-people__back" onclick="pcSelectEntry(null,null)">← Карти за снимки</button>' +
       '<div class="pc-sidebar__title pc-people__title">' + esc(entry.card_title || '') + '</div>' +
@@ -787,10 +858,15 @@ function _pcPeoplePanelHtml(entry) {
       (entry.card_url ? '<a class="pc-people__open" href="' + esc(entry.card_url) + '" target="_blank" rel="noopener">Отвори в Basecamp ↗</a>' : '') +
     '</div>' +
     '<div class="pc-sidebar__list">' +
-      '<div class="pc-board-label">Екип (Basecamp)</div>' +
+      '<div class="pc-board-label">Видеографи</div>' +
       (_prodCal.team.length
-        ? _prodCal.team.map(function(p) { return _pcPersonRowHtml({ kind: 'bc', person_id: p.person_id, name: p.name, title: p.title, avatar_url: p.avatar_url }, entry); }).join('')
+        ? (vgRows || '<div class="pc-empty-msg">Няма човек с длъжност „Videographer“ в Basecamp</div>')
         : '<div class="pc-empty-msg">Зареждане…</div>') +
+      (restRows
+        ? '<details class="pc-people__more"' + (restOpen ? ' open' : '') + '>' +
+            '<summary class="pc-board-label">Останалият екип (' + restList.length + ')</summary>' + restRows +
+          '</details>'
+        : '') +
       '<div class="pc-board-label">Външни хора</div>' +
       ext.map(function(p) { return _pcPersonRowHtml(p, entry); }).join('') +
       '<div class="pc-people__add">' +
@@ -814,6 +890,7 @@ async function pcLoadPeople() {
     _prodCal.team = data.team || [];
     _prodCal.extPeople = data.external || [];
     if (_prodCal.selectedId) _pcRenderSidebar();
+    _pcRefreshToolbar();
   } catch (e) {}
 }
 
@@ -840,6 +917,7 @@ function pcFocusPerson(key) {
   _prodCal.focus = _prodCal.focus === key ? null : key;
   _pcRenderSidebar();
   _pcRefreshWeekView();
+  _pcRefreshToolbar();
 }
 
 function _pcPersonPayload(el) {
