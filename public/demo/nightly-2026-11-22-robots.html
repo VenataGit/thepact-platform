@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо Н4: Роботите — здраве, употреба, решения</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; --blue:#4a9fe0; --violet:#a78bfa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; }
+  button { font:inherit; color:inherit; }
+  header { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:30; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .wrap { max-width:1680px; margin:14px auto 40px; padding:0 20px; display:grid; grid-template-columns:290px 1fr; gap:14px; }
+  .side { background:var(--panel); border-radius:15px; padding:12px; align-self:start; position:sticky; top:62px; }
+  .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:10px 8px 6px; }
+  .side a { display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:9px; cursor:pointer; text-decoration:none; color:#cfd8dc; font-size:13.5px; }
+  .side a:hover { background:var(--hover); }
+  .side a.on { background:var(--green); color:#fff; font-weight:600; }
+  .side p { color:var(--dim); font-size:12px; margin:10px 8px; }
+  .panel { background:var(--panel); border-radius:15px; padding:22px 26px; min-width:0; }
+  h2 { font-size:22px; margin-bottom:4px; }
+  .lead { color:var(--sec); margin-bottom:16px; max-width:1000px; }
+  .explain { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; padding:10px 14px; margin-bottom:16px; color:var(--sec); max-width:1100px; }
+  .explain b { color:var(--text); }
+  .btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:5px 12px; cursor:pointer; font-size:13px; }
+  .btn:hover { background:rgba(255,255,255,.12); }
+  .btn.pri { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+  .btn.red { border-color:rgba(229,83,75,.5); color:#ff9c95; }
+  .box { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 16px; }
+  .box h4 { font-size:14px; margin-bottom:10px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 9px; border-bottom:1px solid rgba(255,255,255,.07); vertical-align:middle; }
+  th { color:var(--dim); font-weight:600; font-size:12px; }
+  tr.rb { cursor:pointer; } tr.rb:hover td { background:var(--hover); } tr.rb.sel td { background:rgba(70,163,116,.10); }
+  .ok { color:var(--green); } .warn { color:var(--amber); } .bad { color:var(--red); } .dim { color:var(--dim); }
+  .pill { display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:9px; background:rgba(255,255,255,.07); color:var(--sec); white-space:nowrap; }
+  .pill.g { background:rgba(70,163,116,.18); color:#7fd3a6; } .pill.a { background:rgba(245,166,35,.16); color:#ffc56b; }
+  .pill.r { background:rgba(229,83,75,.16); color:#ff9c95; } .pill.b { background:rgba(74,159,224,.16); color:#93c8f2; }
+  .split { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .split .box { text-align:center; } .split .k { font-size:30px; font-weight:800; } .split .l { color:var(--sec); font-size:12.5px; }
+  .rgrid { display:grid; grid-template-columns:1fr 420px; gap:16px; }
+  .msg { background:#0d1518; border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:10px; white-space:pre-wrap; color:#cfd8dc; font-size:13px; }
+  .note { font-size:12.5px; color:var(--sec); margin-top:8px; }
+  .spark { display:flex; gap:2px; align-items:flex-end; height:22px; }
+  .spark i { display:block; width:6px; background:var(--green); border-radius:1px; opacity:.85; }
+  .spark i.z { background:rgba(255,255,255,.12); height:3px !important; }
+  .tl { position:relative; height:120px; margin:18px 0 6px; border-bottom:1px solid rgba(255,255,255,.15); }
+  .tl .day { position:absolute; bottom:-18px; font-size:10.5px; color:var(--dim); transform:translateX(-50%); }
+  .tl .crash { position:absolute; bottom:0; width:14px; margin-left:-7px; border-radius:4px 4px 0 0; background:var(--red); cursor:pointer; }
+  .tl .crash:hover, .tl .crash.on { background:#ff8a84; }
+  .tl .crash span { position:absolute; top:-18px; left:50%; transform:translateX(-50%); font-size:10px; color:#ff9c95; white-space:nowrap; }
+  .tl .wk { position:absolute; top:0; bottom:0; border-left:1px dashed rgba(255,255,255,.08); }
+  .dec { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px 16px; margin-bottom:10px; display:grid; grid-template-columns:1fr 260px; gap:14px; align-items:center; }
+  .dec .q { font-weight:600; } .dec .w { font-size:12px; color:var(--dim); margin-top:3px; } .dec .s { font-size:13px; color:var(--sec); margin-top:6px; }
+  .dec .acts { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+  .dec.done { opacity:.55; } .dec.done .q { text-decoration:line-through; }
+  .age { font-weight:700; }
+  .filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .filters .btn.on { background:var(--green); border-color:var(--green); color:#fff; }
+  @media (max-width:1000px) { .wrap { grid-template-columns:1fr; } .side { position:static; } .split, .rgrid { grid-template-columns:1fr 1fr; } .rgrid { grid-template-columns:1fr; } .dec { grid-template-columns:1fr; } .dec .acts { justify-content:flex-start; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🤖 Роботите — здраве, употреба, решения</h1>
+  <span class="badge">Нощен анализ · Н4.1, Н4.3, Н4.4 · демо с измислени данни</span>
+</header>
+<div class="wrap">
+  <nav class="side">
+    <h3>Демо</h3>
+    <a data-p="robots">① Роботите: работят ли, ползват ли се</a>
+    <a data-p="pc">② Офис компютърът: сривовете</a>
+    <a data-p="decide">③ Чака твоето решение</a>
+    <p>Имената, картите и точните числа са измислени. Порядъкът е като истинските данни от 22.11.2026 (последните 7–30 дни).</p>
+    <p>Страницата би стояла в „Още“ → „Роботи“, само за собственика.</p>
+  </nav>
+  <main class="panel" id="main"></main>
+</div>
+<script>
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// h = 7 дни продукция (по ден), use = ползва ли се
+const ROBOTS = [
+  { id: 'dev', n: 'Dev опашка', where: 'PC', last: 'преди 3 ч', h: [3,1,4,2,0,5,2], err: 0, health: 'g', use: 'g', useT: '11 задачи / седмица',
+    out: 'Задачи от личния проект → Claude → коментар', d: ['122 готови от юли, медиана 3 мин на задача', '⚠ 5 въпроса чакат отговор (най-старият — 80 дни)', '⚠ Незавършени промени в кода от 2 дни (3 файла)'] },
+  { id: 'ai', n: 'AI опашка', where: 'PC', last: 'преди 1 мин', h: [180,40,25,12,30,2,2], err: 0, health: 'g', use: 'g', useT: '≈100 заявки / ден',
+    out: 'Всички Claude заявки на платформата', d: ['Чакане p50 2 сек, изпълнение p50 18 сек', '97% от заявките са Content агентът', '⚠ Няма повторен опит: 8 грешки за 1 минута на 13-ти'] },
+  { id: 'fold', n: 'Папки на Z:', where: 'PC', last: 'преди 2 дни', h: [8,6,0,11,4,0,0], err: 0, health: 'g', use: 'g', useT: 'всяка нова задача',
+    out: 'Папка за всяко видео + текстов файл', d: ['759 готови, 0 грешки от август насам'] },
+  { id: 'comp', n: 'Компресор', where: 'PC', last: 'преди 1 ден', h: [39,26,64,45,0,0,0], err: 0, health: 'a', use: 'g', useT: '≈40 видеа / ден',
+    out: 'Нов експорт → „Към клиент - компресирано“', d: ['192 от 192 видеа от 1-ви имат копие', '⚠ Паметта му се нулира след срив (2 пъти тази седмица)'] },
+  { id: 'black', n: 'Черни карти', where: 'Сървър', last: 'пет 10:00', h: [1,1,1,1,1,0,0], err: 0, health: 'g', use: 'a', useT: '0 коментара под 6 съобщения',
+    out: 'Сутрешно съобщение с тагове', d: ['Броят стои 97–98, в петък 80', 'Никой не е писал под съобщението — не знаем дали се чете'] },
+  { id: 'sheet', n: 'Известия от таблиците', where: 'Сървър', last: 'пет 13:32', h: [0,0,0,0,100,0,0], err: 0, health: 'r', use: 'a', useT: '100 известия за 8 мин',
+    out: 'Промяна в Google таблица → съобщение', d: ['⚠ Преподредена таблица → 35 нови съобщения + 65 коментара, по 3 тага всяко', 'Обикновено: 1–3 на седмица'] },
+  { id: 'snap', n: 'Снимка на Basecamp', where: 'Сървър', last: 'преди 4 мин', h: [96,96,96,96,96,96,96], err: 0, health: 'a', use: 'g', useT: 'от нея четат 5 робота',
+    out: 'Картите, коментарите, задачите на 15 мин', d: ['Средно 160 сек на обход (беше 27) — виж Н1.1', '10 обхода „висят“ като незавършени след рестарт'] },
+  { id: 'pm', n: 'PM агент (чат, дайджест, пазач)', where: 'Сървър', last: '08.07', h: [0,0,0,0,0,0,0], err: 0, health: 'g', use: 'r', useT: 'не се ползва',
+    out: 'Чат, сутрешен дайджест, „клиентът чака“', d: ['Чат: 8 съобщения, последното 08.07', 'Дайджестът и пазачът никога не са включвани — 0 сигнала'] },
+  { id: 'strat', n: 'Стратегия агент', where: 'Сървър', last: '12.11 (тест)', h: [0,0,0,0,0,0,0], err: 0, health: 'g', use: 'r', useT: '1 пускане — тестовото',
+    out: 'Стратегия за нов клиент', d: ['0 пускания от екипа за 10 дни', 'Нови клиенти от тогава: 0 — може би просто не е имало повод'] },
+  { id: 'ae', n: 'Авто-монтаж', where: 'PC', last: '12.11', h: [0,0,0,0,0,0,0], err: 0, health: 'g', use: 'r', useT: 'няма обратна връзка',
+    out: 'Чернова на монтажа в Z:\\TestRender', d: ['52 чернови на 12-ти, пуснат веднъж', '22 от тях вече са монтирани на ръка, 29 чакат', 'Никой не е казал дали са полезни'] },
+];
+const PILL = { g: ['g', 'наред'], a: ['a', 'внимание'], r: ['r', 'проблем'] };
+const USE = { g: ['g', 'ползва се'], a: ['a', 'неясно'], r: ['r', 'не се ползва'] };
+let selRobot = 'sheet';
+
+function spark(h) {
+  const m = Math.max(1, ...h);
+  return `<div class="spark">${h.map((v) => v ? `<i style="height:${Math.max(4, Math.round(v / m * 22))}px"></i>` : '<i class="z"></i>').join('')}</div>`;
+}
+function renderRobots() {
+  const bad = ROBOTS.filter((r) => r.health === 'r').length, warn = ROBOTS.filter((r) => r.health === 'a').length;
+  const unused = ROBOTS.filter((r) => r.use === 'r').length;
+  const R = ROBOTS.find((r) => r.id === selRobot);
+  return `<h2>① Роботите: работят ли, ползват ли се</h2>
+  <p class="lead">Една страница за всичко, което работи само — на сървъра и на офис компютъра. Две отделни въпроса: <b>здрав ли е</b> (пуска ли се, гърми ли) и <b>ползва ли се</b> (има ли реакция от хората).</p>
+  <div class="explain">Днес това се разбира само с ровене в логове на два компютъра. Сигналите хващат само „спря напълно“, но не и „работи, а никой не го гледа“ или „работи прекалено много“.</div>
+  <div class="split">
+    <div class="box"><div class="k">${ROBOTS.length}</div><div class="l">робота</div></div>
+    <div class="box"><div class="k bad">${bad}</div><div class="l">с проблем сега</div></div>
+    <div class="box"><div class="k warn">${warn}</div><div class="l">за внимание</div></div>
+    <div class="box"><div class="k dim">${unused}</div><div class="l">никой не ги ползва</div></div>
+  </div>
+  <div class="rgrid">
+    <div class="box"><table><thead><tr><th>Робот</th><th>Къде</th><th>Последно</th><th>7 дни</th><th>Здраве</th><th>Употреба</th></tr></thead><tbody>
+    ${ROBOTS.map((r) => `<tr class="rb${r.id === selRobot ? ' sel' : ''}" data-id="${r.id}"><td><b>${esc(r.n)}</b><div class="dim" style="font-size:12px">${esc(r.out)}</div></td>
+      <td><span class="pill ${r.where === 'PC' ? 'b' : ''}">${r.where}</span></td><td class="dim">${esc(r.last)}</td><td>${spark(r.h)}</td>
+      <td><span class="pill ${PILL[r.health][0]}">${PILL[r.health][1]}</span></td><td><span class="pill ${USE[r.use][0]}">${USE[r.use][1]}</span><div class="dim" style="font-size:11.5px">${esc(r.useT)}</div></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="box"><h4>${esc(R.n)}</h4>
+      <div class="note" style="margin-top:0">${esc(R.out)}</div>
+      <ul style="margin:10px 0 0 18px">${R.d.map((x) => `<li style="margin:4px 0">${esc(x)}</li>`).join('')}</ul>
+      ${R.use === 'r' ? `<div class="msg">Не се ползва от ${R.id === 'pm' ? '4 месеца' : '10 дни'}. Какво правим?</div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn pri" data-act="keep">Пробваме 2 седмици</button><button class="btn" data-act="off">Спираме</button><button class="btn" data-act="later">По-късно</button></div>` : ''}
+      ${R.id === 'sheet' ? `<div class="note"><b>Предпазител (Н4.2):</b> над 10 промени в една таблица за 10 минути → едно съобщение „таблицата е преподредена“ вместо 35.</div>` : ''}
+      <div class="note" id="actres"></div>
+    </div>
+  </div>`;
+}
+
+// ② сривовете — ден от 28.10 (0) до 21.11 (24)
+const CRASH = [
+  { d: 0, t: '11:53', c: '0xDE' }, { d: 1, t: '08:34', c: '0x50' }, { d: 1, t: '13:14', c: '0x1A' }, { d: 2, t: '14:01', c: '0xBE' },
+  { d: 4, t: '02:25', c: '0x1E' }, { d: 7, t: '09:52', c: '0x20001' }, { d: 8, t: '12:33', c: '0x7E' }, { d: 10, t: '13:54', c: '0xBE' },
+  { d: 11, t: '12:19', c: '0x0A' }, { d: 12, t: '12:31', c: '?' }, { d: 15, t: '00:04', c: '0x1A', k: 'убита задача „Монтаж на видеа“' },
+  { d: 17, t: '21:25', c: '0x1A', k: 'убита задача „Монтаж на видео“' }, { d: 18, t: '02:01', c: '0x0A', k: 'същата задача — пак убита' },
+  { d: 20, t: '10:25', c: '0x139', k: 'компресорът забрави паметта си' }, { d: 23, t: '22:48', c: '0x4E', k: 'компресорът пак забрави паметта си' },
+];
+let selCrash = 14;
+function dayLabel(d) { const dt = new Date(Date.UTC(2026, 9, 28 + d)); return `${dt.getUTCDate()}.${dt.getUTCMonth() + 1}`; }
+function renderPc() {
+  const C = CRASH[selCrash];
+  const W = 25;
+  return `<h2>② Офис компютърът: сривовете</h2>
+  <p class="lead">Всички роботи на компютъра (dev опашка, AI опашка, папки, компресор, бекъп, нощният анализ) падат заедно с него. Днес сривът се вижда само в лог файл — сигналът „компютърът не работи“ не тръгва, защото той се вдига за 1–2 минути.</p>
+  <div class="split">
+    <div class="box"><div class="k bad">15</div><div class="l">сини екрана за 25 дни</div></div>
+    <div class="box"><div class="k">9</div><div class="l">различни кода на грешката</div></div>
+    <div class="box"><div class="k warn">3</div><div class="l">убити задачи по средата</div></div>
+    <div class="box"><div class="k warn">4 × 8 GB</div><div class="l">памет от два различни комплекта</div></div>
+  </div>
+  <div class="box"><h4>Сривове по дни (кликни върху стълбче)</h4>
+    <div class="tl">${[0, 7, 14, 21].map((d) => `<div class="wk" style="left:${d / W * 100}%"></div>`).join('')}
+      ${CRASH.map((c, i) => { const same = CRASH.filter((x, j) => x.d === c.d && j < i).length; return `<div class="crash${i === selCrash ? ' on' : ''}" data-i="${i}" style="left:calc(${(c.d + .5) / W * 100}% + ${same * 18}px);height:${50 + same * 25}px"><span>${c.c}</span></div>`; }).join('')}
+      ${[0, 5, 10, 15, 20, 24].map((d) => `<div class="day" style="left:${(d + .5) / W * 100}%">${dayLabel(d)}</div>`).join('')}
+    </div>
+  </div>
+  <div class="rgrid" style="margin-top:28px">
+    <div class="box"><h4>Как би изглеждал сигналът (в чата за сигнали)</h4>
+      <div class="msg">💥 @Венци Офис компютърът се рестартира неочаквано в ${C.t} (${dayLabel(C.d)}), син екран ${C.c}.
+${C.k ? '⚠ ' + C.k + '\n' : ''}Върна се след 1 мин. Опашките продължиха сами.
+Това е ${selCrash + 1}-ият срив от 28.10 (средно на 1,7 дни).</div>
+      <div class="note">Плюс веднъж седмично: „7 срива тази седмица, най-чест код 0x1A (памет)“.</div>
+    </div>
+    <div class="box"><h4>Какво казват кодовете</h4>
+      <p class="note" style="margin-top:0">0x1A и 0x4E са грешки в паметта, а 0x0A, 0x50, 0xBE и 0x7E често са следствие от тях. Когато кодът е всеки път различен, най-честата причина е RAM, а не определена програма.</p>
+      <p class="note">В компютъра има 2 плочки от един комплект и 2 от друг (различни марки и скорости).</p>
+      <p class="note"><b>Предложение Н4.1:</b> една нощ тест на паметта → махаме едната двойка (остават 16 GB) или купуваме един комплект 2 × 16 GB.</p>
+    </div>
+  </div>`;
+}
+
+// ③ чака решение
+const DEC = [
+  { src: 'dev', q: 'Известия от проектите на клиентите', w: 'Въпрос от Dev опашката · 03.09', age: 80, s: 'Ботът проучи и пита откъде да започне. Без отговор → задачата виси отворена.' },
+  { src: 'plan', q: 'Агент за подсещане (СПЕШНО! / ГОТОВО!)', w: 'План във Vault · 28.08', age: 86, s: 'Изрично чака твоето „старт“.' },
+  { src: 'dev', q: '„Актуални задачи и usage“ — 3 въпроса', w: 'Въпрос от Dev опашката · 27.10', age: 26, s: 'Страница #/claude: какво работи сега, колко лимит е минал.' },
+  { src: 'plan', q: 'Дигитален Венци — 7 въпроса', w: 'План във Vault · 09.11', age: 13, s: 'Агент, който отговаря на екипа като теб.' },
+  { src: 'dev', q: 'Друг акаунт за роботите във вътрешния проект', w: 'Въпрос от Dev опашката · 19.11', age: 3, s: 'Половин ден работа + 10 минути от теб.' },
+  { src: 'night', q: 'Нощен анализ: 22 предложения (Н1–Н4)', w: 'Нощен анализ · 19–22.11', age: 0, s: 'Отговор с номер: „пробваме Н1.3“.' },
+  { src: 'plan', q: 'Каталог автоматизации — кои и в какъв ред', w: 'Каталог · 11.11', age: 11, s: '30 предложения, 8 прототипа.' },
+];
+let flt = 'all';
+const SRC = { dev: ['b', 'Dev опашка'], plan: ['a', 'План'], night: ['g', 'Нощен анализ'] };
+function renderDecide() {
+  const list = DEC.map((x, i) => ({ ...x, i })).filter((x) => flt === 'all' || x.src === flt).sort((a, b) => b.age - a.age);
+  const open = DEC.filter((x) => !x.done).length;
+  return `<h2>③ Чака твоето решение</h2>
+  <p class="lead">Всичко, по което роботите или плановете чакат теб — на едно място, най-старото отгоре. Отговорът тръгва като коментар под съответната задача (както ако го беше написал там).</p>
+  <div class="explain">Днес тези въпроси са разпилени в коментари в Basecamp и във Vault. Най-старият е от <b>80 дни</b>. Веднъж седмично (понеделник 09:00) — кратко съобщение „чакат те ${open} решения“ с линк тук.</div>
+  <div class="filters">${[['all', 'Всички'], ['dev', 'Dev опашка'], ['plan', 'Планове'], ['night', 'Нощен анализ']].map(([k, l]) => `<button class="btn${flt === k ? ' on' : ''}" data-f="${k}">${l}</button>`).join('')}</div>
+  ${list.map((x) => `<div class="dec${x.done ? ' done' : ''}">
+    <div><div class="q">${esc(x.q)} <span class="pill ${SRC[x.src][0]}">${SRC[x.src][1]}</span></div>
+      <div class="w">${esc(x.w)} · чака <span class="age ${x.age > 30 ? 'bad' : x.age > 7 ? 'warn' : ''}">${x.age} ${x.age === 1 ? 'ден' : 'дни'}</span></div>
+      <div class="s">${esc(x.s)}${x.done ? ` — <b>${esc(x.done)}</b>` : ''}</div></div>
+    <div class="acts">${x.done ? '' : `<button class="btn pri" data-d="${x.i}" data-v="Да, започвай">Да</button><button class="btn" data-d="${x.i}" data-v="По-късно (напомни след 2 седмици)">По-късно</button><button class="btn red" data-d="${x.i}" data-v="Не, затвори">Не</button>`}</div>
+  </div>`).join('')}`;
+}
+
+function show() {
+  const h = (location.hash || '#robots').slice(1);
+  document.querySelectorAll('.side a').forEach((a) => a.classList.toggle('on', a.dataset.p === h));
+  const main = document.getElementById('main');
+  main.innerHTML = h === 'pc' ? renderPc() : h === 'decide' ? renderDecide() : renderRobots();
+  main.querySelectorAll('tr.rb').forEach((tr) => tr.onclick = () => { selRobot = tr.dataset.id; show(); });
+  main.querySelectorAll('[data-act]').forEach((b) => b.onclick = () => {
+    const t = { keep: 'Записано: пробваме 2 седмици — след това тук излиза „ползва ли се“ с числа.', off: 'Записано: спира се. Кодът остава, може да се включи пак.', later: 'Напомням след 2 седмици.' }[b.dataset.act];
+    document.getElementById('actres').textContent = t;
+  });
+  main.querySelectorAll('.crash').forEach((c) => c.onclick = () => { selCrash = +c.dataset.i; show(); });
+  main.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { flt = b.dataset.f; show(); });
+  main.querySelectorAll('[data-d]').forEach((b) => b.onclick = () => { DEC[+b.dataset.d].done = b.dataset.v; show(); });
+}
+document.querySelectorAll('.side a').forEach((a) => a.onclick = () => { location.hash = a.dataset.p; });
+window.addEventListener('hashchange', show);
+show();
+</script>
+</body>
+</html>
