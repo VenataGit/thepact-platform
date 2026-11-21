@@ -20,10 +20,12 @@ jest.mock('../src/services/basecamp', () => ({
   getCampfireLines: jest.fn(async (t, a, bucket) => mockLines[bucket] || []),
   createCampfireLine: jest.fn(async () => ({})),
 }));
+jest.mock('../src/services/dev-queue', () => ({ notifyWork: jest.fn() }));
 jest.mock('../src/config', () => ({ BASECAMP_SERVICE_EMAIL: 'bot@x' }));
 
 const bc = require('../src/services/basecamp');
 const dc = require('../src/services/dev-chat');
+const dq = require('../src/services/dev-queue');
 
 beforeEach(() => { mockSettings = {}; mockExec.length = 0; bc.createCampfireLine.mockClear(); });
 
@@ -32,6 +34,7 @@ test('първият полл е baseline — нищо не се отговар�
   mockLines[20] = [{ id: 6, content: 'старо', creator: { id: 777 } }];
   await dc.pollPings();
   expect(bc.createCampfireLine).not.toHaveBeenCalled();
+  expect(dq.notifyWork).not.toHaveBeenCalled();
   expect(mockExec.some((e) => /INSERT INTO dev_chat/.test(e.sql))).toBe(false);
   expect(JSON.parse(mockSettings.dev_ping_state)['10'].last).toBe(5);
 });
@@ -44,6 +47,7 @@ test('ново от Венци → опашката с адреса на Ping-а
   const ins = mockExec.filter((e) => /INSERT INTO dev_chat/.test(e.sql));
   expect(ins).toHaveLength(1);
   expect(ins[0].params).toEqual([8, 'Здрасти', 10, 100]);
+  expect(dq.notifyWork).toHaveBeenCalledTimes(1); // watcher-ът се буди веднага
   expect(bc.createCampfireLine).toHaveBeenCalledTimes(1);
   expect(bc.createCampfireLine.mock.calls[0].slice(2, 4)).toEqual([20, 200]);
 

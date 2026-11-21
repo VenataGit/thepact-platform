@@ -84,9 +84,16 @@ function onWebhook(bucketId) {
   return true;
 }
 
+// Броят се и чакащите чат съобщения (Pings, 21.11.2026) — иначе daemon-ът на PC-то
+// би ги вдигнал чак при пълния си цикъл на 5 мин.
 async function hasPending() {
-  return !!(await queryOne("SELECT 1 AS x FROM dev_tasks WHERE status = 'pending' LIMIT 1"));
+  return !!(await queryOne(
+    "SELECT 1 AS x WHERE EXISTS (SELECT 1 FROM dev_tasks WHERE status = 'pending') OR EXISTS (SELECT 1 FROM dev_chat WHERE status = 'pending' LIMIT 1)"
+  ));
 }
+
+// Събуди long-poll-а на watcher-а веднага (ползва се от dev-chat при нов Ping).
+function notifyWork() { bus.emit('work'); }
 
 // Long-poll за watcher-а: true веднага щом има чакаща задача, false след ms.
 async function waitForWork(ms) {
@@ -301,4 +308,4 @@ async function claimNext() {
   return task;
 }
 
-module.exports = { initDevQueue, pollOnce, claimNext, kick, onWebhook, waitForWork };
+module.exports = { initDevQueue, pollOnce, claimNext, kick, onWebhook, waitForWork, notifyWork };

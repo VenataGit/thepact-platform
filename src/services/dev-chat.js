@@ -18,6 +18,7 @@ const { getServiceAuth } = require('./basecamp-token');
 
 const TZ = 'Europe/Sofia';
 let running = false;
+let pingRunning = false;
 
 function initDevChat() {
   // Идемпотентно (като 072) — runner-ът на миграциите спира тихо на първа грешка.
@@ -27,7 +28,14 @@ function initDevChat() {
     cron.schedule('* * * * *', () => {
       pollOnce().catch((err) => console.error('[dev-chat] poll error:', err.message));
     }, { timezone: TZ });
-    console.log('  Dev Chat: active (every minute)');
+    // Pings — на 10 сек (Basecamp webhooks не покриват Pings). Евтино: един GET на
+    // /circles.json; редовете се теглят само за Ping с променен updated_at.
+    cron.schedule('*/10 * * * * *', () => {
+      if (pingRunning) return;
+      pingRunning = true;
+      pollPings().catch((err) => console.error('[dev-chat] pings:', err.message)).finally(() => { pingRunning = false; });
+    }, { timezone: TZ });
+    console.log('  Dev Chat: active (every minute, Pings every 10s)');
   } catch (err) {
     console.log('  Dev Chat: skipped —', err.message);
   }
@@ -81,7 +89,6 @@ async function pollOnce() {
     await execute(
       "UPDATE dev_chat SET status = 'pending', updated_at = NOW() WHERE status = 'running' AND updated_at < NOW() - INTERVAL '70 minutes'"
     );
-    try { await pollPings(); } catch (e) { console.error('[dev-chat] pings:', e.message); }
     if (!cfg.enabled) return;
     await pollCampfire(cfg);
   } finally {
@@ -146,6 +153,7 @@ async function pollPings() {
   const auth = await getServiceAuth();
   const circles = await bc.getPings(auth.token, auth.account);
   let changed = baseline;
+  let queued = false;
   for (const c of circles) {
     const m = /\/buckets\/(\d+)\/chats\/(\d+)\//.exec(c.links?.lines || '');
     if (!m) continue;
@@ -170,6 +178,7 @@ async function pollPings() {
             [l.id, text.slice(0, 8000), bucket, chat]
           );
           console.log(`[dev-chat] нов въпрос от Ping (ред ${l.id})`);
+          queued = true;
         }
       } else if (fresh.some((l) => Number(l.creator?.id) !== ownerId)
                  && (!st.botAt || Date.now() - st.botAt > BOT_REPLY_EVERY_MS)) {
@@ -182,6 +191,7 @@ async function pollPings() {
     changed = true;
   }
   if (changed) await saveSetting('dev_ping_state', JSON.stringify(state));
+  if (queued) require('./dev-queue').notifyWork(); // watcher-ът тръгва за секунди
   if (baseline) console.log(`[dev-chat] pings baseline: ${circles.length} Ping(а), стари съобщения се пропускат`);
 }
 
