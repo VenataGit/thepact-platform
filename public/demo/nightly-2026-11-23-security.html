@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо Н5: Сигурност и бекъпи</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; --blue:#4a9fe0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; }
+  button { font:inherit; color:inherit; }
+  header { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:30; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .sw { margin-left:auto; display:flex; gap:4px; background:rgba(255,255,255,.05); border-radius:9px; padding:3px; }
+  .sw button { border:0; background:none; padding:5px 12px; border-radius:7px; cursor:pointer; font-size:13px; color:var(--sec); }
+  .sw button.on { background:var(--green); color:#fff; font-weight:600; }
+  .wrap { max-width:1680px; margin:14px auto 40px; padding:0 20px; display:grid; grid-template-columns:270px 1fr; gap:14px; }
+  .side { background:var(--panel); border-radius:15px; padding:12px; align-self:start; position:sticky; top:62px; }
+  .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:10px 8px 6px; }
+  .side a { display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:9px; cursor:pointer; text-decoration:none; color:#cfd8dc; font-size:13.5px; }
+  .side a:hover { background:var(--hover); }
+  .side a.on { background:var(--green); color:#fff; font-weight:600; }
+  .side a .n { margin-left:auto; font-size:11px; padding:0 7px; border-radius:8px; background:rgba(229,83,75,.25); color:#ffb3ad; }
+  .side a .n.g { background:rgba(70,163,116,.25); color:#a6e8c4; }
+  .side p { color:var(--dim); font-size:12px; margin:10px 8px; }
+  .panel { background:var(--panel); border-radius:15px; padding:22px 26px; min-width:0; }
+  h2 { font-size:22px; margin-bottom:4px; }
+  .lead { color:var(--sec); margin-bottom:16px; max-width:1000px; }
+  .explain { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; padding:10px 14px; margin-bottom:16px; color:var(--sec); max-width:1100px; }
+  .explain b { color:var(--text); }
+  .btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:5px 12px; cursor:pointer; font-size:13px; }
+  .btn:hover { background:rgba(255,255,255,.12); }
+  .btn.pri { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .box { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 16px; }
+  .box h4 { font-size:14px; margin-bottom:10px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:9px 9px; border-bottom:1px solid rgba(255,255,255,.07); vertical-align:middle; }
+  th { color:var(--dim); font-weight:600; font-size:12px; }
+  tr.rb { cursor:pointer; } tr.rb:hover td { background:var(--hover); } tr.rb.sel td { background:rgba(70,163,116,.10); }
+  .ok { color:var(--green); } .warn { color:var(--amber); } .bad { color:var(--red); } .dim { color:var(--dim); }
+  .pill { display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:9px; background:rgba(255,255,255,.07); color:var(--sec); white-space:nowrap; }
+  .pill.g { background:rgba(70,163,116,.18); color:#7fd3a6; } .pill.a { background:rgba(245,166,35,.16); color:#ffc56b; }
+  .pill.r { background:rgba(229,83,75,.16); color:#ff9c95; } .pill.b { background:rgba(74,159,224,.16); color:#93c8f2; }
+  .split { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .split .box { text-align:center; } .split .k { font-size:30px; font-weight:800; } .split .l { color:var(--sec); font-size:12.5px; }
+  .rgrid { display:grid; grid-template-columns:1fr 430px; gap:16px; }
+  .det p { color:var(--sec); margin:6px 0; } .det b { color:var(--text); }
+  .det .how { background:#0d1518; border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:10px; font-size:12.5px; color:#cfd8dc; white-space:pre-wrap; font-family:Consolas,monospace; }
+  .copies { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+  .copy { padding:16px; border-radius:12px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); }
+  .copy .ic { font-size:26px; } .copy h4 { margin:6px 0 4px; font-size:15px; } .copy .m { color:var(--sec); font-size:12.5px; }
+  .copy.missing { border-style:dashed; opacity:.8; }
+  .bar { height:8px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:10px; }
+  .bar i { display:block; height:100%; width:0; background:var(--green); transition:width .4s; }
+  .log { background:#0d1518; border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:10px; font-family:Consolas,monospace; font-size:12px; color:#cfd8dc; min-height:120px; white-space:pre-wrap; }
+  .msg { background:#0d1518; border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:10px; white-space:pre-wrap; color:#cfd8dc; font-size:13px; }
+  .note { font-size:12.5px; color:var(--sec); margin-top:8px; }
+  .hide { display:none; }
+  @media (max-width:1100px) { .wrap { grid-template-columns:1fr; } .side { position:static; } .rgrid, .copies, .split { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛡️ Сигурност и бекъпи</h1>
+  <span class="badge">ДЕМО · нощ 5 · измислени данни</span>
+  <div class="sw" id="sw">
+    <button class="on" data-m="now">Днес</button>
+    <button data-m="after">След Н5.1–Н5.6</button>
+  </div>
+</header>
+<div class="wrap">
+  <nav class="side" id="side">
+    <h3>Раздели</h3>
+    <a data-v="checks" class="on">🔐 Проверки <span class="n" id="cntBad">0</span></a>
+    <a data-v="backups">💾 Бекъпи <span class="n" id="cntBk">!</span></a>
+    <a data-v="maint">🧰 Поддръжка</a>
+    <a data-v="alerts">🔔 Сигнали</a>
+    <p>Само собственикът · „Още“ → „Роботи“ → раздел „Сигурност“. Всяка проверка се пуска сама всяка нощ; нищо не се променя от тази страница — бутоните само показват командата.</p>
+  </nav>
+  <main class="panel">
+
+    <!-- Проверки -->
+    <section id="v-checks">
+      <h2>Проверки на сигурността</h2>
+      <p class="lead">Всяка нощ в 03:30 сървърът и компютърът проверяват сами 12 неща. Зелено = наред, жълто = да се погледне, червено = отворена врата. Кликни ред за подробности.</p>
+      <div class="split" id="split"></div>
+      <div class="rgrid">
+        <div class="box"><table><thead><tr><th>Проверка</th><th>Къде</th><th>Сега</th><th>Състояние</th></tr></thead><tbody id="chkBody"></tbody></table></div>
+        <div class="box det" id="det"></div>
+      </div>
+    </section>
+
+    <!-- Бекъпи -->
+    <section id="v-backups" class="hide">
+      <h2>Бекъпи: къде са и стават ли</h2>
+      <p class="lead">Три копия на три различни места. Всяка неделя последният бекъп се възстановява в празна временна база и се сравнява с живата — това е единственото доказателство, че от него става платформа.</p>
+      <div class="copies" id="copies"></div>
+      <div class="rgrid">
+        <div class="box">
+          <h4>Тест за възстановяване (всяка неделя 01:30)</h4>
+          <table><thead><tr><th>Дата</th><th>Файл</th><th>Време</th><th>Редове: бекъп / живо</th><th>Резултат</th></tr></thead><tbody id="rtBody"></tbody></table>
+        </div>
+        <div class="box">
+          <h4>Пробвай сега</h4>
+          <p class="note">Пуска същия тест като в неделя: временна база → 6 таблици → сравнение → триене. Живата база не се пипа.</p>
+          <div style="margin-top:10px"><button class="btn pri" id="runRt">▶ Възстанови снощния бекъп</button></div>
+          <div class="bar"><i id="rtBar"></i></div>
+          <div class="log" id="rtLog">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Поддръжка -->
+    <section id="v-maint" class="hide">
+      <h2>Неделна поддръжка на сървъра</h2>
+      <p class="lead">Първата неделя на месеца в 04:00: обновяване → рестарт само ако е нужен → проверка, че сайтът отговаря. Ако нещо не тръгне — сигнал и остава конзолата на Hetzner.</p>
+      <div class="rgrid">
+        <div class="box"><table><thead><tr><th>Дата</th><th>Пакети</th><th>Рестарт</th><th>Престой</th><th>След това</th></tr></thead><tbody id="mBody"></tbody></table></div>
+        <div class="box">
+          <h4>Следваща: неделя, 06.12 в 04:00</h4>
+          <p class="note" id="mNext"></p>
+          <div class="msg" id="mMsg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Сигнали -->
+    <section id="v-alerts" class="hide">
+      <h2>Какво пише в чата „Сигнал за неработеща система“</h2>
+      <p class="lead">Само когато има нещо за правене. Примери:</p>
+      <div class="msg">🔐 Нова уязвимост (high) в multer 2.0.1 — има поправка 2.0.2. Предлагам обновяване в dev опашката. [Да] [По-късно]</div>
+      <div class="msg">💾 Тестът за възстановяване НЕ мина: bc_cards_snap 0 реда в бекъпа (живо: 18 422). Снощният бекъп е счупен — последният добър е от 29.11.</div>
+      <div class="msg">🧰 Сървърът чака рестарт от 16 дни (ново ядро). Следващата неделна поддръжка е 06.12 — или натисни „Рестарт тази нощ“.</div>
+      <div class="msg">🚪 Порт 3000 отговаря отвън (трябва да е затворен). Проверено 03:30 от компютъра в офиса.</div>
+      <p class="note">Нищо от това не е пуснато — демото показва как би изглеждало.</p>
+    </section>
+
+  </main>
+</div>
+<script>
+var mode = 'now';
+var CHECKS = [
+  { id:'ssh', t:'SSH: вход с парола', w:'сървър', now:['включен · ~14 000 опита/ден','r'], after:['само с ключ · бан след 5 грешки','g'], n:'Н5.1',
+    d:'Днес root приема парола. За 4 седмици ~406 000 неуспешни опита от стотици адреси. Нашият вход е винаги с ключ, от офиса.',
+    how:'PasswordAuthentication no\nPermitRootLogin prohibit-password\napt install fail2ban   # бан 1 ч след 5 грешки' },
+  { id:'fw', t:'Защитна стена', w:'сървър', now:['няма · всичко е отворено','r'], after:['само 22, 80, 443','g'], n:'Н5.2',
+    d:'ufw е изключен, iptables пуска всичко. Отворено е само това, което слуша — но никой не пази, ако утре нещо ново слуша навън.',
+    how:'Hetzner Cloud Firewall: входящо 22, 80, 443\n(или ufw allow 22,80,443/tcp; ufw enable)' },
+  { id:'p3000', t:'Порт 3000 (Node) отвън', w:'сървър', now:['отговаря · заобикаля Nginx','r'], after:['затворен','g'], n:'Н5.2',
+    d:'Платформата отговаря директно на http://<IP>:3000 — без HTTPS и с подменим IP адрес (лимитите на заявки не важат).',
+    how:"server.listen(PORT, '127.0.0.1')   // src/server.js" },
+  { id:'reboot', t:'Чака рестарт', w:'сървър', now:['от 8 дни · 234 дни без рестарт','a'], after:['не · последен 06.12','g'], n:'Н5.3',
+    d:'Новите ядра и libc са свалени, но не се ползват до рестарт. Работи ядро отпреди 7 месеца.',
+    how:'Неделна поддръжка: apt upgrade → ако има /var/run/reboot-required → reboot → проверка на /api/health' },
+  { id:'upd', t:'Поправки за сигурност (сървър)', w:'сървър', now:['автоматично · ок','g'], after:['автоматично · ок','g'], n:'',
+    d:'unattended-upgrades сваля поправките всеки ден. Наред.', how:'—' },
+  { id:'cert', t:'HTTPS сертификат', w:'сървър', now:['29 дни · подновява се сам','g'], after:['89 дни','g'], n:'',
+    d:'certbot подновява сам на всеки 60 дни. Сигнал, ако останат < 14 дни.', how:'—' },
+  { id:'tls', t:'Стари TLS 1.0/1.1', w:'сървър', now:['разрешени','a'], after:['само 1.2 и 1.3','g'], n:'Н5.3',
+    d:'В nginx.conf още пише TLSv1 TLSv1.1. Браузърите отдавна не ги ползват.', how:'ssl_protocols TLSv1.2 TLSv1.3;' },
+  { id:'deps', t:'Уязвими пакети (npm)', w:'сървър', now:['1 critical · 2 high · 3 moderate','r'], after:['0 · проверка всяка седмица','g'], n:'Н5.6',
+    d:'Critical и двете high идват от bcrypt — ползва го само изключеният вход с парола. multer още е 1.x.',
+    how:'npm rm bcrypt (+ мъртвия вход)\nnpm i multer@2 express@4.22.3 helmet@8.3\nnpm audit --omit=dev  # всяка неделя' },
+  { id:'win', t:'Windows на офис компютъра', w:'компютър', now:['Windows 10 · без поправки от 09.09','r'], after:['Windows 11 · обновен','g'], n:'Н5.5',
+    d:'Тук живеят Claude абонаментът, dev опашката, SSH ключът за сървъра и 34 копия на .env.', how:'PC Health Check → Windows 11 (безплатно)' },
+  { id:'bl', t:'Криптиран диск (BitLocker)', w:'компютър', now:['неизвестно','a'], after:['C: и D: криптирани','g'], n:'Н5.5',
+    d:'При откраднат/изнесен диск — бекъпите с ключовете са четими. BitLocker го има в Windows Pro.', how:'manage-bde -on C: · manage-bde -on D:' },
+  { id:'key', t:'Неизползвани ключове', w:'сървър', now:['1 (Anthropic API в .env)','a'], after:['0','g'], n:'Н5.5',
+    d:'Кодът не чете ключа (config.js), но той стои в .env и във всеки бекъп.', how:'изтриване от .env + анулиране в конзолата на Anthropic' },
+  { id:'av', t:'Антивирус (Defender)', w:'компютър', now:['включен · дефиниции от днес','g'], after:['включен','g'], n:'',
+    d:'Наред.', how:'—' }
+];
+var sel = 'ssh';
+function st(c){ return c[mode]; }
+function renderChecks(){
+  var b=0,a=0,g=0;
+  document.getElementById('chkBody').innerHTML = CHECKS.map(function(c){
+    var s=st(c); if(s[1]==='r')b++; else if(s[1]==='a')a++; else g++;
+    var lab = s[1]==='r'?'отворено':s[1]==='a'?'да се погледне':'наред';
+    return '<tr class="rb'+(c.id===sel?' sel':'')+'" data-id="'+c.id+'"><td>'+c.t+(c.n?' <span class="pill b">'+c.n+'</span>':'')+'</td><td class="dim">'+c.w+'</td><td>'+s[0]+'</td><td><span class="pill '+s[1]+'">'+lab+'</span></td></tr>';
+  }).join('');
+  document.getElementById('split').innerHTML =
+    '<div class="box"><div class="k bad">'+b+'</div><div class="l">отворени врати</div></div>'+
+    '<div class="box"><div class="k warn">'+a+'</div><div class="l">да се погледне</div></div>'+
+    '<div class="box"><div class="k ok">'+g+'</div><div class="l">наред</div></div>'+
+    '<div class="box"><div class="k">03:30</div><div class="l">последна проверка (тази нощ)</div></div>';
+  var cb=document.getElementById('cntBad'); cb.textContent=b; cb.className='n'+(b?'':' g');
+  var c = CHECKS.filter(function(x){return x.id===sel;})[0], s=st(c);
+  document.getElementById('det').innerHTML = '<h4>'+c.t+'</h4><p><span class="pill '+s[1]+'">'+s[0]+'</span> '+(c.n?'<span class="pill b">предложение '+c.n+'</span>':'')+'</p><p>'+c.d+'</p>'+
+    (c.how!=='—'?'<p><b>Как се оправя:</b></p><div class="how">'+c.how+'</div><p class="note">Бутон тук няма нарочно — промяната минава през dev опашката с одобрение.</p>':'');
+  Array.prototype.forEach.call(document.querySelectorAll('#chkBody tr'), function(tr){ tr.onclick=function(){ sel=tr.getAttribute('data-id'); renderChecks(); }; });
+}
+function renderBackups(){
+  var now = mode==='now';
+  var C = [
+    { ic:'🖥️', t:'Сървърът (Hetzner)', m:'15 дни · 2.6 GB · снощи 02:00 ✓', warn: now?'на същия диск като базата':'', ok:1 },
+    { ic:'🏢', t:'Офис компютърът', m:'30 дни + месечни · 34 копия · 8.6 GB · снощи 02:01 ✓'+(now?'':' · криптиран диск'), warn: now?'пада на ~1.7 дни · без криптиране':'', ok:1 },
+    { ic:'☁️', t:'Извън офиса', m: now?'няма':'Storage Box · всяка неделя · криптирано · 4 седмици', warn: now?'изгори ли офисът или спре ли Hetzner — няма копие':'', ok: !now }
+  ];
+  document.getElementById('copies').innerHTML = C.map(function(c){
+    return '<div class="copy'+(c.ok?'':' missing')+'"><div class="ic">'+c.ic+'</div><h4>'+c.t+'</h4><div class="m">'+c.m+'</div>'+(c.warn?'<div class="note '+(c.ok?'warn':'bad')+'">⚠ '+c.warn+'</div>':'')+'</div>';
+  }).join('');
+  var R = now ? [] : [
+    ['29.11','thepact_2026-11-29.dump','3 мин 12 с','6/6 съвпадат','g'],
+    ['22.11','thepact_2026-11-22.dump','3 мин 05 с','6/6 съвпадат','g'],
+    ['15.11','thepact_2026-11-15.dump','—','bc_cards_snap: 0 / 18 422','r']
+  ];
+  document.getElementById('rtBody').innerHTML = R.length ? R.map(function(r){
+    return '<tr><td>'+r[0]+'</td><td class="dim">'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td><td><span class="pill '+r[4]+'">'+(r[4]==='g'?'стана':'НЕ стана')+'</span></td></tr>';
+  }).join('') : '<tr><td colspan="5" class="bad">Никога не е правен тест за възстановяване. Проверява се само дали файлът е свален цял (SHA256).</td></tr>';
+  document.getElementById('cntBk').textContent = now ? '!' : '✓';
+  document.getElementById('cntBk').className = 'n'+(now?'':' g');
+}
+function runRestore(){
+  var btn=document.getElementById('runRt'), bar=document.getElementById('rtBar'), log=document.getElementById('rtLog');
+  btn.disabled=true; log.textContent=''; bar.style.width='0';
+  var steps=[
+    [8,'01:30:00  createdb thepact_restore_test'],
+    [30,'01:30:02  pg_restore thepact_2026-11-23.dump (228 MB) …'],
+    [70,'01:32:51  готово за 2 мин 49 с'],
+    [80,'01:32:52  users            16 / 16      ✓'],
+    [84,'01:32:52  bc_cards_snap    18 422 / 18 431  ✓ (9 нови след 00:00)'],
+    [88,'01:32:53  overtime_entries 1 284 / 1 284  ✓'],
+    [91,'01:32:53  processes        42 / 42      ✓'],
+    [94,'01:32:53  crm_clients      61 / 61      ✓'],
+    [97,'01:32:54  ai_jobs          5 902 / 5 911  ✓'],
+    [100,'01:32:56  dropdb thepact_restore_test\n✅ Бекъпът става. Записано в пулса.']
+  ], i=0;
+  (function next(){ if(i>=steps.length){ btn.disabled=false; return; } bar.style.width=steps[i][0]+'%'; log.textContent += (log.textContent?'\n':'')+steps[i][1]; i++; setTimeout(next, 380); })();
+}
+function renderMaint(){
+  var now = mode==='now';
+  var M = now ? [['—','—','последен рестарт: 02.04.2026','—','234 дни без рестарт · 10 нови ядра чакат']] :
+    [['06.12','41','да (ново ядро)','1 мин 48 с','health ок · 10 задачи на компютъра свързани'],
+     ['01.11*','78','да','2 мин 10 с','health ок · журналът 3.7 GB → 480 MB']];
+  document.getElementById('mBody').innerHTML = M.map(function(r){ return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td><td class="dim">'+r[4]+'</td></tr>'; }).join('');
+  document.getElementById('mNext').textContent = now ? 'Днес няма такава поддръжка — обновяванията за сигурност се свалят, но ядрото и libc чакат рестарт от 15.11.' : 'Чакат 12 пакета, рестарт: вероятно не. Бекъпът преди това: снощен, тестван ✓.';
+  document.getElementById('mMsg').textContent = now ? '— (няма съобщения)' : '🧰 Поддръжка 06.12: 41 пакета, рестарт 1 мин 48 с, сайтът отговаря. Нищо за правене.';
+}
+function renderAll(){ renderChecks(); renderBackups(); renderMaint(); }
+Array.prototype.forEach.call(document.querySelectorAll('#sw button'), function(b){ b.onclick=function(){
+  mode=b.getAttribute('data-m'); Array.prototype.forEach.call(document.querySelectorAll('#sw button'), function(x){ x.classList.toggle('on', x===b); }); renderAll(); }; });
+Array.prototype.forEach.call(document.querySelectorAll('#side a'), function(a){ a.onclick=function(){
+  var v=a.getAttribute('data-v'); Array.prototype.forEach.call(document.querySelectorAll('#side a'), function(x){ x.classList.toggle('on', x===a); });
+  ['checks','backups','maint','alerts'].forEach(function(k){ document.getElementById('v-'+k).classList.toggle('hide', k!==v); }); }; });
+document.getElementById('runRt').onclick = runRestore;
+renderAll();
+</script>
+</body>
+</html>
