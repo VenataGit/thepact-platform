@@ -27,6 +27,8 @@ function ensureKpPausedColumn() {
     // (bc_people.person_id). Само за подредба/филтър на страницата КП-Автоматизация.
     pausedSchema = execute('ALTER TABLE kp_clients ADD COLUMN IF NOT EXISTS paused BOOLEAN NOT NULL DEFAULT FALSE')
       .then(() => execute('ALTER TABLE kp_clients ADD COLUMN IF NOT EXISTS responsible_person_id BIGINT'))
+      // + kp_launch_note (23.11.2026): текст, който излиза като коментар под всяка нова КП карта.
+      .then(() => execute('ALTER TABLE kp_clients ADD COLUMN IF NOT EXISTS kp_launch_note TEXT'))
       .catch((err) => { pausedSchema = null; throw err; });
   }
   return pausedSchema;
@@ -457,6 +459,9 @@ async function createKpForClient({ client, firstPublishDate, cfg, auth, dest, cr
         console.warn('[kp-create] plan step failed:', e.message);
       }
     }
+    // Отговорникът на клиента → Assigned To на картата + коментар с „Бележка при
+    // пускане на КП", в който е тагнат (Венци, 23.11.2026). Никога не бламира картата.
+    await assignAndNoteKpCard({ auth, projectId: d.projectId, card, client });
     agg.invalidateBoard(d.boardId); // дашбордът/КП списъкът да видят новата карта веднага
     // Коментар с таговете на отговорниците + какво трябва да се направи по този план
     // (чете се от проекта на клиента). Фоново — картата не чака AI заявката и не
@@ -482,6 +487,29 @@ async function createKpForClient({ client, firstPublishDate, cfg, auth, dest, cr
   // За историята на клиента (kp_audit_log): с какви дати е пуснат този КП.
   result.datesNote = `КП-${kpNumber}: ${dist.dates.length} видеа, ${toBgDate(dist.dates[0])} → ${toBgDate(dist.lastVideoDate)}; следващ КП-${kpNumber + 1} от ${toBgDate(dist.nextKpFirstDate)}`;
   return result;
+}
+
+// Basecamp не приема assignee_ids при създаване на карта — само при PUT, затова е
+// втора заявка. Коментарът излиза само ако клиентът има попълнена бележка.
+async function assignAndNoteKpCard({ auth, projectId, card, client }) {
+  let person = null;
+  if (client.responsible_person_id) {
+    person = await queryOne('SELECT * FROM bc_people WHERE person_id = $1', [client.responsible_person_id]).catch(() => null);
+    try {
+      await bc.updateCard(auth.token, auth.account, projectId, card, { assignee_ids: [Number(client.responsible_person_id)] });
+    } catch (e) {
+      console.warn('[kp-create] assign responsible failed:', e.message);
+    }
+  }
+  const note = String(client.kp_launch_note || '').trim();
+  if (!note) return;
+  try {
+    const team = require('./bc-team');
+    const tag = person ? team.mentionOf(person) + ' ' : '';
+    await bc.createComment(auth.token, auth.account, projectId, card.id, '<div>' + tag + '</div>' + textToBcHtml(note));
+  } catch (e) {
+    console.warn('[kp-create] launch note comment failed:', e.message);
+  }
 }
 
 // The old local-platform card (kept behind kp_bc_enabled = false).

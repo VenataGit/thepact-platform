@@ -281,7 +281,7 @@ router.get('/clients', requireAuth, async (req, res) => {
 // POST /api/kp/clients
 router.post('/clients', requireAuth, async (req, res) => {
   try {
-    const { name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, notes, responsible_person_id } = req.body;
+    const { name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, notes, responsible_person_id, kp_launch_note } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
     await kpc.ensureKpPausedColumn(); // + responsible_person_id
 
@@ -302,10 +302,10 @@ router.post('/clients', requireAuth, async (req, res) => {
     }
 
     const client = await queryOne(
-      `INSERT INTO kp_clients (name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, last_video_date, next_kp_date, notes, responsible_person_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      `INSERT INTO kp_clients (name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, last_video_date, next_kp_date, notes, responsible_person_id, kp_launch_note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [name, vidCount, computedInterval, current_kp_number || 1,
-       first_publish_date || null, computedLast, computedNext, notes || null, responsible_person_id || null]
+       first_publish_date || null, computedLast, computedNext, notes || null, responsible_person_id || null, kp_launch_note || null]
     );
     await execute(
       'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
@@ -325,7 +325,7 @@ router.put('/clients/:id', requireAuth, async (req, res) => {
     // КП и го пише само createKpForClient. Преди 23.11.2026 формата пращаше тук датите
     // на цикъла СЛЕД въведения и планът излизаше с един месец по-късно.
     if (req.body.first_publish_date) req.body.next_kp_date = req.body.first_publish_date;
-    const fields = ['name','videos_per_month','publish_interval_days','current_kp_number','first_publish_date','next_kp_date','notes','responsible_person_id'];
+    const fields = ['name','videos_per_month','publish_interval_days','current_kp_number','first_publish_date','next_kp_date','notes','responsible_person_id','kp_launch_note'];
     await kpc.ensureKpPausedColumn(); // + responsible_person_id
     const setClauses = ['updated_at = NOW()'];
     const params = [];
