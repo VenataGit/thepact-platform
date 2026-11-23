@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо Н6: Употреба на инструментите</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; --blue:#4a9fe0; --violet:#a78bfa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; }
+  button { font:inherit; color:inherit; }
+  header { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:30; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .wrap { max-width:1680px; margin:14px auto 40px; padding:0 20px; display:grid; grid-template-columns:290px 1fr; gap:14px; }
+  .side { background:var(--panel); border-radius:15px; padding:12px; align-self:start; position:sticky; top:62px; }
+  .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:10px 8px 6px; }
+  .side a { display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:9px; cursor:pointer; text-decoration:none; color:#cfd8dc; font-size:13.5px; }
+  .side a:hover { background:var(--hover); }
+  .side a.on { background:var(--green); color:#fff; font-weight:600; }
+  .side p { color:var(--dim); font-size:12px; margin:10px 8px; }
+  .panel { background:var(--panel); border-radius:15px; padding:22px 26px; min-width:0; }
+  h2 { font-size:22px; margin-bottom:4px; }
+  .lead { color:var(--sec); margin-bottom:16px; max-width:1000px; }
+  .explain { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; padding:10px 14px; margin-bottom:16px; color:var(--sec); max-width:1100px; }
+  .explain b { color:var(--text); }
+  .btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:5px 12px; cursor:pointer; font-size:13px; }
+  .btn:hover { background:rgba(255,255,255,.12); }
+  .btn.pri { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+  .btn.red { border-color:rgba(229,83,75,.5); color:#ff9c95; }
+  .btn.on { background:var(--green); border-color:var(--green); color:#fff; }
+  .box { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 16px; }
+  .box h4 { font-size:14px; margin-bottom:10px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 9px; border-bottom:1px solid rgba(255,255,255,.07); vertical-align:middle; }
+  th { color:var(--dim); font-weight:600; font-size:12px; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; }
+  tr.dead td { opacity:.75; }
+  tr.gone td { opacity:.35; text-decoration:line-through; }
+  .ok { color:var(--green); } .warn { color:var(--amber); } .bad { color:var(--red); } .dim { color:var(--dim); }
+  .pill { display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:9px; background:rgba(255,255,255,.07); color:var(--sec); white-space:nowrap; }
+  .pill.g { background:rgba(70,163,116,.18); color:#7fd3a6; } .pill.a { background:rgba(245,166,35,.16); color:#ffc56b; }
+  .pill.r { background:rgba(229,83,75,.16); color:#ff9c95; } .pill.b { background:rgba(74,159,224,.16); color:#93c8f2; }
+  .split { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .split .box { text-align:center; } .split .k { font-size:30px; font-weight:800; } .split .l { color:var(--sec); font-size:12.5px; }
+  .spark { display:flex; gap:2px; align-items:flex-end; height:22px; }
+  .spark i { display:block; width:5px; background:var(--green); border-radius:1px; opacity:.85; }
+  .spark i.z { background:rgba(255,255,255,.12); height:3px !important; }
+  .filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center; }
+  .grid { overflow-x:auto; }
+  .grid td.c { text-align:center; padding:6px 4px; }
+  .dot { display:inline-block; width:14px; height:14px; border-radius:50%; background:transparent; border:1px solid rgba(255,255,255,.15); }
+  .dot.l1 { background:rgba(245,166,35,.55); border-color:transparent; } .dot.l2 { background:rgba(70,163,116,.6); border-color:transparent; } .dot.l3 { background:var(--green); border-color:transparent; }
+  .bar { height:10px; border-radius:5px; background:rgba(255,255,255,.08); overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--green); }
+  .bar i.a { background:var(--amber); } .bar i.r { background:var(--red); }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .note { font-size:12.5px; color:var(--sec); margin-top:8px; }
+  .toast { position:fixed; right:20px; bottom:20px; background:var(--card); border:1px solid var(--border); border-left:3px solid var(--green); padding:10px 14px; border-radius:10px; display:none; max-width:380px; }
+  .kb { font-variant-numeric:tabular-nums; }
+  .total { font-size:18px; font-weight:700; }
+  @media (max-width:1000px) { .wrap { grid-template-columns:1fr; } .side { position:static; } .split { grid-template-columns:1fr 1fr; } .two { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>📈 Употреба на инструментите</h1>
+  <span class="badge">Нощен анализ · Н6.1–Н6.4 · демо с измислени данни</span>
+</header>
+<div class="wrap">
+  <nav class="side" id="side">
+    <h3>Демо</h3>
+    <a data-v="tools">① Кой инструмент колко се ползва</a>
+    <a data-v="people">② Кой какво ползва</a>
+    <a data-v="ext">③ Разширението</a>
+    <a data-v="clean">④ Чистене: какво махаме</a>
+    <p>Имената и точните числа са измислени. Порядъкът е като истинските данни от логовете за 09–23.11.2026.</p>
+    <p>Страницата би стояла в „Настройки“ → „Употреба“, само за собственика. Данните: един ред на човек, инструмент и ден — без съдържание, без адреси.</p>
+  </nav>
+  <main class="panel" id="main"></main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+'use strict';
+// ---------- измислени данни ----------
+const DAYS = 30;
+function rnd(seed) { let s = seed; return () => (s = (s * 9301 + 49297) % 233280) / 233280; }
+function series(seed, avg, opts) {
+  const r = rnd(seed); const out = [];
+  for (let i = 0; i < DAYS; i++) {
+    const dow = (i + 2) % 7; const weekend = dow === 5 || dow === 6;
+    let v = weekend ? Math.round(avg * 0.08 * r()) : Math.round(avg * (0.5 + r()));
+    if (opts && opts.spike === i) v = opts.spikeV || Math.round(avg * 6);
+    if (opts && opts.until !== undefined && i > opts.until) v = 0;
+    if (opts && opts.from !== undefined && i < opts.from) v = 0;
+    out.push(Math.max(0, v));
+  }
+  return out;
+}
+const TOOLS = [
+  { k:'dash',  name:'Табло',                    menu:'главно', s:series(1, 60), people:12 },
+  { k:'kp',    name:'КП Автоматизация',         menu:'Още',    s:series(2, 4, { spike:28 }), people:2 },
+  { k:'tc',    name:'Готови задачи (отчет)',    menu:'Още',    s:series(3, 3, { spike:29 }), people:2 },
+  { k:'ca',    name:'Content агент',            menu:'Още ⓢ',  s:series(4, 3), people:1 },
+  { k:'ct',    name:'Създаване на задачи',      menu:'Още',    s:series(5, 3), people:3 },
+  { k:'ot',    name:'Overtime',                 menu:'Още',    s:series(6, 4, { until:18 }), people:3 },
+  { k:'st',    name:'Контент стратегия',        menu:'Още ⓢ',  s:series(7, 9, { from:16, until:17 }), people:1 },
+  { k:'pr',    name:'Процеси',                  menu:'Още',    s:series(8, 2), people:4 },
+  { k:'ks',    name:'Създай задачи по КП',      menu:'Още',    s:series(9, 2), people:2 },
+  { k:'cal',   name:'Производствен календар',   menu:'Още',    s:series(10, 1.5), people:3 },
+  { k:'my',    name:'Моите задачи',             menu:'аватар', s:series(11, 0, { spike:25, spikeV:13 }), people:2 },
+  { k:'hist',  name:'История',                  menu:'Още',    s:series(12, 0.6), people:2 },
+  { k:'cr',    name:'Клиентски отчет',          menu:'адрес',  s:series(13, 0, { spike:24, spikeV:9 }), people:1 },
+  { k:'crm',   name:'CRM',                      menu:'изкл.',  s:series(14, 0), people:0, last:'31.07' },
+  { k:'chat',  name:'Чат',                      menu:'адрес',  s:series(15, 0), people:0, last:'27.04' },
+  { k:'vault', name:'Vault (документи)',        menu:'адрес',  s:series(16, 0), people:0, last:'никога' },
+  { k:'prem',  name:'Premiere',                 menu:'изкл.',  s:series(17, 0), people:0, last:'—' },
+  { k:'agent', name:'Агент чат',                menu:'адрес',  s:series(18, 0), people:0, last:'08.07' },
+  { k:'mb',    name:'Message Board (стар)',     menu:'адрес',  s:series(19, 0), people:0, last:'—' },
+  { k:'rep',   name:'Отчети (стари)',           menu:'адрес',  s:series(20, 0), people:0, last:'—' },
+  { k:'sos',   name:'SOS бутон',                menu:'горе',   s:series(21, 0), people:0, last:'26.06' },
+];
+const PEOPLE = ['Мария П.', 'Кристиан Г.', 'Иван И.', 'Калина Х.', 'Вики Я.', 'Ани Х.', 'Ники Б.', 'Венци', 'Йоана М.', 'Захари С.', 'Рая С.', 'Никола Д.', 'Вера Р.'];
+const PT = ['dash','kp','tc','ca','ct','ot','pr','ks','cal','my','hist'];
+const r2 = rnd(77);
+const USE = PEOPLE.map((p, i) => PT.map((t) => {
+  if (t === 'dash') return i === 12 ? 0 : (i === 11 ? 1 : 3);
+  if (p === 'Венци') return ['kp','tc','ca','ot','pr','cal','hist'].includes(t) ? 2 + (r2() > .5 ? 1 : 0) : (r2() > .6 ? 1 : 0);
+  if (p === 'Ани Х.' && (t === 'kp' || t === 'ks')) return 2;
+  if (t === 'ct' && i < 3) return 1;
+  if (t === 'ot' && (i === 1 || i === 9)) return 1;
+  if (t === 'pr' && i % 4 === 0 && i < 12) return 1;
+  return 0;
+}));
+const EXT = PEOPLE.map((p, i) => ({
+  name: p,
+  ver: (p === 'Захари С.' || p === 'Йоана М.') ? '1.23.0' : (p === 'Вера Р.' ? '—' : '1.24.1'),
+  done: [44,43,31,21,19,13,10,2,2,0,0,0,0][i],
+  pins: [12,3,0,8,1,0,4,6,0,0,9,0,0][i],
+  tpl:  [2,0,0,5,0,0,1,0,0,0,0,0,0][i],
+  notes:[0,0,0,0,0,0,0,1,0,0,0,0,0][i],
+  bc:   [84,21,1,22,5,23,9,37,4,22,99,0,0][i],
+  last: (p === 'Вера Р.') ? '30.09' : (p === 'Йоана М.' ? '20.11' : '23.11'),
+}));
+const DEAD = [
+  { f:'home.js', kb:64, what:'стар „Начало“ (renderHome)' },
+  { f:'chat.js + chat-campfire.css', kb:76, what:'Чат — последно съобщение 27.04' },
+  { f:'crm.js + crm.css', kb:66, what:'CRM — изключен, 1 сделка от 31.07' },
+  { f:'card-detail / fields / actions / comments', kb:85, what:'старите локални карти (Basecamp клонинг)' },
+  { f:'kanban.js + kanban.css', kb:61, what:'старите локални дъски' },
+  { f:'activity.js', kb:22, what:'Activity — последно 26.04' },
+  { f:'vault-docs.js + .css', kb:30, what:'Vault — 0 документа' },
+  { f:'message-board.js + .css', kb:24, what:'стар Message Board — 0 коментара' },
+  { f:'schedule.js', kb:14, what:'График / check-ins — 0 отговора' },
+  { f:'premiere.js', kb:14, what:'Premiere — изключен' },
+  { f:'agent.js', kb:13, what:'Агент чат — последно 08.07' },
+  { f:'client-schedule.js + .css', kb:15, what:'Клиент — график, изключен' },
+  { f:'clients.js + .css', kb:16, what:'Клиенти, изключен' },
+  { f:'project.js, reports.js', kb:18, what:'стари проекти и отчети' },
+  { f:'time-working.js', kb:6, what:'„кой работи сега“ — таймерът го няма от 19.11' },
+];
+
+// ---------- помощници ----------
+const $ = (s, el) => (el || document).querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const sum = (a) => a.reduce((x, y) => x + y, 0);
+function spark(a) { const m = Math.max(1, ...a); return '<div class="spark">' + a.map((v) => v ? `<i style="height:${Math.max(3, Math.round(v / m * 22))}px"></i>` : '<i class="z"></i>').join('') + '</div>'; }
+function toast(t) { const el = $('#toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(() => { el.style.display = 'none'; }, 3200); }
+function verdict(t) {
+  const n = sum(t.s), d = t.s.filter(Boolean).length;
+  if (n === 0) return '<span class="pill r">0 за 30 дни</span>';
+  if (d <= 2) return '<span class="pill a">само 1–2 дни</span>';
+  if (n / DAYS < 1) return '<span class="pill a">рядко</span>';
+  return '<span class="pill g">всеки ден</span>';
+}
+const decided = {};
+
+// ---------- изгледи ----------
+const VIEWS = {
+  tools() {
+    const alive = TOOLS.filter((t) => sum(t.s) > 0).length;
+    const dead = TOOLS.length - alive;
+    let filter = VIEWS._tf || 'all';
+    const rows = TOOLS.filter((t) => filter === 'all' || (filter === 'dead' ? sum(t.s) === 0 : sum(t.s) > 0));
+    return `<h2>Кой инструмент колко се ползва</h2>
+      <p class="lead">Отваряния за последните 30 дни, по ден. Брои се веднъж на човек, на инструмент, на ден — затова „Табло 60“ значи „60 души-дни“, а не 60 опреснявания.</p>
+      <div class="explain"><b>Защо е нужно:</b> логовете на Nginx виждат само адреса на офиса — всички сте „един човек“. Тази страница казва <b>кой</b> отваря <b>какво</b>, без да чете съдържание.</div>
+      <div class="split">
+        <div class="box"><div class="k">${TOOLS.length}</div><div class="l">инструмента в платформата</div></div>
+        <div class="box"><div class="k ok">${alive}</div><div class="l">отворени поне веднъж</div></div>
+        <div class="box"><div class="k bad">${dead}</div><div class="l">0 отваряния за 30 дни</div></div>
+        <div class="box"><div class="k">~${Math.round(sum(TOOLS[0].s) / (sum(TOOLS.map((t) => sum(t.s)))) * 100)}%</div><div class="l">от всичко е Таблото</div></div>
+      </div>
+      <div class="filters"><span class="dim">Покажи:</span>
+        <button class="btn ${filter==='all'?'on':''}" data-tf="all">всички</button>
+        <button class="btn ${filter==='alive'?'on':''}" data-tf="alive">ползвани</button>
+        <button class="btn ${filter==='dead'?'on':''}" data-tf="dead">неползвани</button></div>
+      <table><thead><tr><th>Инструмент</th><th>Къде е</th><th>30 дни</th><th class="n">Отваряния</th><th class="n">Хора</th><th>Последно</th><th>Оценка</th><th>Решение</th></tr></thead><tbody>
+      ${rows.map((t) => { const n = sum(t.s); const lastIdx = t.s.map((v, i) => v ? i : -1).filter((i) => i >= 0).pop();
+        const last = n ? (lastIdx === DAYS - 1 ? 'днес' : `преди ${DAYS - 1 - lastIdx} д.`) : (t.last || '—');
+        const dec = decided[t.k];
+        return `<tr class="${n ? '' : 'dead'} ${dec === 'remove' ? 'gone' : ''}"><td><b>${esc(t.name)}</b></td><td class="dim">${esc(t.menu)}</td><td>${spark(t.s)}</td><td class="n">${n}</td><td class="n">${t.people}</td><td>${esc(last)}</td><td>${verdict(t)}</td>
+          <td>${dec ? `<span class="pill ${dec==='keep'?'g':dec==='hide'?'a':'r'}">${dec==='keep'?'пазим':dec==='hide'?'скрито от менюто':'за махане'}</span> <button class="btn" data-undo="${t.k}">↩</button>`
+            : (n ? '' : `<button class="btn" data-dec="keep" data-k="${t.k}">Пазим</button> <button class="btn" data-dec="hide" data-k="${t.k}">Скрий</button> <button class="btn red" data-dec="remove" data-k="${t.k}">Махни</button>`)}</td></tr>`; }).join('')}
+      </tbody></table>
+      <p class="note">ⓢ = вижда го само собственикът. „Махни“ не трие данни — маркира за следващото чистене (④), а кодът остава в git.</p>`;
+  },
+  people() {
+    const lvl = (v) => `<span class="dot ${v ? 'l' + v : ''}" title="${['не','рядко','често','всеки ден'][v]}"></span>`;
+    return `<h2>Кой какво ползва</h2>
+      <p class="lead">Всеки ред е човек, всяка колона — инструмент, за последните 30 дни. Празното кръгче = не го е отварял нито веднъж.</p>
+      <div class="explain">Това отговаря на въпроси като „знае ли екипът, че има <b>Моите задачи</b>?“ или „кой реално ползва <b>Процеси</b>?“ — и показва кого да научим, преди да решим, че нещо е излишно.</div>
+      <div class="grid"><table><thead><tr><th>Човек</th>${PT.map((k) => `<th class="c" style="font-size:11px">${esc(TOOLS.find((t) => t.k === k).name)}</th>`).join('')}<th class="n">Ползва</th></tr></thead><tbody>
+      ${PEOPLE.map((p, i) => `<tr><td><b>${esc(p)}</b></td>${USE[i].map((v) => `<td class="c">${lvl(v)}</td>`).join('')}<td class="n">${USE[i].filter(Boolean).length} от ${PT.length}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="note"><span class="dot l3"></span> всеки ден · <span class="dot l2"></span> често · <span class="dot l1"></span> рядко · <span class="dot"></span> не. Вера Р. не е влизала от 10.09 — акаунтът е активен (виж ③).</p>`;
+  },
+  ext() {
+    const vers = {}; EXT.forEach((e) => { vers[e.ver] = (vers[e.ver] || 0) + 1; });
+    const minV = VIEWS._minV || 'няма';
+    return `<h2>Разширението The Pact Tools</h2>
+      <p class="lead">Коя версия има всеки и кои функции реално ползва — броят се само цъканията, не съдържанието.</p>
+      <div class="split">
+        <div class="box"><div class="k ok">${vers['1.24.1'] || 0}</div><div class="l">на последната версия</div></div>
+        <div class="box"><div class="k warn">${vers['1.23.0'] || 0}</div><div class="l">на стара (още виждат таймера)</div></div>
+        <div class="box"><div class="k bad">${vers['—'] || 0}</div><div class="l">не са го ползвали 30+ дни</div></div>
+        <div class="box"><div class="k">${EXT.filter((e) => e.done > 0).length} от ${EXT.length}</div><div class="l">цъкат „Готово“</div></div>
+      </div>
+      <div class="filters"><span class="dim">Минимална версия:</span>
+        ${['няма','1.24.0','1.24.1'].map((v) => `<button class="btn ${minV===v?'on':''}" data-minv="${v}">${v}</button>`).join('')}
+        <span class="note" style="margin:0">По-стара от нея → в Basecamp излиза червена лента „Обнови разширението“ и бутон към магазина.</span></div>
+      <table><thead><tr><th>Човек</th><th>Версия</th><th class="n">✓ Готово</th><th class="n">📌 Закачени</th><th class="n">📋 Шаблони</th><th class="n">📢 Важно</th><th class="n">Действия в Basecamp</th><th>Покритие „Готово“</th><th>Последно</th><th></th></tr></thead><tbody>
+      ${EXT.map((e) => { const old = e.ver === '1.23.0' || (minV === '1.24.1' && e.ver !== '1.24.1' && e.ver !== '—');
+        const cov = e.bc ? Math.min(100, Math.round(e.done / e.bc * 100)) : 0;
+        const cls = cov >= 40 ? '' : cov > 0 ? 'a' : 'r';
+        return `<tr><td><b>${esc(e.name)}</b></td><td>${e.ver === '—' ? '<span class="pill r">няма 30+ дни</span>' : old ? `<span class="pill a">${e.ver} · стара</span>` : `<span class="pill g">${e.ver}</span>`}</td>
+          <td class="n">${e.done}</td><td class="n">${e.pins}</td><td class="n">${e.tpl}</td><td class="n">${e.notes}</td><td class="n">${e.bc}</td>
+          <td style="width:140px"><div class="bar"><i class="${cls}" style="width:${Math.max(cov, e.bc ? 3 : 0)}%"></i></div></td><td>${e.last}</td>
+          <td>${old ? `<button class="btn" data-remind="${esc(e.name)}">Напомни</button>` : e.ver === '—' ? `<button class="btn red" data-deact="${esc(e.name)}">Деактивирай?</button>` : ''}</td></tr>`; }).join('')}
+      </tbody></table>
+      <p class="note">„Покритие“ = отметки „Готово“ ÷ действия в Basecamp за 14 дни. Ниско покритие ≠ мързел (някои роли създават карти, а не изпълняват задачи) — но класацията по „Готово“ е честна само за хората с покритие.</p>
+      <div class="two" style="margin-top:16px">
+        <div class="box"><h4>Банерът „Basecamp isn't fully functional“</h4>
+          <p class="note" style="margin-top:0">Последна поява по човек. 9 души за 45 минути, и при хора без нашето прозорче → <b>проблем на Basecamp или интернета</b>, не на разширението.</p>
+          <div class="spark" style="height:40px;margin-top:10px">${[0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,2,0,0].map((v) => v ? `<i style="width:10px;height:${v * 4 + 4}px;background:var(--amber)"></i>` : '<i class="z" style="width:10px"></i>').join('')}</div>
+          <p class="note">по часове на 23.11 · сигнал в чата само ако е при <b>един</b> човек много пъти (тогава е при нас)</p></div>
+        <div class="box"><h4>Къде живеят данните</h4>
+          <table><tbody>
+            <tr><td>„Готово“, версии, броячи</td><td><span class="pill g">платформата, с токен</span></td></tr>
+            <tr><td>„Важно за всички“</td><td><span class="pill g">платформата, с токен</span> <span class="dim">(беше: отворен Firebase)</span></td></tr>
+            <tr><td>Диагностика на банера</td><td><span class="pill g">платформата → тук</span> <span class="dim">(беше: Firebase, никой не я чете)</span></td></tr>
+            <tr><td>„Кой редактира сега“</td><td><span class="pill b">Firebase, само с ключ</span></td></tr>
+          </tbody></table></div>
+      </div>`;
+  },
+  clean() {
+    const total = 1567, sel = DEAD.filter((d) => !VIEWS._keep || !VIEWS._keep[d.f]);
+    const cut = sum(sel.map((d) => d.kb));
+    return `<h2>Чистене: какво махаме</h2>
+      <p class="lead">Всяко отваряне на платформата сваля 72 файла (≈${total} KB). Тези страници не са отворени нито веднъж за 15 дни, а данните им са спрели между април и юли.</p>
+      <div class="split">
+        <div class="box"><div class="k">${total} KB</div><div class="l">сега, при всяко отваряне</div></div>
+        <div class="box"><div class="k bad">−${cut} KB</div><div class="l">мъртви страници (${sel.length} групи)</div></div>
+        <div class="box"><div class="k ok">${total - cut} KB</div><div class="l">след чистенето</div></div>
+        <div class="box"><div class="k">${Math.round(cut / total * 100)}%</div><div class="l">по-малко код за поддръжка</div></div>
+      </div>
+      <table><thead><tr><th style="width:40px"></th><th>Файлове</th><th>Какво е</th><th class="n">KB</th></tr></thead><tbody>
+      ${DEAD.map((d) => { const keep = VIEWS._keep && VIEWS._keep[d.f]; return `<tr class="${keep ? 'dead' : ''}"><td><input type="checkbox" data-f="${esc(d.f)}" ${keep ? '' : 'checked'}></td><td class="kb">${esc(d.f)}</td><td>${esc(d.what)}</td><td class="n">${d.kb}</td></tr>`; }).join('')}
+      </tbody></table>
+      <div class="filters" style="margin-top:14px"><button class="btn pri" id="plan">Подготви чистенето</button><span class="note" style="margin:0">Само план: отделен клон, git таг „преди-чистене“, таблиците остават (само за четене), jest + ръчен обход.</span></div>`;
+  },
+};
+
+function show(v) {
+  VIEWS._cur = v;
+  document.querySelectorAll('#side a').forEach((a) => a.classList.toggle('on', a.dataset.v === v));
+  $('#main').innerHTML = VIEWS[v]();
+  if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v);
+}
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('#side a'); if (a) { show(a.dataset.v); return; }
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.tf) { VIEWS._tf = b.dataset.tf; show('tools'); }
+  else if (b.dataset.dec) { decided[b.dataset.k] = b.dataset.dec; show('tools'); toast(b.dataset.dec === 'remove' ? 'Маркирано за следващото чистене (④).' : b.dataset.dec === 'hide' ? 'Скрито от менюто — адресът още работи.' : 'Остава. Ще пита пак след 30 дни.'); }
+  else if (b.dataset.undo) { delete decided[b.dataset.undo]; show('tools'); }
+  else if (b.dataset.minv) { VIEWS._minV = b.dataset.minv; show('ext'); toast(b.dataset.minv === 'няма' ? 'Без минимална версия.' : `От утре: по-старо от ${b.dataset.minv} → червена лента в Basecamp.`); }
+  else if (b.dataset.remind) { toast(`Лично съобщение до ${b.dataset.remind}: „Обнови The Pact Tools от магазина — 1 клик.“`); b.disabled = true; b.textContent = 'Пратено ✓'; }
+  else if (b.dataset.deact) { toast(`${b.dataset.deact}: последен вход 10.09. Деактивирането спира и 2-та токена на разширението.`); }
+  else if (b.id === 'plan') { toast('План за чистене: клон cleanup-2026-12, таг preci-chistene, ' + DEAD.filter((d) => !VIEWS._keep || !VIEWS._keep[d.f]).length + ' групи файлове.'); }
+});
+document.addEventListener('change', (e) => {
+  const c = e.target.closest('input[data-f]'); if (!c) return;
+  VIEWS._keep = VIEWS._keep || {}; VIEWS._keep[c.dataset.f] = !c.checked; show('clean');
+});
+show(VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : 'tools');
+</script>
+</body>
+</html>
