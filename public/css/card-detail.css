@@ -616,3 +616,14 @@
 .kp-td { padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
 .kp-paused-sep { padding-top: 18px; font-size: 12px; font-weight: 600; color: var(--text-dim); }
 .kp-launch-btn { background: var(--kp-warning-text) !important; color: #000 !important; font-weight: 700 !important; }
+
+/* КП-Автоматизация (23.11.2026): цяла ширина, hover на реда, сортируеми колони, „Как работи" */
+.home-content-box--wide.kp-full { max-width: none; }
+.kp-table tbody tr.kp-row:hover > td { background: var(--accent-dim); }
+.kp-th--sort { cursor: pointer; user-select: none; }
+.kp-th--sort:hover, .kp-th--on { color: var(--text); }
+.kp-info { max-width: 1100px; }
+.kp-info-sec { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 14px; line-height: 1.6; font-size: 14px; }
+.kp-info-sec h3 { margin: 0 0 8px; font-size: 16px; }
+.kp-info-sec ol, .kp-info-sec ul { margin: 0; padding-left: 22px; }
+.kp-info-sec li { margin-bottom: 6px; }

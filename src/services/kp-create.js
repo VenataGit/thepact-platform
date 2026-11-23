@@ -23,7 +23,10 @@ const prodSteps = require('./steps');
 let pausedSchema = null;
 function ensureKpPausedColumn() {
   if (!pausedSchema) {
+    // + responsible_person_id (23.11.2026): кой контент криейтър отговаря за клиента
+    // (bc_people.person_id). Само за подредба/филтър на страницата КП-Автоматизация.
     pausedSchema = execute('ALTER TABLE kp_clients ADD COLUMN IF NOT EXISTS paused BOOLEAN NOT NULL DEFAULT FALSE')
+      .then(() => execute('ALTER TABLE kp_clients ADD COLUMN IF NOT EXISTS responsible_person_id BIGINT'))
       .catch((err) => { pausedSchema = null; throw err; });
   }
   return pausedSchema;

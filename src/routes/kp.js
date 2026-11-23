@@ -217,7 +217,11 @@ router.get('/clients', requireAuth, async (req, res) => {
   try {
     // Паузираните слизат най-отдолу, за да не се бъркат с работещите клиенти.
     await kpc.ensureKpPausedColumn();
-    const clients = await query('SELECT * FROM kp_clients WHERE active = true ORDER BY paused, name');
+    const clients = await query(
+      `SELECT c.*, p.name AS responsible_name FROM kp_clients c
+         LEFT JOIN bc_people p ON p.person_id = c.responsible_person_id
+        WHERE c.active = true ORDER BY c.paused, c.name`
+    );
     const cfg = await kpc.loadKpConfig();
 
     // Кога излиза следващата КП карта (инфо колона) — СЪЩАТА сметка, която ползва и
@@ -277,8 +281,9 @@ router.get('/clients', requireAuth, async (req, res) => {
 // POST /api/kp/clients
 router.post('/clients', requireAuth, async (req, res) => {
   try {
-    const { name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, notes } = req.body;
+    const { name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, notes, responsible_person_id } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
+    await kpc.ensureKpPausedColumn(); // + responsible_person_id
 
     const cfg = await kpc.loadKpConfig();
     const vidCount = videos_per_month || cfg.defaultVideos;
@@ -297,10 +302,10 @@ router.post('/clients', requireAuth, async (req, res) => {
     }
 
     const client = await queryOne(
-      `INSERT INTO kp_clients (name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, last_video_date, next_kp_date, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      `INSERT INTO kp_clients (name, videos_per_month, publish_interval_days, current_kp_number, first_publish_date, last_video_date, next_kp_date, notes, responsible_person_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [name, vidCount, computedInterval, current_kp_number || 1,
-       first_publish_date || null, computedLast, computedNext, notes || null]
+       first_publish_date || null, computedLast, computedNext, notes || null, responsible_person_id || null]
     );
     await execute(
       'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
@@ -320,7 +325,8 @@ router.put('/clients/:id', requireAuth, async (req, res) => {
     // КП и го пише само createKpForClient. Преди 23.11.2026 формата пращаше тук датите
     // на цикъла СЛЕД въведения и планът излизаше с един месец по-късно.
     if (req.body.first_publish_date) req.body.next_kp_date = req.body.first_publish_date;
-    const fields = ['name','videos_per_month','publish_interval_days','current_kp_number','first_publish_date','next_kp_date','notes'];
+    const fields = ['name','videos_per_month','publish_interval_days','current_kp_number','first_publish_date','next_kp_date','notes','responsible_person_id'];
+    await kpc.ensureKpPausedColumn(); // + responsible_person_id
     const setClauses = ['updated_at = NOW()'];
     const params = [];
     let i = 1;
@@ -358,6 +364,22 @@ router.post('/clients/:id/pause', requireAuth, async (req, res) => {
       [req.user.name || 'Unknown', paused ? 'pause_client' : 'resume_client', client.name, `id=${req.params.id}`]
     );
     res.json({ ok: true, paused });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/kp/people — на кого може да се назначи клиент: активните хора от екипа,
+// контент криейтърите (позиция „отговаря за контент плановете") първи.
+router.get('/people', requireAuth, async (req, res) => {
+  try {
+    const people = await query(
+      `SELECT p.person_id, p.name, COALESCE(pos.kp_responsible, FALSE) AS kp_responsible
+         FROM bc_people p LEFT JOIN positions pos ON pos.id = p.position_id
+        WHERE p.active = TRUE AND p.title IS DISTINCT FROM 'Automation'
+        ORDER BY COALESCE(pos.kp_responsible, FALSE) DESC, p.name`
+    );
+    res.json({ people });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
