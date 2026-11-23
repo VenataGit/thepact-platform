@@ -476,6 +476,8 @@ async function createKpForClient({ client, firstPublishDate, cfg, auth, dest, cr
     [kpNumber + 1, toDateStr(dist.nextKpFirstDate), toDateStr(dist.lastVideoDate), toDateStr(dist.nextKpFirstDate), Math.round(dist.interval), client.id]
   );
 
+  // За историята на клиента (kp_audit_log): с какви дати е пуснат този КП.
+  result.datesNote = `КП-${kpNumber}: ${dist.dates.length} видеа, ${toBgDate(dist.dates[0])} → ${toBgDate(dist.lastVideoDate)}; следващ КП-${kpNumber + 1} от ${toBgDate(dist.nextKpFirstDate)}`;
   return result;
 }
 

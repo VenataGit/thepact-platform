@@ -286,12 +286,14 @@ router.post('/clients', requireAuth, async (req, res) => {
     const interval = parseInt(publish_interval_days, 10) || null;
     let computedInterval = interval, computedLast = null, computedNext = null;
 
-    // Auto-compute dates if first_publish_date provided
+    // „Дата първо видео" във формата = първото видео на КП-а, който предстои да се
+    // пусне (номерът от „Следващ КП №"). Затова next_kp_date е СЪЩАТА дата — от нея
+    // тръгват и бутонът „Нов КП", и графикът. Последното видео е на вече пуснат КП,
+    // а нов клиент още няма такъв (Венци, 23.11.2026: КП-2 с ръчно 16.12 излезе с 15.01).
     if (first_publish_date) {
       const dist = kpc.distributePublishDates(first_publish_date, vidCount, cfg.calendarWindow, interval);
       computedInterval = Math.round(dist.interval);
-      computedLast = toDateStr(dist.lastVideoDate);
-      computedNext = toDateStr(dist.nextKpFirstDate);
+      computedNext = first_publish_date;
     }
 
     const client = await queryOne(
@@ -313,7 +315,12 @@ router.post('/clients', requireAuth, async (req, res) => {
 // PUT /api/kp/clients/:id
 router.put('/clients/:id', requireAuth, async (req, res) => {
   try {
-    const fields = ['name','videos_per_month','publish_interval_days','current_kp_number','first_publish_date','last_video_date','next_kp_date','notes'];
+    // Редакцията задава СЛЕДВАЩИЯ КП: номер + първото му видео. next_kp_date винаги
+    // = въведената дата (от нея се пуска картата), а last_video_date е на вече пуснатия
+    // КП и го пише само createKpForClient. Преди 23.11.2026 формата пращаше тук датите
+    // на цикъла СЛЕД въведения и планът излизаше с един месец по-късно.
+    if (req.body.first_publish_date) req.body.next_kp_date = req.body.first_publish_date;
+    const fields = ['name','videos_per_month','publish_interval_days','current_kp_number','first_publish_date','next_kp_date','notes'];
     const setClauses = ['updated_at = NOW()'];
     const params = [];
     let i = 1;
@@ -351,6 +358,24 @@ router.post('/clients/:id/pause', requireAuth, async (req, res) => {
       [req.user.name || 'Unknown', paused ? 'pause_client' : 'resume_client', client.name, `id=${req.params.id}`]
     );
     res.json({ ok: true, paused });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/kp/clients/:id/history — кои КП-та са пуснати за клиента и кога, плюс
+// ръчните редакции/паузи (от kp_audit_log). За да се проследи откъде идва дадена дата.
+router.get('/clients/:id/history', requireAuth, async (req, res) => {
+  try {
+    const client = await queryOne('SELECT name FROM kp_clients WHERE id = $1', [req.params.id]);
+    if (!client) return res.status(404).json({ error: 'Not found' });
+    const rows = await query(
+      `SELECT created_at, user_name, action, details FROM kp_audit_log
+        WHERE lower(client_name) = lower($1)
+          AND action IN ('create_client','update_client','create_kp_card','auto_create_kp_card','pause_client','resume_client')
+        ORDER BY created_at DESC LIMIT 60`, [client.name]
+    );
+    res.json({ history: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -582,9 +607,9 @@ router.post('/create-card/:clientId', requireAuth, async (req, res) => {
     await execute(
       'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
       [req.user.name || 'Unknown', 'create_kp_card', client.name,
-       result.basecamp
+       (result.basecamp
          ? `Basecamp карта: ${result.title} → ${result.board} / ${result.column} (${result.url})`
-         : `Card id=${result.cardId}: ${result.title}`]
+         : `Card id=${result.cardId}: ${result.title}`) + (result.datesNote ? ` — ${result.datesNote}` : '')]
     );
 
     res.json({ ok: true, ...result });

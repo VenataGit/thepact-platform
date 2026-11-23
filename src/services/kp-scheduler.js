@@ -160,7 +160,7 @@ async function runKpAutoCreate() {
         await execute(
           'INSERT INTO kp_audit_log (user_name, action, client_name, details) VALUES ($1,$2,$3,$4)',
           ['Система', 'auto_create_kp_card', client.name,
-           `${reason} — ${result.basecamp ? `Basecamp карта: ${result.title} (${result.url})` : `card: ${result.title}`}`]
+           `${reason} — ${result.basecamp ? `Basecamp карта: ${result.title} (${result.url})` : `card: ${result.title}`}${result.datesNote ? ` — ${result.datesNote}` : ''}`]
         );
 
         created++;

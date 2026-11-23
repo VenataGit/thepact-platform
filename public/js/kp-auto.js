@@ -61,7 +61,7 @@ async function loadKpAuto(el) {
       // Паузираните идват най-отдолу (ORDER BY paused) — отделяме ги с ред-заглавие.
       if (c.paused && !pausedHeaderDone) {
         pausedHeaderDone = true;
-        rowsHtml += '<tr><td class="kp-td kp-paused-sep" colspan="9">⏸ На пауза — ботът не им пуска КП, данните им стоят</td></tr>';
+        rowsHtml += '<tr><td class="kp-td kp-paused-sep" colspan="8">⏸ На пауза — ботът не им пуска КП, данните им стоят</td></tr>';
       }
       var autoCreateDate = '—';
       if (c.auto_create_date) {
@@ -98,19 +98,22 @@ async function loadKpAuto(el) {
         nameCell +
         '<td class="kp-td">' + (c.videos_per_month || 10) + '</td>' +
         '<td class="kp-td">' + (c.publish_interval_days || 3) + 'д</td>' +
-        '<td class="kp-td">КП-' + (c.current_kp_number || 1) + '</td>' +
-        '<td class="kp-td">' + (c.first_publish_date ? formatDate(c.first_publish_date) : '—') + '</td>' +
+        // Една и съща дата за „следващия КП" навсякъде: next_kp_date е тази, от която
+        // бутонът и графикът пускат картата (first_publish_date е само стар дубликат).
         '<td class="kp-td">' + (c.last_video_date ? formatDate(c.last_video_date) : '—') + '</td>' +
-        '<td class="kp-td">' + (c.next_kp_date ? formatDate(c.next_kp_date) : '—') + '</td>' +
+        '<td class="kp-td"><strong>КП-' + (c.current_kp_number || 1) + '</strong></td>' +
+        '<td class="kp-td">' + ((c.next_kp_date || c.first_publish_date) ? formatDate(c.next_kp_date || c.first_publish_date) : '—') + '</td>' +
         '<td class="kp-td">' + autoCreateDate + '</td>' +
         '<td class="kp-td" style="display:flex;gap:4px">' +
           '<button class="btn btn-sm" onclick="editKpClientForm(' + c.id + ')">✏️</button>' +
+          '<button class="btn btn-sm" onclick="toggleKpHistory(' + c.id + ')" title="Кои КП са пуснати и с какви дати, кой какво е редактирал">📜</button>' +
           '<button class="btn btn-sm btn-danger" onclick="deleteKpClientNow(' + c.id + ',' + jsq(c.name) + ')">🗑️</button>' +
           pauseBtn +
           cardLinkBtn +
           actionBtn +
         '</td>' +
-      '</tr>';
+      '</tr>' +
+      '<tr id="kpHist' + c.id + '" style="display:none"><td class="kp-td" colspan="8"></td></tr>';
     });
 
     var tableHtml = clients.length === 0
@@ -118,8 +121,10 @@ async function loadKpAuto(el) {
       : '<div class="kp-table-wrap"><table class="kp-table">' +
           '<thead><tr>' +
             '<th class="kp-th">Клиент</th><th class="kp-th">Видеа</th><th class="kp-th">Интервал</th>' +
-            '<th class="kp-th">Текущ КП</th><th class="kp-th">Първо видео</th><th class="kp-th">Последно видео</th>' +
-            '<th class="kp-th">Следващ КП</th><th class="kp-th">Създаване на</th><th class="kp-th">Действия</th>' +
+            '<th class="kp-th" title="Последното видео от последния пуснат КП">Последно видео (пуснат КП)</th>' +
+            '<th class="kp-th" title="Номерът на КП-а, който ще се пусне следващ">Следващ КП</th>' +
+            '<th class="kp-th" title="Първото видео на следващия КП — от тази дата тръгва планът">Първо видео (следв. КП)</th>' +
+            '<th class="kp-th">Създаване на</th><th class="kp-th">Действия</th>' +
           '</tr></thead>' +
           '<tbody>' + rowsHtml + '</tbody>' +
         '</table></div>';
@@ -153,9 +158,11 @@ function showKpClientForm(editData) {
   if (!wrap) return;
   var isEdit = !!editData;
   var defVids = parseInt(_platformConfig.kp_default_videos) || 10; // Админ → КП → Видеа по подразбиране
-  var firstDateVal = isEdit ? (editData.first_publish_date || '').split('T')[0] : '';
-  var lastDateVal  = isEdit ? (editData.last_video_date  || '').split('T')[0] : '';
-  var nextDateVal  = isEdit ? (editData.next_kp_date     || '').split('T')[0] : '';
+  // Формата задава СЛЕДВАЩИЯ КП: номер + първото му видео (= next_kp_date, от нея
+  // се пуска картата). Последното видео и „КП след него“ са само преглед.
+  var firstDateVal = isEdit ? (editData.next_kp_date || editData.first_publish_date || '').split('T')[0] : '';
+  var lastDateVal  = '';
+  var nextDateVal  = '';
   // Нов клиент тръгва на стандарта; ако админът е сменил „Видеа по подразбиране“,
   // формата се отваря направо в Custom с неговата бройка.
   var mode = isEdit ? kpModeOf(editData) : (defVids === KP_STD_VIDEOS ? 'standard' : 'custom');
@@ -175,10 +182,10 @@ function showKpClientForm(editData) {
         '</select></div>' +
       '<div><label class="kp-label">Видеа в КП</label><input class="input" type="number" id="kpVideos" value="' + vidsVal + '" min="1" max="50" onchange="kpRecalcDates()"' + (mode === 'standard' ? ' disabled' : '') + '></div>' +
       '<div><label class="kp-label">Интервал (дни)</label><input class="input" type="number" id="kpInterval" value="' + intervalVal + '" min="1" max="60" onchange="kpRecalcDates()"' + (mode === 'standard' ? ' disabled' : '') + '></div>' +
-      '<div><label class="kp-label">\u0422\u0435\u043a\u0443\u0449 \u041a\u041f \u2116</label><input class="input" type="number" id="kpKpNum" value="' + (isEdit ? (editData.current_kp_number || 1) : 1) + '" min="1"></div>' +
-      '<div><label class="kp-label">\u0414\u0430\u0442\u0430 \u043f\u044a\u0440\u0432\u043e \u0432\u0438\u0434\u0435\u043e</label><button class="bc-date-btn ' + (firstDateVal ? '' : 'bc-date-btn--placeholder') + '" id="kpFirstDate" data-value="' + firstDateVal + '" onclick="event.stopPropagation();showDatePickerPopup(this,this.dataset.value,function(d){var b=document.getElementById(\'kpFirstDate\');if(b){b.dataset.value=d||\'\';b.textContent=d?formatDate(d):\'\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026\';b.className=d?\'bc-date-btn\':\'bc-date-btn bc-date-btn--placeholder\';}kpRecalcDates();})" style="width:100%;text-align:left">' + (firstDateVal ? formatDate(firstDateVal) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026') + '</button></div>' +
-      '<div><label class="kp-label">\u041f\u043e\u0441\u043b\u0435\u0434\u043d\u043e \u0432\u0438\u0434\u0435\u043e <span style="opacity:.5">(\u0430\u0432\u0442\u043e)</span></label><span class="input" id="kpLastDate" data-value="' + lastDateVal + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (lastDateVal ? formatDate(lastDateVal) : '\u2014') + '</span></div>' +
-      '<div><label class="kp-label">\u0421\u043b\u0435\u0434\u0432\u0430\u0449 \u041a\u041f \u043f\u044a\u0440\u0432\u043e \u0432\u0438\u0434\u0435\u043e <span style="opacity:.5">(\u0430\u0432\u0442\u043e)</span></label><span class="input" id="kpNextDate" data-value="' + nextDateVal + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (nextDateVal ? formatDate(nextDateVal) : '\u2014') + '</span></div>' +
+      '<div><label class="kp-label">Следващ КП № <span style="opacity:.5">(който ще се пусне)</span></label><input class="input" type="number" id="kpKpNum" value="' + (isEdit ? (editData.current_kp_number || 1) : 1) + '" min="1" onchange="kpRecalcDates()"></div>' +
+      '<div><label class="kp-label">Първо видео на този КП</label><button class="bc-date-btn ' + (firstDateVal ? '' : 'bc-date-btn--placeholder') + '" id="kpFirstDate" data-value="' + firstDateVal + '" onclick="event.stopPropagation();showDatePickerPopup(this,this.dataset.value,function(d){var b=document.getElementById(\'kpFirstDate\');if(b){b.dataset.value=d||\'\';b.textContent=d?formatDate(d):\'\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026\';b.className=d?\'bc-date-btn\':\'bc-date-btn bc-date-btn--placeholder\';}kpRecalcDates();})" style="width:100%;text-align:left">' + (firstDateVal ? formatDate(firstDateVal) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026') + '</button></div>' +
+      '<div><label class="kp-label">Последно видео на този КП <span style="opacity:.5">(\u0430\u0432\u0442\u043e)</span></label><span class="input" id="kpLastDate" data-value="' + lastDateVal + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (lastDateVal ? formatDate(lastDateVal) : '\u2014') + '</span></div>' +
+      '<div><label class="kp-label">КП след него тръгва на <span style="opacity:.5">(\u0430\u0432\u0442\u043e)</span></label><span class="input" id="kpNextDate" data-value="' + nextDateVal + '" style="display:block;padding:8px 12px;min-height:38px;color:var(--text-dim)">' + (nextDateVal ? formatDate(nextDateVal) : '\u2014') + '</span></div>' +
     '</div>' +
     '<div id="kpScheduleHint" style="margin-top:10px;font-size:12px;line-height:1.5;color:var(--text-dim)"></div>' +
     '<div style="margin-top:12px"><label class="kp-label">Бележки</label><textarea class="input" id="kpNotes" rows="2" style="width:100%;resize:vertical">' + (isEdit ? esc(editData.notes || '') : '') + '</textarea></div>' +
@@ -277,8 +284,10 @@ async function kpRecalcDates() {
     var nextEl = document.getElementById('kpNextDate');
     if (nextEl) { nextEl.dataset.value = data.nextKpFirstDate; nextEl.textContent = formatDate(data.nextKpFirstDate); }
     if (hintEl) {
-      hintEl.textContent = videos + ' видеа през ' + data.interval + ' дни: ' +
-        (data.datesBg || []).join(', ') + '. Следващият КП тръгва на ' +
+      var numEl = document.getElementById('kpKpNum');
+      var n = parseInt(numEl && numEl.value) || 1;
+      hintEl.textContent = 'КП-' + n + ' ще излезе с ' + videos + ' видеа през ' + data.interval + ' дни: ' +
+        (data.datesBg || []).join(', ') + '. След него КП-' + (n + 1) + ' тръгва на ' +
         formatDate(data.nextKpFirstDate) + ' — цикъл ' + data.cycleDays + ' дни.';
     }
   } catch(e) { /* ignore */ }
@@ -301,8 +310,6 @@ async function saveKpClient(id) {
   if (dup && dup.inRegistry && dup.name.toLowerCase() !== String(_kpEditName || '').trim().toLowerCase()) {
     return showToast('Вече има клиент „' + dup.name + '" — редактирай него.', 'warn');
   }
-  var lastEl = document.getElementById('kpLastDate');
-  var nextEl = document.getElementById('kpNextDate');
   var data = {
     name: name,
     videos_per_month: parseInt(document.getElementById('kpVideos').value) || parseInt(_platformConfig.kp_default_videos) || KP_STD_VIDEOS,
@@ -311,11 +318,8 @@ async function saveKpClient(id) {
     first_publish_date: (document.getElementById('kpFirstDate') && document.getElementById('kpFirstDate').dataset.value) || null,
     notes: document.getElementById('kpNotes').value || null
   };
-  // PUT не преизчислява датите — подаваме това, което формата вече показва.
-  if (id) {
-    if (lastEl && lastEl.dataset.value) data.last_video_date = lastEl.dataset.value;
-    if (nextEl && nextEl.dataset.value) data.next_kp_date = nextEl.dataset.value;
-  }
+  // Въведената дата Е първото видео на следващия КП (сървърът я пише и в next_kp_date).
+  // Последното видео остава на вече пуснатия КП — не го пипаме от формата.
   try {
     var url = id ? '/api/kp/clients/' + id : '/api/kp/clients';
     var method = id ? 'PUT' : 'POST';
@@ -473,5 +477,55 @@ async function saveKpProjectLink(clientId) {
     renderKpSettings(document.getElementById('pageContent') || sel.closest('.full-width'));
   } catch (err) {
     if (typeof showToast === 'function') showToast(err.message, 'error'); else alert(err.message);
+  }
+}
+
+
+// История на клиента: пуснатите КП-та с датите им + ръчните редакции/паузи.
+var KP_HIST_LABELS = {
+  create_client: '➕ Добавен', update_client: '✏️ Редакция', create_kp_card: '📋 Пуснат КП (ръчно)',
+  auto_create_kp_card: '🤖 Пуснат КП (график)', pause_client: '⏸ Пауза', resume_client: '▶ Продължи'
+};
+
+function kpHistDetails(action, details) {
+  if (action === 'update_client' || action === 'create_client') {
+    try {
+      var d = JSON.parse(details || '{}');
+      var parts = [];
+      if (d.current_kp_number) parts.push('следващ КП-' + d.current_kp_number);
+      if (d.first_publish_date) parts.push('първо видео ' + formatDate(d.first_publish_date));
+      if (d.videos_per_month) parts.push(d.videos_per_month + ' видеа');
+      if (d.publish_interval_days) parts.push('през ' + d.publish_interval_days + ' дни');
+      return parts.join(' · ');
+    } catch (e) { return details || ''; }
+  }
+  if (action === 'pause_client' || action === 'resume_client') return '';
+  return String(details || '').replace(/\s*\(https?:[^)]*\)/g, '');
+}
+
+async function toggleKpHistory(id) {
+  var row = document.getElementById('kpHist' + id);
+  if (!row) return;
+  if (row.style.display !== 'none') { row.style.display = 'none'; return; }
+  var cell = row.firstElementChild;
+  row.style.display = '';
+  cell.innerHTML = '<span style="color:var(--text-dim)">Зареждам историята…</span>';
+  try {
+    var res = await fetch('/api/kp/clients/' + id + '/history');
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Грешка');
+    var items = data.history || [];
+    cell.innerHTML = items.length
+      ? '<div style="font-size:12px;line-height:1.7">' + items.map(function (h) {
+          var when = new Date(h.created_at);
+          var whenStr = when.toLocaleDateString('bg-BG') + ' ' + when.toLocaleTimeString('bg-BG', { hour: '2-digit', minute: '2-digit' });
+          var det = kpHistDetails(h.action, h.details);
+          return '<div><span style="color:var(--text-dim)">' + esc(whenStr) + '</span> · <strong>' +
+            esc(KP_HIST_LABELS[h.action] || h.action) + '</strong> · ' + esc(h.user_name || '') +
+            (det ? ' — ' + esc(det) : '') + '</div>';
+        }).join('') + '</div>'
+      : '<span style="color:var(--text-dim)">Няма записи.</span>';
+  } catch (err) {
+    cell.innerHTML = '<span style="color:var(--red)">Грешка: ' + esc(err.message) + '</span>';
   }
 }
