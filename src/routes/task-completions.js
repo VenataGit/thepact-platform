@@ -307,8 +307,22 @@ router.get('/report', requireAuth, async (req, res) => {
       [cardIds, keys]
     ) : [];
 
+    // Една и съща задача, цъкната от няколко души (или от няколко отдела) = ЕДНА
+    // готова задача (Венци, 23.11.2026: „да изважда само истинските готови задачи, а
+    // не общия сбор от всеки служител"). Групиране по номер на картата ИЛИ по
+    // заглавие (както „кой още") — карта, преместена в друг отдел, е с нов номер.
+    const parent = items.map((_, i) => i);
+    const root = (i) => (parent[i] === i ? i : (parent[i] = root(parent[i])));
+    const firstBy = new Map();
+    items.forEach((r, i) => {
+      ['c' + r.bc_card_id, r.tkey && r.tkey.length >= 3 ? 't' + r.tkey : null].forEach((k) => {
+        if (!k) return;
+        if (firstBy.has(k)) parent[root(i)] = root(firstBy.get(k)); else firstBy.set(k, i);
+      });
+    });
+
     const byUser = new Map();
-    const outItems = items.map((r) => {
+    const outItems = items.map((r, i) => {
       const seen = new Set([r.user_id]);
       const me = person(r.user_id, r.name);
       // САМО колеги от СЪЩИЯ отдел (Венци, 14.10.2026): „нормално е някой да е заснел
@@ -329,7 +343,7 @@ router.get('/report', requireAuth, async (req, res) => {
       if (others.length) b.team_count += 1;
       byUser.set(r.user_id, b);
 
-      return Object.assign({ user_id: r.user_id, title: r.title, url: r.url, occurred_at: r.occurred_at, others }, me);
+      return Object.assign({ user_id: r.user_id, task: root(i), title: r.title, url: r.url, occurred_at: r.occurred_at, others }, me);
     });
 
     res.json({

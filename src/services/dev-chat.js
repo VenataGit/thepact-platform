@@ -180,7 +180,8 @@ async function pollPings() {
           console.log(`[dev-chat] нов въпрос от Ping (ред ${l.id})`);
           queued = true;
         }
-      } else if (fresh.some((l) => Number(l.creator?.id) !== ownerId)
+      } else if ((c.people || []).length === 1 // само в лични Pings; в групови (напр. „The Pact All“) мълчи
+                 && fresh.some((l) => Number(l.creator?.id) !== ownerId)
                  && (!st.botAt || Date.now() - st.botAt > BOT_REPLY_EVERY_MS)) {
         await bc.createCampfireLine(auth.token, auth.account, bucket, chat, BOT_REPLY);
         st.botAt = Date.now();

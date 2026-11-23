@@ -155,11 +155,13 @@ function tcRenderTiles() {
   const host = document.getElementById('tcTiles');
   if (!data) { host.innerHTML = ''; return; }
   const items = (data.items || []).filter(tcVisible);
+  // уникални задачи — една задача, отбелязана от няколко души/отдела, се брои веднъж
+  const tasks = new Set(items.map((it, i) => (it.task != null ? it.task : 'i' + i))).size;
   const people = new Set(items.map((it) => it.user_id)).size;
   const team = items.filter((it) => (it.others || []).length).length;
   host.innerHTML = (data.mine
-    ? [['Мои готови задачи за периода', items.length], ['от тях с колега от отдела', team]]
-    : [['Готови задачи за периода', items.length], ['Хора, отбелязали поне една', people], ['Застъпвания в отдела (2+ души по задача)', team]]
+    ? [['Мои готови задачи за периода', tasks], ['от тях с колега от отдела', team]]
+    : [['Готови задачи за периода', tasks], ['Хора, отбелязали поне една', people], ['Застъпвания в отдела (2+ души по задача)', team]]
   ).map((x) => '<div class="tr-tile"><div class="tr-tile__num">' + x[1] + '</div><div class="tr-tile__label">' + x[0] + '</div></div>').join('');
 }
 
