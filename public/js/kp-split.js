@@ -9,7 +9,11 @@
 //     самия контент план (бота го пренаписва), и в новата задача, и в стъпките;
 //   • подготвените дати от главата на плана се следят: остане ли дата без видео,
 //     излиза известие точно коя е.
-var _kps = { init: null, cardId: null, videos: [], planDates: [], truncated: false };
+//
+// От 24.11.2026 (Венци): подредба на прегледа — „По номер" (както са разписани и
+// номерирани в плана) или „По дата" (най-скорошна → най-далечна; видеата БЕЗ дата
+// излизат най-горе). В режим „По дата" списъкът се пренарежда при всяка смяна на дата.
+var _kps = { init: null, cardId: null, videos: [], planDates: [], truncated: false, sort: 'num' };
 
 async function showKpSplit() {
   if (typeof closeAllDropdowns === 'function') closeAllDropdowns();
@@ -118,12 +122,47 @@ async function kpsPreview() {
       '<div class="kps-preview">' +
         '<div class="kps-preview__hdr" id="kpsCreateHdr">Ще се създадат <b>' + data.count + '</b> задачи' + (data.truncated ? ' (ограничено)' : '') + ':</div>' +
         '<div id="kpsDatesWarn"></div>' +
-        '<ol class="kps-vlist">' + _kps.videos.map(kpsRowHtml).join('') + '</ol>' +
+        '<div class="kps-sortbar">Подреди: ' +
+          '<button type="button" class="kps-vtoggle kps-sortbtn" data-sort="num" onclick="kpsSetSort(this.dataset.sort)">По номер на видеото</button>' +
+          '<button type="button" class="kps-vtoggle kps-sortbtn" data-sort="date" onclick="kpsSetSort(this.dataset.sort)">По дата (най-скорошна първа)</button>' +
+        '</div>' +
+        '<ol class="kps-vlist" id="kpsVList"></ol>' +
         '<button class="btn btn-primary kps-btn" id="kpsCreateBtn" onclick="kpsCreate()">Създай ' + data.count + ' задачи</button>' +
         '<div id="kpsResult"></div>' +
       '</div>';
+    kpsRenderList();
     kpsRenderWarn();
   } catch (e) { box.innerHTML = '<div class="kps-err">Грешка при преглед.</div>'; }
+}
+
+// Редът, в който се показват видеата (индексите в _kps.videos остават същите).
+function kpsOrder() {
+  var idx = (_kps.videos || []).map(function (v, i) { return i; });
+  if (_kps.sort === 'date') {
+    idx.sort(function (a, b) {
+      var A = _kps.videos[a], B = _kps.videos[b];
+      var da = A.publishDate || '', db = B.publishDate || '';
+      if (!da !== !db) return da ? 1 : -1;          // без дата → най-горе
+      if (da !== db) return da < db ? -1 : 1;       // най-скорошна → най-далечна
+      return a - b;                                 // при еднаква дата — по номер
+    });
+  }
+  return idx;
+}
+
+function kpsRenderList() {
+  var ol = document.getElementById('kpsVList'); if (!ol) return;
+  var focusedId = document.activeElement && document.activeElement.id;
+  ol.innerHTML = kpsOrder().map(function (i) { return kpsRowHtml(_kps.videos[i], i); }).join('');
+  document.querySelectorAll('.kps-sortbtn').forEach(function (b) {
+    b.classList.toggle('kps-sortbtn--on', b.getAttribute('data-sort') === _kps.sort);
+  });
+  if (focusedId) { var f = document.getElementById(focusedId); if (f) f.focus({ preventScroll: true }); }
+}
+
+function kpsSetSort(mode) {
+  _kps.sort = mode === 'date' ? 'date' : 'num';
+  kpsRenderList();
 }
 
 function kpsRowHtml(v, i) {
@@ -132,20 +171,21 @@ function kpsRowHtml(v, i) {
     ? '<div class="kps-vexistrow"><a class="kps-vexist" href="' + esc(v.existingCardUrl) + '" target="_blank" rel="noopener"' +
       ' title="Вече има задача с това заглавие в Basecamp — отвори я в нов прозорец">⚠ вече съществува като задача — отвори</a></div>'
     : '';
-  return '<li class="kps-v' + (v.skip ? ' kps-v--skip' : '') + '">' + existing +
+  // value=i+1 — номерът в списъка остава номерът на видеото и при подредба по дата.
+  return '<li class="kps-v' + (v.skip ? ' kps-v--skip' : '') + '" id="kpsRow' + i + '" value="' + (i + 1) + '">' + existing +
     '<div class="kps-vhead">' +
       '<div class="kps-vtitle">' + esc(v.cardTitle) + '</div>' +
       '<div class="kps-vctl">' + media +
-        '<input type="date" id="kpsDate' + i + '" class="kps-vdate-inp' + (v.publishDate ? '' : ' kps-vdate-inp--none') + '"' +
+        '<input type="date" id="kpsDate' + i + '" class="kps-vdate-inp' + (v.publishDate ? '' : ' kps-vdate-inp--none') + (v.publishDate !== v.origDate ? ' kps-vdate-inp--changed' : '') + '"' +
           ' value="' + esc(v.publishDate) + '" title="Дата за публикуване — може да се смени преди създаването"' +
           (v.skip ? ' disabled' : '') +
           ' onchange="kpsDateChange(' + i + ', this.value)">' +
-        '<button type="button" class="kps-vtoggle" id="kpsTgl' + i + '" onclick="kpsToggle(' + i + ')">Преглед</button>' +
+        '<button type="button" class="kps-vtoggle" id="kpsTgl' + i + '" onclick="kpsToggle(' + i + ')">' + (v.open ? 'Скрий' : 'Преглед') + '</button>' +
         '<button type="button" class="kps-vskip" id="kpsSkip' + i + '" onclick="kpsSkipToggle(' + i + ')">' + (v.skip ? 'Включи' : 'Пропусни') + '</button>' +
       '</div>' +
     '</div>' +
     (v.snippet ? '<div class="kps-vsnip">' + esc(v.snippet) + '…</div>' : '') +
-    '<div class="kps-vfull" id="kpsFull' + i + '" hidden></div>' +
+    '<div class="kps-vfull" id="kpsFull' + i + '"' + (v.open ? '>' + kpsFullHtml(v) : ' hidden>') + '</div>' +
   '</li>';
 }
 
@@ -155,8 +195,7 @@ function kpsRowHtml(v, i) {
 function kpsSkipToggle(i) {
   var v = _kps.videos[i]; if (!v) return;
   v.skip = !v.skip;
-  var lis = document.querySelectorAll('.kps-vlist > .kps-v');
-  var li = lis[i];
+  var li = document.getElementById('kpsRow' + i);
   if (li) li.classList.toggle('kps-v--skip', v.skip);
   var btn = document.getElementById('kpsSkip' + i);
   if (btn) btn.textContent = v.skip ? 'Включи' : 'Пропусни';
@@ -212,6 +251,7 @@ async function kpsDateChange(i, val) {
     inp.classList.toggle('kps-vdate-inp--changed', v.publishDate !== v.origDate);
   }
   kpsRenderWarn();
+  if (_kps.sort === 'date') kpsRenderList(); // пренарежда веднага, докато се слагат датите
   try {
     var res = await fetch('/api/kp-split/step-dates?date=' + encodeURIComponent(v.publishDate));
     var data = await res.json();
