@@ -13,6 +13,10 @@
 // От 24.11.2026 (Венци): подредба на прегледа — „По номер" (както са разписани и
 // номерирани в плана) или „По дата" (най-скорошна → най-далечна; видеата БЕЗ дата
 // излизат най-горе). В режим „По дата" списъкът се пренарежда при всяка смяна на дата.
+//
+// От 24.11.2026 (Венци): чернова — сменените дати, „Пропусни" и подредбата се пазят
+// автоматично в браузъра (localStorage, по контент план), докато задачите не са
+// създадени. Рефреш или затваряне не ги губи — при „Преглед" на същия план се връщат.
 var _kps = { init: null, cardId: null, videos: [], planDates: [], truncated: false, sort: 'num' };
 
 async function showKpSplit() {
@@ -79,6 +83,65 @@ function kpsRenderForm() {
     '<button class="btn btn-primary kps-btn" onclick="kpsPreview()">Преглед</button>' +
     '<div id="kpsPreview"></div>'
   );
+  // Ако има незавършена чернова — избираме направо този план (последно пипнатия).
+  var best = null;
+  plans.forEach(function (p) { var dr = kpsDraftLoad(p.id); if (dr && (!best || dr.savedAt > best.savedAt)) best = { id: p.id, savedAt: dr.savedAt }; });
+  if (best) {
+    var sel = document.getElementById('kpsPlan'); if (sel) sel.value = String(best.id);
+    var prev = document.getElementById('kpsPreview');
+    if (prev) prev.innerHTML = '<div class="kps-muted">Има запазени (още непуснати) дати за избрания план — натисни „Преглед“, за да ги видиш.</div>';
+  }
+}
+
+// ---- Чернова (автоматично запазване) ----
+function kpsDraftKey(cardId) { return 'kpsDraft:' + cardId; }
+function kpsDraftLoad(cardId) {
+  try { var d = JSON.parse(localStorage.getItem(kpsDraftKey(cardId)) || 'null'); return d && typeof d === 'object' ? d : null; }
+  catch (e) { return null; }
+}
+function kpsDraftClear(cardId) { try { localStorage.removeItem(kpsDraftKey(cardId)); } catch (e) {} }
+function kpsDraftSave() {
+  if (!_kps.cardId || !(_kps.videos || []).length) return;
+  var dates = {}, skip = [], n = 0;
+  _kps.videos.forEach(function (v) {
+    if (v.publishDate !== v.origDate) { dates[v.videoNumber] = v.publishDate; n++; }
+    if (v.skip) { skip.push(v.videoNumber); n++; }
+  });
+  try {
+    if (!n && _kps.sort === 'num') localStorage.removeItem(kpsDraftKey(_kps.cardId));
+    else localStorage.setItem(kpsDraftKey(_kps.cardId), JSON.stringify({ dates: dates, skip: skip, sort: _kps.sort, savedAt: Date.now() }));
+  } catch (e) { /* пълен/забранен localStorage — просто не пазим */ }
+}
+// Прилага черновата върху току-що заредения преглед. Връща колко неща е върнала.
+function kpsDraftApply() {
+  var d = kpsDraftLoad(_kps.cardId); if (!d) return 0;
+  var dates = d.dates || {}, skip = d.skip || [], n = 0;
+  _kps.videos.forEach(function (v, i) {
+    if (Object.prototype.hasOwnProperty.call(dates, v.videoNumber) && dates[v.videoNumber] !== v.publishDate) {
+      v.publishDate = dates[v.videoNumber] || ''; n++;
+      kpsFetchSteps(i);
+    }
+    if (skip.indexOf(v.videoNumber) !== -1) { v.skip = true; n++; }
+  });
+  if (d.sort === 'date') _kps.sort = 'date';
+  return n;
+}
+function kpsDraftDiscard() {
+  if (!confirm('Да върна датите както са в контент плана? Запазените промени ще се изтрият.')) return;
+  kpsDraftClear(_kps.cardId);
+  kpsPreview();
+}
+
+// Преизчислява стъпките за видео i по текущата му дата.
+async function kpsFetchSteps(i) {
+  var v = _kps.videos[i]; if (!v) return;
+  var date = v.publishDate;
+  try {
+    var res = await fetch('/api/kp-split/step-dates?date=' + encodeURIComponent(date));
+    var data = await res.json();
+    if (res.ok && data.steps && v.publishDate === date) v.steps = data.steps;
+  } catch (e) { /* стъпките остават както са били */ }
+  if (v.open) { var box = document.getElementById('kpsFull' + i); if (box) box.innerHTML = kpsFullHtml(v); }
 }
 
 function kpsClearPreview() {
@@ -118,9 +181,13 @@ async function kpsPreview() {
         skip: false, existingCardUrl: v.existingCardUrl || null,
       };
     });
+    _kps.sort = 'num';
+    var restored = kpsDraftApply();
     box.innerHTML =
       '<div class="kps-preview">' +
         '<div class="kps-preview__hdr" id="kpsCreateHdr">Ще се създадат <b>' + data.count + '</b> задачи' + (data.truncated ? ' (ограничено)' : '') + ':</div>' +
+        (restored ? '<div class="kps-okline" id="kpsDraftNote">↺ Върнати са запазените ти промени (' + restored + ') — още не са пуснати. ' +
+          '<button type="button" class="kps-vtoggle" onclick="kpsDraftDiscard()">Върни датите от плана</button></div>' : '') +
         '<div id="kpsDatesWarn"></div>' +
         '<div class="kps-sortbar">Подреди: ' +
           '<button type="button" class="kps-vtoggle kps-sortbtn" data-sort="num" onclick="kpsSetSort(this.dataset.sort)">По номер на видеото</button>' +
@@ -132,6 +199,7 @@ async function kpsPreview() {
       '</div>';
     kpsRenderList();
     kpsRenderWarn();
+    kpsUpdateCreateCount();
   } catch (e) { box.innerHTML = '<div class="kps-err">Грешка при преглед.</div>'; }
 }
 
@@ -163,6 +231,7 @@ function kpsRenderList() {
 function kpsSetSort(mode) {
   _kps.sort = mode === 'date' ? 'date' : 'num';
   kpsRenderList();
+  kpsDraftSave();
 }
 
 function kpsRowHtml(v, i) {
@@ -202,6 +271,7 @@ function kpsSkipToggle(i) {
   var dateInp = document.getElementById('kpsDate' + i);
   if (dateInp) dateInp.disabled = v.skip;
   kpsUpdateCreateCount();
+  kpsDraftSave();
 }
 
 function kpsUpdateCreateCount() {
@@ -251,13 +321,9 @@ async function kpsDateChange(i, val) {
     inp.classList.toggle('kps-vdate-inp--changed', v.publishDate !== v.origDate);
   }
   kpsRenderWarn();
+  kpsDraftSave();
   if (_kps.sort === 'date') kpsRenderList(); // пренарежда веднага, докато се слагат датите
-  try {
-    var res = await fetch('/api/kp-split/step-dates?date=' + encodeURIComponent(v.publishDate));
-    var data = await res.json();
-    if (res.ok && data.steps) v.steps = data.steps;
-  } catch (e) { /* стъпките остават както са били */ }
-  if (v.open) { var box = document.getElementById('kpsFull' + i); if (box) box.innerHTML = kpsFullHtml(v); }
+  await kpsFetchSteps(i);
 }
 
 // Кои от подготвените горе в плана дати остават без видео.
@@ -326,6 +392,7 @@ async function kpsCreate() {
     var res = await fetch('/api/kp-split/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId: cardId, destBoardId: destBoardId, dates: dates, skip: skipNums }) });
     var data = await res.json();
     if (!res.ok || data.error) { if (rbox) rbox.innerHTML = '<div class="kps-err">' + esc(data.error || 'Грешка.') + '</div>'; btns.forEach(function (b) { b.disabled = false; }); return; }
+    kpsDraftClear(cardId); // задачите са пуснати — черновата вече не трябва
     var ok = (data.created || []).length, errs = (data.errors || []), skip = (data.skipped || []), merr = (data.mediaErrors || []);
     var html = '<div class="kps-ok">✓ Създадени <b>' + ok + '</b> задачи в „' + esc(data.column || 'Разпределение') + '" (' + esc(data.board || '') + ').</div>';
     var pu = data.planUpdate || {};
