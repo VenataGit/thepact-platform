@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Демо Н7.5: Понеделнишкото писмо</title>
+<style>
+  :root { --bg:#111a1e; --card:#1b2930; --panel:rgba(255,255,255,.05); --hover:rgba(255,255,255,.07); --border:#1e3040;
+          --text:#e6e6e6; --sec:#9aa7ad; --dim:#66798a; --green:#46a374; --amber:#f5a623; --red:#e5534b; --blue:#4a9fe0; --violet:#a78bfa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; }
+  button { font:inherit; color:inherit; }
+  header { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:30; }
+  header h1 { font-size:15px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(245,166,35,.15); color:var(--amber); }
+  .wrap { max-width:1680px; margin:14px auto 40px; padding:0 20px; display:grid; grid-template-columns:290px 1fr; gap:14px; }
+  .side { background:var(--panel); border-radius:15px; padding:12px; align-self:start; position:sticky; top:62px; }
+  .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:10px 8px 6px; }
+  .side a { display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:9px; cursor:pointer; text-decoration:none; color:#cfd8dc; font-size:13.5px; }
+  .side a:hover { background:var(--hover); }
+  .side a.on { background:var(--green); color:#fff; font-weight:600; }
+  .side p { color:var(--dim); font-size:12px; margin:10px 8px; }
+  .panel { background:var(--panel); border-radius:15px; padding:22px 26px; min-width:0; }
+  h2 { font-size:22px; margin-bottom:4px; }
+  .lead { color:var(--sec); margin-bottom:16px; max-width:1000px; }
+  .explain { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:10px; padding:10px 14px; margin-bottom:16px; color:var(--sec); max-width:1100px; }
+  .explain b { color:var(--text); }
+  .btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:5px 12px; cursor:pointer; font-size:13px; }
+  .btn:hover { background:rgba(255,255,255,.12); }
+  .btn.pri { background:var(--green); border-color:var(--green); color:#fff; font-weight:600; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 9px; border-bottom:1px solid rgba(255,255,255,.07); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; font-size:12px; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .ok { color:var(--green); } .warn { color:var(--amber); } .bad { color:var(--red); } .dim { color:var(--dim); }
+  .pill { display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:9px; background:rgba(255,255,255,.07); color:var(--sec); white-space:nowrap; }
+  .pill.g { background:rgba(70,163,116,.18); color:#7fd3a6; } .pill.a { background:rgba(245,166,35,.16); color:#ffc56b; }
+  .pill.r { background:rgba(229,83,75,.16); color:#ff9c95; } .pill.b { background:rgba(74,159,224,.16); color:#93c8f2; }
+  /* Basecamp-like message */
+  .bc { background:#fbfaf7; color:#283c46; border-radius:12px; max-width:860px; padding:26px 34px; box-shadow:0 6px 30px rgba(0,0,0,.35); }
+  .bc .meta { color:#7a8a93; font-size:12.5px; margin-bottom:4px; }
+  .bc h3 { font-size:24px; margin-bottom:14px; color:#1d2d35; }
+  .bc h4 { font-size:16px; margin:20px 0 6px; color:#1d2d35; display:flex; gap:8px; align-items:center; }
+  .bc h4 .src { font-size:11px; font-weight:500; color:#8a979e; background:#eef0ec; padding:1px 7px; border-radius:8px; }
+  .bc ol, .bc ul { margin-left:22px; }
+  .bc li { margin:3px 0; }
+  .bc .more { font-size:12.5px; color:#3b7dd8; text-decoration:underline; cursor:default; }
+  .bc .hint { margin-top:22px; padding:10px 14px; background:#f1efe8; border-radius:8px; font-size:13.5px; }
+  .bc b { color:#1d2d35; }
+  .bc .r { color:#c0392b; font-weight:600; } .bc .a { color:#b9770e; font-weight:600; } .bc .g { color:#1e8449; font-weight:600; }
+  .bc .tag { color:#3b7dd8; font-weight:600; }
+  /* thread */
+  .thread { max-width:860px; display:flex; flex-direction:column; gap:12px; }
+  .cm { background:#fbfaf7; color:#283c46; border-radius:12px; padding:14px 18px; }
+  .cm .who { font-weight:700; font-size:13px; margin-bottom:4px; color:#1d2d35; }
+  .cm .who span { font-weight:400; color:#8a979e; margin-left:6px; }
+  .cm.bot { border-left:4px solid #46a374; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 4px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .box { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 16px; }
+  .box h4 { font-size:14px; margin-bottom:10px; }
+  .note { font-size:12.5px; color:var(--sec); margin-top:8px; }
+  .toast { position:fixed; right:20px; bottom:20px; background:var(--card); border:1px solid var(--border); border-left:3px solid var(--amber); padding:10px 14px; border-radius:10px; display:none; max-width:400px; }
+  .view { display:none; } .view.on { display:block; }
+  @media (max-width:1000px) { .wrap { grid-template-columns:1fr; } .side { position:static; } .two { grid-template-columns:1fr; } .bc { padding:18px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>📬 Понеделнишкото писмо</h1>
+  <span class="badge">Нощен анализ · Н7.5 · демо с измислени данни · бутоните НЕ прилагат нищо</span>
+</header>
+<div class="wrap">
+  <nav class="side" id="side">
+    <h3>Демо</h3>
+    <a data-v="letter" class="on">① Писмото в Basecamp</a>
+    <a data-v="reply">② Как отговаряш</a>
+    <a data-v="src">③ Откъде идва всяка част</a>
+    <a data-v="why">④ Защо писмо, а не страници</a>
+    <p>Хората са „Човек А“, „Монтажист Б“ и т.н., клиентите са измислени. Числата са измислени, но порядъкът е като истинските данни от 19–25.11.2026.</p>
+    <p><b>Това е само картинка.</b> Решенията се дават с коментар под задачата „Аудит за платформата“, например „пробваме Н7.5“.</p>
+  </nav>
+
+  <main class="panel">
+    <!-- ① -->
+    <section class="view on" id="v-letter">
+      <h2>① Писмото: понеделник в 09:00, едно съобщение</h2>
+      <p class="lead">Платформата го сглобява от таблиците, които вече има, и го публикува в Basecamp (Message Board или личен Ping). Всяка част е най-много 5 реда с „още“. Нови страници няма.</p>
+      <div class="bc">
+        <div class="meta">ThePactAlerts · понеделник, 09:00 · Message Board „За Венци“</div>
+        <h3>📬 Седмицата — понеделник, 30.11</h3>
+
+        <h4>1. Чака твоето решение (4) <span class="src">dev опашката · Н4.4</span></h4>
+        <ol>
+          <li><b>„Известия от проекти на клиенти“</b>: <span class="r">чака от 90 дни</span>. Въпрос: само коментарите от клиента или и задачите?</li>
+          <li><b>„Друг акаунт за задачите“</b>: чака 11 дни, „половин ден работа + 10 мин от теб“</li>
+          <li><b>Незавършен код в работното копие</b>: <span class="a">3 файла, 13 дни</span>. Довърши или изтрий?</li>
+          <li><b>Авто-монтаж</b>: 2 от 3 монтажисти отговориха „спестява ~20 мин“. Пускаме ли го всяка нощ?</li>
+        </ol>
+        <span class="more">още 0</span>
+
+        <h4>2. Чакаме клиента <span class="src">снимката на Basecamp · Н2.2</span></h4>
+        <ul>
+          <li><b>Фитнес Север</b>: 9 видеа при клиента, <span class="r">5 след датата</span> (най-старото +34 дни), последен коментар преди 12 дни → <span class="tag">@Акаунт В</span></li>
+          <li><b>Кафе Ъгъл</b>: 4 видеа, <span class="a">3 след датата</span>, последен коментар преди 8 дни → <span class="tag">@Акаунт Г</span></li>
+          <li><b>Студио Луна</b>: 6 видеа, 0 след датата, <span class="g">отговаря бързо</span></li>
+        </ul>
+        <span class="more">още 6 клиента · готово напомняне за всеки</span>
+
+        <h4>3. Изчакване над 14 дни · Not now над 90 дни <span class="src">Н2.3</span></h4>
+        <ul>
+          <li>Изчакване: <b>11 карти</b>, 6 без причина. Най-старата е от 68 дни („Клиент Делта КП-2 – Видео 2“).</li>
+          <li>Not now: <b>41 карти над 90 дни</b> → предлагам архив. Отговори „архив 3“, ако си съгласен.</li>
+        </ul>
+
+        <h4>4. Три дупки от процесите за седмицата <span class="src">Процеси · Н3.3</span></h4>
+        <ol>
+          <li><b>Кой прави вътрешния преглед на монтажа?</b> Реалността: Монтажист Б в 210 карти за 30 дни → „приеми“?</li>
+          <li><b>Кой изпраща версията със субтитри?</b> Реалността: Акаунт В, 112 коментара → „приеми“?</li>
+          <li><b>Реклама или органично?</b> Реалността: думата „Реклама“ в заглавието (11 карти) → „приеми“?</li>
+        </ol>
+        <span class="more">остават 31 дупки</span>
+
+        <h4>5. Роботите <span class="src">пулсът на компютъра, ai_jobs, Н4.1 · Н4.3</span></h4>
+        <ul>
+          <li>Офис компютърът: <span class="g">0 неочаквани рестарта</span> (миналата седмица: 3)</li>
+          <li>AI опашката: 214 заявки, 0 грешки · компресорът: 187 видеа · папки: 41</li>
+          <li><span class="a">Не са ползвани 14 дни:</span> PM чатът, Стратегия агентът → пазим ли ги?</li>
+        </ul>
+
+        <h4>6. Разширението <span class="src">Н6.3</span></h4>
+        <ul>
+          <li>11 от 13 са на последната версия. <span class="a">Човек Д и Човек Е</span> са на стара: нужна е инсталация от магазина.</li>
+        </ul>
+
+        <div class="hint">Отговор с коментар: <b>„1 да, 3 по-късно, дупка 1 приеми, архив 3“</b>. Ботът потвърждава и изпълнява само това, което е написано.</div>
+      </div>
+    </section>
+
+    <!-- ② -->
+    <section class="view" id="v-reply">
+      <h2>② Как отговаряш</h2>
+      <p class="lead">Отговорът е обикновен коментар под писмото. Ботът го разчита, повтаря какво е разбрал и чак тогава действа. За кода (точка 1) отговорът отива като коментар под самата dev задача и опашката го поема нормално.</p>
+      <div class="explain">Цъкни някой от готовите отговори, за да видиш какво би върнал ботът. <b>В демото нищо не се изпраща и нищо не се прилага.</b></div>
+      <div class="chips" id="chips">
+        <button class="btn" data-r="a">„1 да, 2 по-късно“</button>
+        <button class="btn" data-r="b">„дупка 1 приеми, дупка 3 приеми“</button>
+        <button class="btn" data-r="c">„архив 3“</button>
+        <button class="btn" data-r="d">„4 не“</button>
+      </div>
+      <div class="thread" id="thread">
+        <div class="cm"><div class="who">ThePactAlerts <span>понеделник 09:00</span></div>📬 Седмицата — понеделник, 30.11 (виж ①)</div>
+      </div>
+    </section>
+
+    <!-- ③ -->
+    <section class="view" id="v-src">
+      <h2>③ Откъде идва всяка част</h2>
+      <p class="lead">Нищо ново не се събира. Всичко вече е в базата или в пулса на компютъра; писмото само го подрежда.</p>
+      <table>
+        <thead><tr><th>Част</th><th>Данните (вече ги има)</th><th>Старо предложение</th><th class="n">Обем</th></tr></thead>
+        <tbody>
+          <tr><td>1. Чака твоето решение</td><td><code>dev_tasks</code> със статус „чака отговор“ + незавършен код (watcher-ът пита <code>git status</code>)</td><td><span class="pill b">Н4.4</span></td><td class="n">½ ден</td></tr>
+          <tr><td>2. Чакаме клиента</td><td>снимката на Basecamp: карти в „Към Клиент“/„Изчакване“, коментари, дата на публикуване</td><td><span class="pill b">Н2.2</span></td><td class="n">½ ден</td></tr>
+          <tr><td>3. Изчакване / Not now</td><td>същата снимка, дни в колоната</td><td><span class="pill b">Н2.3</span></td><td class="n">2 ч</td></tr>
+          <tr><td>4. Три дупки</td><td>Процеси („ДУПКА:“) + броячи от дневника на стъпките и коментарите</td><td><span class="pill b">Н3.3</span></td><td class="n">½ ден</td></tr>
+          <tr><td>5. Роботите</td><td>пулсът на компютъра, <code>ai_jobs</code>, <code>folder_jobs</code>, дневникът на рестартите</td><td><span class="pill b">Н4.1</span> <span class="pill b">Н4.3</span></td><td class="n">½ ден</td></tr>
+          <tr><td>6. Разширението</td><td>версията, която разширението вече праща (след Н6.3)</td><td><span class="pill b">Н6.3</span></td><td class="n">1 ч</td></tr>
+          <tr><td>Отговорите</td><td>коментар под писмото → бот (както „Подсети“ от 24.11)</td><td>—</td><td class="n">½ ден</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Общо ~2 дни. Част 2 е по-полезна след Н7.2 (честни черни карти), защото тогава „чакаме клиента“ вече е отделено.</p>
+    </section>
+
+    <!-- ④ -->
+    <section class="view" id="v-why">
+      <h2>④ Защо писмо, а не страници</h2>
+      <p class="lead">От нощите имаше 3 предложения за нови страници-табла и 5 за понеделнишки списъци. Логовете показват какво става с новите страници.</p>
+      <div class="two">
+        <div class="box">
+          <h4>Новите страници след първия ден (измислени числа, истинският порядък)</h4>
+          <table>
+            <thead><tr><th>Страница</th><th class="n">Ден 1–2</th><th class="n">След това</th></tr></thead>
+            <tbody>
+              <tr><td>Моите задачи</td><td class="n">13</td><td class="n bad">0</td></tr>
+              <tr><td>Контент стратегия</td><td class="n">50</td><td class="n bad">2</td></tr>
+              <tr><td>Процеси</td><td class="n">241</td><td class="n warn">0–3 на ден</td></tr>
+              <tr><td>11 стари страници</td><td class="n">—</td><td class="n bad">0 → махнати</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="box">
+          <h4>Какво печелим</h4>
+          <ul style="margin-left:18px">
+            <li>Basecamp е там, където хората вече са. Писмото идва само.</li>
+            <li>Вместо 3 страници (~6–8 дни) — 1 съобщение (~2 дни).</li>
+            <li>Нищо не стои 80 дни в коментар, който никой не гледа.</li>
+            <li>Ако след 2 месеца не стига, тогава страница, но вече с числа кое се чете.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+(function(){
+  var side=document.getElementById('side');
+  side.addEventListener('click',function(e){
+    var a=e.target.closest('a[data-v]'); if(!a) return;
+    side.querySelectorAll('a').forEach(function(x){x.classList.toggle('on',x===a)});
+    document.querySelectorAll('.view').forEach(function(v){v.classList.toggle('on',v.id==='v-'+a.dataset.v)});
+    window.scrollTo(0,0);
+  });
+  var h=location.hash.slice(1), first=h && side.querySelector('a[data-v="'+h+'"]');
+  if(first) first.click();
+  var R={
+    a:['1 да, 2 по-късно','Разбрах: (1) „Известия от проекти на клиенти“ → пиша „давай“ под задачата и dev опашката тръгва. (2) „Друг акаунт“ → пак в писмото след 2 седмици.'],
+    b:['дупка 1 приеми, дупка 3 приеми','Разбрах: в процеса „Монтаж“ стъпката става „вътрешният преглед го прави Монтажист Б“, а в „Реклами“ остава правилото „Реклама“ в заглавието. Пиша нови версии на двата процеса (виждаш ги в История).'],
+    c:['архив 3','Разбрах: архивирам 41-те карти от Not now, които са над 90 дни. Списъкът е тук (линк). Връщат се с 1 клик от архива в Basecamp.'],
+    d:['4 не','Разбрах: авто-монтажът спира. Трия задачата по график и кеша на компютъра (~40 GB). Пиша и на монтажистите.']
+  };
+  var th=document.getElementById('thread'), toast=document.getElementById('toast');
+  function el(cls,who,when,txt){var d=document.createElement('div');d.className='cm '+cls;var w=document.createElement('div');w.className='who';w.textContent=who;var s=document.createElement('span');s.textContent=when;w.appendChild(s);d.appendChild(w);d.appendChild(document.createTextNode(txt));return d;}
+  document.getElementById('chips').addEventListener('click',function(e){
+    var b=e.target.closest('button[data-r]'); if(!b) return;
+    var r=R[b.dataset.r];
+    th.appendChild(el('','Венци','09:14',r[0]));
+    th.appendChild(el('bot','ThePactAlerts','09:14','✓ '+r[1]));
+    toast.textContent='Демо: нищо не е изпратено и нищо не е приложено.';
+    toast.style.display='block'; clearTimeout(window._t); window._t=setTimeout(function(){toast.style.display='none'},2500);
+  });
+})();
+</script>
+</body>
+</html>
