@@ -69,3 +69,13 @@ describe('timesInText (само ЧЧ:ММ, 24 ч.)', () => {
     expect(r.timesInText('в 25:00')).toEqual([]);
   });
 });
+
+describe('Ping', () => {
+  it('handlePingLine: не е команда → false (dev-chat си го поема)', async () => {
+    await expect(r.handlePingLine({}, { id: 1, content: 'здрасти', creator: { id: 5 } }, 1, 2)).resolves.toBe(false);
+  });
+  it('handlePingLine: човек извън екипа → false', async () => {
+    mockDb.queryOne.mockResolvedValueOnce(null);
+    await expect(r.handlePingLine({}, { id: 1, content: 'Подсети ме утре в 15:00', creator: { id: 5 } }, 1, 2)).resolves.toBe(false);
+  });
+});

@@ -57,6 +57,8 @@ async function ensureTable() {
       sent_at TIMESTAMPTZ
     )`);
   await execute('CREATE INDEX IF NOT EXISTS bc_reminders_due_idx ON bc_reminders (status, remind_at)');
+  // 'comment' = коментар под задача; 'ping' = личен Ping с бота (parent_id = id на чата).
+  await execute("ALTER TABLE bc_reminders ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'comment'");
   tableReady = true;
 }
 
@@ -164,13 +166,20 @@ async function botSgid(auth) {
 const tag = (sgid, name) => (sgid ? `<bc-attachment sgid="${escHtml(sgid)}"></bc-attachment>` : `<strong>${escHtml(name || '')}</strong>`);
 
 async function reply(auth, row, html) {
+  if (row.channel === 'ping') {
+    // В Ping-а е само човекът и ботът — без тагове, обикновен текст.
+    const text = plainText(String(html).replace(/<bc-attachment\b[^>]*>(?:[\s\S]*?<\/bc-attachment>)?/gi, ' '), 4000);
+    await bc.createCampfireLine(auth.token, auth.account, row.bucket_id, row.parent_id,
+      text.replace(/Тагни ме пак и напиши/g, 'Напиши пак').replace(/тагни ме и напиши/g, 'напиши').replace(/Тагни ме пак/g, 'Напиши пак'));
+    return;
+  }
   await bc.createComment(auth.token, auth.account, row.bucket_id, row.parent_id, `<div>${html}</div>`);
 }
 
 // ---------- разчитане с AI ----------
 
 const SYSTEM = `Разчиташ заявки за напомняне от коментари в Basecamp на българска видео агенция.
-Някой е тагнал бота и иска да подсети човек (или себе си) да погледне задачата.
+Някой е тагнал бота в коментар (или му е писал в личен Ping) и иска да подсети човек (или себе си).
 Върни САМО JSON, без друг текст:
 {"targets":["ME" или ключ от списъка с хора], "when":"YYYY-MM-DD HH:MM" или null, "note":"кратко какво да се напомни или празно"}
 Правила:
@@ -187,7 +196,7 @@ function buildPrompt(row) {
   const list = cands.filter((c) => c.key !== 'ME').map((c) => `${c.key} = ${c.name}`).join('\n') || '(няма тагнати хора)';
   return `Текущо време (София): ${nowForPrompt()}
 Заявител (ME): ${row.requester_name}
-Задача: ${row.parent_title || ''}
+${row.channel === 'ping' ? 'Източник: личен Ping с бота (note = какво да се напомни, от съобщението)' : `Задача: ${row.parent_title || ''}`}
 Тагнати хора:
 ${list}
 
@@ -339,7 +348,7 @@ async function pollOnce() {
           [ins.id, !isTeam ? 'заявителят не е от екипа' : 'коментарът е видим за клиента']);
         continue;
       }
-      const base = { bucket_id: c.bucket?.id, parent_id: parent.id };
+      const base = { bucket_id: c.bucket?.id, parent_id: parent.id, channel: 'comment' };
 
       if (cmd === 'cancel') {
         await execute("UPDATE bc_reminders SET status = 'cancel_cmd' WHERE id = $1", [ins.id]);
@@ -365,6 +374,43 @@ async function pollOnce() {
   }
 }
 
+// ---------- Ping ----------
+
+/**
+ * Ред от личен Ping с бота (вика го dev-chat.pollPings). „Подсети ме … в 15:00“ /
+ * „отмени 12“ от човек от екипа → напомняне в същия Ping. Връща true, ако редът е
+ * поет тук (тогава dev-chat не го праща към Claude и не отговаря „аз съм бот“).
+ */
+async function handlePingLine(auth, line, bucket, chat) {
+  const text = plainText(line.content, 4000);
+  const cmd = commandOf(text);
+  if (!cmd) return false;
+  await ensureTable();
+  const creator = line.creator || {};
+  const team = await queryOne('SELECT 1 AS ok FROM bc_people WHERE active = TRUE AND person_id = $1', [creator.id]);
+  if (!team) return false;
+  const ins = await queryOne(
+    `INSERT INTO bc_reminders (bc_comment_id, bucket_id, parent_id, parent_title, requester_id, requester_name, requester_sgid, request_text, status, channel)
+     VALUES ($1,$2,$3,'Ping',$4,$5,$6,$7,'ignored','ping') ON CONFLICT (bc_comment_id) DO NOTHING RETURNING id`,
+    [line.id, bucket, chat, creator.id, creator.name || '', creator.attachable_sgid || '', text]
+  );
+  if (!ins) return true; // вече видян
+  const base = { bucket_id: bucket, parent_id: chat, channel: 'ping' };
+  if (cmd === 'cancel') {
+    await execute("UPDATE bc_reminders SET status = 'cancel_cmd' WHERE id = $1", [ins.id]);
+    await handleCancel(auth, line, base, text).catch((e) => console.error('[reminders] отмяна (Ping):', e.message));
+    return true;
+  }
+  // В Ping-а се подсеща само самият човек.
+  const candidates = [{ key: 'ME', name: creator.name || '', sgid: creator.attachable_sgid || '' }];
+  const row = await queryOne(
+    "UPDATE bc_reminders SET status = 'parsing', candidates = $2 WHERE id = $1 RETURNING *",
+    [ins.id, JSON.stringify(candidates)]
+  );
+  processParsing(row).catch((e) => console.error('[reminders] разчитане (Ping):', e.message));
+  return true;
+}
+
 // ---------- пращане в уречения час ----------
 
 async function fireDue() {
@@ -381,7 +427,9 @@ async function fireDue() {
       if (!row) continue;
       const targets = Array.isArray(row.targets) && row.targets.length ? row.targets : [{ key: 'ME', name: row.requester_name, sgid: row.requester_sgid }];
       const self = targets.length === 1 && targets[0].key === 'ME';
-      const html = `🔔 ${targets.map((t) => tag(t.sgid, t.name)).join(' ')} ` +
+      const html = row.channel === 'ping'
+        ? `🔔 Напомняне, което си поиска: ${escHtml(row.note || row.request_text || '')}`
+        : `🔔 ${targets.map((t) => tag(t.sgid, t.name)).join(' ')} ` +
         (self ? 'напомняне, което си поиска: погледни тази задача.' : `напомняне от <strong>${escHtml(row.requester_name)}</strong>: погледни тази задача.`) +
         (row.note ? `<br>${escHtml(row.note)}` : '');
       try {
@@ -422,5 +470,5 @@ function initCommentReminders() {
 
 module.exports = {
   initCommentReminders, pollOnce, fireDue, commandOf, textWithMentions, extractMentions,
-  sofiaToDate, formatWhen, parseJson, timesInText,
+  sofiaToDate, formatWhen, parseJson, timesInText, handlePingLine,
 };

@@ -163,8 +163,18 @@ async function pollPings() {
     const lines = await bc.getCampfireLines(auth.token, auth.account, bucket, chat, 1);
     const maxId = (lines || []).reduce((mx, l) => Math.max(mx, Number(l.id) || 0), st.last || 0);
     if (!baseline) {
-      const fresh = (lines || []).filter((l) => Number(l.id) > (st.last || 0) && !isBot(l))
+      let fresh = (lines || []).filter((l) => Number(l.id) > (st.last || 0) && !isBot(l))
         .sort((a, b) => Number(a.id) - Number(b.id));
+      // „Подсети ме … в 15:00“ / „отмени 12“ в личен Ping → напомнянията (comment-reminders.js).
+      if ((c.people || []).length === 1) {
+        const handled = new Set();
+        for (const l of fresh) {
+          const ok = await require('./comment-reminders').handlePingLine(auth, l, bucket, chat)
+            .catch((e) => { console.error('[dev-chat] напомняне от Ping:', e.message); return false; });
+          if (ok) handled.add(l.id);
+        }
+        fresh = fresh.filter((l) => !handled.has(l.id));
+      }
       // Личен Ping само с Венци (people = останалите участници без бота).
       const direct = (c.people || []).length === 1 && Number(c.people[0].id) === ownerId;
       if (direct) {
