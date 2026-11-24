@@ -52,6 +52,11 @@ router.get('/status', requireAuth, async (req, res) => {
   );
   // is_owner: Венци (config.ADMIN_EMAILS) — само той вижда Content агент, Контент стратегия и Настройки.
   if (user) user.is_owner = isOwnerEmail(user.email);
+  // can_overtime: вижда ли менюто Overtime (видеограф, собственик или отметнат в Настройки → ⏱ Overtime).
+  if (user) {
+    try { user.can_overtime = await require('./overtime').canUseOvertime(user.id); }
+    catch (err) { console.error('[auth] can_overtime', err.message); user.can_overtime = false; }
+  }
   res.json({ authenticated: true, user });
 });
 

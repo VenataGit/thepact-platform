@@ -14,7 +14,7 @@
 const express = require('express');
 const router = express.Router();
 const { query, queryOne, execute } = require('../db/pool');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin, requireMiniAdmin, isOwnerEmail } = require('../middleware/auth');
 const { calc, deduction } = require('../../public/js/overtime-calc');
 
 const KINDS = ['Снимки', 'Пътуване', 'Събитие', 'Монтаж', 'Техника / подготовка', 'Друго'];
@@ -72,6 +72,12 @@ function ensureSchema() {
       ))
       .then(() => execute(`
         CREATE TABLE IF NOT EXISTS overtime_access (
+          user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          granted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`))
+      .then(() => execute(`
+        CREATE TABLE IF NOT EXISTS overtime_users (
           user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
           granted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
           granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -235,6 +241,74 @@ router.put('/access/:userId', requireAuth, requireAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[overtime] access set', err.message);
+    res.status(500).json({ error: 'Грешка при запис' });
+  }
+});
+
+// ---------- Кой вижда менюто Overtime (админ и мини админ) ----------
+// Венци, 24.11.2026: „да се добавят хората от екипа, които трябва да виждат менюто и да
+// ползват overtime функцията". Видеографите (по позиция) и собственикът го виждат винаги;
+// всеки друг — само ако е отметнат тук (таблица overtime_users).
+const isVideographer = (positionName) => /видеограф/i.test(positionName || '');
+
+// Вижда ли човекът менюто Overtime — ползва се и от /auth/status.
+async function canUseOvertime(userId) {
+  await ensureSchema();
+  const u = await queryOne(
+    `SELECT u.email, p.name AS position_name,
+            EXISTS (SELECT 1 FROM overtime_users o WHERE o.user_id = u.id) AS listed
+       FROM users u LEFT JOIN positions p ON p.id = u.position_id
+      WHERE u.id = $1`, [userId]);
+  if (!u) return false;
+  return !!(u.listed || isOwnerEmail(u.email) || isVideographer(u.position_name));
+}
+
+// GET /api/overtime/menu-access — активните хора + кой е отметнат.
+router.get('/menu-access', requireAuth, requireMiniAdmin, async (req, res) => {
+  try {
+    await ensureSchema();
+    const rows = await query(
+      `SELECT u.id, u.name, u.email, p.name AS position_name,
+              o.user_id IS NOT NULL AS granted, o.granted_at, g.name AS granted_by_name
+         FROM users u
+         LEFT JOIN positions p ON p.id = u.position_id
+         LEFT JOIN overtime_users o ON o.user_id = u.id
+         LEFT JOIN users g ON g.id = o.granted_by
+        WHERE u.is_active = TRUE
+        ORDER BY u.name`
+    );
+    const people = rows.map((r) => ({
+      id: r.id, name: r.name, position_name: r.position_name, granted: r.granted,
+      granted_at: r.granted_at, granted_by_name: r.granted_by_name,
+      auto: isOwnerEmail(r.email) ? 'owner' : (isVideographer(r.position_name) ? 'videographer' : null),
+    }));
+    res.json({ people });
+  } catch (err) {
+    console.error('[overtime] menu-access list', err.message);
+    res.status(500).json({ error: 'Грешка при зареждане' });
+  }
+});
+
+// PUT /api/overtime/menu-access/:userId { granted: true|false }
+router.put('/menu-access/:userId', requireAuth, requireMiniAdmin, async (req, res) => {
+  try {
+    await ensureSchema();
+    const userId = parseInt(req.params.userId, 10);
+    if (!userId) return res.status(400).json({ error: 'Невалиден човек' });
+    if (req.body && req.body.granted) {
+      const u = await queryOne('SELECT id FROM users WHERE id = $1 AND is_active = TRUE', [userId]);
+      if (!u) return res.status(404).json({ error: 'Няма такъв активен човек' });
+      await execute(
+        `INSERT INTO overtime_users (user_id, granted_by) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO NOTHING`,
+        [userId, req.user.userId]
+      );
+    } else {
+      await execute('DELETE FROM overtime_users WHERE user_id = $1', [userId]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[overtime] menu-access set', err.message);
     res.status(500).json({ error: 'Грешка при запис' });
   }
 });
@@ -409,4 +483,5 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
 // дневното обобщение (services/overtime-digest.js) ползва същата схема
 router.ensureSchema = ensureSchema;
+router.canUseOvertime = canUseOvertime;
 module.exports = router;

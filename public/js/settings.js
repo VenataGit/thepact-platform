@@ -328,6 +328,11 @@ function sgTogglePage(id, enabled) {
 function sgSectionOvertime(host) {
   host.innerHTML =
     '<div class="sg-section">' +
+      '<div class="sg-section__hdr">👀 Кой вижда менюто Overtime</div>' +
+      '<div class="sg-section__desc">Отметнатите хора виждат <b>Overtime</b> в менюто „Още“ и могат да въвеждат своя overtime. Видеографите (по позиция от Екип и роли) и собственикът го виждат винаги. Отметки слагат и махат админ и мини админ.</div>' +
+      '<div id="sgOtMenu"><div class="ga-loading">Зареждане…</div></div>' +
+    '</div>' +
+    '<div class="sg-section">' +
       '<div class="sg-section__hdr">⏱ Overtime — кой следи екипа</div>' +
       '<div class="sg-section__desc">Отметнатите хора получават бутона <b>„🔒 Админ“</b> на страницата <a href="#/overtime">Overtime</a>: виждат записите на всички служители, пишат и трият бележки и могат да трият записи. Пълните админи го имат винаги. Достъп дава и отнема само пълен админ — пуснатият човек не може да пуска други. Всеки останал вижда само своите записи.</div>' +
       '<div id="sgOtAccess"><div class="ga-loading">Зареждане…</div></div>' +
@@ -337,8 +342,45 @@ function sgSectionOvertime(host) {
       '<div class="sg-section__desc">Всеки ден в <b>09:00</b> ботът пуска едно съобщение в Message Board-а отдолу с всичко ново в overtime-а (нови и изтрити записи). Ако няма нищо ново, не пуска нищо. Тагнатите хора са <b>единствените</b>, които получават известие. Никой друг от проекта не се пингва.</div>' +
       '<div id="sgOtDigest"><div class="ga-loading">Зареждане…</div></div>' +
     '</div>';
+  sgOtMenuLoad();
   sgOtAccessLoad();
   sgOtDigestLoad();
+}
+
+// Венци, 24.11.2026: поименно кой вижда менюто Overtime (таблица overtime_users).
+async function sgOtMenuLoad() {
+  var box = document.getElementById('sgOtMenu');
+  if (!box) return;
+  try {
+    var r = await fetch('/api/overtime/menu-access');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var people = (await r.json()).people || [];
+    box.innerHTML = '<div class="sg-pages-list">' + people.map(function (p) {
+      var who = esc(p.name) + (p.position_name ? ' <span class="ga-dim">· ' + esc(p.position_name) + '</span>' : '');
+      if (p.auto) return '<label class="ga-toggle sg-pages-row"><input type="checkbox" checked disabled> ' + who +
+        ' <span class="ga-dim">— ' + (p.auto === 'owner' ? 'собственик' : 'видеограф') + ', винаги</span></label>';
+      var since = p.granted && p.granted_at
+        ? ' <span class="ga-dim">— от ' + esc(new Date(p.granted_at).toLocaleDateString('bg-BG')) + (p.granted_by_name ? ', добавен от ' + esc(p.granted_by_name) : '') + '</span>' : '';
+      return '<label class="ga-toggle sg-pages-row"><input type="checkbox" ' + (p.granted ? 'checked' : '') +
+        ' onchange="sgOtMenuSet(' + Number(p.id) + ', this.checked, this)"> ' + who + since + '</label>';
+    }).join('') + '</div>';
+  } catch (e) {
+    box.innerHTML = '<div style="color:var(--red);font-size:13px">Грешка при зареждане: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function sgOtMenuSet(userId, granted, input) {
+  if (input) input.disabled = true;
+  try {
+    var r = await fetch('/api/overtime/menu-access/' + Number(userId), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ granted: !!granted })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    showToast(granted ? 'Вече вижда Overtime ✓' : 'Overtime е скрит за човека ✓', 'success', 1500);
+  } catch (e) {
+    showToast('Грешка: ' + e.message, 'error');
+  }
+  sgOtMenuLoad();
 }
 
 var _sgOtDigest = null;

@@ -27,7 +27,8 @@ function isPlatformOwner() {
 // за да не виждат останалите инструменти, които не ползват (Венци, 19.11.2026).
 function canSeeOvertime() {
   if (typeof currentUser === 'undefined' || !currentUser) return false;
-  return !!currentUser.is_owner || /видеограф/i.test(currentUser.position_name || '');
+  // + поименно отметнатите в Настройки → ⏱ Overtime (сървърът връща can_overtime) — 24.11.2026.
+  return !!currentUser.is_owner || !!currentUser.can_overtime || /видеограф/i.test(currentUser.position_name || '');
 }
 
 // Менюто „Още" (подредба по Венци, 19.11.2026): горе — общите страници; под линията —
