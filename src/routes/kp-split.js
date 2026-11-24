@@ -27,6 +27,39 @@ const MAX_ATTACH_BYTES = 200 * 1024 * 1024; // skip media larger than this
 // всяка разбита задача получава и стъпката за сценарий (16 работни дни), която досега
 // я имаше само инструментът „Създаване на задачи".
 const prodSteps = require('../services/steps');
+const { query, queryOne, execute } = require('../db/pool');
+
+// ---- Чернова на прегледа (Венци, 24.11.2026) ----
+// Сменените дати / „Пропусни" / подредбата се пазят в платформата (не в браузъра),
+// докато задачите не са пуснати — всеки, който отвори същия план, ги вижда.
+// Таблицата идва и с миграция 074; тук е идемпотентно, ако runner-ът е спрял.
+let draftsReady = null;
+function ensureDraftsTable() {
+  if (!draftsReady) {
+    draftsReady = execute(`
+      CREATE TABLE IF NOT EXISTS kp_split_drafts (
+        card_id         TEXT PRIMARY KEY,
+        data            JSONB NOT NULL DEFAULT '{}'::jsonb,
+        updated_by      INTEGER,
+        updated_by_name TEXT NOT NULL DEFAULT '',
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`).catch((err) => { draftsReady = null; throw err; });
+  }
+  return draftsReady;
+}
+// Само позволените полета: { dates: {N: 'YYYY-MM-DD'|''}, skip: [N], sort: 'num'|'date' }.
+function cleanDraft(d) {
+  const out = { dates: {}, skip: [], sort: (d && d.sort) === 'date' ? 'date' : 'num' };
+  const dates = (d && d.dates) || {};
+  Object.keys(dates).slice(0, 500).forEach((k) => {
+    const n = parseInt(k, 10), v = String(dates[k] || '');
+    if (n > 0 && (v === '' || ISO_RE.test(v))) out.dates[n] = v;
+  });
+  (Array.isArray(d && d.skip) ? d.skip : []).slice(0, 500).forEach((x) => {
+    const n = parseInt(x, 10); if (n > 0 && out.skip.indexOf(n) === -1) out.skip.push(n);
+  });
+  return out;
+}
 const VIDEO_STEPS = prodSteps.STEPS;
 
 const escAttr = (s) => (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -222,6 +255,16 @@ router.get('/init', requireAuth, async (req, res) => {
         cards.forEach((c) => plans.push({ id: c.id, title: c.title, column: list.title }));
       }
     }
+    // Кои планове имат незавършена чернова — за маркировка и автоматичен избор.
+    try {
+      await ensureDraftsTable();
+      const ids = plans.map((p) => String(p.id));
+      if (ids.length) {
+        const rows = await query('SELECT card_id, updated_by_name, updated_at FROM kp_split_drafts WHERE card_id = ANY($1::text[])', [ids]);
+        const m = new Map(rows.map((r) => [r.card_id, r]));
+        plans.forEach((p) => { const r = m.get(String(p.id)); if (r) p.draft = { by: r.updated_by_name, at: r.updated_at }; });
+      }
+    } catch (e) { console.error('[kp-split drafts init]', e.message); }
     res.json({ destinations, plans });
   } catch (err) {
     console.error('[kp-split init]', err.message);
@@ -462,6 +505,12 @@ router.post('/create', requireAuth, async (req, res) => {
       movedToDone = { ok: false, error: errors.length + ' задачи не се създадоха — планът остава отворен, докато не минат' };
     }
 
+    // Всичко е пуснато → черновата вече не трябва. При грешки я пазим.
+    if (!errors.length) {
+      try { await ensureDraftsTable(); await execute('DELETE FROM kp_split_drafts WHERE card_id = $1', [String(cardId)]); }
+      catch (e) { console.error('[kp-split draft clear]', e.message); }
+    }
+
     const planDates = kpPlan.parsePlanDates(header);
     res.json({
       created, errors, skipped, skippedByUser: skippedByUser.size, truncated, mediaErrors,
@@ -474,6 +523,60 @@ router.post('/create', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[kp-split create]', err.message);
     res.status(502).json({ error: err.message });
+  }
+});
+
+// GET /api/kp-split/draft?card=ID — запазената чернова за плана (или null).
+router.get('/draft', requireAuth, async (req, res) => {
+  try {
+    const cardId = String(req.query.card || '');
+    if (!cardId) return res.status(400).json({ error: 'card required' });
+    await ensureDraftsTable();
+    const r = await queryOne('SELECT data, updated_by_name, updated_at FROM kp_split_drafts WHERE card_id = $1', [cardId]);
+    res.json({ draft: r ? Object.assign(cleanDraft(r.data), { by: r.updated_by_name, at: r.updated_at }) : null });
+  } catch (err) {
+    console.error('[kp-split draft get]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/kp-split/draft { cardId, dates, skip, sort } — записва черновата.
+// Празна чернова (няма промени и подредбата е по номер) = изтрива реда.
+router.put('/draft', requireAuth, async (req, res) => {
+  try {
+    const cardId = String((req.body || {}).cardId || '');
+    if (!cardId) return res.status(400).json({ error: 'cardId required' });
+    const d = cleanDraft(req.body);
+    await ensureDraftsTable();
+    if (!Object.keys(d.dates).length && !d.skip.length && d.sort === 'num') {
+      await execute('DELETE FROM kp_split_drafts WHERE card_id = $1', [cardId]);
+      return res.json({ ok: true, empty: true });
+    }
+    await execute(
+      `INSERT INTO kp_split_drafts (card_id, data, updated_by, updated_by_name, updated_at)
+       VALUES ($1, $2::jsonb, $3, $4, NOW())
+       ON CONFLICT (card_id) DO UPDATE SET data = EXCLUDED.data, updated_by = EXCLUDED.updated_by,
+         updated_by_name = EXCLUDED.updated_by_name, updated_at = NOW()`,
+      [cardId, JSON.stringify(d), req.user.userId || null, req.user.name || '']
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[kp-split draft put]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/kp-split/draft?card=ID — „Върни датите от плана".
+router.delete('/draft', requireAuth, async (req, res) => {
+  try {
+    const cardId = String(req.query.card || '');
+    if (!cardId) return res.status(400).json({ error: 'card required' });
+    await ensureDraftsTable();
+    await execute('DELETE FROM kp_split_drafts WHERE card_id = $1', [cardId]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[kp-split draft delete]', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -15,8 +15,9 @@
 // излизат най-горе). В режим „По дата" списъкът се пренарежда при всяка смяна на дата.
 //
 // От 24.11.2026 (Венци): чернова — сменените дати, „Пропусни" и подредбата се пазят
-// автоматично в браузъра (localStorage, по контент план), докато задачите не са
-// създадени. Рефреш или затваряне не ги губи — при „Преглед" на същия план се връщат.
+// автоматично В ПЛАТФОРМАТА (таблица kp_split_drafts, една на контент план, обща за
+// всички), докато задачите не са създадени. Рефреш, затваряне или друг човек/компютър
+// не ги губи — при „Преглед" на същия план се връщат и могат да се коригират.
 var _kps = { init: null, cardId: null, videos: [], planDates: [], truncated: false, sort: 'num' };
 
 async function showKpSplit() {
@@ -72,7 +73,7 @@ function kpsRenderForm() {
   if (!plans.length) { kpsBody('<div class="kps-err">Няма планове в колона „В продукция" (Pre-Production).</div>'); return; }
   if (!dests.length) { kpsBody('<div class="kps-err">Не намерих Production / Post-Production дъски.</div>'); return; }
   var planOpts = plans.map(function (p) {
-    return '<option value="' + p.id + '">' + esc(p.title) + '</option>';
+    return '<option value="' + p.id + '">' + esc(p.title) + (p.draft ? ' — ✎ заложени дати' : '') + '</option>';
   }).join('');
   var destRadios = dests.map(function (b, i) {
     return '<label class="kps-radio"><input type="radio" name="kpsDest" value="' + b.id + '"' + (i === 0 ? ' checked' : '') + '> ' + esc(b.title) + '</label>';
@@ -85,36 +86,65 @@ function kpsRenderForm() {
   );
   // Ако има незавършена чернова — избираме направо този план (последно пипнатия).
   var best = null;
-  plans.forEach(function (p) { var dr = kpsDraftLoad(p.id); if (dr && (!best || dr.savedAt > best.savedAt)) best = { id: p.id, savedAt: dr.savedAt }; });
+  plans.forEach(function (p) { if (p.draft && (!best || String(p.draft.at) > String(best.draft.at))) best = p; });
   if (best) {
     var sel = document.getElementById('kpsPlan'); if (sel) sel.value = String(best.id);
     var prev = document.getElementById('kpsPreview');
-    if (prev) prev.innerHTML = '<div class="kps-muted">Има запазени (още непуснати) дати за избрания план — натисни „Преглед“, за да ги видиш.</div>';
+    if (prev) prev.innerHTML = '<div class="kps-muted">Има заложени (още непуснати) дати за избрания план' + kpsDraftWho(best.draft) +
+      ' — натисни „Преглед“, за да ги видиш и коригираш.</div>';
   }
 }
 
-// ---- Чернова (автоматично запазване) ----
-function kpsDraftKey(cardId) { return 'kpsDraft:' + cardId; }
-function kpsDraftLoad(cardId) {
-  try { var d = JSON.parse(localStorage.getItem(kpsDraftKey(cardId)) || 'null'); return d && typeof d === 'object' ? d : null; }
+// ---- Чернова (автоматично запазване в платформата) ----
+function kpsDraftWho(d) {
+  if (!d) return '';
+  var t = '';
+  try { if (d.at) t = new Date(d.at).toLocaleString('bg-BG', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) {}
+  return (d.by ? ' (' + esc(d.by) + (t ? ', ' + esc(t) : '') + ')' : (t ? ' (' + esc(t) + ')' : ''));
+}
+// Стара чернова от браузъра (версията от по-рано днес) — пренася се в платформата веднъж.
+function kpsLegacyDraft(cardId) {
+  try { var d = JSON.parse(localStorage.getItem('kpsDraft:' + cardId) || 'null'); return d && typeof d === 'object' ? d : null; }
   catch (e) { return null; }
 }
-function kpsDraftClear(cardId) { try { localStorage.removeItem(kpsDraftKey(cardId)); } catch (e) {} }
-function kpsDraftSave() {
+function kpsLegacyClear(cardId) { try { localStorage.removeItem('kpsDraft:' + cardId); } catch (e) {} }
+
+var _kpsSaveSeq = 0;
+async function kpsDraftSave() {
   if (!_kps.cardId || !(_kps.videos || []).length) return;
-  var dates = {}, skip = [], n = 0;
+  var dates = {}, skip = [];
   _kps.videos.forEach(function (v) {
-    if (v.publishDate !== v.origDate) { dates[v.videoNumber] = v.publishDate; n++; }
-    if (v.skip) { skip.push(v.videoNumber); n++; }
+    if (v.publishDate !== v.origDate) dates[v.videoNumber] = v.publishDate;
+    if (v.skip) skip.push(v.videoNumber);
   });
+  var seq = ++_kpsSaveSeq;
+  kpsSaveState('Запазвам…', '');
   try {
-    if (!n && _kps.sort === 'num') localStorage.removeItem(kpsDraftKey(_kps.cardId));
-    else localStorage.setItem(kpsDraftKey(_kps.cardId), JSON.stringify({ dates: dates, skip: skip, sort: _kps.sort, savedAt: Date.now() }));
-  } catch (e) { /* пълен/забранен localStorage — просто не пазим */ }
+    var res = await fetch('/api/kp-split/draft', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cardId: _kps.cardId, dates: dates, skip: skip, sort: _kps.sort }) });
+    if (seq !== _kpsSaveSeq) return;
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    kpsSaveState('✓ Запазено в платформата', 'ok');
+  } catch (e) {
+    if (seq === _kpsSaveSeq) kpsSaveState('⚠ Не се запази — провери връзката и смени датата пак', 'err');
+  }
 }
-// Прилага черновата върху току-що заредения преглед. Връща колко неща е върнала.
-function kpsDraftApply() {
-  var d = kpsDraftLoad(_kps.cardId); if (!d) return 0;
+function kpsSaveState(text, kind) {
+  var el = document.getElementById('kpsSaveState'); if (!el) return;
+  el.textContent = text;
+  el.className = 'kps-savestate' + (kind ? ' kps-savestate--' + kind : '');
+}
+// Прилага запазената чернова върху току-що заредения преглед.
+// Връща { n: колко неща е върнала, d: черновата } или null.
+async function kpsDraftApply() {
+  var d = null, legacy = false;
+  try {
+    var res = await fetch('/api/kp-split/draft?card=' + encodeURIComponent(_kps.cardId));
+    var data = await res.json();
+    if (res.ok) d = data.draft;
+  } catch (e) { /* без чернова */ }
+  if (!d) { d = kpsLegacyDraft(_kps.cardId); legacy = !!d; }
+  if (!d) return null;
   var dates = d.dates || {}, skip = d.skip || [], n = 0;
   _kps.videos.forEach(function (v, i) {
     if (Object.prototype.hasOwnProperty.call(dates, v.videoNumber) && dates[v.videoNumber] !== v.publishDate) {
@@ -124,11 +154,13 @@ function kpsDraftApply() {
     if (skip.indexOf(v.videoNumber) !== -1) { v.skip = true; n++; }
   });
   if (d.sort === 'date') _kps.sort = 'date';
-  return n;
+  if (legacy) { await kpsDraftSave(); kpsLegacyClear(_kps.cardId); }
+  return n ? { n: n, d: d } : null;
 }
-function kpsDraftDiscard() {
-  if (!confirm('Да върна датите както са в контент плана? Запазените промени ще се изтрият.')) return;
-  kpsDraftClear(_kps.cardId);
+async function kpsDraftDiscard() {
+  if (!confirm('Да върна датите както са в контент плана? Заложените промени ще се изтрият за всички.')) return;
+  try { await fetch('/api/kp-split/draft?card=' + encodeURIComponent(_kps.cardId), { method: 'DELETE' }); } catch (e) {}
+  kpsLegacyClear(_kps.cardId);
   kpsPreview();
 }
 
@@ -182,12 +214,13 @@ async function kpsPreview() {
       };
     });
     _kps.sort = 'num';
-    var restored = kpsDraftApply();
+    var restored = await kpsDraftApply();
     box.innerHTML =
       '<div class="kps-preview">' +
         '<div class="kps-preview__hdr" id="kpsCreateHdr">Ще се създадат <b>' + data.count + '</b> задачи' + (data.truncated ? ' (ограничено)' : '') + ':</div>' +
-        (restored ? '<div class="kps-okline" id="kpsDraftNote">↺ Върнати са запазените ти промени (' + restored + ') — още не са пуснати. ' +
+        (restored ? '<div class="kps-okline" id="kpsDraftNote">↺ Върнати са заложените промени (' + restored.n + ')' + kpsDraftWho(restored.d) + ' — още не са пуснати. ' +
           '<button type="button" class="kps-vtoggle" onclick="kpsDraftDiscard()">Върни датите от плана</button></div>' : '') +
+        '<div id="kpsSaveState" class="kps-savestate">Промените по датите се запазват автоматично в платформата, докато не натиснеш „Създай“.</div>' +
         '<div id="kpsDatesWarn"></div>' +
         '<div class="kps-sortbar">Подреди: ' +
           '<button type="button" class="kps-vtoggle kps-sortbtn" data-sort="num" onclick="kpsSetSort(this.dataset.sort)">По номер на видеото</button>' +
@@ -392,7 +425,7 @@ async function kpsCreate() {
     var res = await fetch('/api/kp-split/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardId: cardId, destBoardId: destBoardId, dates: dates, skip: skipNums }) });
     var data = await res.json();
     if (!res.ok || data.error) { if (rbox) rbox.innerHTML = '<div class="kps-err">' + esc(data.error || 'Грешка.') + '</div>'; btns.forEach(function (b) { b.disabled = false; }); return; }
-    kpsDraftClear(cardId); // задачите са пуснати — черновата вече не трябва
+    kpsLegacyClear(cardId); // задачите са пуснати — сървърът сам трие черновата (ако няма грешки)
     var ok = (data.created || []).length, errs = (data.errors || []), skip = (data.skipped || []), merr = (data.mediaErrors || []);
     var html = '<div class="kps-ok">✓ Създадени <b>' + ok + '</b> задачи в „' + esc(data.column || 'Разпределение') + '" (' + esc(data.board || '') + ').</div>';
     var pu = data.planUpdate || {};

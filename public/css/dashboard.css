@@ -112,6 +112,9 @@
 .kps-sdate--none { color: var(--orange, #f97316); }
 .kps-warn { color: var(--orange, #f97316); font-size: 13px; padding: 6px 0; }
 .kps-okline { color: var(--green); font-size: 13px; padding: 6px 0; }
+.kps-savestate { font-size: 11px; color: var(--text-dim); margin: 0 0 6px; }
+.kps-savestate--ok { color: var(--green); }
+.kps-savestate--err { color: var(--orange, #f97316); font-weight: 600; }
 
 /* Пропусни видео + сигнал "вече съществува като задача" (28.08.2026) */
 .kps-vskip { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; cursor: pointer; }
