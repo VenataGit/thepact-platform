@@ -176,6 +176,24 @@ async function reply(auth, row, html) {
   await bc.createComment(auth.token, auth.account, row.bucket_id, row.parent_id, `<div>${html}</div>`);
 }
 
+// Вътрешна задача = клиентът не вижда коментара ИЛИ проектът е на екипа / без истински
+// клиенти. Basecamp маркира и картите във Video Production като „видими за клиента“,
+// защото там има служебен клиент „ThePact Tasks“ (24.11.2026: заради това първата
+// заявка на Венци беше пропусната) — затова флагът сам не стига.
+const clientProjectCache = new Map(); // bucketId → { client: bool, at }
+async function isInternal(auth, c) {
+  if (!c.visible_to_clients) return true;
+  const bucket = Number(c.bucket && c.bucket.id);
+  if (!bucket) return false;
+  if (bucket === Number(config.BASECAMP_TEAM_PROJECT_ID)) return true;
+  const hit = clientProjectCache.get(bucket);
+  if (hit && Date.now() - hit.at < 3600_000) return !hit.client;
+  const people = await bc.getProjectPeople(auth.token, auth.account, bucket);
+  const client = (people || []).some((p) => p.client);
+  clientProjectCache.set(bucket, { client, at: Date.now() });
+  return !client;
+}
+
 // ---------- разчитане с AI ----------
 
 const SYSTEM = `Разчиташ заявки за напомняне от коментари в Basecamp на българска видео агенция.
@@ -343,9 +361,10 @@ async function pollOnce() {
 
       // Само хора от екипа и само вътрешни задачи (нищо, което клиентът вижда).
       const isTeam = people.some((p) => String(p.person_id) === String(creator.id));
-      if (!isTeam || c.visible_to_clients) {
+      const internal = isTeam && await isInternal(auth, c).catch(() => false);
+      if (!isTeam || !internal) {
         await execute('UPDATE bc_reminders SET error = $2 WHERE id = $1',
-          [ins.id, !isTeam ? 'заявителят не е от екипа' : 'коментарът е видим за клиента']);
+          [ins.id, !isTeam ? 'заявителят не е от екипа' : 'клиентски проект (клиентът вижда коментара)']);
         continue;
       }
       const base = { bucket_id: c.bucket?.id, parent_id: parent.id, channel: 'comment' };
@@ -470,5 +489,5 @@ function initCommentReminders() {
 
 module.exports = {
   initCommentReminders, pollOnce, fireDue, commandOf, textWithMentions, extractMentions,
-  sofiaToDate, formatWhen, parseJson, timesInText, handlePingLine,
+  sofiaToDate, formatWhen, parseJson, timesInText, handlePingLine, isInternal,
 };

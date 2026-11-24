@@ -79,3 +79,20 @@ describe('Ping', () => {
     await expect(r.handlePingLine({}, { id: 1, content: 'Подсети ме утре в 15:00', creator: { id: 5 } }, 1, 2)).resolves.toBe(false);
   });
 });
+
+describe('isInternal', () => {
+  const bc = require('../src/services/basecamp');
+  it('невидим за клиента → вътрешен', async () => {
+    await expect(r.isInternal({}, { visible_to_clients: false, bucket: { id: 1 } })).resolves.toBe(true);
+  });
+  it('Video Production (служебният клиент „ThePact Tasks“) → вътрешен', async () => {
+    await expect(r.isInternal({}, { visible_to_clients: true, bucket: { id: 39396506 } })).resolves.toBe(true);
+  });
+  it('проект с клиенти → не', async () => {
+    const spy = jest.spyOn(bc, 'getProjectPeople').mockResolvedValue([{ client: true }]);
+    await expect(r.isInternal({}, { visible_to_clients: true, bucket: { id: 777 } })).resolves.toBe(false);
+    spy.mockResolvedValue([{ client: false }]);
+    await expect(r.isInternal({}, { visible_to_clients: true, bucket: { id: 778 } })).resolves.toBe(true);
+    spy.mockRestore();
+  });
+});
