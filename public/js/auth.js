@@ -17,8 +17,6 @@ async function checkAuth() {
     } catch (e) { /* quota / private mode */ }
     try { allUsers = await (await fetch('/api/users/team')).json(); } catch {}
     try { allBoards = await (await fetch('/api/boards')).json(); } catch {}
-    updateHeyBadge();
-    updatePingsBadge();
     return true;
   } catch { window.location.href = '/login.html'; return false; }
 }

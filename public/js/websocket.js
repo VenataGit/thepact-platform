@@ -4,7 +4,7 @@ function closeProfile() { document.getElementById('profileModal').style.display=
 async function saveProfileName() { const n=document.getElementById('profileNameInput').value.trim(); if(!n)return; try{const u=await(await fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})})).json(); document.getElementById('profileName').textContent=u.name; document.getElementById('navAvatar').innerHTML=_avInner(u.name, u.avatar_url); currentUser.name=u.name; showToast('\u0418\u043c\u0435\u0442\u043e \u0435 \u0437\u0430\u043f\u0430\u0437\u0435\u043d\u043e', 'success');}catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0437\u0430\u043f\u0430\u0437\u0432\u0430\u043d\u0435', 'error'); } }
 async function uploadAvatar(input) { if(!input.files[0])return; const f=new FormData(); f.append('avatar',input.files[0]); try{const u=await(await fetch('/api/profile/avatar',{method:'POST',body:f})).json(); document.getElementById('profileAvatar').innerHTML=`<img src="${safeUrl(u.avatar_url)}" style="width:100%;height:100%;object-fit:cover">`; document.getElementById('navAvatar').innerHTML=_avInner(u.name, u.avatar_url); currentUser.avatar_url=u.avatar_url; showToast('\u0410\u0432\u0430\u0442\u0430\u0440\u044a\u0442 \u0435 \u0441\u043c\u0435\u043d\u0435\u043d', 'success');}catch{ showToast('\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u043a\u0430\u0447\u0432\u0430\u043d\u0435 \u043d\u0430 \u0430\u0432\u0430\u0442\u0430\u0440', 'error'); } }
 async function changePassword() { const msg=document.getElementById('pwdMsg'),c=document.getElementById('currentPwd').value,n=document.getElementById('newPwd').value; if(!c||!n){msg.textContent='Попълни и двете полета';msg.style.color='var(--red)';return;} try{const r=await fetch('/api/profile/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:c,newPassword:n})}); const d=await r.json(); if(r.ok){msg.textContent='Сменена';msg.style.color='var(--green)';}else{msg.textContent=d.error;msg.style.color='var(--red)';}}catch{msg.textContent='Грешка';msg.style.color='var(--red)';} }
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeProfile();closeAddColumnModal();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeProfile();}});
 document.getElementById('profileModal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeProfile()});
 
 // ==================== WEBSOCKET ====================
@@ -19,28 +19,7 @@ function wsRouter() {
 }
 function handleWSEvent(ev) {
   const t = ev.type || '';
-  // PM Agent чат събития -> agent.js (без re-render на страницата)
-  if (t.indexOf('agent:') === 0) { if (typeof agcHandleWS === 'function') agcHandleWS(ev); return; }
-  // Card editing presence — handle without re-render
-  if (t === 'card:editing') {
-    cardEditingPresence.set(ev.cardId, { userId: ev.userId, userName: ev.userName });
-    updateCardEditingBanner(ev.cardId);
-    return;
-  }
-  if (t === 'card:editing:stop') {
-    cardEditingPresence.delete(ev.cardId);
-    updateCardEditingBanner(ev.cardId);
-    return;
-  }
-  // CRM: презареждаме дъската само ако човекът гледа точно нея и няма отворен модал
-  // (иначе би му се затворило това, което пише в момента).
-  if (t === 'crm:changed') {
-    // Само на списъка с фунията. Страницата на една сделка не се пипа — човекът
-    // може да пише в нея и презареждането би му изтрило написаното.
-    var crmHash = (location.hash || '').split('?')[0];
-    if (crmHash === '#/crm' && !document.getElementById('crmModal') && typeof crmLoad === 'function') crmLoad();
-    return;
-  }
+  if (t === 'card:editing' || t === 'card:editing:stop') return; // старите локални карти ги няма (24.11.2026)
   if (t === 'sos:alert') { showSosAlert(ev); return; }
   if (t === 'sos:resolved') { document.querySelectorAll('.sos-alert-banner[data-alert-id="' + ev.alertId + '"]').forEach(function(b) { b.remove(); }); return; }
   // Live-update Production Calendar when a card is moved (Post-Production checkmark)
@@ -58,24 +37,13 @@ function handleWSEvent(ev) {
   }
   // Core data events — re-render current page
   if (t.startsWith('card:') || t.startsWith('board:') || t.startsWith('column:') || t.startsWith('step:') || t.startsWith('comment:')) wsRouter();
-  if (t === 'chat:message') { updatePingsBadge(); if (location.hash.startsWith('#/chat/' + ev.channelId)) { if (ev.message) appendChatMsg(ev.message); fetch('/api/chat/channels/'+ev.channelId+'/read',{method:'PUT'}).catch(function(){}); } return; }
-  if (t === 'chat:message:edited') { if (location.hash.startsWith('#/chat/' + ev.channelId)) chatHandleEdited(ev); return; }
-  if (t === 'chat:message:deleted') { if (location.hash.startsWith('#/chat/' + ev.channelId)) chatHandleDeleted(ev); return; }
-  if (t === 'chat:channel:updated' || t === 'chat:member:added' || t === 'chat:member:removed') { if (location.hash.startsWith('#/chat')) wsRouter(); return; }
-  if (t === 'campfire:message' && location.hash.startsWith('#/campfire/')) { if (ev.message) appendCampfireMsg(ev.message); return; }
-  if (t === 'checkin:reminder') wsRouter();
-  // Кой работи сега (The Pact Tools таймери) — без re-render
-  if (t === 'time:working:start' || t === 'time:working:stop') {
-    if (typeof twHandleWS === 'function') twHandleWS(ev);
-    return;
-  }
+  if (t === 'time:working:start' || t === 'time:working:stop') return; // индикаторът „кой работи сега“ е махнат (24.11.2026)
   // Presence
   if (t === 'presence:online') { onlineUsers.add(ev.userId); updatePresenceDots(); }
   if (t === 'presence:offline') { onlineUsers.delete(ev.userId); updatePresenceDots(); }
   // Typing indicators
   if (t === 'typing:start') showTypingIndicator(ev);
   if (t === 'typing:stop') hideTypingIndicator(ev);
-  updateHeyBadge();
 }
 function updatePresenceDots() {
   document.querySelectorAll('[data-user-id]').forEach(el => {

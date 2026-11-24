@@ -1,12 +1,11 @@
 // ThePact Service Worker — Network-first caching (push notifications removed)
-const CACHE_NAME = 'thepact-v1';
+const CACHE_NAME = 'thepact-v2'; // v2: чистене 24.11.2026
 const PRECACHE_URLS = [
   '/',
   '/css/base.css',
   '/css/layout.css',
   '/css/kanban.css',
   '/css/card-detail.css',
-  '/css/chat-campfire.css',
   '/css/dashboard.css',
   '/css/modals-toasts.css',
   '/css/board-responsive.css',

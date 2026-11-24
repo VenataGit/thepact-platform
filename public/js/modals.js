@@ -139,35 +139,3 @@ function showDatePickerPopup(anchorEl, currentValue, onSelect) {
     document.addEventListener('click', _dpClose);
   }, 10);
 }
-function openDueDatePicker(cardId, btn) {
-  showDatePickerPopup(btn, btn.dataset.value || '', function(dateStr) {
-    btn.dataset.value = dateStr || '';
-    btn.textContent = dateStr ? formatDate(dateStr) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
-    btn.className = dateStr ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
-    if (dateStr) { saveDueDateField(cardId, dateStr); }
-    else { btn.style.display = 'none'; var r = document.querySelector('[name="due_' + cardId + '"]'); if (r) r.checked = true; updateField(cardId, 'due_on', null); }
-  });
-}
-function openPublishDatePicker(cardId, btn) {
-  showDatePickerPopup(btn, btn.dataset.value || '', function(dateStr) {
-    btn.dataset.value = dateStr || '';
-    btn.textContent = dateStr ? formatDate(dateStr) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
-    btn.className = dateStr ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
-    savePublishDateField(cardId, dateStr || null);
-    if (!dateStr) { btn.style.display = 'none'; var r = document.querySelectorAll('[name="pub_' + cardId + '"]')[0]; if (r) r.checked = true; }
-  });
-}
-function openNewStepDatePicker(btn) {
-  showDatePickerPopup(btn, btn.dataset.value || '', function(dateStr) {
-    btn.dataset.value = dateStr || '';
-    btn.textContent = dateStr ? formatDate(dateStr) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
-    btn.className = dateStr ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
-  });
-}
-function openEditStepDatePicker(stepId, btn) {
-  showDatePickerPopup(btn, btn.dataset.value || '', function(dateStr) {
-    btn.dataset.value = dateStr || '';
-    btn.textContent = dateStr ? formatDate(dateStr) : '\u0418\u0437\u0431\u0435\u0440\u0438 \u0434\u0430\u0442\u0430\u2026';
-    btn.className = dateStr ? 'bc-date-btn' : 'bc-date-btn bc-date-btn--placeholder';
-  });
-}

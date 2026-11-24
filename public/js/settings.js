@@ -1679,7 +1679,6 @@ function agRender(data) {
       '<button class="btn btn-sm btn-primary" onclick="agAudit()"' + (busy ? ' disabled' : '') + '>🕵️ Пусни одит</button>' +
       '<button class="btn btn-sm" onclick="agDigest()"' + (busy ? ' disabled' : '') + ' title="Обобщение на промените от последния дайджест + текущите рискове">📋 Пусни дайджест</button>' +
       '<button class="btn btn-sm" onclick="agWatchdog()" title="Провери за клиенти без отговор от екипа">⚠️ Чакащи клиенти</button>' +
-      '<a class="btn btn-sm" href="#/agent" style="text-decoration:none">💬 Отвори чата</a>' +
     '</div>' +
     agSettingsHtml();
 

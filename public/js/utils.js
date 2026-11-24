@@ -275,24 +275,11 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // N — new card (only on board view)
-  if (e.key === 'n' && location.hash.startsWith('#/board/')) {
-    e.preventDefault();
-    const boardId = parseInt(location.hash.split('/')[2]);
-    const col = allBoards.find(b=>b.id===boardId)?.columns?.find(c=>!c.is_done_column);
-    if (col) location.hash = `#/card/0/new?board=${boardId}&column=${col.id}`;
-    return;
-  }
-
   // G+key combos — navigate
   if (pendingShortcut === 'g') {
     pendingShortcut = null;
     e.preventDefault();
     if (e.key === 'h') location.hash = '#/home';
-    else if (e.key === 'a') location.hash = '#/activity';
-    else if (e.key === 'p') location.hash = '#/chat';
-    else if (e.key === 'c') location.hash = '#/campfire/1';
-    else if (e.key === 's') location.hash = '#/schedule';
     return;
   }
   if (e.key === 'g') { pendingShortcut = 'g'; setTimeout(() => { pendingShortcut = null; }, 1000); return; }

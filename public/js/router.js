@@ -3,14 +3,10 @@
 // изтрито — само не се вижда в „Още" и директен линк/бутон връща към Dashboard. Ядрото
 // на приложението (Табло, Календар, Настройки) нарочно го няма тук — самозаключване.
 var PAGE_TOGGLES = [
-  { id: 'clients', label: 'Клиенти' },
-  { id: 'client-schedule', label: 'Клиент — график' },
   { id: 'kp-auto', label: 'КП-Автоматизация' },
   { id: 'create-task', label: 'Създаване на задачи' },
-  { id: 'premiere', label: 'Premiere Downgrade' },
   { id: 'board-logic', label: 'Логика на табло' },
   { id: 'history', label: 'История' },
-  { id: 'crm', label: 'CRM' },
   { id: 'content', label: 'Content агент' },
   { id: 'strategy', label: 'Контент стратегия' },
   { id: 'time-report', label: 'Време' },
@@ -62,34 +58,9 @@ function router() {
   if (_dashPublishBtn) _dashPublishBtn.style.display = 'none';
   document.querySelectorAll('.dash-filter-panel').forEach((p) => p.remove());
 
-  // Reset card edit mode when navigating away from card page
-  if (page !== 'card') _cardEditMode = false;
-
   switch (page) {
     case 'home': return renderDashboard(el);
-    case 'project': return renderProject(el, id);
-    case 'videoproduction': return renderProject(el, 1);
     case 'dashboard': return renderDashboard(el);
-    case 'clients': return parts[1] ? renderClientDetail(el, decodeURIComponent(parts[1])) : renderClientsList(el);
-    case 'client-schedule': return renderClientSchedule(el);
-    case 'board': return id ? renderBoard(el, id) : renderDashboard(el);
-    case 'docs': return id ? renderDocs(el, id, sub ? parseInt(sub) : null) : renderDashboard(el);
-    case 'doc': return id ? renderDocument(el, id) : renderDashboard(el);
-    case 'card':
-      if (sub === 'new') return renderCardCreate(el);
-      return id ? renderCardPage(el, id) : renderDashboard(el);
-    case 'activity': return renderActivity(el);
-    case 'mystuff': return renderMyStuff(el);
-    case 'chat': return id ? renderChatChannel(el, id) : renderChatList(el);
-    case 'notifications': return renderNotifications(el);
-    case 'messages': return renderMessageBoard(el);
-    case 'msgboard': return id ? renderMsgBoard(el, id) : renderDashboard(el);
-    case 'msg': return id ? renderMsgPage(el, id) : renderDashboard(el);
-    case 'vault': return renderVault(el, id);
-    case 'campfire': return renderCampfire(el, id || 1);
-    case 'schedule': return renderSchedule(el);
-    case 'checkins': return renderCheckins(el);
-    case 'agent': return renderAgentChat(el);
     case 'admin':
       // Историята вече е самостоятелна страница за целия екип, не секция в панела.
       if (parts[1] === 'history') { location.hash = '#/history' + (parts[2] ? '/' + parts[2] : ''); return; }
@@ -97,24 +68,14 @@ function router() {
     // Старият („Разширени") панел е слят в #/admin — старите линкове водят натам.
     case 'admin-legacy': location.hash = '#/admin'; return;
     case 'history': return renderHistory(el, parts[1] || null);
-    case 'reports': return renderReports(el);
-    case 'bookmarks': return renderBookmarks(el);
     case 'kp-auto': return renderKpAuto(el, parts[1] || null);
     case 'calendar': return renderCalendar(el, parts[1] || null);
-    case 'column': return id ? renderColumnView(el, id) : renderDashboard(el);
-    case 'trash': return renderTrash(el);
     case 'release-notes': return renderReleaseNotes(el);
-    case 'home-tasks': return renderHomeTasks(el);
     case 'create-task': return renderTaskCreator(el);
-    // CRM: всичко около сделка е пълна страница, не прозорче.
-    case 'crm':
-      if (parts[1] === 'new') return renderCrmNew(el);
-      return id ? renderCrmDeal(el, id) : renderCrm(el);
     // Content агент: клиент / пускане / настройки — всичко е пълна страница.
     case 'content': return caRoute(el, parts);
     // Контент стратегия агент: списък / проект / пускане — пълни страници.
     case 'strategy': return csRoute(el, parts);
-    case 'premiere': return renderPremiere(el);
     case 'board-logic': return renderBoardLogic(el);
     case 'time-report': return renderTimeReport(el);
     case 'client-report': return renderClientReport(el);
@@ -144,37 +105,3 @@ function setBreadcrumb(items) {
   if (main) main.classList.remove('with-breadcrumb');
 }
 
-// Board jump dropdown — lists all boards for quick navigation
-function toggleBoardJumpMenu(e) {
-  e.stopPropagation();
-  var existing = document.getElementById('boardJumpDropdown');
-  if (existing) { existing.remove(); return; }
-  var boards = (allBoards || []).filter(function(b) { return !b.archived; });
-  var dd = document.createElement('div');
-  dd.className = 'breadcrumb-jump-dropdown';
-  dd.id = 'boardJumpDropdown';
-  var html = '<div class="breadcrumb-jump-dropdown__title">Бордове</div>';
-  boards.forEach(function(b) {
-    var bHref = b.type === 'docs' ? '#/docs/' + b.id : b.type === 'message_board' ? '#/msgboard/' + b.id : '#/board/' + b.id;
-    var bIcon = b.type === 'docs' ? '📁 ' : b.type === 'message_board' ? '💬 ' : '';
-    html += '<a class="breadcrumb-jump-dropdown__item" href="' + bHref + '">' + bIcon + esc(b.title) + '</a>';
-  });
-  if (!boards.length) html += '<div class="breadcrumb-jump-dropdown__empty">Няма бордове</div>';
-  dd.innerHTML = html;
-  var btn = e.currentTarget;
-  var bar = document.getElementById('breadcrumbBar');
-  // Position dropdown directly under the button
-  var btnRect = btn.getBoundingClientRect();
-  var barRect = bar.getBoundingClientRect();
-  dd.style.left = (btnRect.left - barRect.left) + 'px';
-  dd.style.transform = 'none';
-  bar.appendChild(dd);
-  // Close on any click outside
-  setTimeout(function() {
-    document.addEventListener('click', function handler(ev) {
-      if (!dd.contains(ev.target)) { dd.remove(); document.removeEventListener('click', handler); }
-    });
-  }, 0);
-  // Close when navigating
-  dd.addEventListener('click', function(ev) { if (ev.target.tagName === 'A') dd.remove(); });
-}

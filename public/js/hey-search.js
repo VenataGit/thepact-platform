@@ -1,13 +1,3 @@
-// ==================== HEY NOTIFICATIONS ====================
-async function updateHeyBadge() {
-  const b = document.getElementById('heyBadge');
-  if (!b) return; // Hey nav item removed — nothing to update
-  try {
-    const { count } = await (await fetch('/api/notifications/unread-count')).json();
-    if (count > 0) { b.textContent = count > 99 ? '99+' : count; b.style.display = ''; } else b.style.display = 'none';
-  } catch {}
-}
-
 // ==================== NAV DROPDOWNS ====================
 let openDropdownId = null;
 function toggleDropdown(id, btn, e) {
@@ -16,9 +6,7 @@ function toggleDropdown(id, btn, e) {
   if (openDropdownId === id) { closeAllDropdowns(); return; }
   closeAllDropdowns();
   // Populate content
-  if (id === 'heyDropdown') populateHey(dd);
-  else if (id === 'pingsDropdown') populatePings(dd);
-  else if (id === 'moreDropdown') populateMore(dd);
+  if (id === 'moreDropdown') populateMore(dd);
   else if (id === 'findDropdown') populateFind(dd);
   dd.classList.add('open');
   openDropdownId = id;
@@ -27,107 +15,6 @@ function toggleDropdown(id, btn, e) {
 function closeAllDropdowns() {
   document.querySelectorAll('.nav-dropdown.open').forEach(d => d.classList.remove('open'));
   openDropdownId = null;
-}
-
-async function populateHey(el) {
-  try {
-    const items = await (await fetch('/api/notifications')).json();
-    _heyAllItems = items;
-    const bookmarked = items.filter(n => n.is_bookmarked);
-    const regular = items.filter(n => !n.is_bookmarked);
-    const unread = regular.filter(n => !n.is_read);
-    const read = regular.filter(n => n.is_read);
-    if (items.length === 0) {
-      el.innerHTML = '<div class="nav-dropdown__empty" style="padding:24px 16px">Няма нищо ново за теб.</div>';
-      return;
-    }
-    var headerHtml = '<div class="hey-header">' +
-      '<span class="hey-header__title">Известия' + (unread.length > 0 ? ' (' + unread.length + ' нови)' : '') + '</span>' +
-      (unread.length > 0 ? '<button class="hey-header__action" onclick="markAllHeyRead(event)">Маркирай всички</button>' : '') +
-    '</div>';
-    var html = headerHtml;
-    // Bookmarked section
-    if (bookmarked.length > 0) {
-      html += '<div class="hey-bookmarks-section">' +
-        '<div class="hey-bookmarks-header"><img src="/img/icon-bookmark.png" alt="" width="14" height="14"> Не забравяй за:</div>' +
-        bookmarked.map(function(n){ return _renderHeyItem(n, true); }).join('') +
-      '</div>';
-    }
-    // Unread (new) notifications — always on top
-    if (unread.length > 0) {
-      html += '<div class="hey-section-label hey-section-label--new">Нови</div>';
-      html += unread.map(function(n){ return _renderHeyItem(n, false); }).join('');
-    }
-    // Read notifications — below
-    if (read.length > 0) {
-      html += '<div class="hey-section-label hey-section-label--read">Прочетени</div>';
-      var readSlice = read.slice(0, 20);
-      html += readSlice.map(function(n){ return _renderHeyItem(n, false); }).join('');
-      if (read.length > 20) {
-        html += '<div class="hey-load-more"><button class="hey-load-more__btn" onclick="heyExpandMore()">Виж още (' + (read.length - 20) + ') ↓</button></div>';
-      }
-    }
-    if (unread.length === 0 && read.length === 0 && bookmarked.length > 0) {
-      html += '<div class="nav-dropdown__empty" style="padding:16px">Няма други известия.</div>';
-    }
-    el.innerHTML = html;
-  } catch { el.innerHTML = '<div class="nav-dropdown__empty">Грешка</div>'; }
-}
-function _renderHeyItem(n, isInBookmarkSection) {
-  var sn = n.sender_name || '';
-  var savUrl = _findAvatar(sn);
-  var link = n.reference_type === 'card' ? '#/card/' + n.reference_id
-           : n.reference_type === 'crm' ? '#/crm' + (n.reference_id ? '/' + n.reference_id : '')
-           : '#/notifications';
-  var sid = (n.reference_type === 'card' && n.comment_id) ? n.comment_id : null;
-  var bmClass = n.is_bookmarked ? ' hey-item--bookmarked' : '';
-  return '<div class="hey-item-wrap' + bmClass + '">' +
-    '<a class="hey-item' + (n.is_read ? '' : ' unread') + '" href="' + link + '" onclick="heyClickItem('+n.id+','+sid+');closeAllDropdowns()">' +
-      '<div class="hey-item__av" style="background:' + (savUrl ? 'none' : _avColor(sn)) + '">' + _avInner(sn, savUrl) + '</div>' +
-      '<div class="hey-item__content">' +
-        '<div class="hey-item__subject">' + esc(n.title) + '</div>' +
-        (n.body ? '<div class="hey-item__preview">' + esc(n.body) + '</div>' : '') +
-        '<div class="hey-item__meta">' + (n.type === 'reminder' ? 'Напомняне · ' : '') + timeAgo(n.created_at) + '</div>' +
-      '</div>' +
-      (!n.is_read ? '<div class="hey-item__unread-dot"></div>' : '') +
-    '</a>' +
-    '<button class="hey-item__bookmark' + (n.is_bookmarked ? ' active' : '') + '" onclick="event.stopPropagation();heyToggleBookmark('+n.id+')" title="' + (n.is_bookmarked ? 'Махни от Не забравяй' : 'Не забравяй') + '">' +
-      '<img src="/img/icon-bookmark.png" alt="" width="16" height="16">' +
-    '</button>' +
-  '</div>';
-}
-function heyClickItem(notifId, commentId) {
-  if (commentId) _pendingScrollCommentId = commentId;
-  if (notifId) { fetch('/api/notifications/'+notifId+'/read',{method:'PUT'}).then(function(){updateHeyBadge()}).catch(function(){}); }
-}
-async function heyToggleBookmark(notifId) {
-  try {
-    await fetch('/api/notifications/'+notifId+'/bookmark',{method:'PUT'});
-    updateHeyBadge();
-    var dd = document.getElementById('heyDropdown');
-    if (dd) populateHey(dd);
-  } catch {}
-}
-function heyExpandMore() {
-  var el = document.getElementById('heyDropdown');
-  if (!el) return;
-  var btn = el.querySelector('.hey-load-more');
-  if (!btn) return;
-  var read = _heyAllItems.filter(function(n){return !n.is_bookmarked && n.is_read});
-  var rest = read.slice(20);
-  var html = rest.map(function(n){return _renderHeyItem(n, false)}).join('');
-  html += '<a class="hey-footer-link" href="#/notifications" onclick="closeAllDropdowns()">Виж всички известия →</a>';
-  btn.insertAdjacentHTML('afterend', html);
-  btn.remove();
-}
-async function markAllHeyRead(e) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
-  try {
-    await fetch('/api/notifications/read-all', { method: 'PUT' });
-    updateHeyBadge();
-    const dd = document.getElementById('heyDropdown');
-    if (dd?.classList.contains('open')) populateHey(dd);
-  } catch {}
 }
 
 // Собственикът на платформата (Венци) — само той вижда Content агент, Контент стратегия
@@ -166,26 +53,12 @@ function populateMore(el) {
       <a class="nav-dropdown__item" href="/extension.html" target="_blank" rel="noopener" onclick="closeAllDropdowns()">Chrome разширение</a>
       ${isPageOff('history') ? '' : `<a class="nav-dropdown__item" href="#/history" onclick="closeAllDropdowns()">История</a>`}
       ${isPageOff('board-logic') ? '' : `<a class="nav-dropdown__item" href="#/board-logic" onclick="closeAllDropdowns()">Логика на табло</a>`}
-      <!-- Изключени от Настройки → Функции и страници към 19.11.2026; излизат тук, ако се включат. -->
-      ${isPageOff('clients') ? '' : `<a class="nav-dropdown__item" href="#/clients" onclick="closeAllDropdowns()">Клиенти</a>`}
-      ${isPageOff('client-schedule') ? '' : `<a class="nav-dropdown__item" href="#/client-schedule" onclick="closeAllDropdowns()">Клиент — график</a>`}
-      ${isPageOff('premiere') ? '' : `<a class="nav-dropdown__item" href="#/premiere" onclick="closeAllDropdowns()">Premiere Downgrade</a>`}
-      <span id="moreCrmSlot"></span>
       <!-- Overtime винаги последно; вижда се само от видеографите (+ собственика). Венци, 19.11.2026 -->
       ${(canSeeOvertime() && !isPageOff('overtime')) ? `<a class="nav-dropdown__item" href="#/overtime" onclick="closeAllDropdowns()">Overtime</a>` : ''}
     </div>
     ${adminItems ? `<div class="nav-dropdown__section" style="border-top:1px solid var(--border)">${adminItems}
     </div>` : ''}
   `;
-  // CRM се вижда само от хора с поименен достъп (crm_access). Отговорът се пази в
-  // crm.js, така че след първото отваряне точката се появява без изчакване.
-  if (typeof crmCheckAccess === 'function') {
-    crmCheckAccess().then(function(ok) {
-      var slot = el.querySelector('#moreCrmSlot');
-      if (!ok || !slot || isPageOff('crm')) return;
-      slot.outerHTML = '<a class="nav-dropdown__item" href="#/crm" onclick="closeAllDropdowns()">CRM</a>';
-    });
-  }
 }
 
 function populateFind(el) {

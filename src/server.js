@@ -44,7 +44,6 @@ setupWebSocket(server);
 require('./services/token-crypto').encryptExistingTokens().catch((e) => console.error('[token-crypto]', e.message));
 
 // Init services (non-blocking, safe to fail if tables don't exist yet)
-const { initCheckInScheduler } = require('./services/checkin-scheduler');
 const { initEmail } = require('./services/email');
 const { initDailyReport } = require('./services/daily-report');
 const { initKpScheduler } = require('./services/kp-scheduler');
@@ -57,7 +56,6 @@ const { initPmDigest } = require('./services/pm-agent/digest');
 const { initTimeSweeper } = require('./services/time-sweeper');
 const { initDevQueue } = require('./services/dev-queue');
 const { initDevChat } = require('./services/dev-chat');
-const { initCrmReminders } = require('./services/crm-reminders');
 const { initContentAgent } = require('./services/content-agent/trigger');
 const { initStrategyAgent } = require('./services/strategy-agent');
 const { initPcWatch } = require('./services/pc-watch');
@@ -65,7 +63,6 @@ const { initOvertimeDigest } = require('./services/overtime-digest');
 const { initSystemWatch } = require('./services/system-watch');
 const { initBlackCards } = require('./services/black-cards');
 setTimeout(() => {
-  initCheckInScheduler();
   initEmail();
   initDailyReport();
   initKpScheduler();
@@ -81,7 +78,6 @@ setTimeout(() => {
     .catch((e) => console.warn("[time] колоните за етапа:", e.message));
   initDevQueue();
   initDevChat();
-  initCrmReminders();
   initContentAgent();
   initStrategyAgent();
   initPcWatch();

@@ -102,8 +102,6 @@ function kpRowHtml(c) {
   var cardLinkBtn = '';
   if (c.has_kp_card && c.kp_card_url) {
     cardLinkBtn = '<a class="btn btn-sm btn-ghost" href="' + esc(c.kp_card_url) + '" target="_blank" rel="noopener" title="Отваря картата в Basecamp">👁 КП карта</a>';
-  } else if (c.has_kp_card && c.kp_card_id) {
-    cardLinkBtn = '<a class="btn btn-sm btn-ghost" href="#/card/' + c.kp_card_id + '">👁 КП карта</a>';
   }
   var pauseBtn = c.paused
     ? '<button class="btn btn-sm" onclick="toggleKpPause(' + c.id + ',false)" title="Връща клиента в автоматизацията">▶ Продължи</button>'
