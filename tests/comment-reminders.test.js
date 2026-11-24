@@ -59,3 +59,13 @@ describe('parseJson', () => {
     expect(r.parseJson('няма')).toBeNull();
   });
 });
+
+describe('timesInText (само ЧЧ:ММ, 24 ч.)', () => {
+  it('намира и нормализира', () => {
+    expect(r.timesInText('утре в 9:30 или в 15:00')).toEqual(['09:30', '15:00']);
+  });
+  it('„в 3“, „15 часа“, дати → нищо', () => {
+    expect(r.timesInText('в 3 следобед, в 15 часа, на 25.11')).toEqual([]);
+    expect(r.timesInText('в 25:00')).toEqual([]);
+  });
+});

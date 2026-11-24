@@ -109,6 +109,15 @@ function nowForPrompt(date = new Date()) {
 
 // ---------- текстът на коментара ----------
 
+// Часовете, написани като ЧЧ:ММ (24 ч.), нормализирани до „09:30“.
+function timesInText(text) {
+  const out = [];
+  const re = /(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)/g;
+  let m;
+  while ((m = re.exec(String(text || '')))) out.push(`${m[1].padStart(2, '0')}:${m[2]}`);
+  return out;
+}
+
 // Таговете в Basecamp rich text: <bc-attachment sgid=… content-type="application/vnd.basecamp.mention">…<figcaption>Име</figcaption>…
 function extractMentions(html) {
   const out = [];
@@ -166,11 +175,11 @@ const SYSTEM = `Разчиташ заявки за напомняне от ко�
 {"targets":["ME" или ключ от списъка с хора], "when":"YYYY-MM-DD HH:MM" или null, "note":"кратко какво да се напомни или празно"}
 Правила:
 - targets: кои хора да бъдат подсетени. „подсети ме“/„напомни ми“ → "ME". Тагнат човек → неговия ключ (P1, P2…). Ако никой не е тагнат и не е ясно кой → ["ME"].
-- when: местно време в София. Трябват И ден, И час.
+- when: местно време в София. Часът се пише САМО във формат ЧЧ:ММ по 24-часовия часовник (11:00, 15:00, 9:30).
+  * Използвай точно часа ЧЧ:ММ от коментара — не го превръщай и не го допълвай.
+  * Час без ЧЧ:ММ („в 3“, „в 15 часа“, „3 следобед“, „сутринта“, „след 2 часа“) → null.
   * Само час без ден („в 11:00“) → най-близкият бъдещ такъв час (днес, ако още не е минал, иначе утре).
-  * Относително време („след 2 часа“, „след 30 минути“) → пресметни от текущото време.
   * Ден без час („утре“, „в петък“), неясно („по-късно“, „другата седмица“) или липсва → null.
-  * „утре сутринта“ и подобни без точен час → null.
 - note: само ако в заявката има конкретика какво да се напомни; иначе "".`;
 
 function buildPrompt(row) {
@@ -224,12 +233,19 @@ async function processParsing(row) {
   let targets = (Array.isArray(j.targets) ? j.targets : []).map((k) => byKey[String(k).trim()]).filter(Boolean);
   if (!targets.length) targets = [byKey.ME];
   targets = targets.filter((t, i) => targets.findIndex((x) => x.sgid === t.sgid && x.name === t.name) === i);
-  const when = j.when ? sofiaToDate(j.when) : null;
+  // Часът трябва да е написан като ЧЧ:ММ (24 ч.) в самия коментар (Венци, 24.11.2026) —
+  // и AI-ят не може да измисли друг час от написаните.
+  const written = timesInText(row.request_text);
+  let when = j.when ? sofiaToDate(j.when) : null;
+  if (when) {
+    const p = sofiaParts(when);
+    if (!written.includes(`${p.hour}:${p.minute}`)) when = null;
+  }
   const note = String(j.note || '').trim().slice(0, 500);
 
   if (!when) {
     await execute("UPDATE bc_reminders SET status = 'unclear', targets = $2 WHERE id = $1", [row.id, JSON.stringify(targets)]);
-    await reply(auth, row, `${tag(row.requester_sgid, row.requester_name)} не разбрах кога точно да подсетя. Тагни ме пак и напиши конкретен ден и час, напр. „Подсети … утре в 11:00“.`);
+    await reply(auth, row, `${tag(row.requester_sgid, row.requester_name)} не разбрах кога точно да подсетя. Тагни ме пак и напиши ден и точен час във формат <strong>ЧЧ:ММ</strong> по 24-часовия часовник, напр. „Подсети … утре в 15:00“ или „в петък в 09:30“ (не „в 3“ или „в 15 часа“).`);
     return;
   }
   if (when.getTime() < Date.now() - 5 * 60_000) {
@@ -406,5 +422,5 @@ function initCommentReminders() {
 
 module.exports = {
   initCommentReminders, pollOnce, fireDue, commandOf, textWithMentions, extractMentions,
-  sofiaToDate, formatWhen, parseJson,
+  sofiaToDate, formatWhen, parseJson, timesInText,
 };
