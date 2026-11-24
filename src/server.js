@@ -62,6 +62,7 @@ const { initPcWatch } = require('./services/pc-watch');
 const { initOvertimeDigest } = require('./services/overtime-digest');
 const { initSystemWatch } = require('./services/system-watch');
 const { initBlackCards } = require('./services/black-cards');
+const { initCommentReminders } = require('./services/comment-reminders');
 setTimeout(() => {
   initEmail();
   initDailyReport();
@@ -84,6 +85,7 @@ setTimeout(() => {
   initOvertimeDigest();
   initSystemWatch();
   initBlackCards();
+  initCommentReminders();
 }, 2000);
 
 // Auto-cleanup: permanently delete cards that have been in trash for 30+ days

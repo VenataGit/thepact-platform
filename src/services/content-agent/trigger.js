@@ -17,6 +17,7 @@ const { getServiceAuth } = require('../basecamp-token');
 const kpComment = require('../kp-comment');
 const store = require('./store');
 const pipeline = require('./pipeline');
+const reminders = require('../comment-reminders');
 
 const KEYWORD_RE = /(^|\s)(#идеи|#ideas|@claude)(?=\s|$|[.,!?:])/i;
 let polling = false;
@@ -104,6 +105,8 @@ async function pollOnce() {
     for (const c of comments.reverse()) {
       if (String(c.creator?.email_address || '').toLowerCase() === config.BASECAMP_SERVICE_EMAIL) continue;
       if (!isTrigger(c.content, sgid)) continue;
+      // „Подсети …“ / „отмени …“ → напомнянията (comment-reminders.js), не идеи.
+      if (sgid && String(c.content || '').includes(sgid) && reminders.commandOf(requestText(c.content))) continue;
       const projectId = c.bucket && c.bucket.id;
       const parent = c.parent || {};
       const text = requestText(c.content);
