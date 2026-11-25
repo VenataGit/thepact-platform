@@ -596,7 +596,7 @@ async function createCampfireLine(token, account, projectId, chatId, content) {
   const r = await bcFetch(`${API_BASE}/${account}/buckets/${projectId}/chats/${chatId}/lines.json`, {
     method: 'POST',
     headers: headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, content_type: 'text/html' }), // без това Pings показват <br> буквално
   });
   if (!r.ok) { const b = await r.text().catch(() => ''); throw new Error(`Basecamp campfire line failed (${r.status}): ${b.slice(0, 200)}`); }
   return r.json();
