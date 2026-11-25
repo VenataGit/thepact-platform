@@ -1006,17 +1006,32 @@ async function dashSaveLayout() {
   } catch { /* non-admins get 403 — ignore */ }
 }
 
+// Н1.5 (25.11.2026): при скрит раздел (друг таб, минимизиран прозорец, заключен екран) таблото
+// НЕ се опреснява — нощем отворените табове в офиса пращаха ~960 заявки на час към Basecamp без
+// никой да гледа. При връщане в раздела — веднага опресняване, ако е минала поне минута.
+let _dashLastRefreshAt = 0;
+function dashRefreshVisible() {
+  const hidden = getDashHiddenBoards(), minimized = getDashMinimized();
+  const visible = (_dashStruct ? _dashStruct.boards : []).filter((b) => !hidden.has(String(b.id)) && !minimized.has(String(b.id)));
+  _dashLastRefreshAt = Date.now();
+  dashLoadBoardsLimited(visible.map((b) => b.id), 1);
+}
 function dashStartAutoRefresh() {
   if (_dashAutoRefreshId) clearInterval(_dashAutoRefreshId);
+  _dashLastRefreshAt = Date.now();
   _dashAutoRefreshId = setInterval(function () {
     const page = (location.hash.split('/')[1] || '').split('?')[0];
     if (page !== 'dashboard') { clearInterval(_dashAutoRefreshId); _dashAutoRefreshId = null; return; }
     if (_dashDragCardId) return; // never refresh mid-drag
-    const hidden = getDashHiddenBoards(), minimized = getDashMinimized();
-    const visible = (_dashStruct ? _dashStruct.boards : []).filter((b) => !hidden.has(String(b.id)) && !minimized.has(String(b.id)));
-    dashLoadBoardsLimited(visible.map((b) => b.id), 1);
+    if (document.hidden) return; // никой не гледа
+    dashRefreshVisible();
   }, 60000);
 }
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden || !_dashAutoRefreshId || _dashDragCardId) return;
+  if ((location.hash.split('/')[1] || '').split('?')[0] !== 'dashboard') return;
+  if (Date.now() - _dashLastRefreshAt >= 60000) dashRefreshVisible();
+});
 
 // Kept for compatibility — kanban.js calls this after a local-board move.
 async function _dashRefresh() {
