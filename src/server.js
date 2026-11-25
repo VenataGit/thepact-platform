@@ -31,7 +31,9 @@ process.on('uncaughtException', (err) => { trackError('uncaughtException', err);
 process.on('unhandledRejection', (reason) => { trackError('unhandledRejection', reason instanceof Error ? reason : new Error(String(reason))); });
 
 // Start
-server.listen(config.PORT, () => {
+// Н7.1 (25.11.2026): само вътре — отвън се влиза единствено през Nginx (HTTPS). Преди слушаше
+// на *:3000 и с хедър X-Forwarded-Proto можеше да се заобиколи. HOST=0.0.0.0 връща старото.
+server.listen(config.PORT, process.env.HOST || '127.0.0.1', () => {
   console.log(`\n  ThePact Platform running at http://localhost:${config.PORT}`);
   console.log(`  Environment: ${config.IS_PRODUCTION ? 'PRODUCTION' : 'development'}`);
   console.log(`  Database: ${config.DATABASE_URL.replace(/:[^:@]+@/, ':***@')}\n`);
