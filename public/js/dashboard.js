@@ -38,7 +38,18 @@ function dashSavePrefs() {
 }
 function getDashHiddenBoards() { return new Set(_dashPrefs ? _dashPrefs.hiddenBoards : []); }
 function saveDashHiddenBoards(set) { if (_dashPrefs) { _dashPrefs.hiddenBoards = [...set]; dashSavePrefs(); } }
-function getDashHiddenCols() { return new Set(_dashPrefs ? _dashPrefs.hiddenCols : []); }
+// Колоните се избират само от админ (Венци, 25.11.2026). Останалите избират само кои
+// отдели (дъски) да виждат — при тях колоните са по подразбиране: без Done и „Not now“.
+function dashIsAdmin() { return typeof currentUser === 'object' && !!currentUser && currentUser.role === 'admin'; }
+function dashIsDefaultHiddenCol(c) { return !!(c.isDone || /not\s*now/i.test(c.title || '') || /\bdone\b|готово/i.test(c.title || '')); }
+function getDashHiddenCols() {
+  if (!dashIsAdmin()) {
+    const s = new Set();
+    ((_dashStruct && _dashStruct.boards) || []).forEach((b) => (b.columns || []).forEach((c) => { if (dashIsDefaultHiddenCol(c)) s.add(String(c.id)); }));
+    return s;
+  }
+  return new Set(_dashPrefs ? _dashPrefs.hiddenCols : []);
+}
 function saveDashHiddenCols(set) { if (_dashPrefs) { _dashPrefs.hiddenCols = [...set]; dashSavePrefs(); } }
 function getDashMinimized() { return new Set(_dashPrefs ? _dashPrefs.minimized : []); }
 function saveDashMinimized(set) { if (_dashPrefs) { _dashPrefs.minimized = [...set]; dashSavePrefs(); } }
@@ -56,7 +67,7 @@ function initDashDefaults(boards) {
   if (!localStorage.getItem('thepact-dash-coldefaults-bc')) {
     const hiddenCols = getDashHiddenCols();
     boards.forEach((b) => (b.columns || []).forEach((c) => {
-      if (c.isDone || /not\s*now/i.test(c.title || '') || /\bdone\b|готово/i.test(c.title || '')) hiddenCols.add(String(c.id));
+      if (dashIsDefaultHiddenCol(c)) hiddenCols.add(String(c.id));
     }));
     saveDashHiddenCols(hiddenCols);
     localStorage.setItem('thepact-dash-coldefaults-bc', '1');
@@ -840,16 +851,17 @@ function showDashSettings() {
   const hiddenBoards = getDashHiddenBoards(), hiddenCols = getDashHiddenCols();
   const btn = document.querySelector('.dash-settings-btn'); if (!btn) return;
   const panel = document.createElement('div'); panel.className = 'dash-settings-panel';
-  const isAdmin = !!(window.currentUser && currentUser.role === 'admin');
-  let html = '<div class="dash-settings-panel__header"><strong>Какво да се вижда</strong><button onclick="this.closest(\'.dash-settings-panel\').remove()">✕</button></div>';
+  const isAdmin = dashIsAdmin();
+  let html = '<div class="dash-settings-panel__header"><strong>' + (isAdmin ? 'Какво да се вижда' : 'Кои отдели да виждам') + '</strong><button onclick="this.closest(\'.dash-settings-panel\').remove()">✕</button></div>';
   if (isAdmin) html += '<div class="dash-set-note">Стрелките ↑↓ подреждат за <b>всички</b> (ти си админ).</div>';
+  else html += '<div class="dash-set-note">Отметнатите отдели се виждат на таблото. Изборът се пази в твоя профил.</div>';
   html += '<div class="dash-settings-panel__body">';
   const sBoards = applyOrder((_dashStruct.boards || []).slice(), _dashLayout.boardOrder);
   sBoards.forEach((board) => {
     const boardHidden = hiddenBoards.has(String(board.id));
     const bArrows = isAdmin ? '<span class="dash-arrows"><button title="Нагоре" onclick="dashMoveBoard(\'' + board.id + '\',-1)">↑</button><button title="Надолу" onclick="dashMoveBoard(\'' + board.id + '\',1)">↓</button></span>' : '';
     html += '<div class="dash-set-row"><label class="dash-settings-board-row"><input type="checkbox" ' + (!boardHidden ? 'checked' : '') + ' onchange="toggleDashBoard(\'' + board.id + '\', this.checked)"><span><b>' + esc(board.title) + '</b></span></label>' + bArrows + '</div>';
-    if (!boardHidden) {
+    if (!boardHidden && isAdmin) {
       const sCols = applyOrder((board.columns || []).slice(), (_dashLayout.colOrder || {})[String(board.id)]);
       sCols.forEach((col) => {
         const cArrows = isAdmin ? '<span class="dash-arrows"><button title="Нагоре" onclick="dashMoveCol(\'' + board.id + '\',\'' + col.id + '\',-1)">↑</button><button title="Надолу" onclick="dashMoveCol(\'' + board.id + '\',\'' + col.id + '\',1)">↓</button></span>' : '';
