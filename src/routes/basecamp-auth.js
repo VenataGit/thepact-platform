@@ -50,6 +50,19 @@ router.get('/basecamp/service', (req, res) => {
   res.redirect(basecamp.buildAuthorizeUrl(state));
 });
 
+// GET /auth/basecamp/devqueue — свързва отделния акаунт на Венци, който движи личния му проект
+// (dev опашка + Ping). Гейтът е в callback-а: акаунтът трябва да има достъп до личния проект
+// и да НЕ е нито Венци, нито ThePactAlerts. Виж services/devqueue-account.js.
+router.get('/basecamp/devqueue', (req, res) => {
+  if (!basecamp.isConfigured()) {
+    return res.status(503).send('Basecamp връзката още не е конфигурирана на сървъра.');
+  }
+  const state = crypto.randomBytes(16).toString('hex');
+  res.cookie(STATE_COOKIE, state, STATE_COOKIE_OPTS);
+  res.cookie(MODE_COOKIE, 'devqueue', STATE_COOKIE_OPTS);
+  res.redirect(basecamp.buildAuthorizeUrl(state));
+});
+
 // GET /auth/basecamp/service/status — is the bot connected, and as whom?
 router.get('/basecamp/service/status', requireAuth, requireAdmin, async (req, res) => {
   const row = await queryOne(
@@ -71,7 +84,7 @@ router.get('/basecamp/callback', async (req, res) => {
     '<p style="color:#8fa3b0">Можеш да затвориш този таб.</p></div>'
   );
   const failMsgs = { denied: 'Отказахте достъпа до Basecamp.', nocode: 'Връзката с Basecamp прекъсна.', state: 'Сесията изтече — опитай пак.', identity: 'Не успяхме да прочетем данните от Basecamp.', noaccount: 'Този профил няма достъп до Basecamp акаунта на The Pact.', error: 'Грешка при свързване с Basecamp.' };
-  const fail = (reason) => (mode === 'service' ? servicePage(false, failMsgs[reason] || 'Грешка.') : res.redirect(`/login.html?bc=${reason}`));
+  const fail = (reason) => (mode === 'service' || mode === 'devqueue' ? servicePage(false, failMsgs[reason] || 'Грешка.') : res.redirect(`/login.html?bc=${reason}`));
   try {
     const { code, state, error } = req.query;
     if (error) return fail('denied');
@@ -105,6 +118,26 @@ router.get('/basecamp/callback', async (req, res) => {
     if (!accountId) { // token has no access to The Pact's Basecamp account
       console.warn(`[basecamp] no access to account ${config.BASECAMP_ACCOUNT_ID} for ${email} (has: ${accounts.map((a) => a.id).join(', ') || 'none'})`);
       return fail('noaccount');
+    }
+
+    // DEVQUEUE MODE: акаунтът на личния проект на Венци (без вход в платформата).
+    if (mode === 'devqueue') {
+      const ownerRow = await queryOne("SELECT value FROM settings WHERE key = 'dev_ping_owner_person'").catch(() => null);
+      const ownerId = parseInt(ownerRow?.value) || 45460211; // Венци
+      const projRow = await queryOne("SELECT value FROM settings WHERE key = 'dev_queue_bc_project'").catch(() => null);
+      const project = parseInt(projRow?.value) || 47742842; // личният проект
+      if (Number(bcUserId) === ownerId || email === config.BASECAMP_SERVICE_EMAIL) {
+        return servicePage(false, `Влязъл си като „${email}". Тук се свързва отделният акаунт за личния проект — влез в Basecamp с него и опитай пак.`);
+      }
+      try {
+        await basecamp.authedGet(`${basecamp.API_BASE}/${accountId}/projects/${project}.json`, tokens.access_token);
+      } catch (e) {
+        console.warn(`[basecamp] devqueue connect rejected — ${email} няма достъп до проект ${project}: ${e.message}`);
+        return servicePage(false, `„${email}" няма достъп до личния проект. Добави го в проекта и опитай пак.`);
+      }
+      await require('../services/devqueue-account').saveDevQueueAccount({ personId: bcUserId, name, email, accountId, tokens });
+      console.log(`[basecamp] devqueue account connected as ${email} (person ${bcUserId})`);
+      return servicePage(true, `${name} е свързан — оттук нататък той движи личния проект. (${email})`);
     }
 
     // SERVICE MODE: store the ThePactAlerts bot token (no user login).

@@ -15,6 +15,7 @@ const config = require('../config');
 const { query, queryOne, execute } = require('../db/pool');
 const bc = require('./basecamp');
 const { getServiceAuth } = require('./basecamp-token');
+const { getDevQueueAuth, getDevQueueOnlyAuth, isBotCreator } = require('./devqueue-account');
 
 const TZ = 'Europe/Sofia';
 let running = false;
@@ -65,7 +66,7 @@ const saveSetting = (key, value) => execute(
 );
 
 function isBot(line) {
-  return String(line.creator?.email_address || '').toLowerCase() === config.BASECAMP_SERVICE_EMAIL;
+  return isBotCreator(line.creator); // ThePactAlerts или акаунтът на личния проект
 }
 
 // Campfire content е rich HTML — за промпта го връщаме като чист текст.
@@ -99,7 +100,7 @@ async function pollOnce() {
 async function pollCampfire(cfg) {
   {
 
-    const auth = await getServiceAuth();
+    const auth = await getDevQueueAuth();
     const lines = await bc.getCampfireLines(auth.token, auth.account, cfg.project, cfg.chat, 2);
     if (!Array.isArray(lines) || !lines.length) return;
 
@@ -140,17 +141,28 @@ async function pollCampfire(cfg) {
 // това, се чете от началото — иначе първото съобщение в нов Ping би се загубило.
 const BOT_REPLY = 'Здравей! Аз съм бот (ThePactAlerts) и не отговарям на лични съобщения. За въпроси пиши директно на Венци 🙂';
 const BOT_REPLY_EVERY_MS = 6 * 3600 * 1000; // „аз съм бот“ най-много веднъж на 6 ч. в Ping
+const MOVED_REPLY = 'Задачите и разговорите с Claude вече минават през отделния ти акаунт (venata) — пиши му на Ping там. Тук остават само напомнянията („подсети ме…“).';
 
+// От 25.11.2026 Pings се гледат от ДВА акаунта:
+//  • акаунтът на личния проект (venata) — Ping САМО с Венци → Claude; всички други се игнорират тихо;
+//  • ThePactAlerts — напомнянията („подсети ме…“) за всички + „аз съм бот“. Ако venata е свързан,
+//    Венци вече не стига до Claude оттук (получава кратко пренасочване, ≤1/6ч).
+// Докато venata не е свързан — всичко е както преди (само ThePactAlerts).
 async function pollPings() {
-  const rows = await query("SELECT key, value FROM settings WHERE key IN ('dev_ping_enabled','dev_ping_owner_person','dev_ping_state')");
+  const rows = await query("SELECT key, value FROM settings WHERE key IN ('dev_ping_enabled','dev_ping_owner_person','dev_ping_state','dev_ping_state_devqueue')");
   const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   if (s.dev_ping_enabled === 'false') return;
   const ownerId = parseInt(s.dev_ping_owner_person) || 45460211; // Венци (имейлите идват маскирани)
-  const baseline = !s.dev_ping_state;
-  let state = {};
-  try { state = JSON.parse(s.dev_ping_state || '{}') || {}; } catch { state = {}; }
+  const own = await getDevQueueOnlyAuth().catch((e) => { console.error('[dev-chat] devqueue акаунт:', e.message); return null; });
+  if (own) await pollPingsAs(own, { ownerId, stateKey: 'dev_ping_state_devqueue', stateRaw: s.dev_ping_state_devqueue, projectAccount: true });
+  await pollPingsAs(await getServiceAuth(), { ownerId, stateKey: 'dev_ping_state', stateRaw: s.dev_ping_state, projectAccount: false, moved: !!own });
+}
 
-  const auth = await getServiceAuth();
+async function pollPingsAs(auth, { ownerId, stateKey, stateRaw, projectAccount, moved }) {
+  const baseline = !stateRaw;
+  let state = {};
+  try { state = JSON.parse(stateRaw || '{}') || {}; } catch { state = {}; }
+
   const circles = await bc.getPings(auth.token, auth.account);
   let changed = baseline;
   let queued = false;
@@ -166,7 +178,7 @@ async function pollPings() {
       let fresh = (lines || []).filter((l) => Number(l.id) > (st.last || 0) && !isBot(l))
         .sort((a, b) => Number(a.id) - Number(b.id));
       // „Подсети ме … в 15:00“ / „отмени 12“ в личен Ping → напомнянията (comment-reminders.js).
-      if ((c.people || []).length === 1) {
+      if (!projectAccount && (c.people || []).length === 1) {
         const handled = new Set();
         for (const l of fresh) {
           const ok = await require('./comment-reminders').handlePingLine(auth, l, bucket, chat)
@@ -177,20 +189,26 @@ async function pollPings() {
       }
       // Личен Ping само с Венци (people = останалите участници без бота).
       const direct = (c.people || []).length === 1 && Number(c.people[0].id) === ownerId;
-      if (direct) {
+      if (direct && !projectAccount && moved) {
+        if (fresh.some((l) => Number(l.creator?.id) === ownerId)
+            && (!st.botAt || Date.now() - st.botAt > BOT_REPLY_EVERY_MS)) {
+          await bc.createCampfireLine(auth.token, auth.account, bucket, chat, MOVED_REPLY);
+          st.botAt = Date.now();
+        }
+      } else if (direct) {
         for (const l of fresh) {
           if (Number(l.creator?.id) !== ownerId) continue;
           const text = toPlain(l.content);
           if (!text) continue;
           await execute(
-            `INSERT INTO dev_chat (bc_line_id, message, reply_bucket, reply_chat) VALUES ($1, $2, $3, $4)
+            `INSERT INTO dev_chat (bc_line_id, message, reply_bucket, reply_chat, reply_as) VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (bc_line_id) DO NOTHING`,
-            [l.id, text.slice(0, 8000), bucket, chat]
+            [l.id, text.slice(0, 8000), bucket, chat, projectAccount ? 'devqueue' : null]
           );
           console.log(`[dev-chat] нов въпрос от Ping (ред ${l.id})`);
           queued = true;
         }
-      } else if ((c.people || []).length === 1 // само в лични Pings; в групови (напр. „The Pact All“) мълчи
+      } else if (!projectAccount && (c.people || []).length === 1 // само в лични Pings; в групови (напр. „The Pact All“) мълчи
                  && fresh.some((l) => Number(l.creator?.id) !== ownerId)
                  && (!st.botAt || Date.now() - st.botAt > BOT_REPLY_EVERY_MS)) {
         await bc.createCampfireLine(auth.token, auth.account, bucket, chat, BOT_REPLY);
@@ -201,9 +219,9 @@ async function pollPings() {
     state[c.id] = { ...st, last: maxId, upd: c.updated_at };
     changed = true;
   }
-  if (changed) await saveSetting('dev_ping_state', JSON.stringify(state));
+  if (changed) await saveSetting(stateKey, JSON.stringify(state));
   if (queued) require('./dev-queue').notifyWork(); // watcher-ът тръгва за секунди
-  if (baseline) console.log(`[dev-chat] pings baseline: ${circles.length} Ping(а), стари съобщения се пропускат`);
+  if (baseline) console.log(`[dev-chat] pings baseline (${stateKey}): ${circles.length} Ping(а), стари съобщения се пропускат`);
 }
 
 // Атомарно взимане на следващото чакащо съобщение (watcher-ът го заключва като running).

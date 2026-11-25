@@ -76,7 +76,8 @@ async function notify(lines) {
   // Имейлите в bc_people идват маскирани от Basecamp → търсим по person ID (Венци = 45460211).
   const personId = parseInt(await getSetting('pc_watch_bc_person')) || 45460211;
   const person = await queryOne('SELECT name, attachable_sgid FROM bc_people WHERE person_id = $1 LIMIT 1', [personId]);
-  const auth = await getServiceAuth();
+  // Чатът е в личния проект → пише акаунтът на проекта (venata), а ако не е свързан — ThePactAlerts.
+  const auth = await require('./devqueue-account').getDevQueueAuth();
   await bc.createCampfireLine(auth.token, auth.account, project, chat, `${mentionOf(person, 'Венци')} ${lines.join('<br>')}`);
 }
 

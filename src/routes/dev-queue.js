@@ -11,7 +11,8 @@ const config = require('../config');
 const { keyMatches } = require('../middleware/machine-key');
 const { query, queryOne, execute } = require('../db/pool');
 const bc = require('../services/basecamp');
-const { getServiceAuth, getUserAuth } = require('../services/basecamp-token');
+const { getUserAuth } = require('../services/basecamp-token');
+const { getDevQueueAuth } = require('../services/devqueue-account');
 const dq = require('../services/dev-queue');
 
 router.use((req, res, next) => {
@@ -64,7 +65,7 @@ router.post('/:id(\\d+)/comment', async (req, res) => {
     if (!task) return;
     const html = String(req.body?.html || '').trim();
     if (!html) return res.status(400).json({ error: 'html required' });
-    const auth = await getServiceAuth();
+    const auth = await getDevQueueAuth();
     const c = await bc.createComment(auth.token, auth.account, task.bc_project_id, task.bc_todo_id, html);
     const question = !!req.body?.question;
     const updated = await queryOne(
@@ -104,7 +105,7 @@ router.post('/:id(\\d+)/complete', async (req, res) => {
     let commentError = null;
     if (html) {
       try {
-        const auth = await getServiceAuth();
+        const auth = await getDevQueueAuth();
         const c = await bc.createComment(auth.token, auth.account, task.bc_project_id, task.bc_todo_id, html);
         await execute('UPDATE dev_tasks SET last_comment_id = $1 WHERE id = $2', [c.id, task.id]);
       } catch (e) {
@@ -156,7 +157,7 @@ router.get('/fetch-attachment', async (req, res) => {
     const errors = [];
     let got = null;
     try {
-      const auth = await getServiceAuth();
+      const auth = await getDevQueueAuth();
       got = await bc.downloadFile(auth.token, u.toString());
     } catch (e) { errors.push('service: ' + e.message); }
     if (!got) {

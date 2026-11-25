@@ -16,7 +16,7 @@ const cron = require('node-cron');
 const config = require('../config');
 const { query, queryOne, execute } = require('../db/pool');
 const bc = require('./basecamp');
-const { getServiceAuth } = require('./basecamp-token');
+const { getDevQueueAuth, isBotCreator } = require('./devqueue-account');
 
 const EventEmitter = require('events');
 
@@ -106,7 +106,7 @@ async function waitForWork(ms) {
 }
 
 function isBot(comment) {
-  return String(comment.creator?.email_address || '').toLowerCase() === config.BASECAMP_SERVICE_EMAIL;
+  return isBotCreator(comment.creator); // ThePactAlerts или акаунтът на личния проект
 }
 
 // Всички отворени задачи от панела: всеки лист + групите вътре в него.
@@ -172,7 +172,7 @@ async function pollOnce() {
           "UPDATE dev_tasks SET status = 'error', result = 'прекъсната (watcher не върна резултат)', updated_at = NOW() WHERE id = $1",
           [task.id]);
         try {
-          const auth = await getServiceAuth();
+          const auth = await getDevQueueAuth();
           await bc.createComment(auth.token, auth.account, task.bc_project_id, task.bc_todo_id,
             '<p>⚠️ Работата по задачата прекъсна два пъти, без да стигне до резултат. Ще я погледна ръчно.</p>');
         } catch (e) { console.error('[dev-queue] stale comment:', e.message); }
@@ -190,7 +190,7 @@ async function pollOnce() {
       if (ignored.length) console.log(`[dev-queue] ${ignored.length} записки извън опашката`);
     }
 
-    const auth = await getServiceAuth();
+    const auth = await getDevQueueAuth();
 
     // 2) Нови/променени отворени задачи → pending (заглавие и notes се опресняват,
     //    докато задачата още чака — взима се актуалният текст при стартиране).
@@ -285,7 +285,7 @@ async function claimNext() {
   if (!task) return null;
   if (!task.reply_html && task.attempts === 1) {
     try {
-      const auth = await getServiceAuth();
+      const auth = await getDevQueueAuth();
       const c = await bc.createComment(auth.token, auth.account, task.bc_project_id, task.bc_todo_id,
         '<p>🤖 Започвам работа по задачата.</p>');
       await execute('UPDATE dev_tasks SET last_comment_id = $1 WHERE id = $2', [c.id, task.id]);
@@ -298,7 +298,7 @@ async function claimNext() {
     // last_comment_id НЕ се мести: коментар от Венци, дошъл междувременно, не бива да се прескочи
     // (редовете на бота и без това се филтрират в диалога).
     try {
-      const auth = await getServiceAuth();
+      const auth = await getDevQueueAuth();
       await bc.createComment(auth.token, auth.account, task.bc_project_id, task.bc_todo_id,
         '<p>🤖 Видях коментара — започвам.</p>');
     } catch (e) {

@@ -46,7 +46,7 @@ test('ново от Венци → опашката с адреса на Ping-а
   await dc.pollPings();
   const ins = mockExec.filter((e) => /INSERT INTO dev_chat/.test(e.sql));
   expect(ins).toHaveLength(1);
-  expect(ins[0].params).toEqual([8, 'Здрасти', 10, 100]);
+  expect(ins[0].params).toEqual([8, 'Здрасти', 10, 100, null]);
   expect(dq.notifyWork).toHaveBeenCalledTimes(1); // watcher-ът се буди веднага
   expect(bc.createCampfireLine).toHaveBeenCalledTimes(1);
   expect(bc.createCampfireLine.mock.calls[0].slice(2, 4)).toEqual([20, 200]);

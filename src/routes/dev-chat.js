@@ -12,6 +12,7 @@ const { keyMatches } = require('../middleware/machine-key');
 const { queryOne } = require('../db/pool');
 const bc = require('../services/basecamp');
 const { getServiceAuth } = require('../services/basecamp-token');
+const { getDevQueueAuth } = require('../services/devqueue-account');
 const dc = require('../services/dev-chat');
 
 router.use((req, res, next) => {
@@ -69,7 +70,9 @@ router.post('/:id(\\d+)/complete', async (req, res) => {
         // Съобщение от Ping → отговорът е в същия Ping; иначе — Campfire чатът.
         const project = Number(msg.reply_bucket) || parseInt(map.dev_chat_bc_project) || 47742842;
         const chat = Number(msg.reply_chat) || parseInt(map.dev_chat_bc_chat) || 10005689776;
-        const auth = await getServiceAuth();
+        // Ping към акаунта на личния проект → отговаря той; Campfire чатът на личния проект — също;
+        // стар Ping към ThePactAlerts → ThePactAlerts.
+        const auth = (msg.reply_as === 'devqueue' || !msg.reply_bucket) ? await getDevQueueAuth() : await getServiceAuth();
         await bc.createCampfireLine(auth.token, auth.account, project, chat, toCampfire(text));
       } catch (e) {
         postError = e.message;
