@@ -140,6 +140,14 @@ async function pollCampfire(cfg) {
 // Първият полл изобщо е baseline (стари Pings се пропускат); Ping, появил се ПОСЛЕ
 // това, се чете от началото — иначе първото съобщение в нов Ping би се загубило.
 const BOT_REPLY = 'Здравей! Аз съм бот (ThePactAlerts) и не отговарям на лични съобщения. За въпроси пиши директно на Венци 🙂';
+// Последният ред на бота преди новите е истинско съобщение (не автоматичният „аз съм бот“)
+// → човекът отговаря на бота и „аз съм бот“ не се праща (Венци, 27.11.2026, „PING тест“).
+function botStartedTalk(lines, fresh) {
+  const firstFresh = Math.min(...fresh.map((l) => Number(l.id)));
+  const prevBot = (lines || []).filter((l) => isBot(l) && Number(l.id) < firstFresh)
+    .sort((a, b) => Number(b.id) - Number(a.id))[0];
+  return !!prevBot && !toPlain(prevBot.content).includes('Аз съм бот (ThePactAlerts)');
+}
 const BOT_REPLY_EVERY_MS = 6 * 3600 * 1000; // „аз съм бот“ най-много веднъж на 6 ч. в Ping
 const MOVED_REPLY = 'Задачите и разговорите с Claude вече минават през отделния ти акаунт (venata) — пиши му на Ping там. Тук остават само напомнянията („подсети ме…“).';
 
@@ -210,6 +218,7 @@ async function pollPingsAs(auth, { ownerId, stateKey, stateRaw, projectAccount, 
         }
       } else if (!projectAccount && (c.people || []).length === 1 // само в лични Pings; в групови (напр. „The Pact All“) мълчи
                  && fresh.some((l) => Number(l.creator?.id) !== ownerId)
+                 && !botStartedTalk(lines, fresh) // човекът отговаря на нещо, което ботът е написал → без „аз съм бот“
                  && (!st.botAt || Date.now() - st.botAt > BOT_REPLY_EVERY_MS)) {
         await bc.createCampfireLine(auth.token, auth.account, bucket, chat, BOT_REPLY);
         st.botAt = Date.now();

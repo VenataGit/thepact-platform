@@ -58,3 +58,21 @@ test('ново от Венци → опашката с адреса на Ping-а
   await dc.pollPings();
   expect(bc.createCampfireLine).toHaveBeenCalledTimes(1);
 });
+
+test('колега отговаря на съобщение от бота → без „аз съм бот“; след автоматичния — пак се праща', async () => {
+  mockSettings.dev_ping_state = JSON.stringify({ 10: { last: 5, upd: 'u2' }, 20: { last: 30, upd: 'u1' } });
+  mockLines[20] = [
+    { id: 32, content: 'гиф', creator: { id: 777 } },
+    { id: 31, content: '<p>Виждам всичко</p>', creator: { id: 1, email_address: 'bot@x' } },
+  ];
+  await dc.pollPings();
+  expect(bc.createCampfireLine).not.toHaveBeenCalled();
+
+  mockSettings.dev_ping_state = JSON.stringify({ 10: { last: 5, upd: 'u2' }, 20: { last: 40, upd: 'u1' } });
+  mockLines[20] = [
+    { id: 42, content: 'ало', creator: { id: 777 } },
+    { id: 41, content: '<p>Здравей! Аз съм бот (ThePactAlerts) и не отговарям…</p>', creator: { id: 1, email_address: 'bot@x' } },
+  ];
+  await dc.pollPings();
+  expect(bc.createCampfireLine).toHaveBeenCalledTimes(1);
+});
